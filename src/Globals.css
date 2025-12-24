@@ -4,10 +4,18 @@
     --primary-color: #3b82f6;
     --secondary-color: #2ecc71;
 
+    /* --text-color-light: #f1f5f0 */
+    --background-color-light: #94a3b8;
     --background-color-normal: #334155;
     --background-color-dark: #1d283a;
     --background-color-darker: #0f172a;
     --background-image-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+
+    --color-main: #000;
+    --color-side: #fff;
+
+    --color-good: #3b82f6;
+    --color-bad: #ef4444;
 
     --border: 1px solid #334155;
 

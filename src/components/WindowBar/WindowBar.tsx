@@ -1,22 +1,21 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import Button from "./Button";
+import { Button, ButtonContent } from "./Button";
 import { useState, useEffect } from "preact/hooks";
 
-function ButtonContent({ icon }: { icon: string }) {
-    const style = `w-full h-[80%] flex items-center justify-center bg-amber-100 mask-contain mask-center mask-no-repeat`;
-
-    return <div className={style} style={{ maskImage: `url(${icon})` }}></div>;
-}
+const MINIMIZE_ICON = "./assets/WindowBar/minimize.svg";
+const MAXIMIZE_ICON = "./assets/WindowBar/maximize.svg";
+const UNMAXIMIZE_ICON = "./assets/WindowBar/unmaximize.svg";
+const CLOSE_ICON = "./assets/WindowBar/close.svg";
 
 export default function WindowBar() {
-    const [maximizeIcon, setMaximizeIcon] = useState<string>("./assets/WindowBar/maximize.svg");
+    const [maximizeIcon, setMaximizeIcon] = useState<string>(MAXIMIZE_ICON);
 
     const updateMaximizeIcon = async () => {
         const isMaximized = await getCurrentWindow().isMaximized();
         if (isMaximized) {
-            setMaximizeIcon("./assets/WindowBar/unmaximize.svg");
+            setMaximizeIcon(UNMAXIMIZE_ICON);
         } else {
-            setMaximizeIcon("./assets/WindowBar/maximize.svg");
+            setMaximizeIcon(MAXIMIZE_ICON);
         }
     };
 
@@ -50,16 +49,16 @@ export default function WindowBar() {
     }, []);
 
     return (
-        <div className="w-full h-7 bg-darker flex" data-tauri-drag-region>
-            <div className="h-full flex w-max ml-auto">
-                <Button title="Minimizar" onClick={handleMinimize}>
-                    <ButtonContent icon={"/assets/WindowBar/minimize.svg"} />
+        <div className="w-full h-8 bg-darker flex items-center [border-bottom:var(--border)]" data-tauri-drag-region>
+            <div className="h-full flex w-max ml-auto items-center gap-1 p-1">
+                <Button title="Minimizar" onClick={handleMinimize} hoverColor="var(--background-color-dark)">
+                    <ButtonContent icon={MINIMIZE_ICON} color="var(--background-color-light)" hoverColor="var(--color-side)" />
                 </Button>
-                <Button title="Maximizar" onClick={handleMaximize}>
-                    <ButtonContent icon={maximizeIcon} />
+                <Button title="Maximizar" onClick={handleMaximize} hoverColor="var(--background-color-dark)">
+                    <ButtonContent icon={maximizeIcon} color="var(--background-color-light)" hoverColor="var(--color-side)" />
                 </Button>
-                <Button title="Fechar" onClick={handleClose}>
-                    <ButtonContent icon={"/assets/WindowBar/close.svg"} />
+                <Button title="Fechar" onClick={handleClose} hoverColor="var(--color-bad)">
+                    <ButtonContent icon={CLOSE_ICON} color="var(--background-color-light)" hoverColor="var(--color-side)" />
                 </Button>
             </div>
         </div>
