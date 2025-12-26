@@ -1,6 +1,6 @@
 import { render } from "preact";
-import App from "./App";
 import "./globals.css";
+import App from "./App";
 import WindowBar from "./components/WindowBar/WindowBar";
 
 render(

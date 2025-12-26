@@ -19,7 +19,7 @@
 
     --border: 1px solid #334155;
 
-    --ff: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    --font-family-segoe: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 
     /* bg-colors */
     --primary: oklch(0.9 0.17 100);
@@ -48,6 +48,8 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
+    font-family: var(--font-family-segoe);
+    color: var(--color-side);
 }
 
 @layer utilities {
