@@ -1,15 +1,16 @@
 import { DropDown, DropOption } from "../../core/components/DropDown";
-import Tag from "../../core/components/ResolutionTag";
+import Tag from "../../core/components/Tag";
 import { RESOLUTION_LIST, FRAMERATE_LIST } from "../../core/utils/constants";
 import { useState, useEffect, useContext } from "preact/hooks";
 import Button from "./Button";
-import Stream from "../../core/utils/stream";
+import Stream from "../../core/utils/Stream";
 import { MediaStreamContext } from "../../context/MediaStreamContext";
 
 const stream = new Stream();
 
 export default function ToolbarContent() {
-    const [deviceList, setDeviceList] = useState<MediaDeviceInfo[]>([]);
+    const [videoDevicesList, setVideoDevicesList] = useState<MediaDeviceInfo[]>([]);
+    const [audioDevicesList, setaudioDevicesList] = useState<MediaDeviceInfo[]>([]);
 
     const ctx = useContext(MediaStreamContext);
     if (!ctx) return null;
@@ -25,8 +26,10 @@ export default function ToolbarContent() {
 
     useEffect(() => {
         const loadDevices = async () => {
-            const devices = await stream.getDevices();
-            setDeviceList(devices);
+            const videoDevicesList = await stream.getVideoDevices();
+            const audioDevices = await stream.getAudioDevices();
+            setVideoDevicesList(videoDevicesList);
+            setaudioDevicesList(audioDevices);
         };
 
         loadDevices();
@@ -34,19 +37,33 @@ export default function ToolbarContent() {
 
     useEffect(() => {
         stream.getPermission();
-        console.log(deviceList);
-    }, [deviceList]);
+    }, []);
 
     return (
         <>
-            {deviceList.length > 0 && (
+            {videoDevicesList.length > 0 && (
                 <DropDown
-                    title="Device"
+                    title="Video Device"
                     onChoose={async (value) => {
-                        stream.updateMediaStream({ deviceId: value });
+                        stream.updateMediaStream({ videoDeviceId: value });
                         handleChoose();
                     }}>
-                    {deviceList.map(({ deviceId, label }) => (
+                    {videoDevicesList.map(({ deviceId, label }) => (
+                        <DropOption key={deviceId} value={deviceId} className="flex gap-3">
+                            {label}
+                        </DropOption>
+                    ))}
+                </DropDown>
+            )}
+
+            {audioDevicesList.length > 0 && (
+                <DropDown
+                    title="Audio Device"
+                    onChoose={async (value) => {
+                        stream.updateMediaStream({ audioDeviceId: value });
+                        handleChoose();
+                    }}>
+                    {audioDevicesList.map(({ deviceId, label }) => (
                         <DropOption key={deviceId} value={deviceId} className="flex gap-3">
                             {label}
                         </DropOption>
