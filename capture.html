@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Visualizador de Captura RAW</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            }
+
+            body {
+                background-color: #0f172a;
+                color: #f1f5f9;
+                height: 100vh;
+                overflow: hidden;
+            }
+
+            /* Tela de permissões */
+            #permissionScreen {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            }
+
+            .permission-content {
+                background-color: rgba(30, 41, 59, 0.9);
+                padding: 3rem;
+                border-radius: 16px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+                text-align: center;
+                max-width: 500px;
+                width: 90%;
+                border: 1px solid #334155;
+            }
+
+            .permission-icon {
+                font-size: 4rem;
+                margin-bottom: 1.5rem;
+                color: #3b82f6;
+            }
+
+            h1 {
+                font-size: 2rem;
+                margin-bottom: 1rem;
+                color: #e2e8f0;
+            }
+
+            .permission-text {
+                margin-bottom: 2rem;
+                line-height: 1.6;
+                color: #cbd5e1;
+            }
+
+            #grantPermissionBtn {
+                background-color: #3b82f6;
+                color: white;
+                border: none;
+                padding: 1rem 2rem;
+                font-size: 1.1rem;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+            }
+
+            #grantPermissionBtn:hover {
+                background-color: #2563eb;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4);
+            }
+
+            /* Interface principal */
+            #mainInterface {
+                display: none;
+                width: 100%;
+                height: 100%;
+                flex-direction: column;
+            }
+
+            /* Menu de controle - Escondido por padrão */
+            #controlPanel {
+                position: fixed;
+                top: -80px;
+                left: 0;
+                width: 100%;
+                background-color: rgba(15, 23, 42, 0.97);
+                padding: 1rem;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 1rem;
+                align-items: center;
+                border-bottom: 1px solid #334155;
+                z-index: 100;
+                backdrop-filter: blur(10px);
+                transition: top 0.3s ease;
+                justify-content: center;
+            }
+
+            #controlPanel.visible {
+                top: 0;
+            }
+
+            /* Área que ativa o menu quando o mouse passa por cima */
+            #menuTriggerArea {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 60px;
+                z-index: 99;
+            }
+
+            .control-group {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            .control-label {
+                font-weight: 600;
+                color: #94a3b8;
+                font-size: 0.9rem;
+                white-space: nowrap;
+            }
+
+            select {
+                background-color: #1e293b;
+                color: #f1f5f9;
+                border: 1px solid #475569;
+                border-radius: 6px;
+                padding: 0.5rem 1rem;
+                font-size: 0.95rem;
+                min-width: 200px;
+                cursor: pointer;
+            }
+
+            select:hover {
+                border-color: #64748b;
+            }
+
+            select:focus {
+                outline: none;
+                border-color: #3b82f6;
+                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+            }
+
+            .control-button {
+                background-color: #475569;
+                color: white;
+                border: none;
+                padding: 0.6rem 1.2rem;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                transition: all 0.2s ease;
+                white-space: nowrap;
+            }
+
+            .control-button:hover {
+                background-color: #64748b;
+            }
+
+            #muteBtn.muted {
+                background-color: #ef4444;
+            }
+
+            #muteBtn.muted:hover {
+                background-color: #dc2626;
+            }
+
+            #fullscreenBtn.active {
+                background-color: #3b82f6;
+            }
+
+            #fullscreenBtn.active:hover {
+                background-color: #2563eb;
+            }
+
+            /* Área de vídeo */
+            #videoContainer {
+                flex-grow: 1;
+                position: relative;
+                background-color: #020617;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            #videoElement {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+                display: block;
+            }
+
+            /* Status e informações - inicialmente ocultos */
+            #statusInfo,
+            #resolutionInfo {
+                position: absolute;
+                background-color: rgba(0, 0, 0, 0.8);
+                padding: 0.5rem 1rem;
+                border-radius: 6px;
+                font-size: 0.9rem;
+                color: #e2e8f0;
+                z-index: 10;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+
+            #statusInfo.visible,
+            #resolutionInfo.visible {
+                opacity: 1;
+            }
+
+            #statusInfo {
+                bottom: 1rem;
+                left: 1rem;
+            }
+
+            #resolutionInfo {
+                bottom: 1rem;
+                right: 1rem;
+            }
+
+            /* Indicador de qualidade */
+            .quality-indicator {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.3rem;
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                background-color: rgba(59, 130, 246, 0.2);
+                color: #93c5fd;
+                margin-left: 0.5rem;
+            }
+
+            /* Indicador de modo fullscreen */
+            .fullscreen-indicator {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background-color: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 1rem 2rem;
+                border-radius: 8px;
+                font-size: 1.2rem;
+                font-weight: bold;
+                z-index: 20;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .fullscreen-indicator.show {
+                opacity: 1;
+            }
+
+            /* Modo de erro */
+            .error-message {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background-color: rgba(239, 68, 68, 0.9);
+                color: white;
+                padding: 2rem;
+                border-radius: 12px;
+                text-align: center;
+                max-width: 400px;
+                width: 90%;
+            }
+
+            /* Responsividade */
+            @media (max-width: 900px) {
+                .control-group {
+                    flex: 1 1 45%;
+                }
+
+                #controlPanel {
+                    padding: 0.8rem;
+                    gap: 0.8rem;
+                }
+            }
+
+            @media (max-width: 768px) {
+                .control-group {
+                    flex: 1 1 100%;
+                }
+
+                .permission-content {
+                    padding: 2rem;
+                    width: 95%;
+                }
+
+                h1 {
+                    font-size: 1.7rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Tela de permissões -->
+        <div id="permissionScreen">
+            <div class="permission-content">
+                <div class="permission-icon">🎥</div>
+                <h1>Acesso aos Dispositivos de Captura</h1>
+                <p class="permission-text">
+                    Para visualizar os dispositivos de captura do seu computador, precisamos da sua permissão para acessar a câmera e o microfone.
+                    <br /><br />
+                    <strong>Importante:</strong> Para o funcionamento correto, execute esta página em um servidor local (localhost).
+                </p>
+                <button id="grantPermissionBtn">Conceder Permissões</button>
+            </div>
+        </div>
+
+        <!-- Interface principal -->
+        <div id="mainInterface">
+            <!-- Área que ativa o menu quando o mouse passa por cima -->
+            <div id="menuTriggerArea"></div>
+
+            <!-- Painel de controle -->
+            <div id="controlPanel">
+                <div class="control-group">
+                    <span class="control-label">Fonte:</span>
+                    <select id="videoSelect">
+                        <option value="">Carregando dispositivos...</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Resolução:</span>
+                    <select id="resolutionSelect">
+                        <option value="auto">Auto (Recomendado)</option>
+                        <option value="raw">RAW (Máxima qualidade)</option>
+                        <option value="4k">4K (3840x2160)</option>
+                        <option value="1440p">1440p (2560x1440)</option>
+                        <option value="1080p">1080p (Full HD)</option>
+                        <option value="720p">720p (HD)</option>
+                        <option value="480p">480p (SD)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">FPS:</span>
+                    <select id="fpsSelect">
+                        <option value="auto">Auto</option>
+                        <option value="240">240 FPS</option>
+                        <option value="144">144 FPS</option>
+                        <option value="120">120 FPS</option>
+                        <option value="90">90 FPS</option>
+                        <option value="60">60 FPS</option>
+                        <option value="30">30 FPS</option>
+                        <option value="24">24 FPS</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <button id="muteBtn" class="control-button">
+                        <span>🔇</span>
+                        <span>Mudo</span>
+                    </button>
+
+                    <button id="fullscreenBtn" class="control-button">
+                        <span>⬜</span>
+                        <span>Tela Cheia</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Container de vídeo -->
+            <div id="videoContainer">
+                <video id="videoElement" autoplay playsinline></video>
+
+                <!-- Indicador de modo fullscreen -->
+                <div class="fullscreen-indicator" id="fullscreenIndicator">Modo Tela Cheia</div>
+
+                <!-- Informações de status -->
+                <div id="statusInfo">Status: <span id="statusText">Aguardando permissões...</span></div>
+
+                <!-- Informações de resolução -->
+                <div id="resolutionInfo">Resolução: <span id="currentResolution">-</span> | FPS: <span id="currentFPS">-</span></div>
+            </div>
+        </div>
+
+        <script>
+            // Elementos da DOM
+            const permissionScreen = document.getElementById("permissionScreen");
+            const mainInterface = document.getElementById("mainInterface");
+            const grantPermissionBtn = document.getElementById("grantPermissionBtn");
+            const videoSelect = document.getElementById("videoSelect");
+            const resolutionSelect = document.getElementById("resolutionSelect");
+            const fpsSelect = document.getElementById("fpsSelect");
+            const muteBtn = document.getElementById("muteBtn");
+            const fullscreenBtn = document.getElementById("fullscreenBtn");
+            const videoElement = document.getElementById("videoElement");
+            const videoContainer = document.getElementById("videoContainer");
+            const menuTriggerArea = document.getElementById("menuTriggerArea");
+            const controlPanel = document.getElementById("controlPanel");
+            const statusInfo = document.getElementById("statusInfo");
+            const resolutionInfo = document.getElementById("resolutionInfo");
+            const statusText = document.getElementById("statusText");
+            const currentResolution = document.getElementById("currentResolution");
+            const currentFPS = document.getElementById("currentFPS");
+            const fullscreenIndicator = document.getElementById("fullscreenIndicator");
+
+            // Estado da aplicação
+            let mediaStream = null;
+            let isMuted = false;
+            let isFullscreen = false;
+            let devices = [];
+
+            // Mostrar/ocultar menu ao passar o mouse
+            let menuTimeout;
+
+            const showMenu = () => {
+                clearTimeout(menuTimeout);
+                controlPanel.classList.add("visible");
+                statusInfo.classList.add("visible");
+                resolutionInfo.classList.add("visible");
+            };
+
+            const hideMenu = () => {
+                menuTimeout = setTimeout(() => {
+                    controlPanel.classList.remove("visible");
+                    statusInfo.classList.remove("visible");
+                    resolutionInfo.classList.remove("visible");
+                }, 1000);
+            };
+
+            menuTriggerArea.addEventListener("mouseenter", showMenu);
+            controlPanel.addEventListener("mouseenter", showMenu);
+            menuTriggerArea.addEventListener("mouseleave", hideMenu);
+            controlPanel.addEventListener("mouseleave", hideMenu);
+
+            // Solicitar permissões e iniciar
+            grantPermissionBtn.addEventListener("click", async () => {
+                try {
+                    statusText.textContent = "Solicitando permissões...";
+
+                    // Primeiro, obter permissões para acessar dispositivos
+                    const initialStream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: true,
+                    });
+
+                    // Parar o stream inicial - vamos criar um novo com configurações específicas
+                    initialStream.getTracks().forEach((track) => track.stop());
+
+                    // Agora que temos permissão, listar dispositivos
+                    await listDevices();
+
+                    // Iniciar com o primeiro dispositivo, se disponível
+                    if (videoSelect.options.length > 0) {
+                        await startCapture();
+                    } else {
+                        throw new Error("Nenhum dispositivo de captura encontrado");
+                    }
+                } catch (error) {
+                    console.error("Erro ao acessar dispositivos:", error);
+                    statusText.textContent = "Erro: " + error.message;
+
+                    // Mostrar mensagem de erro
+                    showError(
+                        "Não foi possível acessar os dispositivos de captura. Certifique-se de que:<br><br>" +
+                            "1. Você concedeu as permissões necessárias<br>" +
+                            "2. Está executando a página em um servidor local (localhost)<br>" +
+                            "3. Seus dispositivos de captura estão conectados e funcionando"
+                    );
+                }
+            });
+
+            // Mostrar mensagem de erro
+            function showError(message) {
+                const errorDiv = document.createElement("div");
+                errorDiv.className = "error-message";
+                errorDiv.innerHTML = `<h3>Erro</h3><p>${message}</p>`;
+                videoContainer.appendChild(errorDiv);
+            }
+
+            // Listar dispositivos de captura
+            async function listDevices() {
+                try {
+                    // Obter lista de dispositivos
+                    const deviceList = await navigator.mediaDevices.enumerateDevices();
+
+                    // Filtrar apenas dispositivos de vídeo
+                    const videoDevices = deviceList.filter((device) => device.kind === "videoinput");
+
+                    // Limpar e preencher dropdown
+                    videoSelect.innerHTML = "";
+
+                    if (videoDevices.length === 0) {
+                        videoSelect.innerHTML = '<option value="">Nenhum dispositivo de vídeo encontrado</option>';
+                        return;
+                    }
+
+                    videoDevices.forEach((device, index) => {
+                        const option = document.createElement("option");
+                        option.value = device.deviceId;
+
+                        // Criar um nome mais amigável para o dispositivo
+                        let deviceName = device.label || `Dispositivo ${index + 1}`;
+
+                        // Limitar o tamanho do nome para não quebrar o layout
+                        if (deviceName.length > 40) {
+                            deviceName = deviceName.substring(0, 37) + "...";
+                        }
+
+                        option.textContent = deviceName;
+                        option.title = device.label || deviceName; // Tooltip com nome completo
+                        videoSelect.appendChild(option);
+                    });
+
+                    // Selecionar o primeiro dispositivo por padrão
+                    videoSelect.value = videoDevices[0].deviceId;
+                } catch (error) {
+                    console.error("Erro ao listar dispositivos:", error);
+                    videoSelect.innerHTML = '<option value="">Erro ao carregar dispositivos</option>';
+                }
+            }
+
+            // Iniciar captura
+            async function startCapture() {
+                try {
+                    statusText.textContent = "Iniciando captura...";
+
+                    // Esconder tela de permissões
+                    permissionScreen.style.display = "none";
+                    mainInterface.style.display = "flex";
+
+                    // Configurar o stream com o dispositivo selecionado
+                    await updateMediaStream();
+                } catch (error) {
+                    console.error("Erro ao iniciar captura:", error);
+                    statusText.textContent = "Erro ao iniciar captura";
+                    showError("Não foi possível iniciar a captura. Erro: " + error.message);
+                }
+            }
+
+            // Configurar event listeners
+            function setupEventListeners() {
+                // Alterar dispositivo de vídeo
+                videoSelect.addEventListener("change", async () => {
+                    await updateMediaStream();
+                });
+
+                // Alterar resolução
+                resolutionSelect.addEventListener("change", async () => {
+                    await updateMediaStream();
+                });
+
+                // Alterar FPS
+                fpsSelect.addEventListener("change", async () => {
+                    await updateMediaStream();
+                });
+
+                // Botão de mute
+                muteBtn.addEventListener("click", () => {
+                    toggleMute();
+                });
+
+                // Botão de tela cheia
+                fullscreenBtn.addEventListener("click", () => {
+                    toggleFullscreen();
+                });
+
+                // Atualizar informações quando o vídeo é reproduzido
+                videoElement.addEventListener("loadedmetadata", () => {
+                    updateVideoInfo();
+                    statusText.textContent = "Capturando";
+                });
+
+                // Lidar com erros no elemento de vídeo
+                videoElement.addEventListener("error", () => {
+                    statusText.textContent = "Erro no vídeo";
+                });
+
+                // Detectar mudanças no modo de tela cheia
+                document.addEventListener("fullscreenchange", handleFullscreenChange);
+                document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+            }
+
+            // Atualizar o stream de mídia
+            async function updateMediaStream() {
+                try {
+                    if (!videoSelect.value) {
+                        statusText.textContent = "Selecione um dispositivo";
+                        return;
+                    }
+
+                    statusText.textContent = "Configurando...";
+
+                    // Parar o stream atual se existir
+                    if (mediaStream) {
+                        mediaStream.getTracks().forEach((track) => track.stop());
+                    }
+
+                    // Construir constraints baseadas nas seleções
+                    const constraints = {
+                        video: {
+                            deviceId: { exact: videoSelect.value },
+                        },
+                        audio: true,
+                    };
+
+                    // Aplicar configurações de resolução se não for "auto"
+                    const resolution = resolutionSelect.value;
+                    if (resolution !== "auto") {
+                        switch (resolution) {
+                            case "raw":
+                                constraints.video.width = { ideal: 4096 };
+                                constraints.video.height = { ideal: 2160 };
+                                break;
+                            case "4k":
+                                constraints.video.width = { ideal: 3840 };
+                                constraints.video.height = { ideal: 2160 };
+                                break;
+                            case "1440p":
+                                constraints.video.width = { ideal: 2560 };
+                                constraints.video.height = { ideal: 1440 };
+                                break;
+                            case "1080p":
+                                constraints.video.width = { ideal: 1920 };
+                                constraints.video.height = { ideal: 1080 };
+                                break;
+                            case "720p":
+                                constraints.video.width = { ideal: 1280 };
+                                constraints.video.height = { ideal: 720 };
+                                break;
+                            case "480p":
+                                constraints.video.width = { ideal: 854 };
+                                constraints.video.height = { ideal: 480 };
+                                break;
+                        }
+                    }
+
+                    // Aplicar configurações de FPS se não for "auto"
+                    const fps = fpsSelect.value;
+                    if (fps !== "auto") {
+                        constraints.video.frameRate = { ideal: parseInt(fps) };
+                    }
+
+                    // Solicitar novo stream
+                    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    console.log(constraints);
+
+                    // Aplicar mute se necessário
+                    if (isMuted) {
+                        mediaStream.getAudioTracks().forEach((track) => {
+                            track.enabled = false;
+                        });
+                    }
+
+                    // Atualizar elemento de vídeo
+                    videoElement.srcObject = mediaStream;
+
+                    // Configurar eventos para o stream
+                    mediaStream.getVideoTracks()[0].addEventListener("ended", () => {
+                        statusText.textContent = "Stream interrompido";
+                    });
+
+                    statusText.textContent = "Capturando...";
+                } catch (error) {
+                    console.error("Erro ao atualizar stream:", error);
+                    statusText.textContent = "Erro: " + error.message;
+
+                    // Tentar uma configuração mais simples
+                    try {
+                        const fallbackConstraints = {
+                            video: {
+                                deviceId: { exact: videoSelect.value },
+                            },
+                            audio: true,
+                        };
+
+                        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                        videoElement.srcObject = mediaStream;
+                        statusText.textContent = "Capturando (configuração padrão)";
+                    } catch (fallbackError) {
+                        showError("Não foi possível configurar o dispositivo selecionado. Tente outra configuração.");
+                    }
+                }
+            }
+
+            // Alternar mute
+            function toggleMute() {
+                isMuted = !isMuted;
+
+                if (mediaStream) {
+                    mediaStream.getAudioTracks().forEach((track) => {
+                        track.enabled = !isMuted;
+                    });
+                }
+
+                // Atualizar botão
+                if (isMuted) {
+                    muteBtn.innerHTML = "<span>🔊</span><span>Som</span>";
+                    muteBtn.classList.remove("muted");
+                } else {
+                    muteBtn.innerHTML = "<span>🔇</span><span>Mudo</span>";
+                    muteBtn.classList.add("muted");
+                }
+            }
+
+            // Alternar tela cheia
+            function toggleFullscreen() {
+                if (!isFullscreen) {
+                    // Entrar no modo tela cheia
+                    if (videoContainer.requestFullscreen) {
+                        videoContainer.requestFullscreen();
+                    } else if (videoContainer.webkitRequestFullscreen) {
+                        videoContainer.webkitRequestFullscreen();
+                    }
+
+                    // Mostrar indicador
+                    fullscreenIndicator.classList.add("show");
+                    setTimeout(() => {
+                        fullscreenIndicator.classList.remove("show");
+                    }, 1500);
+                } else {
+                    // Sair do modo tela cheia
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
+                }
+            }
+
+            // Lidar com mudanças no modo de tela cheia
+            function handleFullscreenChange() {
+                isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+
+                // Atualizar botão
+                if (isFullscreen) {
+                    fullscreenBtn.innerHTML = "<span>⛶</span><span>Sair Tela Cheia</span>";
+                    fullscreenBtn.classList.add("active");
+                } else {
+                    fullscreenBtn.innerHTML = "<span>⬜</span><span>Tela Cheia</span>";
+                    fullscreenBtn.classList.remove("active");
+                }
+            }
+
+            // Atualizar informações de resolução e FPS
+            function updateVideoInfo() {
+                if (videoElement.videoWidth && videoElement.videoHeight) {
+                    const width = videoElement.videoWidth;
+                    const height = videoElement.videoHeight;
+
+                    // Tentar obter FPS real
+                    let fps = "N/A";
+                    if (mediaStream && mediaStream.getVideoTracks().length > 0) {
+                        const track = mediaStream.getVideoTracks()[0];
+                        const settings = track.getSettings();
+                        fps = settings.frameRate || "N/A";
+                    }
+
+                    currentResolution.textContent = `${width} × ${height}`;
+                    currentFPS.textContent = fps;
+
+                    // Adicionar indicador de qualidade
+                    let quality = "";
+                    if (width >= 3840 || height >= 2160) {
+                        quality = "4K+";
+                    } else if (width >= 2560 || height >= 1440) {
+                        quality = "1440p";
+                    } else if (width >= 1920 || height >= 1080) {
+                        quality = "Full HD";
+                    } else if (width >= 1280 || height >= 720) {
+                        quality = "HD";
+                    } else {
+                        quality = "SD";
+                    }
+
+                    currentResolution.innerHTML = `${width} × ${height} <span class="quality-indicator">${quality}</span>`;
+                } else {
+                    currentResolution.textContent = "-";
+                    currentFPS.textContent = "-";
+                }
+            }
+
+            // Inicializar
+            window.addEventListener("load", () => {
+                // Verificar se o navegador suporta a API necessária
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    grantPermissionBtn.disabled = true;
+                    grantPermissionBtn.textContent = "Navegador não compatível";
+                    statusText.textContent = "Seu navegador não suporta acesso à câmera/microfone";
+                } else {
+                    // Configurar event listeners após o carregamento
+                    setupEventListeners();
+                }
+            });
+        </script>
+    </body>
+</html>

@@ -86,6 +86,7 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
             </div>
             <div
                 className={`
+                    z-2
                     absolute top-full left-0
                     w-full h-auto
                     p-3 mt-2 pr-1.5

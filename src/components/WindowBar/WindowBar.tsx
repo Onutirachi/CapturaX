@@ -49,7 +49,7 @@ export default function WindowBar() {
     }, []);
 
     return (
-        <div className="w-full h-8 bg-darker flex items-center [border-bottom:var(--border)]" data-tauri-drag-region>
+        <div className="w-full h-8 bg-darker flex items-center [border-bottom:var(--border)] box-border" data-tauri-drag-region>
             <div className="h-full flex w-max ml-auto items-center gap-1 p-1">
                 <Button title="Minimizar" onClick={handleMinimize} hoverColor="var(--background-color-dark)">
                     <ButtonContent icon={MINIMIZE_ICON} color="var(--background-color-light)" hoverColor="var(--color-side)" />

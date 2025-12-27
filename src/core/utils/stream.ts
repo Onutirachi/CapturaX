@@ -1,14 +1,12 @@
 import { RESOLUTION_LIST } from "./constants";
 
-type MediaStremSettings = {
-    deviceId: string;
-    resolution?: string;
-    frameRate?: number;
-    audio?: boolean;
-};
-
 export default class Stream {
     private mediaStream: MediaStream | null = null;
+
+    private deviceId: string | null = null;
+    private resolutionTag: string | null = null;
+    private frameRate: number | null = null;
+    private audio: boolean | null = null;
 
     constructor() {}
 
@@ -20,7 +18,7 @@ export default class Stream {
         return false;
     }
 
-    getResolution(tag: string | null) {
+    getResolutionFromTag(tag: string | null) {
         if (!tag) return null;
         const resolution = RESOLUTION_LIST.find((res) => res.tag === tag);
         if (!resolution) return null;
@@ -46,47 +44,53 @@ export default class Stream {
         return videoDevices;
     }
 
-    getMediaStream(): MediaStream | null {
-        return this.mediaStream;
-    }
+    async getMediaStream(): Promise<MediaStream | null> {
+        if (!this.deviceId) {
+            console.log("No device id");
+            return null;
+        }
 
-    async setMediaStream(settings: MediaStremSettings | null = null) {
-        if (!settings) return;
+        const video: MediaTrackConstraints = {
+            deviceId: { exact: this.deviceId },
+        };
 
-        const deviceId = settings.deviceId || null;
-        const resolutionTag = settings.resolution || null;
-        const frameRate = settings.frameRate || null;
-        const audio = settings.audio || true;
+        const resolution = this.getResolutionFromTag(this.resolutionTag);
+        if (resolution) {
+            video.width = { exact: resolution.width };
+            video.height = { exact: resolution.height };
+        }
 
-        if (!deviceId) throw new Error("No device ID");
+        const frameRateNumber = Number(this.frameRate);
+        if (!Number.isNaN(frameRateNumber)) {
+            video.frameRate = { ideal: frameRateNumber };
+        }
 
         if (this.mediaStream) {
             this.mediaStream.getTracks().forEach((track) => track.stop());
         }
 
-        // Construir constraints baseadas nas seleções
-
-        const video: MediaTrackConstraints = {
-            deviceId: { exact: deviceId },
-        };
-
-        const resolution = this.getResolution(resolutionTag);
-        if (resolution) {
-            video.width = { ideal: resolution.width };
-            video.height = { ideal: resolution.height };
-        }
-
-        const frameRateNumber = Number(frameRate);
-        if (Number.isNaN(frameRateNumber)) {
-            video.frameRate = { ideal: Number(frameRateNumber) };
-        }
-
         const constraints: MediaStreamConstraints = {
             video,
-            audio: audio,
+            audio: this.audio ? true : false,
         };
 
         this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
         return this.mediaStream;
+    }
+
+    updateMediaStream(info: { deviceId?: string; resolutionTag?: string; frameRate?: number; audio?: boolean }) {
+        if (info.deviceId !== undefined) this.deviceId = info.deviceId;
+        if (info.resolutionTag !== undefined) this.resolutionTag = info.resolutionTag;
+        if (info.frameRate !== undefined) this.frameRate = info.frameRate;
+        if (info.audio !== undefined) this.audio = info.audio;
+
+        const mediaStreamInfo = {
+            deviceId: this.deviceId,
+            resolutionTag: this.resolutionTag,
+            frameRate: this.frameRate,
+            audio: this.audio,
+        };
+        console.log(mediaStreamInfo);
+        console.log(info);
     }
 }
