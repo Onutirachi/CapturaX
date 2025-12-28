@@ -1,15 +1,18 @@
 import Overlay from "./components/Overlay/Overlay";
 import VideoStream from "./components/VideoStream/VideoStream";
-import { MediaStreamProvider } from "./context/MediaStreamContext";
+import { VideoStreamProvider } from "./context/VideoStreamContext";
+import { AlertsProvider } from "./context/AlertsContext";
 
 function App() {
     return (
-        <MediaStreamProvider>
-            <main className="w-full h-full bg-gradient relative overflow-hidden font-family-segoe">
+        <main className="w-full h-full bg-gradient relative overflow-hidden font-family-segoe">
+            <VideoStreamProvider>
                 <VideoStream />
-                <Overlay />
-            </main>
-        </MediaStreamProvider>
+                <AlertsProvider>
+                    <Overlay />
+                </AlertsProvider>
+            </VideoStreamProvider>
+        </main>
     );
 }
 

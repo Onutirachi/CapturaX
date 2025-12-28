@@ -1,39 +1,41 @@
-import { useContext, useEffect, useRef } from "preact/hooks";
-import { MediaStreamContext } from "../../context/MediaStreamContext";
+import { useContext } from "preact/hooks";
+import { VideoStreamContext } from "../../context/VideoStreamContext";
 
 export default function VideoStream() {
-    const ctx = useContext(MediaStreamContext);
-    if (!ctx) throw new Error("mediaStream not found on context");
+    const ctx = useContext(VideoStreamContext);
+    if (!ctx) throw new Error("videoStream not found on context");
 
-    const { mediaStream } = ctx;
-    const videoRef = useRef<HTMLVideoElement>(null);
+    const { videoStream } = ctx;
+    // const videoRef = useRef<HTMLVideoElement>(null);
 
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!video) return;
+    // useEffect(() => {
+    //     const video = videoRef.current;
+    //     if (!video || !videoStream) return;
 
-        // Sempre limpa primeiro
-        video.pause();
-        video.srcObject = null;
+    //     video.srcObject = videoStream;
+    //     video.play().catch(() => {});
 
-        if (!mediaStream) return;
+    //     return () => {
+    //         video.pause();
+    //         video.srcObject = null;
+    //         video.load();
+    //     };
+    // }, [videoStream]);
 
-        video.srcObject = mediaStream;
-
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(() => {});
-        }
-
-        return () => {
-            video.pause();
-            video.srcObject = null;
-        };
-    }, [mediaStream]);
+    // if (videoStream === null) return null;
 
     return (
         <div className="w-full h-full flex items-center justify-center">
-            <video ref={videoRef} className="w-full h-full object-contain" autoPlay playsInline muted />
+            <video
+                // key={videoStream?.id || "no-stream"}
+                // id={videoStream?.id || "no-stream"}
+                // ref={videoRef}
+                className="w-full h-full object-contain"
+                autoPlay
+                playsInline
+                muted
+                srcObject={videoStream}
+            />
         </div>
     );
 }

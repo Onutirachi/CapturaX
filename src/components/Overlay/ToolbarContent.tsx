@@ -1,28 +1,33 @@
 import { DropDown, DropOption } from "../../core/components/DropDown";
 import Tag from "../../core/components/Tag";
 import { RESOLUTION_LIST, FRAMERATE_LIST } from "../../core/utils/constants";
-import { useState, useEffect, useContext } from "preact/hooks";
+import { useState, useEffect, useContext, useRef } from "preact/hooks";
 import Button from "./Button";
 import Stream from "../../core/utils/Stream";
-import { MediaStreamContext } from "../../context/MediaStreamContext";
-
-const stream = new Stream();
+import { VideoStreamContext } from "../../context/VideoStreamContext";
+import { AlertsContext } from "../../context/AlertsContext";
 
 export default function ToolbarContent() {
     const [videoDevicesList, setVideoDevicesList] = useState<MediaDeviceInfo[]>([]);
     const [audioDevicesList, setaudioDevicesList] = useState<MediaDeviceInfo[]>([]);
 
-    const ctx = useContext(MediaStreamContext);
-    if (!ctx) return null;
+    const vsctx = useContext(VideoStreamContext);
+    if (!vsctx) return null;
 
-    const { setMediaStream } = ctx;
-    if (!setMediaStream) return null;
+    const actx = useContext(AlertsContext);
+    if (!actx) return null;
+    const { setAlert } = actx;
 
-    const handleChoose = async () => {
-        const mediaStream = await stream.getMediaStream();
-        if (!mediaStream) return;
-        setMediaStream(mediaStream);
-    };
+    const { setVideoStream } = vsctx;
+    if (!setVideoStream) return null;
+
+    const streamRef = useRef<Stream | null>(null);
+
+    if (!streamRef.current) {
+        streamRef.current = new Stream({ setAlert, setVideoStream });
+    }
+
+    const stream = streamRef.current;
 
     useEffect(() => {
         const loadDevices = async () => {
@@ -45,8 +50,7 @@ export default function ToolbarContent() {
                 <DropDown
                     title="Video Device"
                     onChoose={async (value) => {
-                        stream.updateMediaStream({ videoDeviceId: value });
-                        handleChoose();
+                        stream.setVideoTrack(value);
                     }}>
                     {videoDevicesList.map(({ deviceId, label }) => (
                         <DropOption key={deviceId} value={deviceId} className="flex gap-3">
@@ -60,8 +64,7 @@ export default function ToolbarContent() {
                 <DropDown
                     title="Audio Device"
                     onChoose={async (value) => {
-                        stream.updateMediaStream({ audioDeviceId: value });
-                        handleChoose();
+                        stream.setAudioTrack(value);
                     }}>
                     {audioDevicesList.map(({ deviceId, label }) => (
                         <DropOption key={deviceId} value={deviceId} className="flex gap-3">
@@ -74,8 +77,7 @@ export default function ToolbarContent() {
             <DropDown
                 title="Resolution"
                 onChoose={async (value) => {
-                    stream.updateMediaStream({ resolutionTag: value });
-                    handleChoose();
+                    stream.setResolutionTag(value);
                 }}>
                 <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
                     {`Automatic`}
@@ -92,8 +94,7 @@ export default function ToolbarContent() {
             <DropDown
                 title="Framerate"
                 onChoose={async (value) => {
-                    stream.updateMediaStream({ frameRate: Number(value) });
-                    handleChoose();
+                    stream.setFramerate(Number(value));
                 }}>
                 <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
                     {`Automatic`}
@@ -105,7 +106,7 @@ export default function ToolbarContent() {
                 ))}
             </DropDown>
 
-            <Button>Fullscreen</Button>
+            <Button>Force Stop</Button>
         </>
     );
 }

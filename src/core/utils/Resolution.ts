@@ -3,7 +3,7 @@ import { RESOLUTION_LIST } from "./constants";
 type resolutionType = { width: number; height: number };
 
 export default class Resolution {
-    static getFromTag(tag: string): resolutionType | null {
+    static getFromTag(tag: string | null): resolutionType | null {
         if (!tag) return null;
         const resolution = RESOLUTION_LIST.find((res) => res.tag === tag);
         if (!resolution) return null;
