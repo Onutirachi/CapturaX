@@ -1,12 +1,9 @@
-import { useState, useRef } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import ToolbarContent from "./ToolbarContent";
 
-function StatusBarContent() {
-    return <></>;
-}
+type ToolbarProps = { active: boolean; setActive: (value: boolean) => void };
 
-export default function Toolbar() {
-    const [active, setActive] = useState(false);
+export default function Toolbar({ active, setActive }: ToolbarProps) {
     const hideTimeout = useRef<number | null>(null);
 
     const HIDETIME = 2000;
@@ -24,6 +21,7 @@ export default function Toolbar() {
             setActive(false);
         }, HIDETIME);
     };
+
     return (
         <>
             <div className="absolute top-0 left-0 inset-x-0 h-max min-h-25" onPointerEnter={handlePointerEnter} onPointerLeave={handlePointerLeave}>
@@ -39,18 +37,6 @@ export default function Toolbar() {
                         ${active ? "translate-y-0" : "-translate-y-full"}
                     `}>
                     <ToolbarContent />
-                </div>
-            </div>
-
-            <div className="absolute inset-x-0 h-15 bottom-0">
-                <div
-                    className={`
-                        h-full w-full bg-darker
-                        [border-bottom:var(--border)]
-                        transition-transform duration-300
-                        ${active ? "translate-y-0" : "translate-y-full"}
-                    `}>
-                    <StatusBarContent />
                 </div>
             </div>
         </>

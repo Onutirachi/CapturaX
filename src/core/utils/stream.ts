@@ -1,5 +1,10 @@
 import Resolution from "./Resolution";
 
+export type infoType = {
+    settings: MediaTrackSettings;
+    capabilities: MediaTrackCapabilities;
+};
+
 export default class Stream {
     private mediaStream: MediaStream | null = null;
     private videoDeviceId: string | null = null;
@@ -67,7 +72,6 @@ export default class Stream {
         if (!Number.isNaN(frameRateNumber)) {
             video.frameRate = {
                 ideal: frameRateNumber,
-                max: frameRateNumber,
             };
         }
 
@@ -93,21 +97,51 @@ export default class Stream {
             audio,
         };
 
+        this.mediaStream = null;
         this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-        const videoTrack = this.mediaStream.getVideoTracks()[0];
-        if (videoTrack) {
-            console.log("Video settings:", videoTrack.getSettings());
-            console.log("Video capabilities:", videoTrack.getCapabilities());
+        if (!this.mediaStream) {
+            console.log("Fail to get new Media Stream");
+            return null;
         }
 
-        const audioTrack = this.mediaStream.getAudioTracks()[0];
-        if (audioTrack) {
-            console.log("Audio settings:", audioTrack.getSettings());
-            console.log("Audio capabilities:", audioTrack.getCapabilities());
+        const videoInfo = Stream.getVideoInfo(this.mediaStream);
+        const audioInfo = Stream.getAudioInfo(this.mediaStream);
+
+        if (videoInfo) {
+            //console.log("Video Info", videoInfo);
+        }
+
+        if (audioInfo) {
+            //console.log("Audio Info", audioInfo);
         }
 
         return this.mediaStream;
+    }
+
+    static getVideoInfo(mediaStream: MediaStream): infoType | null {
+        const videoTrack = mediaStream.getVideoTracks()[0];
+
+        if (videoTrack) {
+            return { settings: videoTrack.getSettings(), capabilities: videoTrack.getCapabilities() };
+        }
+
+        return null;
+    }
+
+    static getAudioInfo(mediaStream: MediaStream): infoType | null {
+        const audioTrack = mediaStream.getAudioTracks()[0];
+
+        if (audioTrack) {
+            return { settings: audioTrack.getSettings(), capabilities: audioTrack.getCapabilities() };
+        }
+
+        return null;
+    }
+
+    static isCapturing(mediaStream: MediaStream): boolean {
+        if (!mediaStream) return false;
+        return mediaStream.getTracks().some((track) => track.readyState === "live" && track.enabled);
     }
 
     updateMediaStream(info: { videoDeviceId?: string; audioDeviceId?: string; resolutionTag?: string; frameRate?: number; audio?: boolean }) {

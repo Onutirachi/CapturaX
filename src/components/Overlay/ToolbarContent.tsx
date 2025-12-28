@@ -36,7 +36,7 @@ export default function ToolbarContent() {
     }, []);
 
     useEffect(() => {
-        stream.getPermission();
+        // stream.getPermission();
     }, []);
 
     return (
