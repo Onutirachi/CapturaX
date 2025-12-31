@@ -5,7 +5,7 @@ import Stream, { infoType } from "../../core/utils/Stream";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 
 import Icon from "./Icon";
-import ButtonToggle from "./ButtonToggle";
+import ButtonToggle from "../../core/components/ButtonToggle";
 import InfoBubble from "./InfoBubble";
 import Alerts from "./Alerts";
 

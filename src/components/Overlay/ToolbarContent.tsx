@@ -16,68 +16,61 @@ export default function ToolbarContent() {
 
     const actx = useContext(AlertsContext);
     if (!actx) return null;
+
     const { setAlert } = actx;
-
-    const { setVideoStream } = vsctx;
-    if (!setVideoStream) return null;
-
-    const streamRef = useRef<Stream | null>(null);
-
-    if (!streamRef.current) {
-        streamRef.current = new Stream({ setAlert, setVideoStream });
-    }
-
-    const stream = streamRef.current;
+    const { setVideoStream, setVideoTrack } = vsctx;
 
     useEffect(() => {
         const loadDevices = async () => {
-            const videoDevicesList = await stream.getVideoDevices();
-            const audioDevices = await stream.getAudioDevices();
-            setVideoDevicesList(videoDevicesList);
-            setaudioDevicesList(audioDevices);
+            setVideoDevicesList(await Stream.getVideoDevices());
+            setaudioDevicesList(await Stream.getAudioDevices());
         };
 
         loadDevices();
     }, []);
 
-    useEffect(() => {
-        // stream.getPermission();
-    }, []);
+    if (videoDevicesList.length === 0) return null;
+    if (audioDevicesList.length === 0) return null;
+
+    const streamRef = useRef<Stream | null>(null);
+    if (!streamRef.current) {
+        streamRef.current = new Stream({ setAlert, setVideoStream, setVideoTrack });
+    }
+    const stream = streamRef.current;
 
     return (
         <>
-            {videoDevicesList.length > 0 && (
-                <DropDown
-                    title="Video Device"
-                    onChoose={async (value) => {
-                        stream.setVideoTrack(value);
-                    }}>
-                    {videoDevicesList.map(({ deviceId, label }) => (
-                        <DropOption key={deviceId} value={deviceId} className="flex gap-3">
-                            {label}
-                        </DropOption>
-                    ))}
-                </DropDown>
-            )}
+            <DropDown
+                title="Video Device"
+                onChoose={async (value) => {
+                    stream.videoId = value;
+                    stream.updateVideoTrack();
+                }}>
+                {videoDevicesList.map(({ deviceId, label }) => (
+                    <DropOption key={deviceId} value={deviceId} className="flex gap-3">
+                        {label}
+                    </DropOption>
+                ))}
+            </DropDown>
 
-            {audioDevicesList.length > 0 && (
-                <DropDown
-                    title="Audio Device"
-                    onChoose={async (value) => {
-                        stream.setAudioTrack(value);
-                    }}>
-                    {audioDevicesList.map(({ deviceId, label }) => (
-                        <DropOption key={deviceId} value={deviceId} className="flex gap-3">
-                            {label}
-                        </DropOption>
-                    ))}
-                </DropDown>
-            )}
+            <DropDown
+                title="Audio Device"
+                onChoose={async (value) => {
+                    stream.audioId = value;
+                    //stream.updateAudioTrack();
+                }}>
+                {audioDevicesList.map(({ deviceId, label }) => (
+                    <DropOption key={deviceId} value={deviceId} className="flex gap-3">
+                        {label}
+                    </DropOption>
+                ))}
+            </DropDown>
 
             <DropDown
                 title="Resolution"
                 onChoose={async (value) => {
-                    stream.setResolutionTag(value);
+                    stream.resolutionTag = value;
+                    stream.setResolution();
                 }}>
                 <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
                     {`Automatic`}
@@ -94,7 +87,8 @@ export default function ToolbarContent() {
             <DropDown
                 title="Framerate"
                 onChoose={async (value) => {
-                    stream.setFramerate(Number(value));
+                    stream.frameRate = Number(value);
+                    stream.setFrameRate();
                 }}>
                 <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
                     {`Automatic`}
@@ -105,8 +99,6 @@ export default function ToolbarContent() {
                     </DropOption>
                 ))}
             </DropDown>
-
-            <Button>Force Stop</Button>
         </>
     );
 }

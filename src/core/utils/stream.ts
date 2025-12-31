@@ -1,31 +1,34 @@
 import Resolution from "./Resolution";
 import { SetAlertType } from "../../context/AlertsContext";
 import { SetVideoStreamType } from "../../context/VideoStreamContext";
+import { SetVideoTrackType } from "../../context/VideoStreamContext";
 
 export type infoType = {
     settings: MediaTrackSettings;
     capabilities: MediaTrackCapabilities;
 };
 
-export type StreamType = { setAlert: SetAlertType; setVideoStream: SetVideoStreamType };
+export type StreamType = { setAlert: SetAlertType; setVideoStream: SetVideoStreamType; setVideoTrack: SetVideoTrackType };
 
 export default class Stream {
     private mediaStream: MediaStream = new MediaStream();
-    // public videoDeviceId: string | null = null;
-    // public audioDeviceId: string | null = null;
+
+    public videoId: string | null = null;
+    public audioId: string | null = null;
     public resolutionTag: string | null = null;
     public frameRate: number | null = null;
+
     private capabilities: Map<string, MediaTrackCapabilities> = new Map(); // ← CACHE
     private setAlert: SetAlertType;
-    private setVideoStream: SetVideoStreamType;
+    private setVideoTrack: SetVideoTrackType;
 
     private videoTrack: MediaStreamTrack | null = null;
     private audioTrack: MediaStreamTrack | null = null;
 
-    constructor({ setAlert, setVideoStream }: StreamType) {
+    constructor({ setAlert, setVideoStream, setVideoTrack }: StreamType) {
         this.setAlert = setAlert;
-        this.setVideoStream = setVideoStream;
-        this.setVideoStream(this.mediaStream);
+        this.setVideoTrack = setVideoTrack;
+        setVideoStream(this.mediaStream);
     }
 
     stopTracks(mediaStream: MediaStream) {
@@ -58,37 +61,68 @@ export default class Stream {
         return capabilities;
     }
 
-    async setVideoTrack(deviceId: string) {
-        const currentTrack = this.getTrack(deviceId);
+    async updateVideoTrack() {
+        if (!this.videoId) return;
 
-        if (!currentTrack) {
-            this.stopVideoTracks(this.mediaStream);
-            const tempStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } });
-            if (!tempStream) return;
-
-            const tempTrack = tempStream.getVideoTracks()[0];
-
-            const capabilities = this.getCapabilities(deviceId, tempTrack);
-            console.log(capabilities);
-            const constraints: MediaTrackConstraints = {};
-
-            if (capabilities.width?.max) constraints.width = { ideal: capabilities.width.max };
-            if (capabilities.height?.max) constraints.height = { ideal: capabilities.height.max };
-            if (capabilities.frameRate?.max) constraints.frameRate = { ideal: capabilities.frameRate.max };
-
-            await tempTrack.applyConstraints(constraints);
-            console.log(constraints);
-
-            const track = tempTrack.clone();
-            this.mediaStream.addTrack(track);
-
-            this.setResolutionTag();
-            this.setFramerate();
-            this.stopTracks(tempStream);
+        if (this.videoTrack) {
+            this.mediaStream.removeTrack(this.videoTrack);
+            this.videoTrack.stop();
+            this.videoTrack = null;
+            this.setVideoTrack(this.videoTrack);
         }
 
-        this.setResolutionTag();
-        this.setFramerate();
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: this.videoId } } });
+        if (!tempStream) return;
+
+        this.videoTrack = tempStream.getVideoTracks()[0];
+        this.setVideoTrack(this.videoTrack);
+        this.mediaStream.addTrack(this.videoTrack);
+
+        const capabilities = this.getCapabilities(this.videoId, this.videoTrack);
+
+        const constraints: MediaTrackConstraints = {};
+
+        if (capabilities.width?.max) constraints.width = { ideal: capabilities.width.max };
+        if (capabilities.height?.max) constraints.height = { ideal: capabilities.height.max };
+        if (capabilities.frameRate?.max) constraints.frameRate = { ideal: capabilities.frameRate.max };
+
+        try {
+            await this.videoTrack.applyConstraints(constraints);
+        } catch (error) {
+            console.error(error);
+        }
+
+        this.setResolution();
+        this.setFrameRate();
+    }
+
+    async setResolution() {
+        if (!this.resolutionTag || !this.videoTrack) return;
+        const resolution = Resolution.getFromTag(this.resolutionTag);
+        if (!resolution) return;
+        console.debug("Applying custom resolution");
+        try {
+            await this.videoTrack.applyConstraints({
+                width: { exact: resolution?.width },
+                height: { exact: resolution?.height },
+            });
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    async setFrameRate() {
+        if (!this.frameRate || !this.videoTrack) return;
+        const framerate = this.frameRate ? (Number.isFinite(this.frameRate) && this.frameRate > 0 ? this.frameRate : null) : null;
+        if (!framerate) return;
+        console.debug("Applying custom framerate");
+        try {
+            await this.videoTrack.applyConstraints({
+                frameRate: { exact: framerate },
+            });
+        } catch (error) {
+            console.error(error);
+        }
     }
 
     async setAudioTrack(deviceId: string) {
@@ -121,33 +155,45 @@ export default class Stream {
         return track;
     }
 
-    setResolutionTag(resolutionTag: string | null = null) {
-        if (resolutionTag) {
-            this.resolutionTag = resolutionTag;
-        }
-        const videoTrack = this.mediaStream.getVideoTracks()[0];
-        if (!videoTrack) return;
+    async setResolutionTag(resolutionTag: string) {
+        if (!this.videoTrack) return;
 
         const resolution = Resolution.getFromTag(resolutionTag);
-        if (!resolution) return;
+        if (!resolution) {
+            const capabilities = this.videoTrack.getCapabilities();
+            const constraints: MediaTrackConstraints = {};
 
-        videoTrack.applyConstraints({
+            if (capabilities.width?.max) constraints.width = { ideal: capabilities.width.max };
+            if (capabilities.height?.max) constraints.height = { ideal: capabilities.height.max };
+
+            await this.videoTrack.applyConstraints(constraints);
+            return;
+        }
+
+        this.videoTrack.applyConstraints({
             width: { exact: resolution.width },
             height: { exact: resolution.height },
         });
     }
 
-    setFramerate(frameRate: number | null = null) {
-        if (!frameRate) return;
-        this.frameRate = frameRate;
-        if (Number.isFinite(this.frameRate) && this.frameRate > 0) {
-            const videoTrack = this.mediaStream.getVideoTracks()[0];
-            if (!videoTrack) return;
-
-            videoTrack.applyConstraints({
-                frameRate: { exact: this.frameRate },
+    async setFramerate(frameRate: number) {
+        if (!this.videoTrack) return;
+        if (Number.isFinite(frameRate) && frameRate > 0) {
+            if (!this.videoTrack) return;
+            this.videoTrack.applyConstraints({
+                frameRate: { exact: frameRate },
             });
+            return;
         }
+
+        const capabilities = this.videoTrack.getCapabilities();
+        const constraints: MediaTrackConstraints = {};
+
+        if (capabilities.width?.max) constraints.width = { ideal: capabilities.width.max };
+        if (capabilities.height?.max) constraints.height = { ideal: capabilities.height.max };
+
+        await this.videoTrack.applyConstraints(constraints);
+        return;
     }
 
     async checkPermissions() {
@@ -173,13 +219,13 @@ export default class Stream {
         }
     }
 
-    async getVideoDevices(): Promise<MediaDeviceInfo[]> {
+    static async getVideoDevices(): Promise<MediaDeviceInfo[]> {
         const deviceList = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = deviceList.filter((device) => device.kind === "videoinput");
         return videoDevices;
     }
 
-    async getAudioDevices(): Promise<MediaDeviceInfo[]> {
+    static async getAudioDevices(): Promise<MediaDeviceInfo[]> {
         const deviceList = await navigator.mediaDevices.enumerateDevices();
         const audioDevices = deviceList.filter((device) => device.kind === "audioinput");
         return audioDevices;
@@ -194,140 +240,6 @@ export default class Stream {
         console.warn(text);
         this.setAlert({ text: text, color: "goldenrod", icon: "./assets/Alerts/warning.svg" });
     }
-
-    // async startVideoDevice(deviceId: string): Promise<MediaStreamTrack | null> {
-    //     const mediaStream = await navigator.mediaDevices.getUserMedia({
-    //         video: { deviceId: { exact: deviceId } },
-    //     });
-
-    //     const track = mediaStream.getVideoTracks()[0];
-
-    //     let capabilities = this.capabilitiesCache.get(deviceId);
-    //     if (!capabilities) {
-    //         capabilities = track.getCapabilities() as MediaTrackCapabilities;
-    //         this.capabilitiesCache.set(deviceId, capabilities);
-    //     }
-
-    //     track.applyConstraints({
-    //         width: { ideal: capabilities.width?.max },
-    //         height: { ideal: capabilities.height?.max },
-    //         frameRate: { ideal: capabilities.frameRate?.max },
-    //         noiseSuppression: false,
-    //         autoGainControl: false,
-    //         echoCancellation: false,
-    //     });
-
-    //     return track;
-    // }
-
-    // async getMediaStream(): Promise<MediaStream | null> {
-    //     this.setAlert(null);
-    //     if (!this.videoDeviceId) {
-    //         this.handleError("No device id");
-    //         return null;
-    //     }
-
-    //     const track = await this.startVideoDevice(this.videoDeviceId);
-    //     if (!track) return null;
-
-    //     const resolution = Resolution.getFromTag(this.resolutionTag);
-    //     if (resolution) {
-    //         track.applyConstraints({
-    //             width: { ideal: resolution.width },
-    //             height: { ideal: resolution.height },
-    //         });
-    //     }
-
-    //     const frameRateNumber = Number(this.frameRate);
-    //     if (!Number.isNaN(frameRateNumber) && frameRateNumber > 0) {
-    //         track.applyConstraints({
-    //             frameRate: { ideal: frameRateNumber },
-    //         });
-    //     }
-
-    //     var audio: MediaTrackConstraints | boolean = false;
-
-    //     if (this.audioDeviceId) {
-    //         audio = {
-    //             deviceId: { exact: this.audioDeviceId },
-    //             sampleRate: { ideal: 48000 },
-    //             channelCount: { ideal: 2 },
-    //             echoCancellation: false,
-    //             noiseSuppression: false,
-    //             autoGainControl: false,
-    //         };
-    //     }
-    // }
-
-    // async getMediaStream(): Promise<MediaStream | null> {
-    //     this.setAlert(null);
-    //     if (!this.videoDeviceId) {
-    //         this.handleError("No device id");
-    //         return null;
-    //     }
-
-    //     // Usa cache se já tiver as capabilities deste device
-    //     let capabilities = this.capabilitiesCache.get(this.videoDeviceId);
-    //     if (!capabilities) {
-    //         capabilities = await this.getCapabilities(this.videoDeviceId);
-    //         this.capabilitiesCache.set(this.videoDeviceId, capabilities);
-    //     }
-
-    //     const video: MediaTrackConstraints = {
-    //         deviceId: { exact: this.videoDeviceId },
-    //         noiseSuppression: false,
-    //         autoGainControl: false,
-    //         echoCancellation: false,
-    //     };
-
-    //     const resolution = Resolution.getFromTag(this.resolutionTag);
-    //     if (resolution) {
-    //         video.width = { ideal: resolution.width };
-    //         video.height = { ideal: resolution.height };
-    //     } else {
-    //         video.width = { ideal: capabilities.width?.max };
-    //         video.height = { ideal: capabilities.height?.max };
-    //     }
-
-    //     const frameRateNumber = Number(this.frameRate);
-    //     if (!Number.isNaN(frameRateNumber) && frameRateNumber > 0) {
-    //         video.frameRate = { ideal: frameRateNumber };
-    //     } else {
-    //         video.frameRate = { ideal: capabilities.frameRate?.max };
-    //     }
-
-    //     var audio: MediaTrackConstraints | boolean = false;
-
-    //     if (this.audioDeviceId) {
-    //         audio = {
-    //             deviceId: { exact: this.audioDeviceId },
-    //             sampleRate: { ideal: 48000 },
-    //             channelCount: { ideal: 2 },
-    //             echoCancellation: false,
-    //             noiseSuppression: false,
-    //             autoGainControl: false,
-    //         };
-    //     }
-
-    //     this.stopTracks();
-
-    //     const constraints: MediaStreamConstraints = { video, audio };
-
-    //     this.mediaStream = null;
-
-    //     try {
-    //         this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-    //     } catch (error) {
-    //         this.handleError("Resolution/Framerate not supported");
-    //         console.error(error);
-    //         return null;
-    //     }
-
-    //     console.debug({ constraits: constraints, ...Stream.getVideoInfo(this.mediaStream) });
-    //     this.debug(constraints, this.mediaStream);
-
-    //     return this.mediaStream;
-    // }
 
     debug(constraints: MediaStreamConstraints, mediaStream: MediaStream) {
         const videoInfo = Stream.getVideoInfo(mediaStream);
@@ -352,17 +264,6 @@ export default class Stream {
             this.handleWarning("Resolution not supported, falling back to closest supported resolution");
         }
     }
-
-    // async getCapabilities(deviceId: string): Promise<MediaTrackCapabilities> {
-    //     const stream = await navigator.mediaDevices.getUserMedia({
-    //         video: { deviceId: { exact: deviceId } },
-    //     });
-
-    //     const track = stream.getVideoTracks()[0];
-    //     const caps = track.getCapabilities() as MediaTrackCapabilities;
-    //     track.stop();
-    //     return caps;
-    // }
 
     static getVideoInfo(mediaStream: MediaStream): infoType | null {
         const videoTrack = mediaStream.getVideoTracks()[0];
