@@ -21,14 +21,10 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
         setInfo(Stream.getVideoInfo(videoStream));
     }, [videoStream]);
 
-    useEffect(() => {
-        //console.log(info);
-    }, [info]);
-
     if (!info || !info.settings.width || !info.settings.height || !videoStream)
         return (
             <>
-                <Alerts />{" "}
+                <Alerts />
                 <ButtonToggle on={() => setFixed(true)} off={() => setFixed(false)} storeState="statusBarFixed">
                     <InfoBubble className="cursor-pointer">
                         {fixed ? <Icon src="./assets/StatusBar/pin_enable.svg" /> : <Icon src="./assets/StatusBar/pin_disable.svg" />}
@@ -46,6 +42,7 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
 
     return (
         <>
+            <Alerts />
             <InfoBubble>
                 {isCapturing ? (
                     <>

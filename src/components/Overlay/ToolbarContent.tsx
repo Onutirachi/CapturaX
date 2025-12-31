@@ -57,7 +57,7 @@ export default function ToolbarContent() {
                 title="Audio Device"
                 onChoose={async (value) => {
                     stream.audioId = value;
-                    //stream.updateAudioTrack();
+                    stream.updateAudioTrack();
                 }}>
                 {audioDevicesList.map(({ deviceId, label }) => (
                     <DropOption key={deviceId} value={deviceId} className="flex gap-3">

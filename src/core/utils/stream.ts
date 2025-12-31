@@ -15,6 +15,8 @@ export default class Stream {
 
     public videoId: string | null = null;
     public audioId: string | null = null;
+    private currentVideoId: string | null = null;
+    private currentAudioId: string | null = null;
     public resolutionTag: string | null = null;
     public frameRate: number | null = null;
 
@@ -63,6 +65,7 @@ export default class Stream {
 
     async updateVideoTrack() {
         if (!this.videoId) return;
+        if (!this.videoId && this.videoId == this.currentVideoId && this.currentVideoId) return;
 
         if (this.videoTrack) {
             this.mediaStream.removeTrack(this.videoTrack);
@@ -125,15 +128,20 @@ export default class Stream {
         }
     }
 
-    async setAudioTrack(deviceId: string) {
-        const checkTrack = this.getTrack(deviceId);
-        if (checkTrack) return;
+    async updateAudioTrack() {
+        if (!this.audioId) return;
+        if (this.audioId == this.currentAudioId && this.currentAudioId) return;
 
-        this.stopAudioTracks(this.mediaStream);
+        if (this.audioTrack) {
+            this.mediaStream.removeTrack(this.audioTrack);
+            this.audioTrack.stop();
+            this.audioTrack = null;
+            //this.setAudioTrack(this.audioTrack);
+        }
 
         const tempStream = await navigator.mediaDevices.getUserMedia({
             audio: {
-                deviceId: { exact: deviceId },
+                deviceId: { exact: this.audioId },
                 sampleRate: { ideal: 48000 },
                 channelCount: { ideal: 2 },
                 echoCancellation: false,
@@ -141,12 +149,19 @@ export default class Stream {
                 autoGainControl: false,
             },
         });
-        if (!tempStream) return null;
-        const tempTrack = tempStream.getAudioTracks()[0];
-        const track = tempTrack.clone();
+        if (!tempStream) return;
 
-        this.mediaStream.addTrack(track);
-        this.stopTracks(tempStream);
+        this.audioTrack = tempStream.getAudioTracks()[0];
+        //this.setAudioTrack(this.audioTrack);
+        this.mediaStream.addTrack(this.audioTrack);
+
+        const constraints: MediaTrackConstraints = {};
+
+        try {
+            await this.audioTrack.applyConstraints(constraints);
+        } catch (error) {
+            console.error(error);
+        }
     }
 
     getTrack(deviceId: string): MediaStreamTrack | null {
