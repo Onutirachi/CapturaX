@@ -109,6 +109,7 @@ export default class Stream {
                 width: { exact: resolution?.width },
                 height: { exact: resolution?.height },
             });
+            this.setVideoTrack(this.videoTrack);
         } catch (error) {
             console.error(error);
         }
@@ -123,6 +124,7 @@ export default class Stream {
             await this.videoTrack.applyConstraints({
                 frameRate: { exact: framerate },
             });
+            this.setVideoTrack(this.videoTrack);
         } catch (error) {
             console.error(error);
         }
@@ -254,54 +256,5 @@ export default class Stream {
     handleWarning(text: string) {
         console.warn(text);
         this.setAlert({ text: text, color: "goldenrod", icon: "./assets/Alerts/warning.svg" });
-    }
-
-    debug(constraints: MediaStreamConstraints, mediaStream: MediaStream) {
-        const videoInfo = Stream.getVideoInfo(mediaStream);
-        if (!videoInfo) return;
-        let definedRes: { width?: number; height?: number } | null = null;
-
-        if (constraints.video && typeof constraints.video === "object") {
-            definedRes = {
-                width: typeof constraints.video.width === "object" ? constraints.video.width.ideal : undefined,
-                height: typeof constraints.video.height === "object" ? constraints.video.height.ideal : undefined,
-            };
-        }
-        const currentRes = { width: videoInfo.settings.width, height: videoInfo.settings.height };
-
-        console.debug(
-            `Defined Resolution: ${definedRes?.width} x ${definedRes?.height}\nCurrent Resolution: ${currentRes?.width} x ${currentRes?.height}`
-        );
-
-        if (!currentRes.height || !definedRes?.height) return;
-
-        if (currentRes.height < definedRes?.height) {
-            this.handleWarning("Resolution not supported, falling back to closest supported resolution");
-        }
-    }
-
-    static getVideoInfo(mediaStream: MediaStream): infoType | null {
-        const videoTrack = mediaStream.getVideoTracks()[0];
-
-        if (videoTrack) {
-            return { settings: videoTrack.getSettings(), capabilities: videoTrack.getCapabilities() };
-        }
-
-        return null;
-    }
-
-    static getAudioInfo(mediaStream: MediaStream): infoType | null {
-        const audioTrack = mediaStream.getAudioTracks()[0];
-
-        if (audioTrack) {
-            return { settings: audioTrack.getSettings(), capabilities: audioTrack.getCapabilities() };
-        }
-
-        return null;
-    }
-
-    static isCapturing(mediaStream: MediaStream): boolean {
-        if (!mediaStream) return false;
-        return mediaStream.getTracks().some((track) => track.readyState === "live" && track.enabled);
     }
 }

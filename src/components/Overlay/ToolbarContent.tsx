@@ -12,31 +12,31 @@ export default function ToolbarContent() {
     const [audioDevicesList, setaudioDevicesList] = useState<MediaDeviceInfo[]>([]);
 
     const vsctx = useContext(VideoStreamContext);
-    if (!vsctx) return null;
-
     const actx = useContext(AlertsContext);
-    if (!actx) return null;
 
-    const { setAlert } = actx;
-    const { setVideoStream, setVideoTrack } = vsctx;
+    const { setAlert } = actx ?? {};
+    const { setVideoStream, setVideoTrack } = vsctx ?? {};
+
+    const streamRef = useRef<Stream | null>(null);
+    if (!streamRef.current && setAlert && setVideoStream && setVideoTrack) {
+        streamRef.current = new Stream({ setAlert, setVideoStream, setVideoTrack });
+    }
+    const stream = streamRef.current;
 
     useEffect(() => {
+        if (!stream) return;
         const loadDevices = async () => {
+            await stream.getPermission();
             setVideoDevicesList(await Stream.getVideoDevices());
             setaudioDevicesList(await Stream.getAudioDevices());
         };
 
         loadDevices();
-    }, []);
+    }, [stream]);
 
+    if (!vsctx || !actx || !stream) return null;
     if (videoDevicesList.length === 0) return null;
     if (audioDevicesList.length === 0) return null;
-
-    const streamRef = useRef<Stream | null>(null);
-    if (!streamRef.current) {
-        streamRef.current = new Stream({ setAlert, setVideoStream, setVideoTrack });
-    }
-    const stream = streamRef.current;
 
     return (
         <>
