@@ -8,19 +8,27 @@ export type infoType = {
     capabilities: MediaTrackCapabilities;
 };
 
+// `resizeMode` ainda não está nos tipos do TypeScript.
+type VideoConstraints = MediaTrackConstraints & { resizeMode?: "none" | "crop-and-scale" };
+
+const MAX_WIDTH = 7680;
+const MAX_HEIGHT = 4320;
+const AUTO_TARGET_FPS = 60;
+const FPS_TOLERANCE = 0.97;
+
 export type StreamType = { setAlert: SetAlertType; setVideoStream: SetVideoStreamType; setVideoTrack: SetVideoTrackType };
 
 export default class Stream {
     private mediaStream: MediaStream = new MediaStream();
 
-    public videoId: string | null = null;
+    private videoId: string | null = null;
     public audioId: string | null = null;
-    private currentVideoId: string | null = null;
     private currentAudioId: string | null = null;
-    public resolutionTag: string | null = null;
-    public frameRate: number | null = null;
+    private resolutionTag: string | null = null;
+    private frameRate: number | null = null;
 
-    private capabilities: Map<string, MediaTrackCapabilities> = new Map(); // ← CACHE
+    private restartRequested = false;
+    private restarting: Promise<void> | null = null;
     private setAlert: SetAlertType;
     private setVideoTrack: SetVideoTrackType;
 
@@ -54,81 +62,97 @@ export default class Stream {
         });
     }
 
-    getCapabilities(deviceId: string, track: MediaStreamTrack) {
-        let capabilities = this.capabilities.get(deviceId);
-        if (!capabilities) {
-            capabilities = track.getCapabilities();
-            this.capabilities.set(deviceId, capabilities);
-        }
-        return capabilities;
+    setVideoDevice(deviceId: string) {
+        this.videoId = deviceId;
+        return this.requestVideoRestart();
     }
 
-    async updateVideoTrack() {
-        if (!this.videoId) return;
-        if (this.videoId === this.currentVideoId) return;
+    /** `null` = automático. */
+    setResolutionTag(resolutionTag: string | null) {
+        this.resolutionTag = resolutionTag;
+        return this.requestVideoRestart();
+    }
 
+    /** `null` = automático. */
+    setFrameRate(frameRate: number | null) {
+        this.frameRate = frameRate;
+        return this.requestVideoRestart();
+    }
+
+    // Os dropdowns disparam várias mudanças seguidas na inicialização; agrupa tudo em
+    // reaberturas sequenciais do dispositivo em vez de abrir várias em paralelo.
+    private requestVideoRestart() {
+        this.restartRequested = true;
+        if (!this.restarting) {
+            this.restarting = (async () => {
+                // Espera um tick para juntar as mudanças disparadas no mesmo render.
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                while (this.restartRequested) {
+                    this.restartRequested = false;
+                    await this.openVideoTrack();
+                }
+            })().finally(() => (this.restarting = null));
+        }
+        return this.restarting;
+    }
+
+    /**
+     * Tentativas em ordem de preferência. `resizeMode: "none"` obriga o navegador a usar um modo
+     * nativo do dispositivo; sem isso o Chromium mantém o modo atual e só reescala por software.
+     */
+    private buildAttempts(): { constraints: VideoConstraints; scaled: boolean }[] {
+        const resolution = this.resolutionTag ? Resolution.getFromTag(this.resolutionTag) : null;
+        const size: VideoConstraints = resolution
+            ? { width: { exact: resolution.width }, height: { exact: resolution.height } }
+            : { width: { ideal: MAX_WIDTH }, height: { ideal: MAX_HEIGHT } };
+
+        // Automático: o maior possível mantendo ~60 fps. Com FPS escolhido: o mais próximo dele.
+        const targetFps = this.frameRate ?? AUTO_TARGET_FPS;
+        // Margem para modos como 59.94 / 29.97.
+        const minFps = targetFps * FPS_TOLERANCE;
+
+        const base = { deviceId: { exact: this.videoId! }, ...size };
+        const attempts: { constraints: VideoConstraints; scaled: boolean }[] = [
+            { constraints: { ...base, frameRate: { min: minFps, ideal: targetFps }, resizeMode: "none" }, scaled: false },
+            { constraints: { ...base, frameRate: { ideal: targetFps }, resizeMode: "none" }, scaled: false },
+        ];
+        // Resolução escolhida que não existe nativamente: último recurso é escalar por software.
+        if (resolution) attempts.push({ constraints: { ...base, frameRate: { ideal: targetFps }, resizeMode: "crop-and-scale" }, scaled: true });
+        return attempts;
+    }
+
+    private async openVideoTrack() {
+        if (!this.videoId) return;
+
+        // Fecha antes de abrir: muitas placas de captura não aceitam duas sessões ao mesmo tempo,
+        // e é a reabertura que faz o driver trocar de modo.
         if (this.videoTrack) {
             this.mediaStream.removeTrack(this.videoTrack);
             this.videoTrack.stop();
             this.videoTrack = null;
-            this.setVideoTrack(this.videoTrack);
+            this.setVideoTrack(null);
         }
 
-        const tempStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: this.videoId } } });
-        if (!tempStream) return;
+        for (const { constraints, scaled } of this.buildAttempts()) {
+            try {
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: constraints });
+                this.videoTrack = tempStream.getVideoTracks()[0];
+                this.mediaStream.addTrack(this.videoTrack);
+                this.setVideoTrack(this.videoTrack);
 
-        this.videoTrack = tempStream.getVideoTracks()[0];
-        this.setVideoTrack(this.videoTrack);
-        this.mediaStream.addTrack(this.videoTrack);
-
-        const capabilities = this.getCapabilities(this.videoId, this.videoTrack);
-
-        const constraints: MediaTrackConstraints = {};
-
-        if (capabilities.width?.max) constraints.width = { ideal: capabilities.width.max };
-        if (capabilities.height?.max) constraints.height = { ideal: capabilities.height.max };
-        if (capabilities.frameRate?.max) constraints.frameRate = { ideal: capabilities.frameRate.max };
-
-        try {
-            await this.videoTrack.applyConstraints(constraints);
-        } catch (error) {
-            console.error(error);
+                const { width, height, frameRate } = this.videoTrack.getSettings();
+                console.debug(`Video opened at ${width}x${height} @ ${frameRate} fps`, constraints);
+                if (scaled) this.handleWarning(`${width}x${height} is not native on this device; scaling in software`);
+                else this.setAlert(null);
+                return;
+            } catch (error) {
+                if (error instanceof DOMException && error.name === "OverconstrainedError") continue;
+                this.handleError(`Could not open video device (${error instanceof DOMException ? error.name : error})`);
+                return;
+            }
         }
 
-        this.currentVideoId = this.videoId;
-        this.setResolution();
-        this.setFrameRate();
-    }
-
-    async setResolution() {
-        if (!this.resolutionTag || !this.videoTrack) return;
-        const resolution = Resolution.getFromTag(this.resolutionTag);
-        if (!resolution) return;
-        console.debug("Applying custom resolution");
-        try {
-            await this.videoTrack.applyConstraints({
-                width: { exact: resolution?.width },
-                height: { exact: resolution?.height },
-            });
-            this.setVideoTrack(this.videoTrack);
-        } catch (error) {
-            console.error(error);
-        }
-    }
-
-    async setFrameRate() {
-        if (!this.frameRate || !this.videoTrack) return;
-        const framerate = this.frameRate ? (Number.isFinite(this.frameRate) && this.frameRate > 0 ? this.frameRate : null) : null;
-        if (!framerate) return;
-        console.debug("Applying custom framerate");
-        try {
-            await this.videoTrack.applyConstraints({
-                frameRate: { exact: framerate },
-            });
-            this.setVideoTrack(this.videoTrack);
-        } catch (error) {
-            console.error(error);
-        }
+        this.handleError("This device does not support the selected resolution/framerate");
     }
 
     async updateAudioTrack() {
@@ -158,27 +182,6 @@ export default class Stream {
         //this.setAudioTrack(this.audioTrack);
         this.mediaStream.addTrack(this.audioTrack);
         this.currentAudioId = this.audioId;
-    }
-
-    async setResolutionTag(resolutionTag: string) {
-        if (!this.videoTrack) return;
-
-        const resolution = Resolution.getFromTag(resolutionTag);
-        if (!resolution) {
-            const capabilities = this.videoTrack.getCapabilities();
-            const constraints: MediaTrackConstraints = {};
-
-            if (capabilities.width?.max) constraints.width = { ideal: capabilities.width.max };
-            if (capabilities.height?.max) constraints.height = { ideal: capabilities.height.max };
-
-            await this.videoTrack.applyConstraints(constraints);
-            return;
-        }
-
-        this.videoTrack.applyConstraints({
-            width: { exact: resolution.width },
-            height: { exact: resolution.height },
-        });
     }
 
     async checkPermissions() {

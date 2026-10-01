@@ -40,8 +40,7 @@ export default function ToolbarContent() {
             <DropDown
                 title="Video Device"
                 onChoose={async (value) => {
-                    stream.videoId = value;
-                    stream.updateVideoTrack();
+                    stream.setVideoDevice(value);
                 }}>
                 {videoDevicesList.map(({ deviceId, label }) => (
                     <DropOption key={deviceId} value={deviceId} className="flex gap-3">
@@ -66,8 +65,7 @@ export default function ToolbarContent() {
             <DropDown
                 title="Resolution"
                 onChoose={async (value) => {
-                    stream.resolutionTag = value;
-                    stream.setResolution();
+                    stream.setResolutionTag(value === "Auto" ? null : value);
                 }}>
                 <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
                     {`Automatic`}
@@ -84,8 +82,7 @@ export default function ToolbarContent() {
             <DropDown
                 title="Framerate"
                 onChoose={async (value) => {
-                    stream.frameRate = Number(value);
-                    stream.setFrameRate();
+                    stream.setFrameRate(value === "Auto" ? null : Number(value));
                 }}>
                 <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
                     {`Automatic`}

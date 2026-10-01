@@ -26,12 +26,13 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
   timestamp do driver até a tela; atraso interno da câmera/placa não entra.
 
 ## Bugs suspeitos (vistos lendo o código; nada foi confirmado rodando ainda)
-1. **Resolução e FPS se anulam** — `Stream.setResolution()` e `Stream.setFrameRate()` chamam
-   `applyConstraints` separadamente, e cada chamada substitui as restrições anteriores; aplicar o
-   FPS descarta a resolução exata. Correção: montar um único objeto com width/height/frameRate.
-2. **Voltar para "Automatic" não faz nada** — resolução "Auto" dá `Resolution.getFromTag` nulo e
-   o método retorna; FPS "Auto" vira `Number("Auto") = NaN` e retorna. `setResolutionTag()` já trata
-   o caso de voltar ao máximo, mas não é chamado.
+1. ~~Resolução e FPS se anulam~~ / 2. ~~"Automatic" não faz nada~~ — **corrigido**. Confirmado
+   rodando: ao trocar a resolução a placa continuava no modo original (o Chromium só reescalava
+   por software). Agora `Stream.setVideoDevice/setResolutionTag/setFrameRate` **reabrem** o
+   dispositivo (`getUserMedia`) com resolução + FPS juntos e `resizeMode: "none"` (modo nativo).
+   Automático = maior resolução com ≥ ~59 fps (`frameRate.min = alvo × 0.97`, aceita 59.94);
+   sem modo assim, cai para a maior resolução. Resolução escolhida que não é nativa: último
+   recurso é `crop-and-scale` com alerta. Reaberturas são agrupadas (`requestVideoRestart`).
 3. ~~Sem microfone a toolbar some~~ — **corrigido**. Permissão agora é do `PermissionGate`
    (`src/components/PermissionGate/`): pede vídeo e áudio separados (microfone opcional) e mostra
    splash com o motivo (bloqueado no Windows / sem câmera / em uso) e botão de tentar de novo.
@@ -40,8 +41,8 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
 4. **A StatusBar pode ficar desatualizada** — `setVideoTrack(this.videoTrack)` passa a mesma
    referência, então o Preact não re-renderiza depois do `applyConstraints`. O FPS mostrado é o
    configurado (`getSettings`), não o medido.
-5. **Erros de constraint silenciosos** — `OverconstrainedError` só vai para o console; poderia
-   usar `handleError`/`handleWarning` (que já existem) para mostrar o alerta.
+5. ~~Erros de constraint silenciosos~~ — **corrigido** no vídeo (alerta via `handleError`/
+   `handleWarning`); o áudio (`updateAudioTrack`) ainda só falha no console.
 6. ~~Dropdown fecha sozinho~~ — **corrigido** (confirmado rodando: ficou pior com a latência,
    que re-renderiza o `ToolbarContent` 2×/s). O efeito agora depende da lista de valores das
    opções (`optionValues`), não da identidade de `children`.

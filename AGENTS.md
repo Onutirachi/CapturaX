@@ -47,9 +47,10 @@ src-tauri/          → Rust backend (currently minimal, no custom commands)
 ### Key Class: `Stream` (`src/core/utils/Stream.ts`)
 Central media manager. Instantiated once via `useRef` in `ToolbarContent`. Handles:
 - Device enumeration (`Stream.getVideoDevices()`, `Stream.getAudioDevices()`)
-- Track updates (`updateVideoTrack()`, `updateAudioTrack()`)
-- Constraints (`setResolution()`, `setFrameRate()`, `setResolutionTag()`)
-- Capability caching (`Map<string, MediaTrackCapabilities>`)
+- Video: `setVideoDevice()`, `setResolutionTag()`, `setFrameRate()` (`null` = auto) — each one
+  **reopens** the device via `getUserMedia` with `resizeMode: "none"` (native mode), coalesced by
+  `requestVideoRestart()`; auto = highest resolution that keeps ~60 fps
+- Audio: `updateAudioTrack()`
 - Alerts via injected `setAlert` from context
 
 ### Core Reusable Components (`src/core/components/`)
