@@ -42,8 +42,9 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
    configurado (`getSettings`), não o medido.
 5. **Erros de constraint silenciosos** — `OverconstrainedError` só vai para o console; poderia
    usar `handleError`/`handleWarning` (que já existem) para mostrar o alerta.
-6. **Dropdown pode fechar sozinho** — o `useEffect([children])` do `DropDown` roda a cada
-   re-render do pai (children sempre é um novo array) e chama `selectOption` → `setOpen(false)`.
+6. ~~Dropdown fecha sozinho~~ — **corrigido** (confirmado rodando: ficou pior com a latência,
+   que re-renderiza o `ToolbarContent` 2×/s). O efeito agora depende da lista de valores das
+   opções (`optionValues`), não da identidade de `children`.
 7. **Plugar/desplugar dispositivo não atualiza as listas** — falta listener de `devicechange`.
 8. **Pronto mas não ligado:** `AmbientLight.tsx` não é usado; o botão de mudo do protótipo
    `capture.html` não foi portado. (Fullscreen **feito**: `FullscreenContext.toggleFullscreen()`

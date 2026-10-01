@@ -39,6 +39,10 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
         setOpen(false);
     };
 
+    // Só re-seleciona quando as opções mudam de verdade (ex.: dispositivo plugado/desplugado).
+    // `children` é um array novo a cada render do pai, então não pode ser a dependência.
+    const optionValues = (Children.toArray(children) as any[]).map((child) => child.props?.value).join("\u0000");
+
     useEffect(() => {
         const storedValue = localStorage.getItem(title);
         const optionsArray = Children.toArray(children) as any;
@@ -53,7 +57,7 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
 
         if (optionsArray.length === 0) return;
         selectOption(optionsArray[0]);
-    }, [children]);
+    }, [optionValues]);
 
     useEffect(() => {
         if (!value) return;
