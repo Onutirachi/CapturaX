@@ -9,7 +9,7 @@ export default function StatusBar({ active }: { active: boolean }) {
             <div
                 className={`
                         h-full w-full
-                        [border-bottom:var(--border)]
+                        [border-top:var(--border)]
                         transition-transform duration-300
                         flex gap-3 items-center justify-end
                         p-3
