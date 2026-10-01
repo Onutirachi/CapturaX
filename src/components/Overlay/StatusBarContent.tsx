@@ -2,6 +2,7 @@ import { useContext } from "preact/hooks";
 import Tag from "../../core/components/Tag";
 import Resolution from "../../core/utils/Resolution";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
+import { LatencyContext } from "../../context/LatencyContext";
 
 import Icon from "./Icon";
 import ButtonToggle from "../../core/components/ButtonToggle";
@@ -24,8 +25,9 @@ function Controls({ fixed, setFixed }: ControlsProps) {
 
 export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; setFixed: (value: boolean) => void }) {
     const vsctx = useContext(VideoStreamContext);
+    const latency = useContext(LatencyContext)?.latency ?? null;
     if (!vsctx) return null;
-    const { videoTrack, latency } = vsctx;
+    const { videoTrack } = vsctx;
 
     if (!videoTrack) {
         return (

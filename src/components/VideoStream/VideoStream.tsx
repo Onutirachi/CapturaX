@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef } from "preact/hooks";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
+import { LatencyContext } from "../../context/LatencyContext";
 
 const LATENCY_UPDATE_MS = 500;
 
@@ -10,12 +11,12 @@ function median(values: number[]) {
 
 export default function VideoStream() {
     const ctx = useContext(VideoStreamContext);
+    const setLatency = useContext(LatencyContext)?.setLatency;
     const videoRef = useRef<HTMLVideoElement>(null);
 
     const volume = ctx?.volume ?? 1;
     const muted = ctx?.muted ?? false;
     const videoStream = ctx?.videoStream ?? null;
-    const setLatency = ctx?.setLatency;
 
     useEffect(() => {
         if (!videoRef.current) return;

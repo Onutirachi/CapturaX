@@ -21,7 +21,8 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
 
 ## Recursos adicionados
 - **Latência:** `VideoStream` mede com `requestVideoFrameCallback`
-  (`expectedDisplayTime - captureTime`, mediana a cada 500 ms) → `latency` no `VideoStreamContext`
+  (`expectedDisplayTime - captureTime`, mediana a cada 500 ms) → `LatencyContext` (separado para não
+  re-renderizar Toolbar/Dock 2×/s)
   → bolha "Latency N ms" na StatusBar (some se o driver não fornecer `captureTime`). Mede só do
   timestamp do driver até a tela; atraso interno da câmera/placa não entra.
 
