@@ -41,7 +41,7 @@ export default class Stream {
     }
 
     stopVideoTracks(mediaStream: MediaStream) {
-        mediaStream.getTracks().forEach((track) => {
+        mediaStream.getVideoTracks().forEach((track) => {
             track.stop();
             mediaStream.removeTrack(track);
         });
@@ -65,7 +65,7 @@ export default class Stream {
 
     async updateVideoTrack() {
         if (!this.videoId) return;
-        if (!this.videoId && this.videoId == this.currentVideoId && this.currentVideoId) return;
+        if (this.videoId === this.currentVideoId) return;
 
         if (this.videoTrack) {
             this.mediaStream.removeTrack(this.videoTrack);
@@ -95,6 +95,7 @@ export default class Stream {
             console.error(error);
         }
 
+        this.currentVideoId = this.videoId;
         this.setResolution();
         this.setFrameRate();
     }
@@ -156,20 +157,7 @@ export default class Stream {
         this.audioTrack = tempStream.getAudioTracks()[0];
         //this.setAudioTrack(this.audioTrack);
         this.mediaStream.addTrack(this.audioTrack);
-
-        const constraints: MediaTrackConstraints = {};
-
-        try {
-            await this.audioTrack.applyConstraints(constraints);
-        } catch (error) {
-            console.error(error);
-        }
-    }
-
-    getTrack(deviceId: string): MediaStreamTrack | null {
-        const track = this.mediaStream.getTracks().find((track) => track.id === deviceId);
-        if (!track) return null;
-        return track;
+        this.currentAudioId = this.audioId;
     }
 
     async setResolutionTag(resolutionTag: string) {
@@ -191,26 +179,6 @@ export default class Stream {
             width: { exact: resolution.width },
             height: { exact: resolution.height },
         });
-    }
-
-    async setFramerate(frameRate: number) {
-        if (!this.videoTrack) return;
-        if (Number.isFinite(frameRate) && frameRate > 0) {
-            if (!this.videoTrack) return;
-            this.videoTrack.applyConstraints({
-                frameRate: { exact: frameRate },
-            });
-            return;
-        }
-
-        const capabilities = this.videoTrack.getCapabilities();
-        const constraints: MediaTrackConstraints = {};
-
-        if (capabilities.width?.max) constraints.width = { ideal: capabilities.width.max };
-        if (capabilities.height?.max) constraints.height = { ideal: capabilities.height.max };
-
-        await this.videoTrack.applyConstraints(constraints);
-        return;
     }
 
     async checkPermissions() {
