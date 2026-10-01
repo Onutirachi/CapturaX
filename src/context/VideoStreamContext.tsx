@@ -22,7 +22,12 @@ export const VideoStreamContext = createContext<VideoStreamContextType | null>(n
 
 function loadStored<T>(key: string, fallback: T): T {
     const stored = localStorage.getItem(key);
-    return stored === null ? fallback : (JSON.parse(stored) as T);
+    if (stored === null) return fallback;
+    try {
+        return JSON.parse(stored) as T;
+    } catch {
+        return fallback; // valor corrompido não pode impedir o app de abrir
+    }
 }
 
 export function VideoStreamProvider({ children }: { children: ComponentChildren }) {
