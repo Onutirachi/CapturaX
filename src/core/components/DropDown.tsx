@@ -65,6 +65,18 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
     }, [value]);
 
     useEffect(() => {
+        if (!open) return;
+        // Captura no document roda antes do listener de Esc do fullscreen (window, bubble).
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") return;
+            e.stopPropagation();
+            setOpen(false);
+        };
+        document.addEventListener("keydown", handler, true);
+        return () => document.removeEventListener("keydown", handler, true);
+    }, [open]);
+
+    useEffect(() => {
         const handler = (e: MouseEvent) => {
             if (dropDownRef.current && !dropDownRef.current.contains(e.target as any)) {
                 setOpen(false);
