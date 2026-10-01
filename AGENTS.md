@@ -33,7 +33,7 @@ Dev server runs on `localhost:1420` (fixed port — fails if unavailable).
 ```
 src/main.tsx        → FullscreenProvider > WindowBar + App
 src/App.tsx         → VideoStreamProvider > AlertsProvider > VideoStream + Overlay
-src/context/        → 4 contexts: VideoStreamContext, LatencyContext, AlertsContext, FullscreenContext
+src/context/        → 4 contexts: VideoStreamContext, FrameStatsContext, AlertsContext, FullscreenContext
 src/components/     → UI components (Overlay/, VideoStream/, WindowBar/)
 src/core/           → Reusable primitives (components/, utils/)
 src-tauri/          → Rust backend (currently minimal, no custom commands)
@@ -41,7 +41,7 @@ src-tauri/          → Rust backend (currently minimal, no custom commands)
 
 ### Context Providers
 - `VideoStreamContext` — `videoStream` (MediaStream) + `videoTrack` (MediaStreamTrack) + `volume`/`muted`
-- `LatencyContext` — `latency` (ms, updated 2×/s by `VideoStream`); kept separate so only the StatusBar re-renders
+- `FrameStatsContext` — measured `latency` (ms) + `fps`, updated 2×/s by `VideoStream`; kept separate so only the StatusBar re-renders
 - `AlertsContext` — `alert` `{ text, color, icon }` for transient notifications
 - `FullscreenContext` — `fullscreen` boolean
 

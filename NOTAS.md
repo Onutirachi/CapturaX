@@ -21,7 +21,7 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
 
 ## Recursos adicionados
 - **Latência:** `VideoStream` mede com `requestVideoFrameCallback`
-  (`expectedDisplayTime - captureTime`, mediana a cada 500 ms) → `LatencyContext` (separado para não
+  (`expectedDisplayTime - captureTime`, mediana a cada 500 ms) → `FrameStatsContext` (separado para não
   re-renderizar Toolbar/Dock 2×/s)
   → bolha "Latency N ms" na StatusBar (some se o driver não fornecer `captureTime`). Mede só do
   timestamp do driver até a tela; atraso interno da câmera/placa não entra.
@@ -39,9 +39,9 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
    splash com o motivo (bloqueado no Windows / sem câmera / em uso) e botão de tentar de novo.
    No Rust (`lib.rs`), um handler `PermissionRequested` do WebView2 libera câmera e microfone
    automaticamente, sem prompt.
-4. **A StatusBar pode ficar desatualizada** — `setVideoTrack(this.videoTrack)` passa a mesma
-   referência, então o Preact não re-renderiza depois do `applyConstraints`. O FPS mostrado é o
-   configurado (`getSettings`), não o medido.
+4. ~~A StatusBar pode ficar desatualizada~~ — **corrigido**: cada troca abre uma track nova
+   (referência nova) e a StatusBar re-renderiza 2×/s pelo `FrameStatsContext`. O FPS mostrado agora
+   é o **medido** (`presentedFrames` / tempo); o configurado aparece no tooltip.
 5. ~~Erros de constraint silenciosos~~ — **corrigido** (vídeo e áudio mostram alerta via
    `handleError`/`handleWarning`).
 6. ~~Dropdown fecha sozinho~~ — **corrigido** (confirmado rodando: ficou pior com a latência,
