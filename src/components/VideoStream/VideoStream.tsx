@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef } from "preact/hooks";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { FrameStatsContext, EMPTY_FRAME_STATS } from "../../context/FrameStatsContext";
+import AmbientLight from "./AmbientLight";
 
 const STATS_UPDATE_MS = 500;
 
@@ -70,8 +71,9 @@ export default function VideoStream() {
     if (!ctx) return;
 
     return (
-        <div className="w-full h-full flex items-center justify-center">
-            <video className={`h-full w-full object-contain transition`} autoPlay playsInline srcObject={videoStream} ref={videoRef} />
+        <div className="w-full h-full flex items-center justify-center relative">
+            {ctx.ambientLight && <AmbientLight videoRef={videoRef} />}
+            <video className={`h-full w-full object-contain transition relative`} autoPlay playsInline srcObject={videoStream} ref={videoRef} />
         </div>
     );
 }

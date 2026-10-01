@@ -50,8 +50,9 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
 7. ~~Plugar/desplugar não atualiza as listas~~ — **corrigido**: `ToolbarContent` escuta
    `devicechange`; track `ended` mostra alerta "disconnected" e `Stream.handleDeviceChange()`
    reabre o dispositivo quando ele volta.
-8. **Pronto mas não ligado:** `AmbientLight.tsx` não é usado; o botão de mudo do protótipo
-   `capture.html` não foi portado. (Fullscreen **feito**: `FullscreenContext.toggleFullscreen()`
+8. ~~Pronto mas não ligado~~ — **feito**: AmbientLight reescrito para ser barato (canvas 32×18
+   esticado, 10 Hz, sem `getImageData`/blur) com toggle na Dock (`ambientLight` no
+   `VideoStreamContext`, desligado por padrão); mudo está na Dock. (Fullscreen **feito**: `FullscreenContext.toggleFullscreen()`
    controla a janela Tauri; botão na Dock, F11 alterna, Esc sai; a WindowBar some em
    fullscreen. Se a janela estiver maximizada, desmaximiza antes (senão o tao prende o
    fullscreen ao rcWork) com as animações do DWM desligadas pelo comando Rust

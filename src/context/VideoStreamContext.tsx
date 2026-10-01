@@ -16,6 +16,8 @@ export type VideoStreamContextType = {
     setVolume: (v: number) => void;
     muted: boolean;
     setMuted: (v: boolean) => void;
+    ambientLight: boolean;
+    setAmbientLight: (v: boolean) => void;
 };
 
 export const VideoStreamContext = createContext<VideoStreamContextType | null>(null);
@@ -35,12 +37,14 @@ export function VideoStreamProvider({ children }: { children: ComponentChildren 
     const [videoTrack, setVideoTrack] = useState<VideoTrackType>(null);
     const [volume, setVolume] = useState<number>(() => loadStored("volume", 1));
     const [muted, setMuted] = useState<boolean>(() => loadStored("muted", false));
+    const [ambientLight, setAmbientLight] = useState<boolean>(() => loadStored("ambientLight", false));
 
     useEffect(() => localStorage.setItem("volume", JSON.stringify(volume)), [volume]);
     useEffect(() => localStorage.setItem("muted", JSON.stringify(muted)), [muted]);
+    useEffect(() => localStorage.setItem("ambientLight", JSON.stringify(ambientLight)), [ambientLight]);
 
     return (
-        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted }}>
+        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, ambientLight, setAmbientLight }}>
             {children}
         </VideoStreamContext.Provider>
     );

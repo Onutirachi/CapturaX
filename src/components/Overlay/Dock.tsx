@@ -40,6 +40,13 @@ export default function Dock({ active, hover }: DockProps) {
 
                 {vsctx && (
                     <>
+                        <button
+                            title={vsctx.ambientLight ? "Disable ambient light" : "Enable ambient light"}
+                            onClick={() => vsctx.setAmbientLight(!vsctx.ambientLight)}
+                            className={`${buttonClass} ${vsctx.ambientLight ? "bg-normal" : ""}`}>
+                            <Icon src="./assets/Dock/ambient_light.svg" color={vsctx.ambientLight ? "#ffaa00" : undefined} />
+                        </button>
+
                         <div className="w-8 [border-top:var(--border)]" />
                         <input
                             type="range"
