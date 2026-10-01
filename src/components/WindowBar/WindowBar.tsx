@@ -1,6 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Button, ButtonContent } from "./Button";
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useContext } from "preact/hooks";
+import { FullscreenContext } from "../../context/FullscreenContext";
 
 const MINIMIZE_ICON = "./assets/WindowBar/minimize.svg";
 const MAXIMIZE_ICON = "./assets/WindowBar/maximize.svg";
@@ -9,6 +10,7 @@ const CLOSE_ICON = "./assets/WindowBar/close.svg";
 
 export default function WindowBar() {
     const [maximizeIcon, setMaximizeIcon] = useState<string>(MAXIMIZE_ICON);
+    const fsctx = useContext(FullscreenContext);
 
     const updateMaximizeIcon = async () => {
         const isMaximized = await getCurrentWindow().isMaximized();
@@ -47,6 +49,8 @@ export default function WindowBar() {
             window.removeEventListener("resize", updateMaximizeIcon);
         };
     }, []);
+
+    if (fsctx?.fullscreen) return null;
 
     return (
         <div className="w-full h-8 bg-darker flex items-center [border-bottom:var(--border)] box-border" data-tauri-drag-region>
