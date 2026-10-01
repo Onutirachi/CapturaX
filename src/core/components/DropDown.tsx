@@ -51,6 +51,7 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
             }
         }
 
+        if (optionsArray.length === 0) return;
         selectOption(optionsArray[0]);
     }, [children]);
 

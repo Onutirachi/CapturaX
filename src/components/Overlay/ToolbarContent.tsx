@@ -25,7 +25,6 @@ export default function ToolbarContent() {
     useEffect(() => {
         if (!stream) return;
         const loadDevices = async () => {
-            await stream.getPermission();
             setVideoDevicesList(await Stream.getVideoDevices());
             setaudioDevicesList(await Stream.getAudioDevices());
         };
@@ -35,7 +34,6 @@ export default function ToolbarContent() {
 
     if (!vsctx || !actx || !stream) return null;
     if (videoDevicesList.length === 0) return null;
-    if (audioDevicesList.length === 0) return null;
 
     return (
         <>

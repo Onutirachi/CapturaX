@@ -2,6 +2,7 @@ import Overlay from "./components/Overlay/Overlay";
 import VideoStream from "./components/VideoStream/VideoStream";
 import { VideoStreamProvider } from "./context/VideoStreamContext";
 import { AlertsProvider } from "./context/AlertsContext";
+import PermissionGate from "./components/PermissionGate/PermissionGate";
 
 function App() {
     return (
@@ -9,7 +10,9 @@ function App() {
             <VideoStreamProvider>
                 <VideoStream />
                 <AlertsProvider>
-                    <Overlay />
+                    <PermissionGate>
+                        <Overlay />
+                    </PermissionGate>
                 </AlertsProvider>
             </VideoStreamProvider>
         </main>

@@ -189,21 +189,6 @@ export default class Stream {
         return false;
     }
 
-    async getPermission() {
-        try {
-            const initialStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true,
-            });
-
-            initialStream.getTracks().forEach((track) => track.stop());
-            this.setAlert(null);
-        } catch (error) {
-            console.error("Error to get permission: ", error);
-            this.setAlert({ text: "Permission denied", color: "darkred", icon: "./assets/Alerts/error.svg" });
-        }
-    }
-
     static async getVideoDevices(): Promise<MediaDeviceInfo[]> {
         const deviceList = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = deviceList.filter((device) => device.kind === "videoinput");
