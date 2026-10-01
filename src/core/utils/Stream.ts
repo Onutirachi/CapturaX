@@ -3,11 +3,6 @@ import { SetAlertType } from "../../context/AlertsContext";
 import { SetVideoStreamType } from "../../context/VideoStreamContext";
 import { SetVideoTrackType } from "../../context/VideoStreamContext";
 
-export type infoType = {
-    settings: MediaTrackSettings;
-    capabilities: MediaTrackCapabilities;
-};
-
 // `resizeMode` ainda não está nos tipos do TypeScript.
 type VideoConstraints = MediaTrackConstraints & { resizeMode?: "none" | "crop-and-scale" };
 
@@ -39,27 +34,6 @@ export default class Stream {
         this.setAlert = setAlert;
         this.setVideoTrack = setVideoTrack;
         setVideoStream(this.mediaStream);
-    }
-
-    stopTracks(mediaStream: MediaStream) {
-        mediaStream.getTracks().forEach((track) => {
-            track.stop();
-            mediaStream.removeTrack(track);
-        });
-    }
-
-    stopVideoTracks(mediaStream: MediaStream) {
-        mediaStream.getVideoTracks().forEach((track) => {
-            track.stop();
-            mediaStream.removeTrack(track);
-        });
-    }
-
-    stopAudioTracks(mediaStream: MediaStream) {
-        mediaStream.getAudioTracks().forEach((track) => {
-            track.stop();
-            mediaStream.removeTrack(track);
-        });
     }
 
     setVideoDevice(deviceId: string) {
@@ -209,14 +183,6 @@ export default class Stream {
         } catch (error) {
             this.handleError(`Could not open audio device (${error instanceof DOMException ? error.name : error})`);
         }
-    }
-
-    async checkPermissions() {
-        const status = await navigator.permissions.query({ name: "camera" as PermissionName });
-        if (status.state === "granted") {
-            return true;
-        }
-        return false;
     }
 
     static async getVideoDevices(): Promise<MediaDeviceInfo[]> {
