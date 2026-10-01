@@ -25,11 +25,16 @@ export default function ToolbarContent() {
     useEffect(() => {
         if (!stream) return;
         const loadDevices = async () => {
-            setVideoDevicesList(await Stream.getVideoDevices());
-            setaudioDevicesList(await Stream.getAudioDevices());
+            const videoDevices = await Stream.getVideoDevices();
+            const audioDevices = await Stream.getAudioDevices();
+            setVideoDevicesList(videoDevices);
+            setaudioDevicesList(audioDevices);
+            stream.handleDeviceChange([...videoDevices, ...audioDevices]);
         };
 
         loadDevices();
+        navigator.mediaDevices.addEventListener("devicechange", loadDevices);
+        return () => navigator.mediaDevices.removeEventListener("devicechange", loadDevices);
     }, [stream]);
 
     if (!vsctx || !actx || !stream) return null;

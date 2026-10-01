@@ -136,7 +136,9 @@ export default class Stream {
         for (const { constraints, scaled } of this.buildAttempts()) {
             try {
                 const tempStream = await navigator.mediaDevices.getUserMedia({ video: constraints });
-                this.videoTrack = tempStream.getVideoTracks()[0];
+                const track = tempStream.getVideoTracks()[0];
+                track.addEventListener("ended", () => this.handleVideoEnded(track));
+                this.videoTrack = track;
                 this.mediaStream.addTrack(this.videoTrack);
                 this.setVideoTrack(this.videoTrack);
 
@@ -155,6 +157,29 @@ export default class Stream {
         this.handleError("This device does not support the selected resolution/framerate");
     }
 
+    private handleVideoEnded(track: MediaStreamTrack) {
+        if (this.videoTrack !== track) return; // fechada por nós numa reabertura
+        this.mediaStream.removeTrack(track);
+        this.videoTrack = null;
+        this.setVideoTrack(null);
+        this.handleWarning("Video device disconnected");
+    }
+
+    private handleAudioEnded(track: MediaStreamTrack) {
+        if (this.audioTrack !== track) return;
+        this.mediaStream.removeTrack(track);
+        this.audioTrack = null;
+        this.currentAudioId = null;
+        this.handleWarning("Audio device disconnected");
+    }
+
+    /** Chamado quando a lista de dispositivos muda: reabre o que caiu e voltou. */
+    handleDeviceChange(devices: MediaDeviceInfo[]) {
+        const available = (id: string | null) => id !== null && devices.some((device) => device.deviceId === id);
+        if (!this.videoTrack && available(this.videoId)) this.requestVideoRestart();
+        if (!this.audioTrack && available(this.audioId)) this.updateAudioTrack();
+    }
+
     async updateAudioTrack() {
         if (!this.audioId) return;
         if (this.audioId == this.currentAudioId && this.currentAudioId) return;
@@ -163,25 +188,27 @@ export default class Stream {
             this.mediaStream.removeTrack(this.audioTrack);
             this.audioTrack.stop();
             this.audioTrack = null;
-            //this.setAudioTrack(this.audioTrack);
         }
 
-        const tempStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                deviceId: { exact: this.audioId },
-                sampleRate: { ideal: 48000 },
-                channelCount: { ideal: 2 },
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-            },
-        });
-        if (!tempStream) return;
-
-        this.audioTrack = tempStream.getAudioTracks()[0];
-        //this.setAudioTrack(this.audioTrack);
-        this.mediaStream.addTrack(this.audioTrack);
-        this.currentAudioId = this.audioId;
+        try {
+            const tempStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    deviceId: { exact: this.audioId },
+                    sampleRate: { ideal: 48000 },
+                    channelCount: { ideal: 2 },
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                },
+            });
+            const track = tempStream.getAudioTracks()[0];
+            track.addEventListener("ended", () => this.handleAudioEnded(track));
+            this.audioTrack = track;
+            this.mediaStream.addTrack(track);
+            this.currentAudioId = this.audioId;
+        } catch (error) {
+            this.handleError(`Could not open audio device (${error instanceof DOMException ? error.name : error})`);
+        }
     }
 
     async checkPermissions() {

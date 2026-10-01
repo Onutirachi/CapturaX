@@ -42,12 +42,14 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
 4. **A StatusBar pode ficar desatualizada** — `setVideoTrack(this.videoTrack)` passa a mesma
    referência, então o Preact não re-renderiza depois do `applyConstraints`. O FPS mostrado é o
    configurado (`getSettings`), não o medido.
-5. ~~Erros de constraint silenciosos~~ — **corrigido** no vídeo (alerta via `handleError`/
-   `handleWarning`); o áudio (`updateAudioTrack`) ainda só falha no console.
+5. ~~Erros de constraint silenciosos~~ — **corrigido** (vídeo e áudio mostram alerta via
+   `handleError`/`handleWarning`).
 6. ~~Dropdown fecha sozinho~~ — **corrigido** (confirmado rodando: ficou pior com a latência,
    que re-renderiza o `ToolbarContent` 2×/s). O efeito agora depende da lista de valores das
    opções (`optionValues`), não da identidade de `children`.
-7. **Plugar/desplugar dispositivo não atualiza as listas** — falta listener de `devicechange`.
+7. ~~Plugar/desplugar não atualiza as listas~~ — **corrigido**: `ToolbarContent` escuta
+   `devicechange`; track `ended` mostra alerta "disconnected" e `Stream.handleDeviceChange()`
+   reabre o dispositivo quando ele volta.
 8. **Pronto mas não ligado:** `AmbientLight.tsx` não é usado; o botão de mudo do protótipo
    `capture.html` não foi portado. (Fullscreen **feito**: `FullscreenContext.toggleFullscreen()`
    controla a janela Tauri; botão na Dock, F11 alterna, Esc sai; a WindowBar some em
