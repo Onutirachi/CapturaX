@@ -182,7 +182,7 @@ export default class Stream {
     }
 
     async checkPermissions() {
-        const status = await navigator.permissions.query({ name: "camera" });
+        const status = await navigator.permissions.query({ name: "camera" as PermissionName });
         if (status.state === "granted") {
             return true;
         }

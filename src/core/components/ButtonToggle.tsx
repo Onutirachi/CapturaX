@@ -21,12 +21,11 @@ export default function ButtonToggle({ children, on, off, storeState }: ButtonTo
     }, [storeState]);
 
     useEffect(() => {
+        if (storeState) localStorage.setItem(storeState, String(active));
         if (!active) {
-            localStorage.setItem(storeState!, "false");
             off();
             return;
         }
-        localStorage.setItem(storeState!, "true");
         on();
     }, [active]);
 

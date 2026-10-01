@@ -2,7 +2,6 @@ import { DropDown, DropOption } from "../../core/components/DropDown";
 import Tag from "../../core/components/Tag";
 import { RESOLUTION_LIST, FRAMERATE_LIST } from "../../core/utils/constants";
 import { useState, useEffect, useContext, useRef } from "preact/hooks";
-import Button from "./Button";
 import Stream from "../../core/utils/Stream";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { AlertsContext } from "../../context/AlertsContext";

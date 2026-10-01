@@ -1,5 +1,5 @@
 import { render } from "preact";
-import "./globals.css";
+import "./Globals.css";
 import App from "./App";
 import WindowBar from "./components/WindowBar/WindowBar";
 import { FullscreenProvider } from "./context/FullscreenContext";

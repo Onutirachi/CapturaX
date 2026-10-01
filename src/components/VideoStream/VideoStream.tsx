@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from "preact/hooks";
+import { useContext, useRef } from "preact/hooks";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 
 export default function VideoStream() {

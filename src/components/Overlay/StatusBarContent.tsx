@@ -1,4 +1,4 @@
-import { useContext, useState, useEffect } from "preact/hooks";
+import { useContext } from "preact/hooks";
 import Tag from "../../core/components/Tag";
 import Resolution from "../../core/utils/Resolution";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
