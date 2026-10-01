@@ -16,6 +16,9 @@ export type VideoStreamContextType = {
     setVolume: (v: number) => void;
     muted: boolean;
     setMuted: (v: boolean) => void;
+    /** Latência medida (ms) entre a captura do frame e a exibição; null se indisponível. */
+    latency: number | null;
+    setLatency: (v: number | null) => void;
 };
 
 export const VideoStreamContext = createContext<VideoStreamContextType | null>(null);
@@ -30,12 +33,13 @@ export function VideoStreamProvider({ children }: { children: ComponentChildren 
     const [videoTrack, setVideoTrack] = useState<VideoTrackType>(null);
     const [volume, setVolume] = useState<number>(() => loadStored("volume", 1));
     const [muted, setMuted] = useState<boolean>(() => loadStored("muted", false));
+    const [latency, setLatency] = useState<number | null>(null);
 
     useEffect(() => localStorage.setItem("volume", JSON.stringify(volume)), [volume]);
     useEffect(() => localStorage.setItem("muted", JSON.stringify(muted)), [muted]);
 
     return (
-        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted }}>
+        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, latency, setLatency }}>
             {children}
         </VideoStreamContext.Provider>
     );

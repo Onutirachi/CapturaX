@@ -8,20 +8,30 @@ import ButtonToggle from "../../core/components/ButtonToggle";
 import InfoBubble from "./InfoBubble";
 import Alerts from "./Alerts";
 
+type ControlsProps = { fixed: boolean; setFixed: (value: boolean) => void };
+
+function Controls({ fixed, setFixed }: ControlsProps) {
+    return (
+        <>
+            <ButtonToggle on={() => setFixed(true)} off={() => setFixed(false)} storeState="statusBarFixed">
+                <InfoBubble className="cursor-pointer">
+                    {fixed ? <Icon src="./assets/StatusBar/pin_enable.svg" /> : <Icon src="./assets/StatusBar/pin_disable.svg" />}
+                </InfoBubble>
+            </ButtonToggle>
+        </>
+    );
+}
+
 export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; setFixed: (value: boolean) => void }) {
     const vsctx = useContext(VideoStreamContext);
     if (!vsctx) return null;
-    const { videoTrack } = vsctx;
+    const { videoTrack, latency } = vsctx;
 
     if (!videoTrack) {
         return (
             <>
                 <Alerts />
-                <ButtonToggle on={() => setFixed(true)} off={() => setFixed(false)} storeState="statusBarFixed">
-                    <InfoBubble className="cursor-pointer">
-                        {fixed ? <Icon src="./assets/StatusBar/pin_enable.svg" /> : <Icon src="./assets/StatusBar/pin_disable.svg" />}
-                    </InfoBubble>
-                </ButtonToggle>
+                <Controls fixed={fixed} setFixed={setFixed} />
             </>
         );
     }
@@ -56,11 +66,12 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
                 {aspectRatioTag && <Tag text={aspectRatioTag}></Tag>}
             </InfoBubble>
             <InfoBubble>{`${Math.floor(fps)} FPS`}</InfoBubble>
-            <ButtonToggle on={() => setFixed(true)} off={() => setFixed(false)} storeState="statusBarFixed">
-                <InfoBubble className="cursor-pointer">
-                    {fixed ? <Icon src="./assets/StatusBar/pin_enable.svg" /> : <Icon src="./assets/StatusBar/pin_disable.svg" />}
+            {latency !== null && (
+                <InfoBubble>
+                    <span title="Time from frame capture (driver timestamp) to display">{`Latency ${Math.round(latency)} ms`}</span>
                 </InfoBubble>
-            </ButtonToggle>
+            )}
+            <Controls fixed={fixed} setFixed={setFixed} />
         </>
     );
 }
