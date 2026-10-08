@@ -583,3 +583,144 @@ fn run_mixer(stop: Arc<AtomicBool>, inputs: Arc<Mutex<Vec<MixInput>>>, outputs: 
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Testes contra o WASAPI de verdade desta máquina: `cargo test --lib audio -- --ignored --nocapture`
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn audio_enumerate_only() {
+        let engine = AudioEngine::new();
+        for _ in 0..20 {
+            engine.list_inputs().unwrap();
+            engine.list_outputs().unwrap();
+            engine.running_apps().unwrap();
+        }
+        let v: Vec<Vec<u8>> = (0..10000).map(|i| vec![0u8; i % 4096]).collect();
+        println!("enumerate ok {}", v.len());
+    }
+
+    #[test]
+    #[ignore]
+    fn audio_loopback_only() {
+        let _com = ComGuard::new();
+        assert!(CaptureStream::open_process(std::process::id()).is_ok());
+    }
+
+    #[test]
+    #[ignore]
+    fn audio_apps_levels() {
+        let _com = ComGuard::new();
+        let sessions = apps::list_sessions().unwrap();
+        let table = apps::ProcessTable::snapshot().unwrap();
+        let plan = apps::plan_captures(&sessions, &table, &["discord.exe".to_string()]);
+        for s in &sessions {
+            println!("session pid={} exe={:?} active={} planned={}", s.pid, table.exe(s.pid), s.active, plan.contains(&s.pid));
+        }
+        for &pid in &plan {
+            let mut stream = match CaptureStream::open_process(pid) {
+                Ok(stream) => stream,
+                Err(error) => {
+                    println!("pid {pid}: open failed {error}");
+                    continue;
+                }
+            };
+            let (mut count, mut max) = (0usize, 0f32);
+            let start = Instant::now();
+            while start.elapsed() < Duration::from_millis(1500) {
+                stream.read(100, &mut |samples| {
+                    count += samples.len();
+                    max = samples.iter().fold(max, |m, s| m.max(s.abs()));
+                }).unwrap();
+            }
+            println!("pid {pid} {:?}: {} frames in 1.5 s, peak {max:.3}", table.exe(pid), count / 2);
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn audio_loopback_hears_tone() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let player = {
+            let stop = stop.clone();
+            std::thread::spawn(move || {
+                let _com = ComGuard::new();
+                let output = RenderStream::open(None).unwrap();
+                let mut phase = 0f32;
+                while !stop.load(Ordering::Relaxed) {
+                    output.wait(100);
+                    let frames = (output.buffer_frames() / 2).saturating_sub(output.padding().unwrap());
+                    output.write(frames, &mut |buffer| {
+                        for frame in buffer.chunks_mut(2) {
+                            let v = (phase * std::f32::consts::TAU).sin() * 0.01;
+                            phase = (phase + 440.0 / SAMPLE_RATE as f32).fract();
+                            frame.fill(v);
+                        }
+                    }).unwrap();
+                }
+            })
+        };
+        let _com = ComGuard::new();
+        let mut stream = CaptureStream::open_process(std::process::id()).unwrap();
+        let (mut count, mut max) = (0usize, 0f32);
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_millis(1500) {
+            stream.read(100, &mut |samples| {
+                count += samples.len();
+                max = samples.iter().fold(max, |m, s| m.max(s.abs()));
+            }).unwrap();
+        }
+        stop.store(true, Ordering::Relaxed);
+        player.join().unwrap();
+        println!("own tone: {} frames, peak {max:.4}", count / 2);
+        assert!(max > 0.005, "loopback did not capture the tone");
+    }
+
+    #[test]
+    #[ignore]
+    fn audio_smoke() {
+        let engine = AudioEngine::new();
+        let inputs = engine.list_inputs().unwrap();
+        let outputs = engine.list_outputs().unwrap();
+        println!("inputs: {:?}", inputs.iter().map(|d| (&d.name, d.is_default)).collect::<Vec<_>>());
+        println!("outputs: {:?}", outputs.iter().map(|d| (&d.name, d.is_default)).collect::<Vec<_>>());
+        println!("apps: {:?}", engine.running_apps().unwrap());
+
+        let _com = ComGuard::new();
+        // Loopback do próprio processo de teste: valida a ativação assíncrona.
+        let mut stream = CaptureStream::open_process(std::process::id()).expect("process loopback");
+        let mut received = 0;
+        for _ in 0..5 {
+            stream.read(100, &mut |samples| received += samples.len()).unwrap();
+        }
+        println!("process loopback ok, {received} samples in 500 ms");
+
+        let output = RenderStream::open(None).expect("default output");
+        let target = output.buffer_frames() / 2;
+        for _ in 0..10 {
+            output.wait(100);
+            let frames = target.saturating_sub(output.padding().unwrap());
+            output.write(frames, &mut |buffer| buffer.fill(0.0)).unwrap();
+        }
+        println!("render ok (buffer {} frames)", output.buffer_frames());
+
+        // Mixer com áudio do sistema por 1,5 s: precisa produzir ~150 blocos de 10 ms.
+        let blocks = Arc::new(AtomicU32::new(0));
+        let peak = Arc::new(AtomicU32::new(0));
+        let counter = blocks.clone();
+        let level = peak.clone();
+        let settings = MixSettings { inputs: vec![], system: Some(1.0), excluded: vec!["discord.exe".into()], offset_ms: 0 };
+        let id = engine.add_mix_output(&settings, Box::new(move |block| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            let max = block.samples.iter().fold(0f32, |m, s| m.max(s.abs()));
+            level.fetch_max((max * 1000.0) as u32, Ordering::Relaxed);
+            true
+        }));
+        std::thread::sleep(Duration::from_millis(4000));
+        engine.remove_mix_output(id);
+        println!("mixer produced {} blocks, peak {:.3}", blocks.load(Ordering::Relaxed), peak.load(Ordering::Relaxed) as f32 / 1000.0);
+        assert!(blocks.load(Ordering::Relaxed) > 100);
+    }
+}

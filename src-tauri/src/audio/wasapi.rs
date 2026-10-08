@@ -3,6 +3,7 @@
 //! (`AUTOCONVERTPCM`), e o que não der para converter lá é reamostrado aqui.
 
 use serde::Serialize;
+use std::mem::ManuallyDrop;
 use std::sync::mpsc;
 use std::time::Duration;
 use windows::core::{implement, Interface, Ref, Result, HRESULT, PCWSTR};
@@ -11,7 +12,7 @@ use windows::Win32::Foundation::{CloseHandle, E_FAIL, HANDLE, RPC_E_CHANGED_MODE
 use windows::Win32::Media::Audio::*;
 use windows::Win32::Media::KernelStreaming::{KSDATAFORMAT_SUBTYPE_PCM, SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT, WAVE_FORMAT_EXTENSIBLE};
 use windows::Win32::Media::Multimedia::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc, PROPVARIANT};
+use windows::Win32::System::Com::StructuredStorage::{PropVariantToStringAlloc, PROPVARIANT};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, BLOB, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ};
 use windows::Win32::System::Threading::{AvSetMmThreadCharacteristicsW, CreateEventW, WaitForSingleObject};
 use windows::Win32::System::Variant::VT_BLOB;
@@ -69,11 +70,11 @@ fn device_id(device: &IMMDevice) -> Result<String> {
 fn device_name(device: &IMMDevice) -> Result<String> {
     unsafe {
         let store = device.OpenPropertyStore(STGM_READ)?;
-        let mut value = store.GetValue(&PKEY_Device_FriendlyName)?;
+        // O PROPVARIANT se limpa sozinho no Drop.
+        let value = store.GetValue(&PKEY_Device_FriendlyName)?;
         let text = PropVariantToStringAlloc(&value)?;
         let name = text.to_string().unwrap_or_default();
         CoTaskMemFree(Some(text.0 as _));
-        let _ = PropVariantClear(&mut value);
         Ok(name)
     }
 }
@@ -419,7 +420,9 @@ fn activate_process_loopback(pid: u32) -> Result<IAudioClient> {
             },
         },
     };
-    let mut variant = PROPVARIANT::default();
+    // O `Drop` do PROPVARIANT chama PropVariantClear, que tentaria liberar `params` (que está na
+    // pilha, não no heap do COM): por isso o ManuallyDrop.
+    let mut variant = ManuallyDrop::new(PROPVARIANT::default());
     unsafe {
         let inner = &mut *variant.Anonymous.Anonymous;
         inner.vt = VT_BLOB;
@@ -428,9 +431,7 @@ fn activate_process_loopback(pid: u32) -> Result<IAudioClient> {
             pBlobData: &mut params as *mut _ as *mut u8,
         };
     }
-    // `variant` aponta para `params` (na pilha); não chamar PropVariantClear nele.
-
-    let operation = unsafe { ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, &IAudioClient::IID, Some(&variant), &handler)? };
+    let operation = unsafe { ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, &IAudioClient::IID, Some(&*variant), &handler)? };
     completed.recv_timeout(Duration::from_secs(5)).map_err(|_| windows::core::Error::from(E_FAIL))?;
 
     let mut result = HRESULT(0);
