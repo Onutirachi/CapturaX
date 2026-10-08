@@ -198,6 +198,24 @@ conseguir mexer no PC.
 Hoje: `LocalHlsSink` (servidor no PC). Depois: `RelaySink`, que envia os mesmos segmentos por
 HTTPS para um servidor hospedado. O app e a página de quem assiste não mudam.
 
+### Fase 8 — Multi-idioma (planejado em 2026-10-08, ainda não implementado)
+- **Idiomas iniciais:** inglês e português (Brasil). Inglês é a base e o fallback.
+- **Detecção automática:** o Rust informa o idioma da interface do Windows
+  (`GetUserDefaultUILanguage`, comando `system_locale`). Procura `pt-BR` exato → idioma `pt` →
+  inglês. A página de quem assiste usa o idioma do navegador de quem assiste
+  (`navigator.languages`), independente do app.
+- **Escolha manual:** Configurações → Geral → Idioma ("Automático (sistema)" + lista), salvo no
+  `settings.json`. Troca na hora, sem reiniciar.
+- **Estrutura para crescer:**
+  - Um arquivo por idioma em `src/i18n/` (`en.ts` é a fonte das chaves; os outros são tipados como
+    `Record<keyof typeof en, string>`, então faltar uma tradução é erro de compilação).
+  - Função `t("chave", { variáveis })` própria (sem dependência pesada), plurais com
+    `Intl.PluralRules`, números/datas/tamanhos com `Intl`.
+  - Adicionar um idioma = criar o arquivo e registrar numa lista; aparece sozinho no seletor.
+- **Mensagens do Rust:** os erros passam a voltar como código + dados (ex.: `port_unavailable`,
+  `{ port }`) e o front traduz; nada de texto em inglês montado no Rust aparecendo na tela.
+- Os textos atuais da interface (hoje em inglês) viram as chaves do `en.ts`.
+
 ### Fase 7 — Futuro
 - Modos exatos do dispositivo (Media Foundation) no lugar da lista fixa de `constants.ts`.
 - Preview de vídeo nativo, se a medição da Fase 1 justificar (pode ser antecipado).

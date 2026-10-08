@@ -3,6 +3,7 @@ import Toolbar from "./Toolbar";
 import Dock from "./Dock";
 import StatusBar from "./StatusBar";
 import Settings from "../Settings/Settings";
+import GoLiveDialog from "../Settings/GoLiveDialog";
 import { NativeContext } from "../../context/NativeContext";
 
 const HIDETIME = 2000;
@@ -53,6 +54,7 @@ export default function Overlay() {
             <Dock active={active} hover={hover} />
             <StatusBar active={active} />
             <Settings />
+            <GoLiveDialog />
         </>
     );
 }

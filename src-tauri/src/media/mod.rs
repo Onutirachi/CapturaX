@@ -24,7 +24,8 @@ use fmp4::{AudioTrack, Fragment, Fragmenter, Sample, VideoCodec, VideoTrack, VID
 
 /// Destino dos fragmentos (arquivo ou servidor HLS).
 pub trait FragmentSink: Send {
-    fn init(&mut self, bytes: &[u8], moov_offset: usize) -> std::io::Result<()>;
+    /// `codecs`: lista RFC 6381 das faixas (`avc1.640033,mp4a.40.2`).
+    fn init(&mut self, bytes: &[u8], moov_offset: usize, codecs: &str) -> std::io::Result<()>;
     fn fragment(&mut self, fragment: &Fragment) -> std::io::Result<()>;
     /// Devolve o arquivo final, se houver.
     fn finish(&mut self, video: &VideoTrack, audio: Option<&AudioTrack>) -> std::io::Result<Option<PathBuf>>;
@@ -46,6 +47,8 @@ pub struct SessionOptions {
     pub audio_bitrate_kbps: u32,
     /// Duração mínima de cada fragmento (corta sempre num keyframe).
     pub fragment_secs: f64,
+    /// Baixa latência: corta também a cada `part_secs`, sem esperar o keyframe.
+    pub part_secs: Option<f64>,
 }
 
 enum Message {
@@ -235,7 +238,11 @@ impl SessionState {
                 self.base_us = Some(pts_us);
                 self.stats.started_us.store(clock::now_us(), Ordering::Relaxed);
                 let (init, moov_offset) = fmp4::init_segment(&video, self.audio_track.as_ref());
-                if let Err(error) = self.sink.init(&init, moov_offset) {
+                let codecs = match self.audio_track {
+                    Some(_) => format!("{},mp4a.40.2", video.codec_string),
+                    None => video.codec_string.clone(),
+                };
+                if let Err(error) = self.sink.init(&init, moov_offset, &codecs) {
                     eprintln!("Could not write media header: {error}");
                     self.error = Some(error.to_string());
                 }
@@ -322,7 +329,7 @@ fn run_session(options: SessionOptions, receiver: mpsc::Receiver<Message>, stats
 
     let mut state = SessionState {
         sink: options.sink,
-        fragmenter: Fragmenter::new(options.fragment_secs, SAMPLE_RATE),
+        fragmenter: Fragmenter::new(options.fragment_secs, options.part_secs, SAMPLE_RATE),
         video: None,
         audio_track,
         aac,
@@ -389,7 +396,7 @@ mod tests {
     }
 
     impl FragmentSink for DirSink {
-        fn init(&mut self, bytes: &[u8], _moov_offset: usize) -> std::io::Result<()> {
+        fn init(&mut self, bytes: &[u8], _moov_offset: usize, _codecs: &str) -> std::io::Result<()> {
             std::fs::write(self.dir.join("init.mp4"), bytes)
         }
         fn fragment(&mut self, fragment: &Fragment) -> std::io::Result<()> {
@@ -399,6 +406,78 @@ mod tests {
         fn finish(&mut self, _: &VideoTrack, _: Option<&AudioTrack>) -> std::io::Result<Option<PathBuf>> {
             Ok(None)
         }
+    }
+
+    /// Transmissão "ao vivo" de verdade: repete o fixture em tempo real numa sessão de baixa
+    /// latência e serve em :18787 (`CAPTURAX_FIXTURE=<pasta> CAPTURAX_SERVE_SECS=40`).
+    #[test]
+    #[ignore]
+    fn serve_live_fixture() {
+        let dir = PathBuf::from(std::env::var("CAPTURAX_FIXTURE").expect("CAPTURAX_FIXTURE"));
+        let secs: u64 = std::env::var("CAPTURAX_SERVE_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(30);
+        let description = std::fs::read(dir.join("avcc.bin")).unwrap();
+        let raw = std::fs::read(dir.join("frames.bin")).unwrap();
+        let mut frames = Vec::new();
+        let mut i = 0;
+        while i < raw.len() {
+            let size = u32::from_le_bytes(raw[i..i + 4].try_into().unwrap()) as usize;
+            let pts = i64::from_le_bytes(raw[i + 4..i + 12].try_into().unwrap());
+            frames.push((pts, raw[i + 12] == 1, raw[i + 13..i + 13 + size].to_vec()));
+            i += 13 + size;
+        }
+        let loop_us = frames.last().unwrap().0 + 16_667;
+
+        let server = crate::stream::StreamServer::new();
+        tauri::async_runtime::block_on(server.apply(true, 18787, false));
+        let (sender, receiver) = mpsc::channel();
+        let options = SessionOptions {
+            kind: SessionKind::Stream,
+            sink: Box::new(crate::stream::LiveSink::new(server.hub.clone())),
+            audio: Some(MixSettings { inputs: vec![], system: None, excluded: vec![], offset_ms: 0 }),
+            audio_bitrate_kbps: 128,
+            fragment_secs: 1.0,
+            part_secs: Some(0.1),
+        };
+        let thread = std::thread::spawn(move || run_session(options, receiver, Arc::new(Stats::default())));
+        let track = VideoTrack { codec: VideoCodec::Avc, description, width: 1280, height: 720, codec_string: "avc1.64001f".into() };
+        sender.send(Message::VideoConfig(track)).unwrap();
+
+        println!("live on http://127.0.0.1:18787/ for {secs}s");
+        let start = clock::now_us();
+        let (mut frame, mut loops, mut audio_pts, mut phase) = (0usize, 0i64, start, 0f32);
+        while clock::now_us() - start < secs as i64 * 1_000_000 {
+            let now = clock::now_us();
+            // Vídeo no ritmo real.
+            loop {
+                let (pts, key, data) = &frames[frame];
+                let at = start + loops * loop_us + pts;
+                if at > now {
+                    break;
+                }
+                sender.send(Message::Video { data: data.clone(), pts_us: at, key: *key }).unwrap();
+                frame += 1;
+                if frame == frames.len() {
+                    frame = 0;
+                    loops += 1;
+                }
+            }
+            // Áudio em blocos de 10 ms.
+            while audio_pts + 10_000 <= now {
+                let mut block = Vec::with_capacity(crate::audio::BLOCK_FRAMES * CHANNELS);
+                for _ in 0..crate::audio::BLOCK_FRAMES {
+                    let v = (phase * std::f32::consts::TAU).sin() * 0.2;
+                    phase = (phase + 440.0 / SAMPLE_RATE as f32).fract();
+                    block.extend([v, v]);
+                }
+                sender.send(Message::Audio { samples: Arc::new(block), pts_us: audio_pts }).unwrap();
+                audio_pts += 10_000;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let (reply, result) = mpsc::channel();
+        sender.send(Message::Stop(reply)).unwrap();
+        let _ = result.recv();
+        thread.join().unwrap();
     }
 
     #[test]
@@ -417,7 +496,7 @@ mod tests {
             i += 13 + size;
         }
         let codec = std::fs::read_to_string(dir.join("codec.txt")).ok().and_then(|c| parse_codec(c.trim())).unwrap_or(VideoCodec::Avc);
-        let track = VideoTrack { codec, description, width: 1280, height: 720 };
+        let track = VideoTrack { codec, description, width: 1280, height: 720, codec_string: "avc1.64001f".into() };
         let base: i64 = 5_000_000_000;
         let end = frames.last().unwrap().0;
 
@@ -437,6 +516,7 @@ mod tests {
                 audio: Some(MixSettings { inputs: vec![], system: None, excluded: vec![], offset_ms: 0 }),
                 audio_bitrate_kbps: 192,
                 fragment_secs: 1.0,
+                part_secs: None,
             };
             let thread = std::thread::spawn(move || run_session(options, receiver, Arc::new(Stats::default())));
             sender.send(Message::VideoConfig(track.clone())).unwrap();

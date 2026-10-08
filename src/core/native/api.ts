@@ -88,6 +88,8 @@ export const native = {
     recordingStop: () => invoke<string | null>("recording_stop"),
     streamStart: () => invoke<number>("stream_start"),
     streamStop: () => invoke<void>("stream_stop"),
+    streamPrepare: () => invoke<void>("stream_prepare"),
+    streamUnprepare: () => invoke<void>("stream_unprepare"),
     mediaStatus: () => invoke<MediaStatus>("media_status"),
 
     videoConfig: (session: number, codec: string, description: Uint8Array, width: number, height: number) =>

@@ -14,7 +14,7 @@ use crate::clock;
 use crate::config::{Config, ConfigStore};
 use crate::media::fmp4::VideoTrack;
 use crate::media::{parse_codec, FileSink, MediaManager, SessionKind, SessionOptions, SessionStatus};
-use crate::stream::{firewall, HlsSink, ServerStatus, StreamServer};
+use crate::stream::{firewall, LiveSink, ServerStatus, StreamServer};
 
 pub struct AppState {
     pub config: Mutex<ConfigStore>,
@@ -91,6 +91,9 @@ fn mix_settings(config: &Config) -> MixSettings {
         offset_ms: audio.av_offset_ms,
     }
 }
+
+/// Pedaços da transmissão: quanto menor, menor o atraso de quem assiste (e mais pacotes).
+const LIVE_PART_SECS: f64 = 0.1;
 
 fn has_audio(settings: &MixSettings) -> bool {
     !settings.inputs.is_empty() || settings.system.is_some()
@@ -233,6 +236,7 @@ pub async fn recording_start(app: AppHandle, state: State<'_, AppState>) -> Resu
         audio: has_audio(&mix).then_some(mix),
         audio_bitrate_kbps: config.recording.audio_bitrate_kbps,
         fragment_secs: 1.0,
+        part_secs: None,
     });
     *state.recording.lock().unwrap() = Some((id, path.clone()));
     Ok(RecordingStarted { id, path: path.display().to_string() })
@@ -257,13 +261,31 @@ pub async fn stream_start(state: State<'_, AppState>) -> Result<u32, String> {
     let mix = mix_settings(&config);
     let id = state.media.start(SessionOptions {
         kind: SessionKind::Stream,
-        sink: Box::new(HlsSink::new(state.stream.hub.clone())),
+        sink: Box::new(LiveSink::new(state.stream.hub.clone())),
         audio: has_audio(&mix).then_some(mix),
         audio_bitrate_kbps: config.stream.audio_bitrate_kbps,
         fragment_secs: 1.0,
+        part_secs: Some(LIVE_PART_SECS),
     });
     *state.streaming.lock().unwrap() = Some(id);
     Ok(id)
+}
+
+/// Liga o servidor antes de entrar ao vivo, para o link (e o UPnP) já estar pronto na janela de "Go live".
+#[tauri::command]
+pub async fn stream_prepare(state: State<'_, AppState>) -> Result<(), String> {
+    let config = state.config();
+    state.stream.apply(true, config.stream.port, config.stream.upnp).await;
+    Ok(())
+}
+
+/// Desistiu de entrar ao vivo: o servidor volta ao que a configuração pede.
+#[tauri::command]
+pub async fn stream_unprepare(state: State<'_, AppState>) -> Result<(), String> {
+    let config = state.config();
+    let live = state.streaming.lock().unwrap().is_some();
+    state.stream.apply(config.stream.accept_viewers || live, config.stream.port, config.stream.upnp).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -278,8 +300,8 @@ pub async fn stream_stop(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn media_video_config(state: State<'_, AppState>, session: u32, codec: String, description: Vec<u8>, width: u32, height: u32) -> Result<(), String> {
-    let codec = parse_codec(&codec).ok_or_else(|| format!("Unsupported codec {codec}"))?;
-    state.media.video_config(session, VideoTrack { codec, description, width, height });
+    let parsed = parse_codec(&codec).ok_or_else(|| format!("Unsupported codec {codec}"))?;
+    state.media.video_config(session, VideoTrack { codec: parsed, description, width, height, codec_string: codec });
     Ok(())
 }
 

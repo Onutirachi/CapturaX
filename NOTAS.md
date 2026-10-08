@@ -38,6 +38,20 @@ padrão, headset Logitech G533.
    CGNAT? Link externo pelo 4G do celular. "Fix firewall" pede admin e resolve.
 7. Instalador (`npx tauri build`): instala por máquina e cria a regra "CapturaX Stream".
 
+**Rodada 2 (depois do primeiro teste do usuário):**
+- Balão de latência piscando na captura de tela → corrigido (segura o valor 3 s, largura fixa).
+- HEVC "precisa de GPU" numa RTX 5070 Ti → o WebView2 vem com o encoder HEVC desligado; ligado
+  via `additionalBrowserArgs` (`PlatformHEVCEncoderSupport`). O HEVC do Chromium sai em Annex B
+  sem `description`: o Rust monta o `hvcC` (`media/bitstream.rs`). Validado com pacotes reais
+  do WebCodecs (H.264 e HEVC) decodificados no ffmpeg.
+- Acima de 1080p só aceitava 30 fps (limite declarado pelo Chromium); agora tenta sem
+  `framerate` e compensa o bitrate (sem ele o encoder assume 30 fps — medido: dobra o bitrate).
+- Transmissão com muito atraso (HLS, ~4–6 s) → agora baixa latência: pedaços de 100 ms por uma
+  conexão contínua (`/live/<sessão>/live.mp4`) direto no MediaSource; medido ~0,4 s no player
+  + 0,1 s do pedaço. HLS continua só para Safari/iPhone. hls.js removido (página de 614 → 22 KB).
+- Janela de "Go live": qualidade na hora, link com botão de copiar e upload estimado; o servidor
+  liga ao abrir a janela (`stream_prepare`) para o link já estar pronto.
+
 **Riscos conhecidos:**
 - Timestamp do vídeo: ancorado no primeiro frame que chega ao Worker (não no instante da
   captura); se a sincronia ficar fixa para um lado, ajustar "Audio/video sync" (padrão 0).

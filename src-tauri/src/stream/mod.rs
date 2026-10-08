@@ -8,9 +8,9 @@ pub mod firewall;
 mod hub;
 pub mod upnp;
 
-pub use hub::{HlsSink, StreamHub, ViewerInfo};
+pub use hub::{LiveSink, StreamHub, ViewerInfo};
 
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::extract::{Path, State};
 use axum::http::{header, HeaderValue, Request, Response, StatusCode};
 use axum::routing::get;
@@ -37,7 +37,6 @@ struct ViewerAssets;
 
 const MAX_CONNECTIONS: usize = 128;
 const MAX_CONNECTIONS_PER_IP: usize = 12;
-const CONNECTION_LIFETIME: Duration = Duration::from_secs(300);
 const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_HEADER_BYTES: usize = 16 * 1024;
 
@@ -180,7 +179,7 @@ impl StreamServer {
         let running = self.running.lock().await;
         let port = running.as_ref().map_or(0, |r| r.port);
         let upnp = self.upnp_status.lock().unwrap().clone();
-        let (live, _) = self.hub.status();
+        let live = self.hub.is_live();
         let public_url = match &upnp {
             UpnpStatus::Mapped { external_ip, cgnat: false } => Some(format!("http://{external_ip}:{port}/")),
             _ => None,
@@ -259,7 +258,9 @@ async fn accept_loop(listener: TcpListener, router: Router, hub: Arc<StreamHub>,
                 .header_read_timeout(HEADER_TIMEOUT)
                 .max_buf_size(MAX_HEADER_BYTES)
                 .serve_connection(TokioIo::new(stream), service);
-            let _ = tokio::time::timeout(CONNECTION_LIFETIME, connection).await;
+            // Sem limite de duração: a conexão de baixa latência fica aberta enquanto a pessoa assiste.
+            // Conexões paradas caem pelo timeout de cabeçalho; o total por IP é limitado acima.
+            let _ = connection.await;
         });
         // Limpa tarefas terminadas sem bloquear.
         while tasks.try_join_next().is_some() {}
@@ -282,6 +283,7 @@ fn router(hub: Arc<StreamHub>) -> Router {
         .route("/live/status", get(status))
         .route("/live/{session}/index.m3u8", get(playlist))
         .route("/live/{session}/init.mp4", get(init_segment))
+        .route("/live/{session}/live.mp4", get(live_stream))
         .route("/live/{session}/{file}", get(media_segment))
         .fallback(|| async { respond(StatusCode::NOT_FOUND, "text/plain", "Not found", false) })
         .with_state(hub)
@@ -328,8 +330,33 @@ async fn asset(Path(path): Path<String>) -> Response<Body> {
 }
 
 async fn status(State(hub): State<Arc<StreamHub>>) -> Response<Body> {
-    let (live, session) = hub.status();
-    respond(StatusCode::OK, "application/json", format!("{{\"live\":{live},\"session\":\"{session}\"}}"), false)
+    let body = serde_json::to_string(&hub.status()).unwrap_or_default();
+    respond(StatusCode::OK, "application/json", body, false)
+}
+
+/// Baixa latência: cabeçalho + pedaços desde o último keyframe, depois cada pedaço novo assim
+/// que sai do encoder, numa resposta que não termina. Quem ficar atrasado demais é desconectado
+/// (a página reconecta e volta para o ao vivo).
+async fn live_stream(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)): Extension<ClientIp>, Path(session): Path<u64>) -> Response<Body> {
+    if !hub.touch_viewer(ip) {
+        return full();
+    }
+    let Some(start) = hub.start_live(session) else {
+        return respond(StatusCode::NOT_FOUND, "text/plain", "Offline", false);
+    };
+    let first: Vec<Result<Bytes, std::convert::Infallible>> = std::iter::once(start.init).chain(start.backlog).map(Ok).collect();
+    let following = futures_util::stream::unfold((start.receiver, hub, ip), |(mut receiver, hub, ip)| async move {
+        match receiver.recv().await {
+            Ok(part) => {
+                hub.touch_viewer(ip);
+                Some((Ok(part), (receiver, hub, ip)))
+            }
+            // Atrasado (rede lenta) ou transmissão encerrada: fecha a resposta.
+            Err(_) => None,
+        }
+    });
+    let stream = futures_util::StreamExt::chain(futures_util::stream::iter(first), following);
+    respond(StatusCode::OK, "video/mp4", Body::from_stream(stream), false)
 }
 
 fn full() -> Response<Body> {
@@ -348,7 +375,7 @@ async fn playlist(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)): Ex
 
 async fn init_segment(State(hub): State<Arc<StreamHub>>, Path(session): Path<u64>) -> Response<Body> {
     match hub.init(session) {
-        Some(data) => respond(StatusCode::OK, "video/mp4", data.as_ref().clone(), true),
+        Some(data) => respond(StatusCode::OK, "video/mp4", data, true),
         None => respond(StatusCode::NOT_FOUND, "text/plain", "Offline", false),
     }
 }
@@ -361,7 +388,7 @@ async fn media_segment(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)
         return full();
     }
     match hub.segment(session, sequence) {
-        Some(data) => respond(StatusCode::OK, "video/iso.segment", data.as_ref().clone(), true),
+        Some(data) => respond(StatusCode::OK, "video/iso.segment", data, true),
         None => respond(StatusCode::NOT_FOUND, "text/plain", "Not found", false),
     }
 }
@@ -382,8 +409,8 @@ mod tests {
         let secs: u64 = std::env::var("CAPTURAX_SERVE_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(20);
         let server = StreamServer::new();
         tauri::async_runtime::block_on(server.apply(true, 18787, false));
-        let mut sink = HlsSink::new(server.hub.clone());
-        sink.init(&std::fs::read(dir.join("init.mp4")).unwrap(), 0).unwrap();
+        let mut sink = LiveSink::new(server.hub.clone());
+        sink.init(&std::fs::read(dir.join("init.mp4")).unwrap(), 0, "avc1.64001f,mp4a.40.2").unwrap();
         let mut segments: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "m4s")).collect();
         segments.sort();
         println!("serving {} segments on http://127.0.0.1:18787/ for {secs}s", segments.len());
@@ -391,7 +418,8 @@ mod tests {
         let mut i = 0;
         while start.elapsed().as_secs() < secs {
             let bytes = std::fs::read(&segments[i % segments.len()]).unwrap();
-            sink.fragment(&Fragment { bytes, payload_offset: 0, video: vec![], audio: vec![], duration_secs: 1.0 }).unwrap();
+            // Os segmentos do fixture começam todos em keyframe.
+            sink.fragment(&Fragment { bytes, payload_offset: 0, video: vec![], audio: vec![], duration_secs: 1.0, starts_with_key: true }).unwrap();
             i += 1;
             std::thread::sleep(std::time::Duration::from_millis(1000));
         }

@@ -42,6 +42,8 @@ pub fn run() {
             commands::recording_start,
             commands::recording_stop,
             commands::stream_start,
+            commands::stream_prepare,
+            commands::stream_unprepare,
             commands::stream_stop,
             commands::media_video_config,
             commands::media_video_chunk,

@@ -42,7 +42,7 @@ impl FileSink {
 }
 
 impl FragmentSink for FileSink {
-    fn init(&mut self, bytes: &[u8], moov_offset: usize) -> std::io::Result<()> {
+    fn init(&mut self, bytes: &[u8], moov_offset: usize, _codecs: &str) -> std::io::Result<()> {
         self.moov_offset = Some(self.position + moov_offset as u64);
         self.write(bytes)
     }

@@ -1,7 +1,8 @@
-// Página de quem assiste: toca o HLS do CapturaX, mostra "Offline" fora do ar e entra sozinha
-// quando a transmissão começa. Controles (volume, luz ambiente, tela cheia) só afetam este navegador.
+// Página de quem assiste: toca a transmissão do CapturaX com baixa latência (MediaSource), mostra
+// "Offline" fora do ar e entra sozinha quando a transmissão começa. Sem MediaSource (Safari no
+// iPhone), usa o HLS nativo, com mais atraso. Controles só afetam este navegador.
 import { useEffect, useRef, useState } from "preact/hooks";
-import Hls from "hls.js";
+import { LowLatencyPlayer } from "./player";
 import AmbientLight from "../src/components/VideoStream/AmbientLight";
 import Icon from "../src/components/Overlay/Icon";
 import logoUrl from "../public/assets/Brand/logo.svg?url";
@@ -13,7 +14,8 @@ import volumeLowUrl from "../public/assets/Dock/volume_low.svg?url";
 import volumeMuteUrl from "../public/assets/Dock/volume_mute.svg?url";
 import playUrl from "../public/assets/StatusBar/play.svg?url";
 
-type LiveStatus = { live: boolean; session: string };
+type LiveStatus = { live: boolean; session: string; codecs?: string };
+const OFFLINE: LiveStatus = { live: false, session: "" };
 
 const STATUS_MS = 2000;
 const IDLE_MS = 2500;
@@ -37,7 +39,6 @@ function save(key: string, value: unknown) {
 
 export default function Viewer() {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const hlsRef = useRef<Hls | null>(null);
     const [status, setStatus] = useState<LiveStatus | null>(null);
     const [full, setFull] = useState(false);
     const [volume, setVolume] = useState<number>(() => stored("volume", 1));
@@ -58,7 +59,7 @@ export default function Viewer() {
                 if (alive) setStatus((current) => (current?.live === next.live && current.session === next.session ? current : next));
                 setError(null);
             } catch {
-                if (alive) setStatus({ live: false, session: "" });
+                if (alive) setStatus(OFFLINE);
             }
         };
         check();
@@ -73,7 +74,7 @@ export default function Viewer() {
     useEffect(() => {
         const video = videoRef.current;
         if (!video || !status?.live) return;
-        const url = `/live/${status.session}/index.m3u8`;
+        const base = `/live/${status.session}`;
 
         const play = () =>
             video.play().catch(() => {
@@ -82,29 +83,29 @@ export default function Viewer() {
                 setNeedsClick(true);
                 video.play().catch(() => {});
             });
+        // A conexão caiu: volta a "Offline" e a próxima consulta reconecta no ao vivo.
+        const reconnect = () => setStatus(OFFLINE);
 
-        if (Hls.isSupported()) {
-            const hls = new Hls({ liveSyncDurationCount: 3, maxBufferLength: 12, backBufferLength: 10, enableWorker: true });
-            hlsRef.current = hls;
-            hls.on(Hls.Events.MANIFEST_PARSED, play);
-            hls.on(Hls.Events.ERROR, (_, data) => {
-                if (!data.fatal) return;
-                if (data.response?.code === 503) setError("This stream is full right now. Try again in a bit.");
-                hls.destroy();
-                hlsRef.current = null;
-                setStatus({ live: false, session: "" }); // a próxima consulta tenta de novo
+        let player: LowLatencyPlayer | null = null;
+        if (status.codecs && LowLatencyPlayer.supports(status.codecs)) {
+            player = new LowLatencyPlayer(video, `${base}/live.mp4`, status.codecs, {
+                onReady: play,
+                onEnded: reconnect,
+                onFull: () => setError("This stream is full right now. Try again in a bit."),
             });
-            hls.loadSource(url);
-            hls.attachMedia(video);
         } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-            video.src = url; // Safari / iOS
+            video.src = `${base}/index.m3u8`; // Safari / iPhone
             video.addEventListener("loadedmetadata", play, { once: true });
+            video.addEventListener("error", reconnect, { once: true });
+        } else {
+            setError("This browser can't play the stream.");
         }
         return () => {
-            hlsRef.current?.destroy();
-            hlsRef.current = null;
-            video.removeAttribute("src");
-            video.load();
+            if (player) player.destroy();
+            else {
+                video.removeAttribute("src");
+                video.load();
+            }
         };
     }, [status?.live, status?.session]);
 

@@ -21,6 +21,8 @@ pub struct VideoTrack {
     pub description: Vec<u8>,
     pub width: u32,
     pub height: u32,
+    /// Codec no formato RFC 6381 (`avc1.640033`), para o MediaSource de quem assiste.
+    pub codec_string: String,
 }
 
 #[derive(Clone, Debug)]
@@ -440,27 +442,36 @@ pub struct Fragment {
     pub video: Vec<SampleMeta>,
     pub audio: Vec<SampleMeta>,
     pub duration_secs: f64,
+    /// Começa num keyframe (dá para começar a tocar daqui).
+    pub starts_with_key: bool,
 }
 
-/// Junta amostras e fecha um fragmento a cada keyframe (respeitando uma duração mínima).
+/// Junta amostras e fecha um fragmento a cada keyframe (respeitando uma duração mínima) ou,
+/// no modo de baixa latência, também a cada `part` (fragmentos que não começam em keyframe).
 pub struct Fragmenter {
     sequence: u32,
     min_duration: u64,
+    part: Option<u64>,
     audio_rate: u32,
     video: Vec<Sample>,
     audio: Vec<Sample>,
     last_video_duration: u32,
+    /// Já recebeu o primeiro keyframe (antes dele, o vídeo é descartado).
+    started: bool,
 }
 
 impl Fragmenter {
-    pub fn new(min_duration_secs: f64, audio_rate: u32) -> Self {
+    pub fn new(min_duration_secs: f64, part_secs: Option<f64>, audio_rate: u32) -> Self {
+        let ticks = |secs: f64| (secs * VIDEO_TIMESCALE as f64) as u64;
         Self {
             sequence: 0,
-            min_duration: (min_duration_secs * VIDEO_TIMESCALE as f64) as u64,
+            min_duration: ticks(min_duration_secs),
+            part: part_secs.map(ticks),
             audio_rate,
             video: Vec::new(),
             audio: Vec::new(),
             last_video_duration: VIDEO_TIMESCALE / 30,
+            started: false,
         }
     }
 
@@ -470,10 +481,17 @@ impl Fragmenter {
 
     /// Fecha o fragmento anterior quando chega um keyframe e já passou a duração mínima.
     pub fn push_video(&mut self, sample: Sample) -> Option<Fragment> {
-        let ready = sample.sync && self.video.first().is_some_and(|first| sample.dts.saturating_sub(first.dts) >= self.min_duration);
+        let elapsed = self.video.first().map(|first| sample.dts.saturating_sub(first.dts));
+        let ready = match (elapsed, self.part) {
+            (None, _) => false,
+            (Some(elapsed), Some(part)) => sample.sync || elapsed >= part,
+            (Some(elapsed), None) => sample.sync && elapsed >= self.min_duration,
+        };
         let fragment = if ready { self.cut(Some(sample.dts)) } else { None };
-        // Primeiro vídeo precisa ser keyframe; antes disso, descarta.
-        if !self.video.is_empty() || sample.sync {
+        // O vídeo precisa começar num keyframe; antes do primeiro, descarta. Depois, pedaços de
+        // baixa latência podem começar no meio do GOP normalmente.
+        self.started |= sample.sync;
+        if self.started {
             self.video.push(sample);
         }
         fragment
@@ -569,6 +587,35 @@ impl Fragmenter {
             w.bytes(&s.data);
         }
 
-        Some(Fragment { bytes: w.buf, payload_offset: moof_size + 8, video: video_meta, audio: audio_meta, duration_secs })
+        let starts_with_key = video[0].sync;
+        Some(Fragment { bytes: w.buf, payload_offset: moof_size + 8, video: video_meta, audio: audio_meta, duration_secs, starts_with_key })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn video(dts_frames: u64, sync: bool) -> Sample {
+        Sample { data: vec![0, 0, 0, 1, 0x65], dts: dts_frames * 1500, sync }
+    }
+
+    /// Modo baixa latência: pedaços de 100 ms no meio do GOP não podem perder frames.
+    #[test]
+    fn low_latency_parts_keep_every_frame() {
+        let mut fragmenter = Fragmenter::new(1.0, Some(0.1), 48_000);
+        let mut frames_out = 0;
+        let mut parts = 0;
+        for i in 0..240u64 {
+            // 60 fps, keyframe a cada 60 frames; começa com 3 frames antes do primeiro keyframe.
+            let sync = i >= 3 && (i - 3) % 60 == 0;
+            if let Some(fragment) = fragmenter.push_video(video(i, sync)) {
+                frames_out += fragment.video.len();
+                parts += 1;
+            }
+        }
+        frames_out += fragmenter.finish().map_or(0, |f| f.video.len());
+        assert_eq!(frames_out, 237, "only the 3 frames before the first keyframe may be dropped");
+        assert!(parts >= 30, "expected ~100 ms parts, got {parts}");
     }
 }

@@ -63,8 +63,15 @@ src-tauri/src/
   (device + mic + apps) stamped with the same clock; `media/` muxes into fMP4.
 - **Recording file**: fMP4 while running (crash-safe); on stop a full `moov` is appended and old
   `moov`/`moof` boxes are renamed to `free`, so it becomes a regular MP4.
-- **Stream**: fragments become HLS segments kept in memory (`stream/hub.rs`), served by
-  `stream/mod.rs` (GET-only fixed routes, no disk access from URLs, connection/header/time limits).
+- **Stream (low latency)**: the stream session cuts fMP4 parts every 100 ms (`part_secs`);
+  `stream/hub.rs` keeps the parts since the last keyframe and broadcasts new ones. Viewers read
+  `/live/<session>/live.mp4` (never-ending response) into MediaSource (`viewer/player.ts`, ~0.4 s
+  behind the live edge). Parts are also joined keyframe-to-keyframe into HLS segments for
+  Safari/iPhone. Served by `stream/mod.rs` (GET-only fixed routes, no disk access from URLs,
+  connection/header limits).
+- **Chromium encoder quirks** (`presets.ts`, `media/bitstream.rs`): HEVC needs the
+  `PlatformHEVCEncoderSupport` feature (set in `tauri.conf.json` `additionalBrowserArgs`) and comes
+  as Annex B without a description; above 1080p, >30 fps is only accepted without `framerate`.
 
 ### App audio (system audio minus excluded apps)
 Process loopback can only include/exclude one process **tree**, so the mixer captures each app with an

@@ -22,7 +22,11 @@ export type NativeContextType = {
     recording: Activity;
     streaming: Activity;
     toggleRecording: () => Promise<void>;
+    /** Parado: abre a janela de "Go live". Ao vivo: encerra. */
     toggleStreaming: () => Promise<void>;
+    goLiveOpen: boolean;
+    confirmGoLive: () => Promise<void>;
+    cancelGoLive: () => void;
     screenshot: () => Promise<void>;
     settingsTab: SettingsTab | null;
     openSettings: (tab?: SettingsTab | null) => void;
@@ -49,6 +53,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const [streaming, setStreaming] = useState<Activity>("idle");
     const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
     const [server, setServer] = useState<ServerStatus | null>(null);
+    const [goLiveOpen, setGoLiveOpen] = useState(false);
 
     const configRef = useRef<Config | null>(null);
     const saveTimer = useRef<number | null>(null);
@@ -105,7 +110,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         return () => window.clearInterval(interval);
     }, []);
 
-    const watchServer = streaming !== "idle" || settingsTab === "streaming" || !!config?.stream.acceptViewers;
+    const watchServer = streaming !== "idle" || goLiveOpen || settingsTab === "streaming" || !!config?.stream.acceptViewers;
     useEffect(() => {
         if (!watchServer) return;
         const poll = () =>
@@ -181,7 +186,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             const id = await native.streamStart();
             streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(`Stream error: ${message}`)));
             setStreaming("active");
-            alert(alerts.info("You are live: share the link from Settings → Streaming"));
+            alert(alerts.info("You are live"));
         } catch (error) {
             setStreaming("idle");
             alert(alerts.error(`Could not start the stream (${errorText(error)})`));
@@ -209,7 +214,28 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     };
     const toggleStreaming = async () => {
         if (busy(streaming)) return;
-        await (streaming === "active" ? stopStreaming() : startStreaming());
+        if (streaming === "active") {
+            await stopStreaming();
+            return;
+        }
+        // Liga o servidor já, para o link (e a porta no roteador) estar pronto na janela.
+        setGoLiveOpen(true);
+        native.streamPrepare().catch(() => {});
+    };
+    const confirmGoLive = async () => {
+        if (busy(streaming)) return;
+        // Garante que a qualidade escolhida na janela já foi salva antes de começar.
+        if (saveTimer.current !== null) {
+            window.clearTimeout(saveTimer.current);
+            saveTimer.current = null;
+            await native.setConfig(configRef.current!).catch(() => {});
+        }
+        setGoLiveOpen(false);
+        await startStreaming();
+    };
+    const cancelGoLive = () => {
+        setGoLiveOpen(false);
+        native.streamUnprepare().catch(() => {});
     };
 
     const screenshot = async () => {
@@ -263,6 +289,9 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 streaming,
                 toggleRecording,
                 toggleStreaming,
+                goLiveOpen,
+                confirmGoLive,
+                cancelGoLive,
                 screenshot,
                 settingsTab,
                 openSettings: (tab = "audio") => setSettingsTab(tab),
