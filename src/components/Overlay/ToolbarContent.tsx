@@ -6,15 +6,30 @@ import Stream, { SCREEN_SOURCE } from "../../core/utils/Stream";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { AlertsContext } from "../../context/AlertsContext";
 import { NativeContext } from "../../context/NativeContext";
+import { native } from "../../core/native/api";
+import Resolution from "../../core/utils/Resolution";
+import { monitorRefreshRate } from "../../core/utils/refreshRate";
+import { chooseMode, choicesOf, findDevice, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
 
 const NO_AUDIO = "none";
 const DEFAULT_OUTPUT = "default";
 const AUTO_PICKED_KEY = "audioInputAutoPicked";
+const AUTO = "Auto";
+
+/** Bandeirinha da resolução: a da lista do app, ou a aproximada. */
+function resolutionTag(size: Size) {
+    const exact = RESOLUTION_LIST.find((r) => r.width === size.width && r.height === size.height);
+    return exact ? { text: exact.tag, color: exact.color } : Resolution.getApproximateTag(size);
+}
 
 export default function ToolbarContent() {
     const [videoDevicesList, setVideoDevicesList] = useState<MediaDeviceInfo[]>([]);
     const [audioDevicesList, setaudioDevicesList] = useState<MediaDeviceInfo[]>([]);
     const [isScreen, setIsScreen] = useState(false);
+    /** Modos reais de cada dispositivo (null = ainda carregando). */
+    const [deviceModes, setDeviceModes] = useState<VideoDeviceModes[] | null>(null);
+    const [videoId, setVideoId] = useState<string | null>(null);
+    const [refreshRate, setRefreshRate] = useState(60);
 
     const vsctx = useContext(VideoStreamContext);
     const actx = useContext(AlertsContext);
@@ -37,6 +52,8 @@ export default function ToolbarContent() {
         const loadDevices = async () => {
             const videoDevices = await Stream.getVideoDevices();
             const audioDevices = await Stream.getAudioDevices();
+            // Modos antes de abrir o dispositivo: a escolha automática depende deles.
+            setDeviceModes(await native.videoModes().catch(() => []));
             setVideoDevicesList(videoDevices);
             setaudioDevicesList(audioDevices);
             stream.handleDeviceChange([...videoDevices, ...audioDevices]);
@@ -46,6 +63,10 @@ export default function ToolbarContent() {
         navigator.mediaDevices.addEventListener("devicechange", loadDevices);
         return () => navigator.mediaDevices.removeEventListener("devicechange", loadDevices);
     }, [stream]);
+
+    useEffect(() => {
+        monitorRefreshRate().then(setRefreshRate);
+    }, []);
 
     // Preview nativo: o WebView não toca áudio.
     useEffect(() => {
@@ -66,7 +87,19 @@ export default function ToolbarContent() {
     }, [videoLabel, inputs, config, nativeAudio]);
 
     if (!vsctx || !actx || !stream) return null;
-    if (videoDevicesList.length === 0) return null;
+    if (videoDevicesList.length === 0 || deviceModes === null) return null;
+
+    const modesOf = (id: string | null) => {
+        const label = videoDevicesList.find((d) => d.deviceId === id)?.label ?? "";
+        return findDevice(deviceModes, label)?.modes ?? null;
+    };
+    const modes = isScreen ? null : modesOf(videoId);
+    const auto = modes ? chooseMode(modes, null, null) : null;
+
+    // Sem modos fixos (tela ou dispositivo desconhecido): listas do app, na tela até o monitor.
+    const screenSize = { width: Math.round(window.screen.width * devicePixelRatio), height: Math.round(window.screen.height * devicePixelRatio) };
+    const sizes: Size[] = RESOLUTION_LIST.filter((r) => !isScreen || (r.width <= screenSize.width && r.height <= screenSize.height));
+    const fpsOptions = FRAMERATE_LIST.filter((f) => !isScreen || f <= refreshRate);
 
     const setAudio = (patch: Partial<NonNullable<typeof config>["audio"]>) => nctx?.updateConfig((c) => ({ ...c, audio: { ...c.audio, ...patch } }));
 
@@ -76,7 +109,8 @@ export default function ToolbarContent() {
                 title="Video Device"
                 onChoose={async (value) => {
                     setIsScreen(value === SCREEN_SOURCE);
-                    stream.setVideoDevice(value);
+                    setVideoId(value);
+                    stream.setVideoDevice(value, modesOf(value));
                 }}>
                 {videoDevicesList.map(({ deviceId, label }) => (
                     <DropOption key={deviceId} value={deviceId} className="flex gap-3">
@@ -137,37 +171,64 @@ export default function ToolbarContent() {
                 </DropDown>
             )}
 
-            <DropDown
-                title="Resolution"
-                onChoose={async (value) => {
-                    stream.setResolutionTag(value === "Auto" ? null : value);
-                }}>
-                <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
-                    {`Automatic`}
-                    <Tag text="Auto" color="var(--color-accent)" />
-                </DropOption>
-                {[...RESOLUTION_LIST].reverse().map(({ width, height, tag, color }, index) => (
-                    <DropOption key={index} value={tag} className="flex gap-3">
-                        {`${width} x ${height}`}
-                        <Tag text={tag} color={color} />
+            {modes ? (
+                // Modos reais da placa: resolução e FPS juntos, só o que existe.
+                <DropDown
+                    title="Mode"
+                    storageKey="Video mode"
+                    onChoose={async (value) => stream.setMode(value === AUTO ? null : parseModeKey(value))}>
+                    <DropOption key={AUTO} value={AUTO} className="flex gap-3">
+                        {auto ? `Automatic (${auto.width} x ${auto.height})` : "Automatic"}
+                        <Tag text="Auto" color="var(--color-accent)" />
+                        {auto && <Tag text={`${formatFps(auto.fps)} FPS`} color={fpsColor(auto.fps)} />}
                     </DropOption>
-                ))}
-            </DropDown>
+                    {choicesOf(modes).map((mode) => {
+                        const tag = resolutionTag(mode);
+                        return (
+                            <DropOption key={modeKey(mode)} value={modeKey(mode)} className="flex gap-3">
+                                {`${mode.width} x ${mode.height}`}
+                                {tag && <Tag text={tag.text} color={tag.color} />}
+                                <Tag text={`${formatFps(mode.fps)} FPS`} color={fpsColor(mode.fps)} />
+                            </DropOption>
+                        );
+                    })}
+                </DropDown>
+            ) : (
+                <>
+                    <DropDown
+                        title="Resolution"
+                        storageKey="Resolution (size)"
+                        onChoose={async (value) => stream.setResolution(value === AUTO ? null : parseSizeKey(value))}>
+                        <DropOption key={AUTO} value={AUTO} className="flex gap-3">
+                            Automatic
+                            <Tag text="Auto" color="var(--color-accent)" />
+                        </DropOption>
+                        {sizes.map((size) => {
+                            const tag = resolutionTag(size);
+                            return (
+                                <DropOption key={sizeKey(size)} value={sizeKey(size)} className="flex gap-3">
+                                    {`${size.width} x ${size.height}`}
+                                    {tag && <Tag text={tag.text} color={tag.color} />}
+                                </DropOption>
+                            );
+                        })}
+                    </DropDown>
 
-            <DropDown
-                title="Framerate"
-                onChoose={async (value) => {
-                    stream.setFrameRate(value === "Auto" ? null : Number(value));
-                }}>
-                <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
-                    {`Automatic`}
-                </DropOption>
-                {[...FRAMERATE_LIST].reverse().map((fps) => (
-                    <DropOption key={fps} value={String(fps)} className="flex gap-3">
-                        {`${fps} FPS`}
-                    </DropOption>
-                ))}
-            </DropDown>
+                    <DropDown
+                        title="Framerate"
+                        storageKey="Framerate (fps)"
+                        onChoose={async (value) => stream.setFrameRate(value === AUTO ? null : Number(value))}>
+                        <DropOption key={AUTO} value={AUTO} className="flex gap-3">
+                            {isScreen ? `Automatic (${refreshRate} FPS)` : "Automatic"}
+                        </DropOption>
+                        {fpsOptions.map((fps) => (
+                            <DropOption key={fps} value={String(fps)} className="flex gap-3">
+                                <Tag text={`${fps} FPS`} color={fpsColor(fps)} />
+                            </DropOption>
+                        ))}
+                    </DropDown>
+                </>
+            )}
         </>
     );
 }

@@ -1,5 +1,6 @@
 // Ponte tipada para os comandos Rust (src-tauri/src/commands.rs).
 import { invoke } from "@tauri-apps/api/core";
+import type { VideoDeviceModes } from "../utils/videoModes";
 
 export type DeviceInfo = { id: string; name: string; isDefault: boolean };
 export type AudioDevices = { inputs: DeviceInfo[]; outputs: DeviceInfo[] };
@@ -84,6 +85,7 @@ export const native = {
     audioDevices: () => invoke<AudioDevices>("audio_devices"),
     setPreviewVolume: (volume: number, muted: boolean) => invoke<void>("audio_set_preview_volume", { volume, muted }),
     audioApps: () => invoke<AppListEntry[]>("audio_apps"),
+    videoModes: () => invoke<VideoDeviceModes[]>("video_modes"),
 
     recordingStart: () => invoke<{ id: number; path: string }>("recording_start"),
     recordingStop: () => invoke<string | null>("recording_stop"),

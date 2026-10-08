@@ -217,7 +217,8 @@ HTTPS para um servidor hospedado. O app e a página de quem assiste não mudam.
 - Os textos atuais da interface (hoje em inglês) viram as chaves do `en.ts`.
 
 ### Fase 7 — Futuro
-- Modos exatos do dispositivo (Media Foundation) no lugar da lista fixa de `constants.ts`.
+- ~~Modos exatos do dispositivo (Media Foundation) no lugar da lista fixa de `constants.ts`~~ —
+  **feito** (dropdown único "Mode" com os modos reais da placa).
 - Preview de vídeo nativo, se a medição da Fase 1 justificar (pode ser antecipado).
 - Servidor relay hospedado.
 

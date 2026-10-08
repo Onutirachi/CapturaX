@@ -215,6 +215,13 @@ pub async fn audio_apps(state: State<'_, AppState>) -> Result<Vec<AppListEntry>,
     Ok(list)
 }
 
+/// Modos reais (resolução × FPS × formato) de cada dispositivo de vídeo.
+#[tauri::command]
+pub async fn video_modes() -> Result<Vec<crate::video_modes::VideoDeviceModes>, String> {
+    let _com = crate::audio::ComGuard::new();
+    crate::video_modes::list().map_err(|e| e.to_string())
+}
+
 // ---- Gravação e transmissão -------------------------------------------------------------
 
 #[derive(Serialize)]

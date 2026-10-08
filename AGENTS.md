@@ -89,8 +89,15 @@ excluded executable (`audio/apps.rs::plan_captures`). Exclusions are saved by lo
 
 ### Key Class: `Stream` (`src/core/utils/Stream.ts`)
 Video source manager, instantiated once in `ToolbarContent`:
-- Devices: `setVideoDevice()`, `setResolutionTag()`, `setFrameRate()` (`null` = auto) **reopen** the
-  device with `resizeMode: "none"` (native mode), coalesced by `requestVideoRestart()`
+- Real device modes (resolution × FPS × format) come from Media Foundation (`video_modes` command,
+  `src-tauri/src/video_modes.rs`), matched to the WebView device by USB VID:PID or name
+  (`videoModes.ts`). The toolbar then shows a single **Mode** dropdown with only real modes;
+  screen capture / unknown devices keep separate Resolution + Framerate dropdowns.
+- Automatic = largest resolution that still does ≥ ~60 fps, at its highest FPS (`chooseMode`).
+  This is the capture card's USB output; the console's HDMI output is negotiated by EDID and the
+  app cannot see or change it.
+- `setVideoDevice(id, modes)`, `setMode()`, `setResolution()`, `setFrameRate()` (`null` = auto)
+  **reopen** the device with `resizeMode: "none"` (native mode), coalesced by `requestVideoRestart()`
 - Screen: `setVideoDevice(SCREEN_SOURCE)` / `chooseScreen()` use `getDisplayMedia`; resolution/FPS changes use `applyConstraints`
 - Browser audio fallback: `updateAudioTrack()` / `clearAudio()`
 

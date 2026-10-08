@@ -7,6 +7,7 @@ mod commands;
 mod config;
 mod media;
 mod stream;
+mod video_modes;
 mod window;
 
 use commands::AppState;
@@ -39,6 +40,7 @@ pub fn run() {
             commands::audio_devices,
             commands::audio_set_preview_volume,
             commands::audio_apps,
+            commands::video_modes,
             commands::recording_start,
             commands::recording_stop,
             commands::stream_start,

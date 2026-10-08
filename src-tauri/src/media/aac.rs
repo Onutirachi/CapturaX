@@ -13,7 +13,7 @@ pub const FRAME_SAMPLES: u32 = 1024;
 /// AudioSpecificConfig do AAC-LC, 48 kHz, estéreo (vai no `esds` do MP4).
 pub const AUDIO_SPECIFIC_CONFIG: [u8; 2] = [0x11, 0x90];
 
-fn startup() {
+pub fn startup() {
     static STARTED: OnceLock<()> = OnceLock::new();
     STARTED.get_or_init(|| {
         if let Err(error) = unsafe { MFStartup(MF_VERSION, MFSTARTUP_LITE) } {

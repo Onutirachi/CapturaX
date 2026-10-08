@@ -1,5 +1,5 @@
-import Resolution from "./Resolution";
 import { alerts } from "./alerts";
+import { chooseMode, type Size, type VideoMode } from "./videoModes";
 import { monitorRefreshRate } from "./refreshRate";
 import { SetAlertType } from "../../context/AlertsContext";
 import { SetVideoStreamType } from "../../context/VideoStreamContext";
@@ -25,8 +25,10 @@ export default class Stream {
     private source: "device" | "screen" = "device";
     public audioId: string | null = null;
     private currentAudioId: string | null = null;
-    private resolutionTag: string | null = null;
+    private resolution: Size | null = null;
     private frameRate: number | null = null;
+    /** Modos reais do dispositivo atual (null = desconhecidos, usa a busca antiga). */
+    private modes: VideoMode[] | null = null;
 
     private restartRequested = false;
     private restarting: Promise<void> | null = null;
@@ -48,20 +50,30 @@ export default class Stream {
         return this.source === "screen";
     }
 
-    setVideoDevice(deviceId: string) {
+    /** `modes`: modos reais do dispositivo, se conhecidos. */
+    setVideoDevice(deviceId: string, modes: VideoMode[] | null = null) {
         if (deviceId === SCREEN_SOURCE) {
             this.source = "screen";
             this.videoId = null;
+            this.modes = null;
             return this.chooseScreen();
         }
         this.source = "device";
         this.videoId = deviceId;
+        this.modes = modes && modes.length > 0 ? modes : null;
+        return this.requestVideoRestart();
+    }
+
+    /** Modo completo de uma vez (uma reabertura só). `null` = automático. */
+    setMode(mode: (Size & { fps: number }) | null) {
+        this.resolution = mode ? { width: mode.width, height: mode.height } : null;
+        this.frameRate = mode?.fps ?? null;
         return this.requestVideoRestart();
     }
 
     /** `null` = automático. */
-    setResolutionTag(resolutionTag: string | null) {
-        this.resolutionTag = resolutionTag;
+    setResolution(resolution: Size | null) {
+        this.resolution = resolution;
         return this.isScreen ? this.applyScreenConstraints() : this.requestVideoRestart();
     }
 
@@ -73,7 +85,7 @@ export default class Stream {
 
     /** Automático na tela = taxa do monitor (sem pedir, o Chromium captura a 30 fps). */
     private async screenConstraints(): Promise<MediaTrackConstraints> {
-        const resolution = this.resolutionTag ? Resolution.getFromTag(this.resolutionTag) : null;
+        const resolution = this.resolution;
         const fps = this.frameRate ?? (await monitorRefreshRate());
         return {
             frameRate: { ideal: fps, max: fps },
@@ -134,7 +146,17 @@ export default class Stream {
      * nativo do dispositivo; sem isso o Chromium mantém o modo atual e só reescala por software.
      */
     private buildAttempts(): { constraints: VideoConstraints; scaled: boolean }[] {
-        const resolution = this.resolutionTag ? Resolution.getFromTag(this.resolutionTag) : null;
+        // Com os modos reais: pede exatamente o modo escolhido (ou o automático) da lista.
+        const mode = this.modes ? chooseMode(this.modes, this.resolution, this.frameRate) : null;
+        if (mode) {
+            const base = { deviceId: { exact: this.videoId! }, width: { exact: mode.width }, height: { exact: mode.height } };
+            return [
+                { constraints: { ...base, frameRate: { min: mode.fps * FPS_TOLERANCE, ideal: mode.fps }, resizeMode: "none" }, scaled: false },
+                { constraints: { ...base, frameRate: { ideal: mode.fps }, resizeMode: "none" }, scaled: false },
+            ];
+        }
+
+        const resolution = this.resolution;
         const size: VideoConstraints = resolution
             ? { width: { exact: resolution.width }, height: { exact: resolution.height } }
             : { width: { ideal: MAX_WIDTH }, height: { ideal: MAX_HEIGHT } };
