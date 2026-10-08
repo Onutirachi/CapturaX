@@ -16,6 +16,7 @@ use tauri::{Manager, RunEvent};
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 window::auto_grant_media_permissions(&window)?;
@@ -47,7 +48,6 @@ pub fn run() {
             commands::media_status,
             commands::stream_status,
             commands::firewall_fix,
-            commands::stream_block_ip,
             commands::save_screenshot,
         ])
         .build(tauri::generate_context!())

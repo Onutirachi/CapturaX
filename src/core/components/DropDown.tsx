@@ -6,6 +6,10 @@ type DropDownProps = {
     children: ComponentChildren;
     title: string;
     onChoose?: (value: string) => void; // eslint-disable-line
+    /** Chave do localStorage (padrão: o título). */
+    storageKey?: string;
+    /** Modo controlado: o valor vem de fora (ex.: config do Rust) e nada é salvo aqui. */
+    value?: string | null;
 };
 
 type DropOptionProps = {
@@ -22,7 +26,8 @@ export function DropOption({ children, className, value }: DropOptionProps) {
     );
 }
 
-export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProps) {
+export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue }: DropDownProps) {
+    const controlled = controlledValue !== undefined;
     const dropDownRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState<boolean>(false);
     const [value, setValue] = useState<string | null>(null);
@@ -33,10 +38,14 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
     };
 
     const selectOption = (child: any) => {
+        setOpen(false);
+        if (controlled) {
+            if (child.props.value !== controlledValue) onChoose(child.props.value);
+            return;
+        }
         setDisplay(child);
         setValue(child.props.value);
-        localStorage.setItem(title, child.props.value);
-        setOpen(false);
+        localStorage.setItem(storageKey, child.props.value);
     };
 
     // Só re-seleciona quando as opções mudam de verdade (ex.: dispositivo plugado/desplugado).
@@ -44,7 +53,8 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
     const optionValues = (Children.toArray(children) as any[]).map((child) => child.props?.value).join("\u0000");
 
     useEffect(() => {
-        const storedValue = localStorage.getItem(title);
+        if (controlled) return;
+        const storedValue = localStorage.getItem(storageKey);
         const optionsArray = Children.toArray(children) as any;
 
         if (storedValue) {
@@ -60,9 +70,11 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
     }, [optionValues]);
 
     useEffect(() => {
-        if (!value) return;
+        if (controlled || !value) return;
         onChoose(value);
     }, [value]);
+
+    const shown = controlled ? (Children.toArray(children) as any[]).find((child) => child.props?.value === controlledValue) ?? null : display;
 
     useEffect(() => {
         if (!open) return;
@@ -90,12 +102,12 @@ export function DropDown({ children, title, onChoose = (_) => {} }: DropDownProp
     }, [dropDownRef]);
 
     return (
-        <div data-value={value} className="w-auto min-w-3xs h-11 relative" ref={dropDownRef}>
+        <div data-value={controlled ? controlledValue : value} className="w-auto min-w-3xs h-11 relative" ref={dropDownRef}>
             <div className="absolute bg-normal -translate-y-[50%] translate-x-[20%] px-1 rounded-sm text-sm z-1">{title}</div>
             <div
                 className="w-full h-full bg-dark [border:var(--border)] rounded-xl cursor-pointer overflow-hidden flex items-center px-3 relative"
                 onClick={toggleOpen}>
-                {display}
+                {shown}
                 <div
                     className={`h-[50%] aspect-square ml-auto bg-center mask-contain mask-no-repeat mask-[url(./assets/DropDown/chevron.svg)] bg-white transition ${
                         open ? "-rotate-180" : "rotate-0"

@@ -3,10 +3,11 @@ import Icon from "./Icon";
 import { type HoverHandlers } from "./Overlay";
 import { FullscreenContext } from "../../context/FullscreenContext";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
+import { NativeContext } from "../../context/NativeContext";
 
 type DockProps = { active: boolean; hover: HoverHandlers };
 
-const buttonClass = "w-11 h-11 flex items-center justify-center rounded-xl hover:bg-normal cursor-pointer transition";
+const buttonClass = "w-11 h-11 flex items-center justify-center rounded-xl hover:bg-normal cursor-pointer transition disabled:opacity-50 disabled:cursor-wait";
 
 function volumeIcon(volume: number, muted: boolean) {
     if (muted || volume === 0) return "./assets/Dock/volume_mute.svg";
@@ -14,9 +15,15 @@ function volumeIcon(volume: number, muted: boolean) {
     return "./assets/Dock/volume_high.svg";
 }
 
+const Divider = () => <div className="w-8 [border-top:var(--border)]" />;
+
 export default function Dock({ active, hover }: DockProps) {
     const fsctx = useContext(FullscreenContext);
     const vsctx = useContext(VideoStreamContext);
+    const nctx = useContext(NativeContext);
+
+    const recording = nctx?.recording ?? "idle";
+    const streaming = nctx?.streaming ?? "idle";
 
     return (
         // Container só posiciona (não captura o mouse); a dock aparece junto com a Toolbar.
@@ -39,15 +46,46 @@ export default function Dock({ active, hover }: DockProps) {
                 )}
 
                 {vsctx && (
-                    <>
-                        <button
-                            title={vsctx.ambientLight ? "Disable ambient light" : "Enable ambient light"}
-                            onClick={() => vsctx.setAmbientLight(!vsctx.ambientLight)}
-                            className={`${buttonClass} ${vsctx.ambientLight ? "bg-normal" : ""}`}>
-                            <Icon src="./assets/Dock/ambient_light.svg" color={vsctx.ambientLight ? "var(--color-accent)" : undefined} />
-                        </button>
+                    <button
+                        title={vsctx.ambientLight ? "Disable ambient light" : "Enable ambient light"}
+                        onClick={() => vsctx.setAmbientLight(!vsctx.ambientLight)}
+                        className={`${buttonClass} ${vsctx.ambientLight ? "bg-normal" : ""}`}>
+                        <Icon src="./assets/Dock/ambient_light.svg" color={vsctx.ambientLight ? "var(--color-accent)" : undefined} />
+                    </button>
+                )}
 
-                        <div className="w-8 [border-top:var(--border)]" />
+                {nctx && (
+                    <>
+                        <Divider />
+                        <button title="Screenshot (F9)" onClick={() => nctx.screenshot()} className={buttonClass}>
+                            <Icon src="./assets/Dock/screenshot.svg" />
+                        </button>
+                        <button
+                            title={recording === "active" ? "Stop recording (F10)" : "Record (F10)"}
+                            onClick={() => nctx.toggleRecording()}
+                            disabled={recording === "starting" || recording === "stopping"}
+                            className={`${buttonClass} ${recording === "active" ? "bg-bad/25" : ""}`}>
+                            <Icon
+                                src={recording === "active" ? "./assets/Dock/record_stop.svg" : "./assets/Dock/record.svg"}
+                                color={recording === "idle" ? undefined : "var(--color-bad)"}
+                            />
+                        </button>
+                        <button
+                            title={streaming === "active" ? "Stop streaming" : "Go live (stream by link)"}
+                            onClick={() => nctx.toggleStreaming()}
+                            disabled={streaming === "starting" || streaming === "stopping"}
+                            className={`${buttonClass} ${streaming === "active" ? "bg-accent/25" : ""}`}>
+                            <Icon src="./assets/Dock/live.svg" color={streaming === "idle" ? undefined : "var(--color-accent)"} />
+                        </button>
+                        <button title="Settings" onClick={() => nctx.openSettings()} className={buttonClass}>
+                            <Icon src="./assets/Dock/settings.svg" />
+                        </button>
+                    </>
+                )}
+
+                {vsctx && (
+                    <>
+                        <Divider />
                         <input
                             type="range"
                             title={`Volume: ${Math.round(vsctx.volume * 100)}%`}
@@ -59,7 +97,7 @@ export default function Dock({ active, hover }: DockProps) {
                                 vsctx.setVolume(Number(e.currentTarget.value));
                                 vsctx.setMuted(false);
                             }}
-                            className="h-32 w-11 cursor-pointer accent-accent [writing-mode:vertical-lr] [direction:rtl]"
+                            className="h-24 w-11 cursor-pointer accent-accent [writing-mode:vertical-lr] [direction:rtl]"
                         />
                         <button title={vsctx.muted ? "Unmute" : "Mute"} onClick={() => vsctx.setMuted(!vsctx.muted)} className={buttonClass}>
                             <Icon src={volumeIcon(vsctx.volume, vsctx.muted)} />

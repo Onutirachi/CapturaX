@@ -11,7 +11,7 @@ const LEASE_SECS: u32 = 3600;
 const DESCRIPTION: &str = "CapturaX";
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
-#[serde(rename_all = "camelCase", tag = "state")]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "state")]
 pub enum UpnpStatus {
     Disabled,
     Searching,

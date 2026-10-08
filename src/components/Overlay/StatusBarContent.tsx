@@ -3,6 +3,7 @@ import Tag from "../../core/components/Tag";
 import Resolution from "../../core/utils/Resolution";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { FrameStatsContext } from "../../context/FrameStatsContext";
+import { NativeContext } from "../../context/NativeContext";
 
 import Icon from "./Icon";
 import ButtonToggle from "../../core/components/ButtonToggle";
@@ -23,6 +24,47 @@ function Controls({ fixed, setFixed }: ControlsProps) {
     );
 }
 
+function formatDuration(seconds: number) {
+    const s = Math.floor(seconds);
+    const hh = Math.floor(s / 3600);
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function formatBytes(bytes: number) {
+    if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
+    return `${Math.round(bytes / 1e6)} MB`;
+}
+
+/** Indicadores de gravação e transmissão em andamento. */
+function MediaBubbles() {
+    const nctx = useContext(NativeContext);
+    if (!nctx) return null;
+    const recording = nctx.status?.sessions.find((s) => s.kind === "recording");
+    const streaming = nctx.status?.sessions.find((s) => s.kind === "stream");
+    const viewers = nctx.server?.viewers.length ?? 0;
+
+    return (
+        <>
+            {nctx.recording !== "idle" && (
+                <InfoBubble>
+                    <span className="w-3 h-3 rounded-full bg-bad animate-pulse" />
+                    <span title={nctx.status?.recording?.path}>
+                        {nctx.recording === "stopping" ? "Saving…" : `REC ${formatDuration(recording?.elapsedSecs ?? 0)} · ${formatBytes(recording?.bytes ?? 0)}`}
+                    </span>
+                </InfoBubble>
+            )}
+            {nctx.streaming !== "idle" && (
+                <InfoBubble>
+                    <span className="px-1.5 rounded-sm bg-accent text-sm font-semibold">LIVE</span>
+                    <span title="Viewers">{`${formatDuration(streaming?.elapsedSecs ?? 0)} · ${viewers} watching`}</span>
+                </InfoBubble>
+            )}
+        </>
+    );
+}
+
 export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; setFixed: (value: boolean) => void }) {
     const vsctx = useContext(VideoStreamContext);
     const { latency, fps: measuredFps } = useContext(FrameStatsContext)?.stats ?? { latency: null, fps: null };
@@ -33,6 +75,7 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
         return (
             <>
                 <Alerts />
+                <MediaBubbles />
                 <Controls fixed={fixed} setFixed={setFixed} />
             </>
         );
@@ -49,6 +92,7 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
     return (
         <>
             <Alerts />
+            <MediaBubbles />
             <InfoBubble>
                 {isCapturing ? (
                     <>

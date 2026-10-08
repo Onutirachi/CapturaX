@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef } from "preact/hooks";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { FrameStatsContext, EMPTY_FRAME_STATS } from "../../context/FrameStatsContext";
+import { NativeContext } from "../../context/NativeContext";
 import AmbientLight from "./AmbientLight";
 
 const STATS_UPDATE_MS = 500;
@@ -18,12 +19,14 @@ export default function VideoStream() {
     const volume = ctx?.volume ?? 1;
     const muted = ctx?.muted ?? false;
     const videoStream = ctx?.videoStream ?? null;
+    // Com o preview nativo, quem toca o áudio é o Rust (WASAPI); o <video> fica mudo.
+    const nativeAudio = useContext(NativeContext)?.config?.audio.nativePreview ?? true;
 
     useEffect(() => {
         if (!videoRef.current) return;
         videoRef.current.volume = volume;
-        videoRef.current.muted = muted;
-    }, [volume, muted]);
+        videoRef.current.muted = muted || nativeAudio;
+    }, [volume, muted, nativeAudio]);
 
     // Estatísticas por frame via requestVideoFrameCallback:
     // - Latência = expectedDisplayTime - captureTime (do driver até a tela). Não inclui o atraso

@@ -30,6 +30,7 @@ tower = { version = "0.5", features = ["util"] }
 rust-embed = { version = "8", features = ["mime-guess"] }
 igd-next = { version = "0.16", features = ["aio_tokio"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tauri-plugin-dialog = "2"
 
 
 [target.'cfg(windows)'.dependencies]

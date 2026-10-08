@@ -1,4 +1,5 @@
 import Resolution from "./Resolution";
+import { alerts } from "./alerts";
 import { SetAlertType } from "../../context/AlertsContext";
 import { SetVideoStreamType } from "../../context/VideoStreamContext";
 import { SetVideoTrackType } from "../../context/VideoStreamContext";
@@ -11,12 +12,16 @@ const MAX_HEIGHT = 4320;
 const AUTO_TARGET_FPS = 60;
 const FPS_TOLERANCE = 0.97;
 
+/** Valor especial do dropdown de vídeo: captura de tela/janela em vez de dispositivo. */
+export const SCREEN_SOURCE = "screen";
+
 export type StreamType = { setAlert: SetAlertType; setVideoStream: SetVideoStreamType; setVideoTrack: SetVideoTrackType };
 
 export default class Stream {
     private mediaStream: MediaStream = new MediaStream();
 
     private videoId: string | null = null;
+    private source: "device" | "screen" = "device";
     public audioId: string | null = null;
     private currentAudioId: string | null = null;
     private resolutionTag: string | null = null;
@@ -36,7 +41,17 @@ export default class Stream {
         setVideoStream(this.mediaStream);
     }
 
+    get isScreen() {
+        return this.source === "screen";
+    }
+
     setVideoDevice(deviceId: string) {
+        if (deviceId === SCREEN_SOURCE) {
+            this.source = "screen";
+            this.videoId = null;
+            return this.chooseScreen();
+        }
+        this.source = "device";
         this.videoId = deviceId;
         return this.requestVideoRestart();
     }
@@ -44,13 +59,52 @@ export default class Stream {
     /** `null` = automático. */
     setResolutionTag(resolutionTag: string | null) {
         this.resolutionTag = resolutionTag;
-        return this.requestVideoRestart();
+        return this.isScreen ? this.applyScreenConstraints() : this.requestVideoRestart();
     }
 
     /** `null` = automático. */
     setFrameRate(frameRate: number | null) {
         this.frameRate = frameRate;
-        return this.requestVideoRestart();
+        return this.isScreen ? this.applyScreenConstraints() : this.requestVideoRestart();
+    }
+
+    private screenConstraints(): MediaTrackConstraints {
+        const resolution = this.resolutionTag ? Resolution.getFromTag(this.resolutionTag) : null;
+        return {
+            frameRate: { ideal: this.frameRate ?? AUTO_TARGET_FPS },
+            ...(resolution ? { width: { ideal: resolution.width }, height: { ideal: resolution.height } } : {}),
+        };
+    }
+
+    private async applyScreenConstraints() {
+        await this.videoTrack?.applyConstraints(this.screenConstraints()).catch(() => {});
+        if (this.videoTrack) this.setVideoTrack(this.videoTrack);
+    }
+
+    private closeVideoTrack() {
+        if (!this.videoTrack) return;
+        this.mediaStream.removeTrack(this.videoTrack);
+        this.videoTrack.stop();
+        this.videoTrack = null;
+        this.setVideoTrack(null);
+    }
+
+    /** Abre o seletor do Windows para escolher monitor ou janela. */
+    async chooseScreen() {
+        this.closeVideoTrack();
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: this.screenConstraints(), audio: false });
+            const track = stream.getVideoTracks()[0];
+            track.addEventListener("ended", () => this.handleVideoEnded(track));
+            this.videoTrack = track;
+            this.mediaStream.addTrack(track);
+            this.setVideoTrack(track);
+            this.setAlert(null);
+        } catch (error) {
+            const name = error instanceof DOMException ? error.name : String(error);
+            if (name === "NotAllowedError") this.handleWarning("Screen capture cancelled: use \"Choose screen\" to pick one");
+            else this.handleError(`Could not capture the screen (${name})`);
+        }
     }
 
     // Os dropdowns disparam várias mudanças seguidas na inicialização; agrupa tudo em
@@ -96,16 +150,11 @@ export default class Stream {
     }
 
     private async openVideoTrack() {
-        if (!this.videoId) return;
+        if (!this.videoId || this.isScreen) return;
 
         // Fecha antes de abrir: muitas placas de captura não aceitam duas sessões ao mesmo tempo,
         // e é a reabertura que faz o driver trocar de modo.
-        if (this.videoTrack) {
-            this.mediaStream.removeTrack(this.videoTrack);
-            this.videoTrack.stop();
-            this.videoTrack = null;
-            this.setVideoTrack(null);
-        }
+        this.closeVideoTrack();
 
         for (const { constraints, scaled } of this.buildAttempts()) {
             try {
@@ -136,7 +185,7 @@ export default class Stream {
         this.mediaStream.removeTrack(track);
         this.videoTrack = null;
         this.setVideoTrack(null);
-        this.handleWarning("Video device disconnected");
+        this.handleWarning(this.isScreen ? "Screen capture stopped" : "Video device disconnected");
     }
 
     private handleAudioEnded(track: MediaStreamTrack) {
@@ -150,8 +199,18 @@ export default class Stream {
     /** Chamado quando a lista de dispositivos muda: reabre o que caiu e voltou. */
     handleDeviceChange(devices: MediaDeviceInfo[]) {
         const available = (id: string | null) => id !== null && devices.some((device) => device.deviceId === id);
-        if (!this.videoTrack && available(this.videoId)) this.requestVideoRestart();
+        if (!this.isScreen && !this.videoTrack && available(this.videoId)) this.requestVideoRestart();
         if (!this.audioTrack && available(this.audioId)) this.updateAudioTrack();
+    }
+
+    /** Para de tocar o áudio pelo WebView (o preview nativo do Rust assumiu). */
+    clearAudio() {
+        if (this.audioTrack) {
+            this.mediaStream.removeTrack(this.audioTrack);
+            this.audioTrack.stop();
+            this.audioTrack = null;
+        }
+        this.currentAudioId = null;
     }
 
     async updateAudioTrack() {
@@ -199,11 +258,11 @@ export default class Stream {
 
     handleError(text: string) {
         console.error(text);
-        this.setAlert({ text: text, color: "darkred", icon: "./assets/Alerts/error.svg" });
+        this.setAlert(alerts.error(text));
     }
 
     handleWarning(text: string) {
         console.warn(text);
-        this.setAlert({ text: text, color: "goldenrod", icon: "./assets/Alerts/warning.svg" });
+        this.setAlert(alerts.warning(text));
     }
 }

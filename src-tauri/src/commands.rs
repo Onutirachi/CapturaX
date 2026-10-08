@@ -320,18 +320,6 @@ pub async fn firewall_fix(state: State<'_, AppState>) -> Result<(), String> {
     result
 }
 
-#[tauri::command]
-pub async fn stream_block_ip(state: State<'_, AppState>, ip: String) -> Result<(), String> {
-    ip.parse::<std::net::IpAddr>().map_err(|_| "Invalid IP".to_string())?;
-    let mut store = state.config.lock().unwrap();
-    if !store.current.stream.blocked_ips.contains(&ip) {
-        store.current.stream.blocked_ips.push(ip);
-        store.save();
-    }
-    state.stream.hub.set_blocked(&store.current.stream.blocked_ips);
-    Ok(())
-}
-
 // ---- Print ------------------------------------------------------------------------------
 
 /// Salva o PNG (corpo binário) em `Imagens\CapturaX` e devolve o caminho.

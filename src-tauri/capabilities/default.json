@@ -6,6 +6,8 @@
     "permissions": [
         "core:default",
         "opener:default",
+        "opener:allow-reveal-item-in-dir",
+        "dialog:allow-open",
         { "identifier": "opener:allow-open-url", "allow": [{ "url": "ms-settings:*" }] },
         "core:window:default",
         "core:window:allow-start-dragging",
