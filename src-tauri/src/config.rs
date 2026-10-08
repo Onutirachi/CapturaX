@@ -1,0 +1,168 @@
+//! Configurações que o Rust precisa conhecer, salvas em `settings.json` na pasta de config do app.
+//! Preferências só de interface (dropdowns, pin da StatusBar…) continuam no localStorage do front.
+
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Config {
+    pub audio: AudioConfig,
+    pub recording: RecordingConfig,
+    pub stream: StreamConfig,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default, rename_all = "camelCase")]
+pub struct AudioConfig {
+    /// `true` = preview tocado pelo Rust (WASAPI, baixa latência); `false` = pelo `<video>` do WebView.
+    pub native_preview: bool,
+    /// Endpoint WASAPI de entrada do preview (ex. áudio da placa). `None` = nenhum.
+    pub preview_input: Option<String>,
+    /// Endpoint de saída do preview. `None` = saída padrão do Windows.
+    pub preview_output: Option<String>,
+    /// Atraso extra do áudio do preview, para alinhar com o vídeo (lip-sync).
+    pub preview_delay_ms: u32,
+
+    /// Dispositivo gravado junto (ex. áudio da placa). `None` = o mesmo do preview.
+    pub record_input: Option<String>,
+    pub record_input_enabled: bool,
+    pub record_input_volume: f32,
+    /// Microfone opcional na gravação/transmissão.
+    pub record_mic: Option<String>,
+    pub record_mic_volume: f32,
+    /// Áudio dos apps (loopback app por app, sem o CapturaX e sem os excluídos).
+    pub record_system: bool,
+    pub record_system_volume: f32,
+    /// Executáveis excluídos do áudio do sistema, em minúsculas (ex. `discord.exe`).
+    pub excluded_apps: Vec<String>,
+    /// Apps já vistos tocando som, para a lista continuar útil com eles fechados.
+    pub known_apps: Vec<String>,
+    /// Ajuste fino de sincronia da gravação: positivo atrasa o áudio.
+    pub av_offset_ms: i32,
+}
+
+impl Default for AudioConfig {
+    fn default() -> Self {
+        Self {
+            native_preview: true,
+            preview_input: None,
+            preview_output: None,
+            preview_delay_ms: 0,
+            record_input: None,
+            record_input_enabled: true,
+            record_input_volume: 1.0,
+            record_mic: None,
+            record_mic_volume: 1.0,
+            record_system: true,
+            record_system_volume: 1.0,
+            excluded_apps: vec!["discord.exe".into()],
+            known_apps: vec!["discord.exe".into()],
+            av_offset_ms: 0,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RecordingConfig {
+    /// Pasta de destino. `None` = `Vídeos\CapturaX`.
+    pub folder: Option<String>,
+    /// "original" | "high" | "medium" | "light" | "custom"
+    pub preset: String,
+    /// "h264" | "hevc"
+    pub codec: String,
+    /// Usados só no preset "custom". `None` = igual ao preview.
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub fps: Option<u32>,
+    pub bitrate_kbps: u32,
+    pub audio_bitrate_kbps: u32,
+}
+
+impl Default for RecordingConfig {
+    fn default() -> Self {
+        Self {
+            folder: None,
+            preset: "high".into(),
+            codec: "h264".into(),
+            width: None,
+            height: None,
+            fps: None,
+            bitrate_kbps: 20_000,
+            audio_bitrate_kbps: 192,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default, rename_all = "camelCase")]
+pub struct StreamConfig {
+    /// Servidor no ar (link responde, mesmo que "Offline").
+    pub accept_viewers: bool,
+    pub port: u16,
+    /// Pedir ao roteador para abrir a porta (UPnP).
+    pub upnp: bool,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    pub bitrate_kbps: u32,
+    pub audio_bitrate_kbps: u32,
+    pub max_viewers: u32,
+    pub blocked_ips: Vec<String>,
+}
+
+impl Default for StreamConfig {
+    fn default() -> Self {
+        Self {
+            accept_viewers: false,
+            port: 8787,
+            upnp: true,
+            width: 1280,
+            height: 720,
+            fps: 30,
+            bitrate_kbps: 3_000,
+            audio_bitrate_kbps: 128,
+            max_viewers: 10,
+            blocked_ips: Vec::new(),
+        }
+    }
+}
+
+pub struct ConfigStore {
+    path: PathBuf,
+    pub current: Config,
+}
+
+impl ConfigStore {
+    pub fn load(dir: PathBuf) -> Self {
+        let path = dir.join("settings.json");
+        let current = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|text| match serde_json::from_str(&text) {
+                Ok(config) => Some(config),
+                Err(error) => {
+                    // Arquivo corrompido não pode impedir o app de abrir.
+                    eprintln!("Ignoring invalid {}: {error}", path.display());
+                    None
+                }
+            })
+            .unwrap_or_default();
+        Self { path, current }
+    }
+
+    pub fn save(&self) {
+        let result = (|| -> std::io::Result<()> {
+            if let Some(dir) = self.path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            // Grava num temporário e renomeia: uma queda no meio não deixa o arquivo pela metade.
+            let tmp = self.path.with_extension("json.tmp");
+            std::fs::write(&tmp, serde_json::to_vec_pretty(&self.current)?)?;
+            std::fs::rename(&tmp, &self.path)
+        })();
+        if let Err(error) = result {
+            eprintln!("Failed to save settings: {error}");
+        }
+    }
+}

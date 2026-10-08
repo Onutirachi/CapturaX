@@ -1,73 +1,62 @@
-use tauri::Manager;
+#[cfg(not(windows))]
+compile_error!("CapturaX only supports Windows (WASAPI, Media Foundation and WebView2).");
 
-/// Libera câmera e microfone no WebView2 sem mostrar o prompt de permissão.
-#[cfg(windows)]
-fn auto_grant_media_permissions(window: &tauri::WebviewWindow) -> tauri::Result<()> {
-    use webview2_com::Microsoft::Web::WebView2::Win32::{
-        COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_CAMERA, COREWEBVIEW2_PERMISSION_KIND_MICROPHONE,
-        COREWEBVIEW2_PERMISSION_STATE_ALLOW,
-    };
-    use webview2_com::PermissionRequestedEventHandler;
+mod audio;
+mod clock;
+mod commands;
+mod config;
+mod media;
+mod stream;
+mod window;
 
-    window.with_webview(|webview| unsafe {
-        let Ok(core) = webview.controller().CoreWebView2() else { return };
-        let handler = PermissionRequestedEventHandler::create(Box::new(|_, args| {
-            let Some(args) = args else { return Ok(()) };
-            let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
-            args.PermissionKind(&mut kind)?;
-            if kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA || kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE {
-                args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
-            }
-            Ok(())
-        }));
-        let mut token = Default::default();
-        if let Err(error) = core.add_PermissionRequested(&handler, &mut token) {
-            eprintln!("Failed to register PermissionRequested handler: {error}");
-        }
-    })
-}
-
-/// Liga/desliga as animações do Windows (maximizar/restaurar) da janela.
-/// Usado na troca de fullscreen, que precisa desmaximizar antes (ver FullscreenContext).
-/// Roda na fila da thread principal para ficar na ordem certa com os outros comandos de janela.
-#[tauri::command]
-fn set_window_animations(window: tauri::WebviewWindow, enabled: bool) -> tauri::Result<()> {
-    #[cfg(windows)]
-    {
-        use windows::core::BOOL;
-        use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_TRANSITIONS_FORCEDISABLED};
-
-        let hwnd = window.hwnd()?;
-        let hwnd_raw = hwnd.0 as isize;
-        window.run_on_main_thread(move || unsafe {
-            let disabled = BOOL::from(!enabled);
-            let _ = DwmSetWindowAttribute(
-                windows::Win32::Foundation::HWND(hwnd_raw as _),
-                DWMWA_TRANSITIONS_FORCEDISABLED,
-                &disabled as *const BOOL as *const _,
-                std::mem::size_of::<BOOL>() as u32,
-            );
-        })?;
-    }
-    #[cfg(not(windows))]
-    let _ = (window, enabled);
-    Ok(())
-}
+use commands::AppState;
+use tauri::{Manager, RunEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            #[cfg(windows)]
             if let Some(window) = app.get_webview_window("main") {
-                auto_grant_media_permissions(&window)?;
+                window::auto_grant_media_permissions(&window)?;
             }
-            #[cfg(not(windows))]
-            let _ = app;
+            let config_dir = app.path().app_config_dir()?;
+            let state = AppState::new(config::ConfigStore::load(config_dir));
+            let initial = state.config.lock().unwrap().current.clone();
+            app.manage(state);
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                handle.state::<AppState>().apply(&initial).await;
+            });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![set_window_animations])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .invoke_handler(tauri::generate_handler![
+            window::set_window_animations,
+            commands::clock_now,
+            commands::get_config,
+            commands::set_config,
+            commands::audio_devices,
+            commands::audio_set_preview_volume,
+            commands::audio_apps,
+            commands::recording_start,
+            commands::recording_stop,
+            commands::stream_start,
+            commands::stream_stop,
+            commands::media_video_config,
+            commands::media_video_chunk,
+            commands::media_status,
+            commands::stream_status,
+            commands::firewall_fix,
+            commands::stream_block_ip,
+            commands::save_screenshot,
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            // Finaliza a gravação em andamento (o arquivo vira um MP4 comum) antes de sair.
+            handle.state::<AppState>().shutdown();
+        }
+    });
 }

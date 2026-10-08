@@ -1,0 +1,355 @@
+//! Comandos chamados pelo front (`invoke`).
+//!
+//! Os comandos que mexem com áudio, disco ou rede são `async` para rodarem fora da thread
+//! principal (a da janela), que no Tauri executa os comandos síncronos.
+
+use serde::Serialize;
+use std::path::PathBuf;
+use std::sync::Mutex;
+use tauri::ipc::{InvokeBody, Request};
+use tauri::{AppHandle, Manager, State};
+
+use crate::audio::{display_name, AudioEngine, DeviceInfo, MixSettings, PreviewSettings};
+use crate::clock;
+use crate::config::{Config, ConfigStore};
+use crate::media::fmp4::VideoTrack;
+use crate::media::{parse_codec, FileSink, MediaManager, SessionKind, SessionOptions, SessionStatus};
+use crate::stream::{firewall, HlsSink, ServerStatus, StreamServer};
+
+pub struct AppState {
+    pub config: Mutex<ConfigStore>,
+    pub audio: AudioEngine,
+    pub media: MediaManager,
+    pub stream: StreamServer,
+    recording: Mutex<Option<(u32, PathBuf)>>,
+    streaming: Mutex<Option<u32>>,
+}
+
+impl AppState {
+    pub fn new(config: ConfigStore) -> Self {
+        let audio = AudioEngine::new();
+        Self {
+            config: Mutex::new(config),
+            media: MediaManager::new(audio.clone()),
+            audio,
+            stream: StreamServer::new(),
+            recording: Mutex::new(None),
+            streaming: Mutex::new(None),
+        }
+    }
+
+    fn config(&self) -> Config {
+        self.config.lock().unwrap().current.clone()
+    }
+
+    /// Aplica a configuração ao motor de áudio e ao servidor.
+    pub async fn apply(&self, config: &Config) {
+        let audio = self.audio.clone();
+        let preview = preview_settings(config);
+        let mix = mix_settings(config);
+        // Troca de dispositivo espera threads de áudio terminarem: fora do executor async.
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            audio.set_preview(preview);
+            audio.update_mix(&mix);
+        })
+        .await;
+
+        let hub = &self.stream.hub;
+        hub.max_viewers.store(config.stream.max_viewers.max(1), std::sync::atomic::Ordering::Relaxed);
+        hub.set_blocked(&config.stream.blocked_ips);
+        let live = self.streaming.lock().unwrap().is_some();
+        self.stream.apply(config.stream.accept_viewers || live, config.stream.port, config.stream.upnp).await;
+    }
+
+    /// Fecha gravação/transmissão ao sair (a gravação precisa ser finalizada).
+    pub fn shutdown(&self) {
+        self.media.stop_all();
+        self.audio.set_preview(None);
+    }
+}
+
+fn preview_settings(config: &Config) -> Option<PreviewSettings> {
+    let audio = &config.audio;
+    audio.native_preview.then(|| PreviewSettings { input: audio.preview_input.clone(), output: audio.preview_output.clone(), delay_ms: audio.preview_delay_ms })
+}
+
+fn mix_settings(config: &Config) -> MixSettings {
+    let audio = &config.audio;
+    let mut inputs = Vec::new();
+    if audio.record_input_enabled {
+        if let Some(device) = audio.record_input.clone().or_else(|| audio.preview_input.clone()) {
+            inputs.push((device, audio.record_input_volume));
+        }
+    }
+    if let Some(mic) = audio.record_mic.clone() {
+        inputs.push((mic, audio.record_mic_volume));
+    }
+    MixSettings {
+        inputs,
+        system: audio.record_system.then_some(audio.record_system_volume),
+        excluded: audio.excluded_apps.iter().map(|e| e.to_lowercase()).collect(),
+        offset_ms: audio.av_offset_ms,
+    }
+}
+
+fn has_audio(settings: &MixSettings) -> bool {
+    !settings.inputs.is_empty() || settings.system.is_some()
+}
+
+fn timestamp() -> String {
+    chrono::Local::now().format("%Y-%m-%d %H-%M-%S").to_string()
+}
+
+fn raw_body(request: &Request<'_>) -> Result<Vec<u8>, String> {
+    match request.body() {
+        InvokeBody::Raw(data) => Ok(data.clone()),
+        _ => Err("Expected binary body".into()),
+    }
+}
+
+fn header<T: std::str::FromStr>(request: &Request<'_>, name: &str) -> Result<T, String> {
+    request
+        .headers()
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| format!("Missing header {name}"))
+}
+
+// ---- Geral ------------------------------------------------------------------------------
+
+/// Relógio QPC em µs; o front usa para alinhar o `performance.now()` com o áudio.
+#[tauri::command]
+pub fn clock_now() -> i64 {
+    clock::now_us()
+}
+
+#[tauri::command]
+pub fn get_config(state: State<'_, AppState>) -> Config {
+    state.config()
+}
+
+#[tauri::command]
+pub async fn set_config(state: State<'_, AppState>, config: Config) -> Result<(), String> {
+    {
+        let mut store = state.config.lock().unwrap();
+        store.current = config.clone();
+        store.save();
+    }
+    state.apply(&config).await;
+    Ok(())
+}
+
+// ---- Áudio ------------------------------------------------------------------------------
+
+#[derive(Serialize)]
+pub struct AudioDevices {
+    inputs: Vec<DeviceInfo>,
+    outputs: Vec<DeviceInfo>,
+}
+
+#[tauri::command]
+pub async fn audio_devices(state: State<'_, AppState>) -> Result<AudioDevices, String> {
+    Ok(AudioDevices { inputs: state.audio.list_inputs()?, outputs: state.audio.list_outputs()? })
+}
+
+#[tauri::command]
+pub async fn audio_set_preview_volume(state: State<'_, AppState>, volume: f32, muted: bool) -> Result<(), String> {
+    state.audio.set_preview_volume(volume, muted);
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppListEntry {
+    exe: String,
+    name: String,
+    running: bool,
+    playing: bool,
+    excluded: bool,
+}
+
+/// Apps para a tela de exclusão: os que têm áudio agora + os já vistos + os excluídos.
+#[tauri::command]
+pub async fn audio_apps(state: State<'_, AppState>) -> Result<Vec<AppListEntry>, String> {
+    let running = state.audio.running_apps()?;
+    let mut store = state.config.lock().unwrap();
+    let audio = &mut store.current.audio;
+    let mut changed = false;
+    for app in &running {
+        if !audio.known_apps.contains(&app.exe) {
+            audio.known_apps.push(app.exe.clone());
+            changed = true;
+        }
+    }
+    let mut names: Vec<String> = audio.known_apps.iter().chain(&audio.excluded_apps).map(|e| e.to_lowercase()).collect();
+    names.sort();
+    names.dedup();
+    let mut list: Vec<AppListEntry> = names
+        .into_iter()
+        .map(|exe| {
+            let live = running.iter().find(|a| a.exe == exe);
+            AppListEntry {
+                name: live.map_or_else(|| display_name(&exe), |a| a.name.clone()),
+                running: live.is_some(),
+                playing: live.is_some_and(|a| a.playing),
+                excluded: audio.excluded_apps.iter().any(|e| e.eq_ignore_ascii_case(&exe)),
+                exe,
+            }
+        })
+        .collect();
+    list.sort_by(|a, b| (!a.playing, !a.running, a.name.to_lowercase()).cmp(&(!b.playing, !b.running, b.name.to_lowercase())));
+    if changed {
+        store.save();
+    }
+    Ok(list)
+}
+
+// ---- Gravação e transmissão -------------------------------------------------------------
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingStarted {
+    id: u32,
+    path: String,
+}
+
+#[tauri::command]
+pub async fn recording_start(app: AppHandle, state: State<'_, AppState>) -> Result<RecordingStarted, String> {
+    if let Some((id, path)) = state.recording.lock().unwrap().as_ref() {
+        return Ok(RecordingStarted { id: *id, path: path.display().to_string() });
+    }
+    let config = state.config();
+    let folder = match &config.recording.folder {
+        Some(folder) if !folder.is_empty() => PathBuf::from(folder),
+        _ => app.path().video_dir().map_err(|e| e.to_string())?.join("CapturaX"),
+    };
+    let path = folder.join(format!("CapturaX {}.mp4", timestamp()));
+    let sink = FileSink::create(path.clone()).map_err(|e| format!("Could not create {} ({e})", path.display()))?;
+    let mix = mix_settings(&config);
+    let id = state.media.start(SessionOptions {
+        kind: SessionKind::Recording,
+        sink: Box::new(sink),
+        audio: has_audio(&mix).then_some(mix),
+        audio_bitrate_kbps: config.recording.audio_bitrate_kbps,
+        fragment_secs: 1.0,
+    });
+    *state.recording.lock().unwrap() = Some((id, path.clone()));
+    Ok(RecordingStarted { id, path: path.display().to_string() })
+}
+
+/// Para a gravação e devolve o arquivo final (`None` se nada chegou a ser gravado).
+#[tauri::command]
+pub async fn recording_stop(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let Some((id, _)) = state.recording.lock().unwrap().take() else { return Ok(None) };
+    let media = state.media.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || media.stop(id)).await.map_err(|e| e.to_string())??;
+    Ok(result.map(|p| p.display().to_string()))
+}
+
+#[tauri::command]
+pub async fn stream_start(state: State<'_, AppState>) -> Result<u32, String> {
+    if let Some(id) = *state.streaming.lock().unwrap() {
+        return Ok(id);
+    }
+    let config = state.config();
+    state.stream.apply(true, config.stream.port, config.stream.upnp).await;
+    let mix = mix_settings(&config);
+    let id = state.media.start(SessionOptions {
+        kind: SessionKind::Stream,
+        sink: Box::new(HlsSink::new(state.stream.hub.clone())),
+        audio: has_audio(&mix).then_some(mix),
+        audio_bitrate_kbps: config.stream.audio_bitrate_kbps,
+        fragment_secs: 1.0,
+    });
+    *state.streaming.lock().unwrap() = Some(id);
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn stream_stop(state: State<'_, AppState>) -> Result<(), String> {
+    let Some(id) = state.streaming.lock().unwrap().take() else { return Ok(()) };
+    let media = state.media.clone();
+    let _ = tauri::async_runtime::spawn_blocking(move || media.stop(id)).await;
+    let config = state.config();
+    state.stream.apply(config.stream.accept_viewers, config.stream.port, config.stream.upnp).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn media_video_config(state: State<'_, AppState>, session: u32, codec: String, description: Vec<u8>, width: u32, height: u32) -> Result<(), String> {
+    let codec = parse_codec(&codec).ok_or_else(|| format!("Unsupported codec {codec}"))?;
+    state.media.video_config(session, VideoTrack { codec, description, width, height });
+    Ok(())
+}
+
+/// Pacote de vídeo codificado. Corpo binário; sessão, timestamp e keyframe vão nos cabeçalhos.
+#[tauri::command]
+pub async fn media_video_chunk(state: State<'_, AppState>, request: Request<'_>) -> Result<(), String> {
+    let data = raw_body(&request)?;
+    let session: u32 = header(&request, "x-session")?;
+    let pts_us: i64 = header(&request, "x-pts")?;
+    let key = request.headers().get("x-key").is_some_and(|v| v == "1");
+    state.media.video_chunk(session, data, pts_us, key);
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaStatus {
+    sessions: Vec<SessionStatus>,
+    recording: Option<RecordingStarted>,
+    streaming: Option<u32>,
+}
+
+#[tauri::command]
+pub async fn media_status(state: State<'_, AppState>) -> Result<MediaStatus, String> {
+    let recording = state.recording.lock().unwrap().as_ref().map(|(id, path)| RecordingStarted { id: *id, path: path.display().to_string() });
+    Ok(MediaStatus { sessions: state.media.status(), recording, streaming: *state.streaming.lock().unwrap() })
+}
+
+#[tauri::command]
+pub async fn stream_status(state: State<'_, AppState>) -> Result<ServerStatus, String> {
+    Ok(state.stream.status().await)
+}
+
+#[tauri::command]
+pub async fn firewall_fix(state: State<'_, AppState>) -> Result<(), String> {
+    let result = tauri::async_runtime::spawn_blocking(firewall::fix).await.map_err(|e| e.to_string())?;
+    state.stream.refresh_firewall();
+    result
+}
+
+#[tauri::command]
+pub async fn stream_block_ip(state: State<'_, AppState>, ip: String) -> Result<(), String> {
+    ip.parse::<std::net::IpAddr>().map_err(|_| "Invalid IP".to_string())?;
+    let mut store = state.config.lock().unwrap();
+    if !store.current.stream.blocked_ips.contains(&ip) {
+        store.current.stream.blocked_ips.push(ip);
+        store.save();
+    }
+    state.stream.hub.set_blocked(&store.current.stream.blocked_ips);
+    Ok(())
+}
+
+// ---- Print ------------------------------------------------------------------------------
+
+/// Salva o PNG (corpo binário) em `Imagens\CapturaX` e devolve o caminho.
+#[tauri::command]
+pub async fn save_screenshot(app: AppHandle, request: Request<'_>) -> Result<String, String> {
+    let data = raw_body(&request)?;
+    if !data.starts_with(b"\x89PNG") {
+        return Err("Invalid image".into());
+    }
+    let folder = app.path().picture_dir().map_err(|e| e.to_string())?.join("CapturaX");
+    std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let mut path = folder.join(format!("CapturaX {}.png", timestamp()));
+    // Dois prints no mesmo segundo não podem se sobrescrever.
+    let mut n = 2;
+    while path.exists() {
+        path = folder.join(format!("CapturaX {} ({n}).png", timestamp()));
+        n += 1;
+    }
+    std::fs::write(&path, data).map_err(|e| e.to_string())?;
+    Ok(path.display().to_string())
+}
