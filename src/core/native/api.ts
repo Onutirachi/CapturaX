@@ -42,9 +42,10 @@ export type StreamConfig = {
     width: number;
     height: number;
     fps: number;
+    /** Bitrate calculado pela resolução/FPS; `false` usa `bitrateKbps`. */
+    bitrateAuto: boolean;
     bitrateKbps: number;
     audioBitrateKbps: number;
-    maxViewers: number;
     blockedIps: string[];
 };
 

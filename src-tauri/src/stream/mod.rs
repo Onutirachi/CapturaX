@@ -339,7 +339,7 @@ async fn status(State(hub): State<Arc<StreamHub>>) -> Response<Body> {
 /// (a página reconecta e volta para o ao vivo).
 async fn live_stream(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)): Extension<ClientIp>, Path(session): Path<u64>) -> Response<Body> {
     if !hub.touch_viewer(ip) {
-        return full();
+        return blocked();
     }
     let Some(start) = hub.start_live(session) else {
         return respond(StatusCode::NOT_FOUND, "text/plain", "Offline", false);
@@ -359,13 +359,13 @@ async fn live_stream(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)):
     respond(StatusCode::OK, "video/mp4", Body::from_stream(stream), false)
 }
 
-fn full() -> Response<Body> {
-    respond(StatusCode::SERVICE_UNAVAILABLE, "text/plain", "Too many viewers", false)
+fn blocked() -> Response<Body> {
+    respond(StatusCode::FORBIDDEN, "text/plain", "Forbidden", false)
 }
 
 async fn playlist(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)): Extension<ClientIp>, Path(session): Path<u64>) -> Response<Body> {
     if !hub.touch_viewer(ip) {
-        return full();
+        return blocked();
     }
     match hub.playlist(session) {
         Some(text) => respond(StatusCode::OK, "application/vnd.apple.mpegurl", text, false),
@@ -385,7 +385,7 @@ async fn media_segment(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)
         return respond(StatusCode::NOT_FOUND, "text/plain", "Not found", false);
     };
     if !hub.touch_viewer(ip) {
-        return full();
+        return blocked();
     }
     match hub.segment(session, sequence) {
         Some(data) => respond(StatusCode::OK, "video/iso.segment", data, true),

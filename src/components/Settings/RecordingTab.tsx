@@ -6,6 +6,7 @@ import { NativeContext } from "../../context/NativeContext";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import type { RecordingConfig, RecordingPreset, VideoCodecName } from "../../core/native/api";
 import { isHevcSupported, recordingSettings } from "../../core/media/presets";
+import { FRAMERATE_LIST, RESOLUTION_LIST } from "../../core/utils/constants";
 import { Button, NumberInput, Row, Section, Segmented, Select } from "./controls";
 
 const PRESET_HINTS: Record<RecordingPreset, string> = {
@@ -64,21 +65,33 @@ export default function RecordingTab() {
                 </Row>
                 {recording.preset === "custom" && (
                     <>
-                        <Row label="Resolution" hint="Never above the preview; keeps the aspect ratio.">
+                        <Row label="Resolution" hint="Never above the preview; keeps its aspect ratio.">
                             <Select
-                                value={recording.height ? String(recording.height) : SAME}
-                                onChange={(v) => set({ height: v === SAME ? null : Number(v), width: null })}
+                                value={recording.height ? `${recording.width ?? recording.height * 4}x${recording.height}` : SAME}
+                                width="w-56"
+                                onChange={(v) => {
+                                    if (v === SAME) return set({ width: null, height: null });
+                                    const [width, height] = v.split("x").map(Number);
+                                    set({ width, height });
+                                }}
                                 options={[
-                                    { value: SAME, label: "Same as preview" },
-                                    ...[2160, 1440, 1080, 720, 480].map((h) => ({ value: String(h), label: `${h}p` })),
+                                    { value: SAME, label: source ? `Native (${source.width} x ${source.height})` : "Native" },
+                                    ...RESOLUTION_LIST.filter((r) => !source || (r.width <= source.width && r.height <= source.height)).map((r) => ({
+                                        value: `${r.width}x${r.height}`,
+                                        label: `${r.width} x ${r.height} (${r.tag})`,
+                                    })),
                                 ]}
                             />
                         </Row>
                         <Row label="Frame rate">
                             <Select
                                 value={recording.fps ? String(recording.fps) : SAME}
+                                width="w-40"
                                 onChange={(v) => set({ fps: v === SAME ? null : Number(v) })}
-                                options={[{ value: SAME, label: "Same as preview" }, ...[120, 60, 30].map((f) => ({ value: String(f), label: `${f} FPS` }))]}
+                                options={[
+                                    { value: SAME, label: source ? `Native (${Math.round(source.fps)} FPS)` : "Native" },
+                                    ...FRAMERATE_LIST.filter((f) => !source || f <= Math.round(source.fps)).map((f) => ({ value: String(f), label: `${f} FPS` })),
+                                ]}
                             />
                         </Row>
                         <Row label="Video bitrate" hint="Higher = better picture and bigger files.">

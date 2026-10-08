@@ -5,6 +5,7 @@
 
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, Manager, State};
@@ -23,6 +24,8 @@ pub struct AppState {
     pub stream: StreamServer,
     recording: Mutex<Option<(u32, PathBuf)>>,
     streaming: Mutex<Option<u32>>,
+    /// Janela de "Go live" aberta: o servidor fica no ar mesmo sem "Accept viewers".
+    preparing: AtomicBool,
 }
 
 impl AppState {
@@ -35,7 +38,13 @@ impl AppState {
             stream: StreamServer::new(),
             recording: Mutex::new(None),
             streaming: Mutex::new(None),
+            preparing: AtomicBool::new(false),
         }
+    }
+
+    /// Servidor no ar: aceitando espectadores, ao vivo, ou com a janela de "Go live" aberta.
+    fn server_wanted(&self, config: &Config) -> bool {
+        config.stream.accept_viewers || self.streaming.lock().unwrap().is_some() || self.preparing.load(Ordering::Relaxed)
     }
 
     fn config(&self) -> Config {
@@ -55,10 +64,8 @@ impl AppState {
         .await;
 
         let hub = &self.stream.hub;
-        hub.max_viewers.store(config.stream.max_viewers.max(1), std::sync::atomic::Ordering::Relaxed);
         hub.set_blocked(&config.stream.blocked_ips);
-        let live = self.streaming.lock().unwrap().is_some();
-        self.stream.apply(config.stream.accept_viewers || live, config.stream.port, config.stream.upnp).await;
+        self.stream.apply(self.server_wanted(config), config.stream.port, config.stream.upnp).await;
     }
 
     /// Fecha gravação/transmissão ao sair (a gravação precisa ser finalizada).
@@ -268,12 +275,14 @@ pub async fn stream_start(state: State<'_, AppState>) -> Result<u32, String> {
         part_secs: Some(LIVE_PART_SECS),
     });
     *state.streaming.lock().unwrap() = Some(id);
+    state.preparing.store(false, Ordering::Relaxed);
     Ok(id)
 }
 
 /// Liga o servidor antes de entrar ao vivo, para o link (e o UPnP) já estar pronto na janela de "Go live".
 #[tauri::command]
 pub async fn stream_prepare(state: State<'_, AppState>) -> Result<(), String> {
+    state.preparing.store(true, Ordering::Relaxed);
     let config = state.config();
     state.stream.apply(true, config.stream.port, config.stream.upnp).await;
     Ok(())
@@ -282,9 +291,9 @@ pub async fn stream_prepare(state: State<'_, AppState>) -> Result<(), String> {
 /// Desistiu de entrar ao vivo: o servidor volta ao que a configuração pede.
 #[tauri::command]
 pub async fn stream_unprepare(state: State<'_, AppState>) -> Result<(), String> {
+    state.preparing.store(false, Ordering::Relaxed);
     let config = state.config();
-    let live = state.streaming.lock().unwrap().is_some();
-    state.stream.apply(config.stream.accept_viewers || live, config.stream.port, config.stream.upnp).await;
+    state.stream.apply(state.server_wanted(&config), config.stream.port, config.stream.upnp).await;
     Ok(())
 }
 
@@ -294,7 +303,7 @@ pub async fn stream_stop(state: State<'_, AppState>) -> Result<(), String> {
     let media = state.media.clone();
     let _ = tauri::async_runtime::spawn_blocking(move || media.stop(id)).await;
     let config = state.config();
-    state.stream.apply(config.stream.accept_viewers, config.stream.port, config.stream.upnp).await;
+    state.stream.apply(state.server_wanted(&config), config.stream.port, config.stream.upnp).await;
     Ok(())
 }
 

@@ -10,7 +10,6 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
@@ -74,7 +73,6 @@ pub struct StreamHub {
     live: Mutex<Live>,
     viewers: Mutex<HashMap<IpAddr, Viewer>>,
     blocked: RwLock<HashSet<IpAddr>>,
-    pub max_viewers: AtomicU32,
 }
 
 #[derive(Serialize)]
@@ -87,9 +85,7 @@ pub struct LiveStatus {
 
 impl StreamHub {
     pub fn new() -> Arc<Self> {
-        let hub = Arc::new(Self::default());
-        hub.max_viewers.store(10, Ordering::Relaxed);
-        hub
+        Arc::new(Self::default())
     }
 
     fn begin(&self) {
@@ -162,7 +158,8 @@ impl StreamHub {
         self.viewers.lock().unwrap().retain(|ip, _| !blocked.contains(ip));
     }
 
-    /// Registra o espectador; `false` se a sala estiver cheia ou o IP bloqueado.
+    /// Registra o espectador; `false` se o IP estiver bloqueado. Sem limite de espectadores: quem
+    /// transmite conhece a própria internet (o servidor ainda limita conexões por IP e no total).
     pub fn touch_viewer(&self, ip: IpAddr) -> bool {
         if self.is_blocked(ip) {
             return false;
@@ -173,9 +170,6 @@ impl StreamHub {
         if let Some(viewer) = viewers.get_mut(&ip) {
             viewer.last_seen = now;
             return true;
-        }
-        if viewers.len() >= self.max_viewers.load(Ordering::Relaxed) as usize {
-            return false;
         }
         viewers.insert(ip, Viewer { first_seen: now, last_seen: now });
         true

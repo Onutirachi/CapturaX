@@ -96,7 +96,7 @@ export function recordingSettings(config: RecordingConfig, source: SourceInfo): 
             bitrate = bitrateFor(size.width, size.height, fps, 0.07);
             break;
         case "custom":
-            size = config.height ? fitHeight(source, config.height) : fitHeight(source, Infinity);
+            size = fitBox(source, config.width || Infinity, config.height || Infinity);
             fps = Math.min(sourceFps, config.fps ?? sourceFps);
             bitrate = config.bitrateKbps * 1000;
             break;
@@ -104,11 +104,45 @@ export function recordingSettings(config: RecordingConfig, source: SourceInfo): 
     return { codec: codecString(config.codec, size.width, size.height, fps), ...size, fps, bitrate, keyframeSecs: 2 };
 }
 
+// Bitrate automático da transmissão (kbps) por altura, a 30 e a 60 fps.
+const STREAM_BITRATES: [number, number, number][] = [
+    [480, 1500, 2500],
+    [720, 3000, 4500],
+    [1080, 5000, 8000],
+    [1440, 9000, 13000],
+    [2160, 16000, 24000],
+];
+
+/** Bitrate automático da transmissão para a resolução/FPS escolhidos. */
+export function autoStreamBitrateKbps(height: number, fps: number) {
+    const row = STREAM_BITRATES.find(([h]) => height <= h) ?? STREAM_BITRATES[STREAM_BITRATES.length - 1];
+    return fps > 30 ? row[2] : row[1];
+}
+
+/** Cabe dentro de `maxWidth`×`maxHeight` mantendo a proporção da fonte (nunca aumenta). */
+function fitBox(source: SourceInfo, maxWidth: number, maxHeight: number) {
+    const scale = Math.min(1, maxWidth / source.width, maxHeight / source.height);
+    return { width: even(source.width * scale), height: even(source.height * scale) };
+}
+
+/** Tamanho e FPS reais da transmissão para esta fonte (0 na config = nativo). */
+export function streamSize(config: StreamConfig, source: SourceInfo) {
+    const size = fitBox(source, config.width || Infinity, config.height || Infinity);
+    const sourceFps = Math.max(1, Math.round(source.fps || 60));
+    const fps = config.fps ? Math.min(sourceFps, config.fps) : sourceFps;
+    return { ...size, fps };
+}
+
+export function streamBitrateKbps(config: StreamConfig, source: SourceInfo) {
+    if (!config.bitrateAuto) return config.bitrateKbps;
+    const { height, fps } = streamSize(config, source);
+    return autoStreamBitrateKbps(height, fps);
+}
+
 export function streamSettings(config: StreamConfig, source: SourceInfo): EncoderSettings {
-    const size = fitHeight(source, config.height || 720);
-    const fps = Math.min(Math.max(1, Math.round(source.fps || 60)), config.fps || 30);
+    const { width, height, fps } = streamSize(config, source);
     // Transmissão sempre em H.264: é o que todo navegador toca.
-    return { codec: codecString("h264", size.width, size.height, fps), ...size, fps, bitrate: config.bitrateKbps * 1000, keyframeSecs: 1 };
+    return { codec: codecString("h264", width, height, fps), width, height, fps, bitrate: streamBitrateKbps(config, source) * 1000, keyframeSecs: 1 };
 }
 
 /** Configuração completa do VideoEncoder para estas opções. */

@@ -1,7 +1,8 @@
 import { useContext, useState } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import { native, errorText, type StreamConfig, type UpnpStatus } from "../../core/native/api";
-import { Badge, Button, CopyField, Note, NumberInput, Row, Section, Select, Toggle } from "./controls";
+import { Badge, Button, CopyField, Note, NumberInput, Row, Section, Toggle } from "./controls";
+import { BitrateControl, FpsSelect, ResolutionSelect, UploadNote } from "./StreamQuality";
 
 function formatWatching(seconds: number) {
     if (seconds < 60) return `${seconds}s`;
@@ -35,7 +36,6 @@ export default function StreamingTab() {
     const [fixing, setFixing] = useState(false);
 
     const live = nctx.streaming === "active";
-    const uploadMbps = ((stream.bitrateKbps + stream.audioBitrateKbps) * stream.maxViewers) / 1000;
     const cgnat = server?.upnp.state === "mapped" && server.upnp.cgnat;
 
     const fixFirewall = async () => {
@@ -93,23 +93,15 @@ export default function StreamingTab() {
                 </Row>
             </Section>
 
-            <Section title="Quality" description={`Your upload needs about ${uploadMbps.toFixed(1)} Mbps with ${stream.maxViewers} viewers (each one receives the full stream).`}>
-                <Row label="Resolution">
-                    <Select
-                        value={String(stream.height)}
-                        onChange={(v) => set({ height: Number(v), width: Math.round((Number(v) * 16) / 9) })}
-                        width="w-40"
-                        options={[480, 720, 1080, 1440].map((h) => ({ value: String(h), label: `${h}p` }))}
-                    />
+            <Section title="Quality" description={<UploadNote />}>
+                <Row label="Resolution" hint="Never above the source; keeps its aspect ratio.">
+                    <ResolutionSelect />
                 </Row>
                 <Row label="Frame rate">
-                    <Select value={String(stream.fps)} onChange={(v) => set({ fps: Number(v) })} width="w-40" options={[30, 60].map((f) => ({ value: String(f), label: `${f} FPS` }))} />
+                    <FpsSelect />
                 </Row>
-                <Row label="Video bitrate" hint="3 Mbps is good for 720p30; 6 Mbps for 1080p60.">
-                    <NumberInput value={stream.bitrateKbps / 1000} min={0.5} max={50} step={0.5} suffix="Mbps" onChange={(mbps) => set({ bitrateKbps: Math.round(mbps * 1000) })} />
-                </Row>
-                <Row label="Max viewers">
-                    <NumberInput value={stream.maxViewers} min={1} max={100} onChange={(maxViewers) => set({ maxViewers })} />
+                <Row label="Bitrate" hint="Automatic picks a good value for the resolution and frame rate.">
+                    <BitrateControl />
                 </Row>
             </Section>
 

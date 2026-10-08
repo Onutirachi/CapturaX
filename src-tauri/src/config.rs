@@ -103,12 +103,15 @@ pub struct StreamConfig {
     pub port: u16,
     /// Pedir ao roteador para abrir a porta (UPnP).
     pub upnp: bool,
+    /// Tamanho máximo (mantém a proporção da fonte); 0 = nativo.
     pub width: u32,
     pub height: u32,
+    /// 0 = nativo.
     pub fps: u32,
+    /// Bitrate calculado pela resolução/FPS; `false` usa `bitrate_kbps`.
+    pub bitrate_auto: bool,
     pub bitrate_kbps: u32,
     pub audio_bitrate_kbps: u32,
-    pub max_viewers: u32,
     pub blocked_ips: Vec<String>,
 }
 
@@ -121,9 +124,9 @@ impl Default for StreamConfig {
             width: 1280,
             height: 720,
             fps: 30,
-            bitrate_kbps: 3_000,
+            bitrate_auto: true,
+            bitrate_kbps: 4_500,
             audio_bitrate_kbps: 128,
-            max_viewers: 10,
             blocked_ips: Vec::new(),
         }
     }
