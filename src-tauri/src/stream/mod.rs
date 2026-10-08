@@ -365,3 +365,36 @@ async fn media_segment(State(hub): State<Arc<StreamHub>>, Extension(ClientIp(ip)
         None => respond(StatusCode::NOT_FOUND, "text/plain", "Not found", false),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Sobe o servidor com os segmentos de um fixture (pasta `hls/` do teste do muxer), repetindo-os
+    //! como uma transmissão ao vivo, para testar de fora (navegador, ffmpeg, curl):
+    //! `CAPTURAX_FIXTURE=<pasta> CAPTURAX_SERVE_SECS=30 cargo test --lib serve_fixture -- --ignored`
+    use super::*;
+    use crate::media::fmp4::Fragment;
+    use crate::media::FragmentSink;
+
+    #[test]
+    #[ignore]
+    fn serve_fixture() {
+        let dir = std::path::PathBuf::from(std::env::var("CAPTURAX_FIXTURE").expect("CAPTURAX_FIXTURE")).join("hls");
+        let secs: u64 = std::env::var("CAPTURAX_SERVE_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(20);
+        let server = StreamServer::new();
+        tauri::async_runtime::block_on(server.apply(true, 18787, false));
+        let mut sink = HlsSink::new(server.hub.clone());
+        sink.init(&std::fs::read(dir.join("init.mp4")).unwrap(), 0).unwrap();
+        let mut segments: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "m4s")).collect();
+        segments.sort();
+        println!("serving {} segments on http://127.0.0.1:18787/ for {secs}s", segments.len());
+        let start = std::time::Instant::now();
+        let mut i = 0;
+        while start.elapsed().as_secs() < secs {
+            let bytes = std::fs::read(&segments[i % segments.len()]).unwrap();
+            sink.fragment(&Fragment { bytes, payload_offset: 0, video: vec![], audio: vec![], duration_secs: 1.0 }).unwrap();
+            i += 1;
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+        }
+        println!("viewers at the end: {:?}", server.hub.viewers());
+    }
+}

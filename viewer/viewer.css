@@ -1,0 +1,4 @@
+@import "../src/Globals.css";
+
+/* A página reaproveita componentes do app (Icon, AmbientLight): o Tailwind precisa varrê-los. */
+@source "../src";
