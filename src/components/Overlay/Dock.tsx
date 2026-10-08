@@ -1,3 +1,4 @@
+import { type ComponentChildren } from "preact";
 import { useContext } from "preact/hooks";
 import Icon from "./Icon";
 import { type HoverHandlers } from "./Overlay";
@@ -17,17 +18,12 @@ function volumeIcon(volume: number, muted: boolean) {
 
 const Divider = () => <div className="w-8 [border-top:var(--border)]" />;
 
-export default function Dock({ active, hover }: DockProps) {
-    const fsctx = useContext(FullscreenContext);
-    const vsctx = useContext(VideoStreamContext);
-    const nctx = useContext(NativeContext);
-
-    const recording = nctx?.recording ?? "idle";
-    const streaming = nctx?.streaming ?? "idle";
-
+/** Painel vertical que entra pela lateral junto com a Toolbar. */
+function DockPanel({ side, active, hover, children }: DockProps & { side: "left" | "right"; children: ComponentChildren }) {
+    const hidden = side === "right" ? "translate-x-[calc(100%+1rem)]" : "-translate-x-[calc(100%+1rem)]";
     return (
-        // Container só posiciona (não captura o mouse); a dock aparece junto com a Toolbar.
-        <div className="absolute right-0 inset-y-0 w-20 flex items-center justify-end pr-3 pointer-events-none">
+        // Container só posiciona (não captura o mouse).
+        <div className={`absolute inset-y-0 w-20 flex items-center pointer-events-none ${side === "right" ? "right-0 justify-end pr-3" : "left-0 justify-start pl-3"}`}>
             <div
                 {...hover}
                 className={`
@@ -37,83 +33,92 @@ export default function Dock({ active, hover }: DockProps) {
                     rounded-2xl [border:var(--border)]
                     bg-darker/80 backdrop-blur-xs
                     transition-transform duration-300
-                    ${active ? "translate-x-0" : "translate-x-[calc(100%+1rem)]"}
+                    ${active ? "translate-x-0" : hidden}
                 `}>
-                {fsctx && (
-                    <button title="Fullscreen (F11)" onClick={() => fsctx.toggleFullscreen()} className={buttonClass}>
-                        <Icon src={fsctx.fullscreen ? "./assets/Dock/fullscreen_exit.svg" : "./assets/Dock/fullscreen.svg"} />
-                    </button>
-                )}
-
-                {vsctx && (
-                    <button
-                        title={vsctx.previewHidden ? "Show preview" : "Hide preview (saves resources; recording and streaming keep working)"}
-                        onClick={() => vsctx.setPreviewHidden(!vsctx.previewHidden)}
-                        className={`${buttonClass} ${vsctx.previewHidden ? "bg-normal" : ""}`}>
-                        <Icon src={vsctx.previewHidden ? "./assets/Dock/preview_off.svg" : "./assets/Dock/preview.svg"} />
-                    </button>
-                )}
-
-                {vsctx && (
-                    <button
-                        title={vsctx.ambientLight ? "Disable ambient light" : "Enable ambient light"}
-                        onClick={() => vsctx.setAmbientLight(!vsctx.ambientLight)}
-                        className={`${buttonClass} ${vsctx.ambientLight ? "bg-normal" : ""}`}>
-                        <Icon src="./assets/Dock/ambient_light.svg" color={vsctx.ambientLight ? "var(--color-accent)" : undefined} />
-                    </button>
-                )}
-
-                {nctx && (
-                    <>
-                        <Divider />
-                        <button title="Screenshot (F9)" onClick={() => nctx.screenshot()} className={buttonClass}>
-                            <Icon src="./assets/Dock/screenshot.svg" />
-                        </button>
-                        <button
-                            title={recording === "active" ? "Stop recording (F10)" : "Record (F10)"}
-                            onClick={() => nctx.toggleRecording()}
-                            disabled={recording === "starting" || recording === "stopping"}
-                            className={`${buttonClass} ${recording === "active" ? "bg-bad/25" : ""}`}>
-                            <Icon
-                                src={recording === "active" ? "./assets/Dock/record_stop.svg" : "./assets/Dock/record.svg"}
-                                color={recording === "idle" ? undefined : "var(--color-bad)"}
-                            />
-                        </button>
-                        <button
-                            title={streaming === "active" ? "Stop streaming" : "Go live (stream by link)"}
-                            onClick={() => nctx.toggleStreaming()}
-                            disabled={streaming === "starting" || streaming === "stopping"}
-                            className={`${buttonClass} ${streaming === "active" ? "bg-accent/25" : ""}`}>
-                            <Icon src="./assets/Dock/live.svg" color={streaming === "idle" ? undefined : "var(--color-accent)"} />
-                        </button>
-                        <button title="Settings" onClick={() => nctx.openSettings()} className={buttonClass}>
-                            <Icon src="./assets/Dock/settings.svg" />
-                        </button>
-                    </>
-                )}
-
-                {vsctx && (
-                    <>
-                        <Divider />
-                        <input
-                            type="range"
-                            title={`Volume: ${Math.round(vsctx.volume * 100)}%`}
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            value={vsctx.muted ? 0 : vsctx.volume}
-                            onInput={(e) => {
-                                vsctx.setVolume(Number(e.currentTarget.value));
-                                vsctx.setMuted(false);
-                            }}
-                            className="h-24 w-11 cursor-pointer accent-accent [writing-mode:vertical-lr] [direction:rtl]"
-                        />
-                        <button title={vsctx.muted ? "Unmute" : "Mute"} onClick={() => vsctx.setMuted(!vsctx.muted)} className={buttonClass}>
-                            <Icon src={volumeIcon(vsctx.volume, vsctx.muted)} />
-                        </button>
-                    </>
-                )}
+                {children}
             </div>
         </div>
+    );
+}
+
+/** Esquerda: como você vê e ouve (tela cheia, luz ambiente, volume). */
+export function ViewDock(props: DockProps) {
+    const fsctx = useContext(FullscreenContext);
+    const vsctx = useContext(VideoStreamContext);
+    if (!vsctx) return null;
+
+    return (
+        <DockPanel side="left" {...props}>
+            {fsctx && (
+                <button title="Fullscreen (F11)" onClick={() => fsctx.toggleFullscreen()} className={buttonClass}>
+                    <Icon src={fsctx.fullscreen ? "./assets/Dock/fullscreen_exit.svg" : "./assets/Dock/fullscreen.svg"} />
+                </button>
+            )}
+            <button
+                title={vsctx.ambientLight ? "Disable ambient light" : "Enable ambient light"}
+                onClick={() => vsctx.setAmbientLight(!vsctx.ambientLight)}
+                className={`${buttonClass} ${vsctx.ambientLight ? "bg-normal" : ""}`}>
+                <Icon src="./assets/Dock/ambient_light.svg" color={vsctx.ambientLight ? "var(--color-accent)" : undefined} />
+            </button>
+            <Divider />
+            <input
+                type="range"
+                title={`Volume: ${Math.round(vsctx.volume * 100)}%`}
+                min={0}
+                max={1}
+                step={0.01}
+                value={vsctx.muted ? 0 : vsctx.volume}
+                onInput={(e) => {
+                    vsctx.setVolume(Number(e.currentTarget.value));
+                    vsctx.setMuted(false);
+                }}
+                className="h-24 w-11 cursor-pointer accent-accent [writing-mode:vertical-lr] [direction:rtl]"
+            />
+            <button title={vsctx.muted ? "Unmute" : "Mute"} onClick={() => vsctx.setMuted(!vsctx.muted)} className={buttonClass}>
+                <Icon src={volumeIcon(vsctx.volume, vsctx.muted)} />
+            </button>
+        </DockPanel>
+    );
+}
+
+/** Direita: o que você faz com a captura (preview, print, gravar, transmitir, configurações). */
+export function ActionDock(props: DockProps) {
+    const vsctx = useContext(VideoStreamContext);
+    const nctx = useContext(NativeContext);
+    if (!vsctx || !nctx) return null;
+
+    const recording = nctx.recording;
+    const streaming = nctx.streaming;
+
+    return (
+        <DockPanel side="right" {...props}>
+            <button
+                title={vsctx.previewHidden ? "Show preview" : "Hide preview (saves resources; recording and streaming keep working)"}
+                onClick={() => vsctx.setPreviewHidden(!vsctx.previewHidden)}
+                className={`${buttonClass} ${vsctx.previewHidden ? "bg-normal" : ""}`}>
+                <Icon src={vsctx.previewHidden ? "./assets/Dock/preview_off.svg" : "./assets/Dock/preview.svg"} />
+            </button>
+            <button title="Screenshot (F9)" onClick={() => nctx.screenshot()} className={buttonClass}>
+                <Icon src="./assets/Dock/screenshot.svg" />
+            </button>
+            <button
+                title={recording === "active" ? "Stop recording (F10)" : "Record (F10)"}
+                onClick={() => nctx.toggleRecording()}
+                disabled={recording === "starting" || recording === "stopping"}
+                className={`${buttonClass} ${recording === "active" ? "bg-bad/25" : ""}`}>
+                <Icon src={recording === "active" ? "./assets/Dock/record_stop.svg" : "./assets/Dock/record.svg"} color={recording === "idle" ? undefined : "var(--color-bad)"} />
+            </button>
+            <button
+                title={streaming === "active" ? "Stop streaming" : "Go live (stream by link)"}
+                onClick={() => nctx.toggleStreaming()}
+                disabled={streaming === "starting" || streaming === "stopping"}
+                className={`${buttonClass} ${streaming === "active" ? "bg-accent/25" : ""}`}>
+                <Icon src="./assets/Dock/live.svg" color={streaming === "idle" ? undefined : "var(--color-accent)"} />
+            </button>
+            <Divider />
+            <button title="Settings" onClick={() => nctx.openSettings()} className={buttonClass}>
+                <Icon src="./assets/Dock/settings.svg" />
+            </button>
+        </DockPanel>
     );
 }

@@ -1,6 +1,27 @@
 import { RESOLUTION_LIST } from "./constants";
 
 type resolutionType = { width: number; height: number };
+export type ResolutionTag = { text: string; color: string };
+
+/** Cor da bandeirinha de uma resolução sem nome padrão (só a proporção). */
+const NON_STANDARD_COLOR = "#606060";
+
+// Proporções comuns; resoluções "quase" nelas (1366x768, 1600x896 da webcam…) usam o nome comum.
+const COMMON_ASPECTS: [string, number][] = [
+    ["32:9", 32 / 9],
+    ["21:9", 21 / 9],
+    ["2:1", 2],
+    ["17:9", 17 / 9],
+    ["16:9", 16 / 9],
+    ["5:3", 5 / 3],
+    ["16:10", 16 / 10],
+    ["3:2", 3 / 2],
+    ["4:3", 4 / 3],
+    ["5:4", 5 / 4],
+    ["11:9", 11 / 9],
+    ["1:1", 1],
+];
+const ASPECT_TOLERANCE = 0.025;
 
 export default class Resolution {
     static getFromTag(tag: string | null): resolutionType | null {
@@ -10,54 +31,35 @@ export default class Resolution {
         return { width: resolution.width, height: resolution.height };
     }
 
-    static getApproximateTag(resolution: resolutionType): { text: string; color: string } | null {
-        const maxHeight = Math.max(...RESOLUTION_LIST.map((r) => r.height));
-        const minHeight = Math.min(...RESOLUTION_LIST.map((r) => r.height));
+    /** Bandeirinha de nome padrão (Full HD, WQHD…), só se a resolução for exatamente uma delas. */
+    static getStandardTag(resolution: resolutionType): ResolutionTag | null {
+        const exact = RESOLUTION_LIST.find((r) => r.width === resolution.width && r.height === resolution.height);
+        return exact ? { text: exact.tag, color: exact.color } : null;
+    }
 
-        // Se o height não existir na lista, é uma resolução Custom
-        if (resolution.height > maxHeight || resolution.height < minHeight) {
-            return { text: "Custom", color: "goldenrod" };
-        }
-
-        // Filtra resoluções com height >= resolution.height
-        let validByHeight = RESOLUTION_LIST.filter((res) => res.height >= resolution.height);
-
-        // Entre as válidas por height, encontra a menor height
-        const minValidHeight = Math.min(...validByHeight.map((r) => r.height));
-        const sameHeight = validByHeight.filter((r) => r.height === minValidHeight);
-
-        // ORDENA por width para garantir a ordem correta
-        sameHeight.sort((a, b) => a.width - b.width);
-
-        // Se tem várias com a mesma height, pega a próxima maior ou igual em width
-        let closestResolution = sameHeight[sameHeight.length - 1]; // maior como fallback
-
-        for (const res of sameHeight) {
-            if (res.width >= resolution.width) {
-                closestResolution = res;
-                break;
-            }
-        }
-
-        return { text: closestResolution.tag, color: closestResolution.color };
+    /** Nome padrão; sem nome, a proporção em cinza (ex.: 1600x896 → "16:9"). */
+    static getTag(resolution: resolutionType): ResolutionTag {
+        return Resolution.getStandardTag(resolution) ?? { text: Resolution.getAspectRatio(resolution), color: NON_STANDARD_COLOR };
     }
 
     static getResolutions() {
         return RESOLUTION_LIST;
     }
 
+    /** Proporção, arredondada para a comum mais próxima quando bem perto (1366x768 → 16:9). */
     static getAspectRatio(resolution: resolutionType) {
+        const ratio = resolution.width / resolution.height;
+        const common = COMMON_ASPECTS.find(([, value]) => Math.abs(ratio - value) / value < ASPECT_TOLERANCE);
+        if (common) return common[0];
+
         const gcd = (a: number, b: number) => {
             while (b) {
                 a %= b;
-                [a, b] = [b, a]; // Swap a and b
+                [a, b] = [b, a];
             }
             return a;
         };
-
-        const commonDivisor = gcd(resolution.width, resolution.height);
-        const w = resolution.width / commonDivisor;
-        const h = resolution.height / commonDivisor;
-        return `${w}:${h}`;
+        const divisor = gcd(resolution.width, resolution.height);
+        return `${resolution.width / divisor}:${resolution.height / divisor}`;
     }
 }

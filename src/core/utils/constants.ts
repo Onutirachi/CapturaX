@@ -1,8 +1,16 @@
+// Cor da bandeirinha = proporção: azul 16:9, vermelho 4:3, roxo 16:10, rosa ultrawide (21:9),
+// marrom super ultrawide (32:9), verde DCI (17:9), amarelo 5:4, laranja 5:3, verde-claro 3:2,
+// cinza 11:9 e outras, ciano 1:1.
 export const RESOLUTION_LIST = [
+    { tag: "DUHD", width: 7680, height: 2160, color: "#b5651d" },
     { tag: "8K FF", width: 8192, height: 4320, color: "#237323" },
     { tag: "8K UHD", width: 7680, height: 4320, color: "#4974ab" },
 
     { tag: "5K UHD", width: 5120, height: 2880, color: "#4974ab" },
+
+    { tag: "QHD+", width: 3200, height: 1800, color: "#4974ab" },
+    { tag: "UW4K", width: 3840, height: 1600, color: "#d77895" },
+    { tag: "DQHD", width: 5120, height: 1440, color: "#b5651d" },
 
     { tag: "WQUXGA", width: 3840, height: 2400, color: "#845a87" },
     { tag: "QUXGA", width: 3200, height: 2400, color: "#c40000" },
@@ -22,6 +30,10 @@ export const RESOLUTION_LIST = [
     { tag: "UWQHD", width: 3440, height: 1440, color: "#d77895" },
     { tag: "WQHD", width: 2560, height: 1440, color: "#4974ab" },
 
+    { tag: "QWXGA", width: 2048, height: 1152, color: "#4974ab" },
+    { tag: "DFHD", width: 3840, height: 1080, color: "#b5651d" },
+    { tag: "HDV 1080", width: 1440, height: 1080, color: "#c40000" },
+
     { tag: "WUXGA", width: 1920, height: 1200, color: "#845a87" },
     { tag: "UXGA", width: 1600, height: 1200, color: "#c40000" },
 
@@ -30,6 +42,7 @@ export const RESOLUTION_LIST = [
     { tag: "Full HD", width: 1920, height: 1080, color: "#4974ab" },
 
     { tag: "WSXGA+", width: 1680, height: 1050, color: "#845a87" },
+    { tag: "SXGA+", width: 1400, height: 1050, color: "#c40000" },
 
     { tag: "SXGA", width: 1280, height: 1024, color: "#e0c427" },
 
@@ -49,6 +62,7 @@ export const RESOLUTION_LIST = [
     { tag: "HD", width: 1280, height: 720, color: "#4974ab" },
 
     { tag: "WSVGA", width: 1024, height: 600, color: "#797979" },
+    { tag: "qHD", width: 960, height: 540, color: "#4974ab" },
     { tag: "SVGA", width: 800, height: 600, color: "#c40000" },
 
     { tag: "WSVGA PAL", width: 1024, height: 576, color: "#4974ab" },
@@ -58,6 +72,8 @@ export const RESOLUTION_LIST = [
     { tag: "WVGA", width: 800, height: 480, color: "#e5851f" },
     { tag: "VGA", width: 640, height: 480, color: "#c40000" },
 
+    { tag: "nHD", width: 640, height: 360, color: "#4974ab" },
+
     { tag: "HVGA", width: 480, height: 320, color: "#6cbe1d" },
 
     { tag: "SIF", width: 384, height: 288, color: "#c40000" },
@@ -66,6 +82,8 @@ export const RESOLUTION_LIST = [
     { tag: "QVGA", width: 320, height: 240, color: "#c40000" },
 
     { tag: "CGA", width: 320, height: 200, color: "#845a87" },
+    { tag: "QCIF", width: 176, height: 144, color: "#797979" },
+    { tag: "QQVGA", width: 160, height: 120, color: "#c40000" },
 ];
 
 export const FRAMERATE_LIST = [320, 240, 180, 165, 144, 120, 60, 30, 25, 24];

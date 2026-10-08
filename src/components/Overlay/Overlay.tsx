@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import { CLOSE_DROPDOWNS_EVENT } from "../../core/components/DropDown";
 import Toolbar from "./Toolbar";
-import Dock from "./Dock";
+import { ActionDock, ViewDock } from "./Dock";
 import StatusBar from "./StatusBar";
 import Settings from "../Settings/Settings";
 import GoLiveDialog from "../Settings/GoLiveDialog";
@@ -57,7 +57,8 @@ export default function Overlay() {
         <>
             <ActivityBadge hidden={active} />
             <Toolbar active={active} hover={hover} />
-            <Dock active={active} hover={hover} />
+            <ViewDock active={active} hover={hover} />
+            <ActionDock active={active} hover={hover} />
             <StatusBar active={active} />
             <Settings />
             <GoLiveDialog />

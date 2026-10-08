@@ -198,6 +198,20 @@ conseguir mexer no PC.
 Hoje: `LocalHlsSink` (servidor no PC). Depois: `RelaySink`, que envia os mesmos segmentos por
 HTTPS para um servidor hospedado. O app e a página de quem assiste não mudam.
 
+### Fase 9 — Próximos (combinados em 2026-10-08, ainda não implementados)
+1. **Áudio automático pareado com o vídeo:** opção "Automatic (same device as video)" no Audio
+   Device. O Windows dá o mesmo `ContainerId` ao vídeo e ao áudio de um mesmo aparelho USB (a
+   ezcap aparece como dois dispositivos com o mesmo contêiner); segue a troca de placa e cai em
+   "sem áudio" quando o dispositivo de vídeo não tiver áudio. Substitui o palpite pelo nome.
+2. **Telas e janelas no dropdown de vídeo, sem o seletor do navegador:** captura nativa no Rust
+   (Windows Graphics Capture: lista monitores e janelas, opção de cursor, sem a borda amarela no
+   Windows 11). Como os quadros nascem no Rust, a codificação para gravar/transmitir também passa
+   a ser no Rust (Media Foundation + encoder da GPU) e o preview vira uma miniatura leve — quem
+   transmite a tela não precisa de preview. Maior das três mudanças.
+3. **Critério do automático:** hoje é "o mais fluido até ~60 fps, depois a maior resolução"
+   (placa: 1440p60; webcam: 1080p30). Avaliar uma opção "priorizar fluidez" para jogar (ex.:
+   1080p120 na ezcap).
+
 ### Fase 8 — Multi-idioma (planejado em 2026-10-08, ainda não implementado)
 - **Idiomas iniciais:** inglês e português (Brasil). Inglês é a base e o fallback.
 - **Detecção automática:** o Rust informa o idioma da interface do Windows

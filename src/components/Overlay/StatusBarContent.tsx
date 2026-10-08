@@ -84,7 +84,7 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
     const settings = videoTrack.getSettings();
     const width = settings.width || 0;
     const height = settings.height || 0;
-    const resolutionTag = Resolution.getApproximateTag({ width, height });
+    const resolutionTag = Resolution.getStandardTag({ width, height });
     const aspectRatioTag = Resolution.getAspectRatio({ width, height });
     const isCapturing = videoTrack.readyState === "live" ? true : false;
     const configuredFps = settings.frameRate || 0;

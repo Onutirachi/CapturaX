@@ -9,18 +9,15 @@ import { NativeContext } from "../../context/NativeContext";
 import { native } from "../../core/native/api";
 import Resolution from "../../core/utils/Resolution";
 import { monitorRefreshRate } from "../../core/utils/refreshRate";
-import { chooseMode, choicesOf, findDevice, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
+import { chooseMode, choicesOf, deviceName, findDevice, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
 
 const NO_AUDIO = "none";
 const DEFAULT_OUTPUT = "default";
 const AUTO_PICKED_KEY = "audioInputAutoPicked";
 const AUTO = "Auto";
 
-/** Bandeirinha da resolução: a da lista do app, ou a aproximada. */
-function resolutionTag(size: Size) {
-    const exact = RESOLUTION_LIST.find((r) => r.width === size.width && r.height === size.height);
-    return exact ? { text: exact.tag, color: exact.color } : Resolution.getApproximateTag(size);
-}
+/** Bandeirinha da resolução: o nome padrão, ou a proporção em cinza. */
+const resolutionTag = (size: Size) => Resolution.getTag(size);
 
 export default function ToolbarContent() {
     const [videoDevicesList, setVideoDevicesList] = useState<MediaDeviceInfo[]>([]);
@@ -114,7 +111,7 @@ export default function ToolbarContent() {
                 }}>
                 {videoDevicesList.map(({ deviceId, label }) => (
                     <DropOption key={deviceId} value={deviceId} className="flex gap-3">
-                        {label}
+                        {deviceName(label)}
                     </DropOption>
                 ))}
                 <DropOption key={SCREEN_SOURCE} value={SCREEN_SOURCE} className="flex gap-3">
@@ -165,7 +162,7 @@ export default function ToolbarContent() {
                     }}>
                     {audioDevicesList.map(({ deviceId, label }) => (
                         <DropOption key={deviceId} value={deviceId} className="flex gap-3">
-                            {label}
+                            {deviceName(label)}
                         </DropOption>
                     ))}
                 </DropDown>

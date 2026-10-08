@@ -5,6 +5,7 @@ import Tag from "../../core/components/Tag";
 import Resolution from "../../core/utils/Resolution";
 import { FRAMERATE_LIST, RESOLUTION_LIST } from "../../core/utils/constants";
 import type { SourceInfo } from "../../core/media/presets";
+import { fpsColor, formatFps } from "../../core/utils/videoModes";
 
 const NATIVE = "native";
 
@@ -14,7 +15,7 @@ const key = (size: Size) => `${size.width}x${size.height}`;
 
 /** `value = null` = nativo. Só oferece resoluções até a da fonte (nunca aumenta a imagem). */
 export function ResolutionPicker({ value, source, onChange }: { value: Size | null; source: SourceInfo; onChange: (value: Size | null) => void }) {
-    const nativeTag = Resolution.getApproximateTag(source);
+    const nativeTag = Resolution.getTag(source);
     const options = RESOLUTION_LIST.filter((r) => r.width <= source.width && r.height <= source.height);
     const selected = value ? key(value) : NATIVE;
     // Valor salvo fora da lista (ex.: a fonte mudou): continua aparecendo.
@@ -37,7 +38,7 @@ export function ResolutionPicker({ value, source, onChange }: { value: Size | nu
                     {`${custom.width} x ${custom.height}`}
                 </DropOption>
             )}
-            {[...options].reverse().map((r) => (
+            {options.map((r) => (
                 <DropOption key={key(r)} value={key(r)} className="flex gap-3">
                     {`${r.width} x ${r.height}`}
                     <Tag text={r.tag} color={r.color} />
@@ -54,11 +55,12 @@ export function FpsPicker({ value, source, onChange }: { value: number | null; s
     return (
         <DropDown title="Framerate" value={value ? String(value) : NATIVE} onChoose={(v) => onChange(v === NATIVE ? null : Number(v))}>
             <DropOption value={NATIVE} className="flex gap-3">
-                {`Native (${sourceFps} FPS)`}
+                Native
+                <Tag text={`${formatFps(sourceFps)} FPS`} color={fpsColor(sourceFps)} />
             </DropOption>
-            {[...options].reverse().map((f) => (
+            {[...options].map((f) => (
                 <DropOption key={f} value={String(f)} className="flex gap-3">
-                    {`${f} FPS`}
+                    <Tag text={`${f} FPS`} color={fpsColor(f)} />
                 </DropOption>
             ))}
         </DropDown>
