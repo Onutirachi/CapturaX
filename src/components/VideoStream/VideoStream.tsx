@@ -20,7 +20,9 @@ export default function VideoStream() {
 
     const volume = ctx?.volume ?? 1;
     const muted = ctx?.muted ?? false;
-    const videoStream = ctx?.videoStream ?? null;
+    // Preview oculto: o <video> fica sem fonte (o WebView para de desenhar), a captura continua.
+    const hidden = ctx?.previewHidden ?? false;
+    const videoStream = hidden ? null : (ctx?.videoStream ?? null);
     // Com o preview nativo, quem toca o áudio é o Rust (WASAPI); o <video> fica mudo.
     const nativeAudio = useContext(NativeContext)?.config?.audio.nativePreview ?? true;
 
@@ -86,7 +88,14 @@ export default function VideoStream() {
 
     return (
         <div className="w-full h-full flex items-center justify-center relative">
-            {ctx.ambientLight && <AmbientLight videoRef={videoRef} />}
+            {hidden && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-(--text-muted) pointer-events-none">
+                    <div className="w-10 h-10 mask-center mask-contain mask-no-repeat bg-(--text-muted) mask-[url(./assets/Dock/preview_off.svg)]" />
+                    <span>Preview hidden to save resources</span>
+                    <span className="text-sm">Recording and streaming keep working</span>
+                </div>
+            )}
+            {ctx.ambientLight && !hidden && <AmbientLight videoRef={videoRef} />}
             <video className={`h-full w-full object-contain transition relative`} autoPlay playsInline srcObject={videoStream} ref={videoRef} />
         </div>
     );

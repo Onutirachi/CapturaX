@@ -47,6 +47,15 @@ export default function Dock({ active, hover }: DockProps) {
 
                 {vsctx && (
                     <button
+                        title={vsctx.previewHidden ? "Show preview" : "Hide preview (saves resources; recording and streaming keep working)"}
+                        onClick={() => vsctx.setPreviewHidden(!vsctx.previewHidden)}
+                        className={`${buttonClass} ${vsctx.previewHidden ? "bg-normal" : ""}`}>
+                        <Icon src={vsctx.previewHidden ? "./assets/Dock/preview_off.svg" : "./assets/Dock/preview.svg"} />
+                    </button>
+                )}
+
+                {vsctx && (
+                    <button
                         title={vsctx.ambientLight ? "Disable ambient light" : "Enable ambient light"}
                         onClick={() => vsctx.setAmbientLight(!vsctx.ambientLight)}
                         className={`${buttonClass} ${vsctx.ambientLight ? "bg-normal" : ""}`}>

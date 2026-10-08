@@ -5,10 +5,8 @@ import { NativeContext } from "../../context/NativeContext";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import type { StreamConfig } from "../../core/native/api";
 import { streamBitrateKbps, streamSize, type SourceInfo } from "../../core/media/presets";
-import { FRAMERATE_LIST, RESOLUTION_LIST } from "../../core/utils/constants";
-import { NumberInput, Segmented, Select } from "./controls";
-
-const NATIVE = "native";
+import { NumberInput, Segmented } from "./controls";
+import { FpsPicker, ResolutionPicker } from "./QualityPickers";
 
 function useStreamConfig() {
     const nctx = useContext(NativeContext)!;
@@ -18,7 +16,7 @@ function useStreamConfig() {
 }
 
 /** Fonte atual (sem vídeo ainda, assume 1080p60 só para as estimativas). */
-function useSource(): SourceInfo {
+export function useSource(): SourceInfo {
     const settings = useContext(VideoStreamContext)?.videoTrack?.getSettings();
     return { width: settings?.width ?? 1920, height: settings?.height ?? 1080, fps: settings?.frameRate ?? 60 };
 }
@@ -31,46 +29,18 @@ export function usePerViewerMbps() {
 
 export function ResolutionSelect() {
     const { stream, set } = useStreamConfig();
-    const source = useSource();
-    const value = stream.height ? `${stream.width}x${stream.height}` : NATIVE;
     return (
-        <Select
-            value={value}
-            width="w-56"
-            onChange={(v) => {
-                if (v === NATIVE) return set({ width: 0, height: 0 });
-                const [width, height] = v.split("x").map(Number);
-                set({ width, height });
-            }}
-            options={[
-                { value: NATIVE, label: `Native (${source.width} x ${source.height})` },
-                // Lista do app, só o que não passa da fonte (a transmissão nunca aumenta a imagem).
-                ...RESOLUTION_LIST.filter((r) => r.width <= source.width && r.height <= source.height).map((r) => ({
-                    value: `${r.width}x${r.height}`,
-                    label: `${r.width} x ${r.height} (${r.tag})`,
-                })),
-                // Valor salvo que não está na lista (ex.: fonte trocou): continua visível.
-                ...(value !== NATIVE && !RESOLUTION_LIST.some((r) => `${r.width}x${r.height}` === value) ? [{ value, label: value.replace("x", " x ") }] : []),
-            ]}
+        <ResolutionPicker
+            value={stream.height ? { width: stream.width, height: stream.height } : null}
+            source={useSource()}
+            onChange={(size) => set(size ?? { width: 0, height: 0 })}
         />
     );
 }
 
 export function FpsSelect() {
     const { stream, set } = useStreamConfig();
-    const source = useSource();
-    const sourceFps = Math.round(source.fps);
-    return (
-        <Select
-            value={stream.fps ? String(stream.fps) : NATIVE}
-            width="w-40"
-            onChange={(v) => set({ fps: v === NATIVE ? 0 : Number(v) })}
-            options={[
-                { value: NATIVE, label: `Native (${sourceFps} FPS)` },
-                ...FRAMERATE_LIST.filter((f) => f <= sourceFps || f === stream.fps).map((f) => ({ value: String(f), label: `${f} FPS` })),
-            ]}
-        />
-    );
+    return <FpsPicker value={stream.fps || null} source={useSource()} onChange={(fps) => set({ fps: fps ?? 0 })} />;
 }
 
 export function BitrateControl() {

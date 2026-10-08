@@ -6,7 +6,7 @@ import { NativeContext } from "../../context/NativeContext";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import type { RecordingConfig, RecordingPreset, VideoCodecName } from "../../core/native/api";
 import { isHevcSupported, recordingSettings } from "../../core/media/presets";
-import { FRAMERATE_LIST, RESOLUTION_LIST } from "../../core/utils/constants";
+import { FpsPicker, ResolutionPicker } from "./QualityPickers";
 import { Button, NumberInput, Row, Section, Segmented, Select } from "./controls";
 
 const PRESET_HINTS: Record<RecordingPreset, string> = {
@@ -16,8 +16,6 @@ const PRESET_HINTS: Record<RecordingPreset, string> = {
     light: "Up to 720p at 30 FPS. Smallest files.",
     custom: "Pick resolution, FPS and bitrate yourself.",
 };
-
-const SAME = "same";
 
 export default function RecordingTab() {
     const nctx = useContext(NativeContext)!;
@@ -38,6 +36,7 @@ export default function RecordingTab() {
     const settings = track?.getSettings();
     const source = settings ? { width: settings.width ?? 1920, height: settings.height ?? 1080, fps: settings.frameRate ?? 60 } : null;
     const result = source ? recordingSettings(recording, source) : null;
+    const pickerSource = source ?? { width: 1920, height: 1080, fps: 60 };
     const gbPerHour = result ? ((result.bitrate + recording.audioBitrateKbps * 1000) * 3600) / 8 / 1e9 : 0;
 
     const chooseFolder = async () => {
@@ -66,33 +65,14 @@ export default function RecordingTab() {
                 {recording.preset === "custom" && (
                     <>
                         <Row label="Resolution" hint="Never above the preview; keeps its aspect ratio.">
-                            <Select
-                                value={recording.height ? `${recording.width ?? recording.height * 4}x${recording.height}` : SAME}
-                                width="w-56"
-                                onChange={(v) => {
-                                    if (v === SAME) return set({ width: null, height: null });
-                                    const [width, height] = v.split("x").map(Number);
-                                    set({ width, height });
-                                }}
-                                options={[
-                                    { value: SAME, label: source ? `Native (${source.width} x ${source.height})` : "Native" },
-                                    ...RESOLUTION_LIST.filter((r) => !source || (r.width <= source.width && r.height <= source.height)).map((r) => ({
-                                        value: `${r.width}x${r.height}`,
-                                        label: `${r.width} x ${r.height} (${r.tag})`,
-                                    })),
-                                ]}
+                            <ResolutionPicker
+                                value={recording.width && recording.height ? { width: recording.width, height: recording.height } : null}
+                                source={pickerSource}
+                                onChange={(size) => set({ width: size?.width ?? null, height: size?.height ?? null })}
                             />
                         </Row>
                         <Row label="Frame rate">
-                            <Select
-                                value={recording.fps ? String(recording.fps) : SAME}
-                                width="w-40"
-                                onChange={(v) => set({ fps: v === SAME ? null : Number(v) })}
-                                options={[
-                                    { value: SAME, label: source ? `Native (${Math.round(source.fps)} FPS)` : "Native" },
-                                    ...FRAMERATE_LIST.filter((f) => !source || f <= Math.round(source.fps)).map((f) => ({ value: String(f), label: `${f} FPS` })),
-                                ]}
-                            />
+                            <FpsPicker value={recording.fps} source={pickerSource} onChange={(fps) => set({ fps })} />
                         </Row>
                         <Row label="Video bitrate" hint="Higher = better picture and bigger files.">
                             <NumberInput value={recording.bitrateKbps / 1000} min={1} max={150} step={0.5} suffix="Mbps" onChange={(mbps) => set({ bitrateKbps: Math.round(mbps * 1000) })} />

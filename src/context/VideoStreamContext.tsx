@@ -18,6 +18,9 @@ export type VideoStreamContextType = {
     setMuted: (v: boolean) => void;
     ambientLight: boolean;
     setAmbientLight: (v: boolean) => void;
+    /** Preview oculto: a captura segue (gravação/transmissão), mas nada é desenhado na tela. */
+    previewHidden: boolean;
+    setPreviewHidden: (v: boolean) => void;
 };
 
 export const VideoStreamContext = createContext<VideoStreamContextType | null>(null);
@@ -38,13 +41,15 @@ export function VideoStreamProvider({ children }: { children: ComponentChildren 
     const [volume, setVolume] = useState<number>(() => loadStored("volume", 1));
     const [muted, setMuted] = useState<boolean>(() => loadStored("muted", false));
     const [ambientLight, setAmbientLight] = useState<boolean>(() => loadStored("ambientLight", false));
+    const [previewHidden, setPreviewHidden] = useState<boolean>(() => loadStored("previewHidden", false));
 
     useEffect(() => localStorage.setItem("volume", JSON.stringify(volume)), [volume]);
     useEffect(() => localStorage.setItem("muted", JSON.stringify(muted)), [muted]);
     useEffect(() => localStorage.setItem("ambientLight", JSON.stringify(ambientLight)), [ambientLight]);
+    useEffect(() => localStorage.setItem("previewHidden", JSON.stringify(previewHidden)), [previewHidden]);
 
     return (
-        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, ambientLight, setAmbientLight }}>
+        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, ambientLight, setAmbientLight, previewHidden, setPreviewHidden }}>
             {children}
         </VideoStreamContext.Provider>
     );

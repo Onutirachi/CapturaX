@@ -1,5 +1,6 @@
 import Resolution from "./Resolution";
 import { alerts } from "./alerts";
+import { monitorRefreshRate } from "./refreshRate";
 import { SetAlertType } from "../../context/AlertsContext";
 import { SetVideoStreamType } from "../../context/VideoStreamContext";
 import { SetVideoTrackType } from "../../context/VideoStreamContext";
@@ -38,6 +39,8 @@ export default class Stream {
     constructor({ setAlert, setVideoStream, setVideoTrack }: StreamType) {
         this.setAlert = setAlert;
         this.setVideoTrack = setVideoTrack;
+        // Mede já: na hora de capturar a tela, o seletor precisa abrir logo após o clique.
+        monitorRefreshRate();
         setVideoStream(this.mediaStream);
     }
 
@@ -68,16 +71,18 @@ export default class Stream {
         return this.isScreen ? this.applyScreenConstraints() : this.requestVideoRestart();
     }
 
-    private screenConstraints(): MediaTrackConstraints {
+    /** Automático na tela = taxa do monitor (sem pedir, o Chromium captura a 30 fps). */
+    private async screenConstraints(): Promise<MediaTrackConstraints> {
         const resolution = this.resolutionTag ? Resolution.getFromTag(this.resolutionTag) : null;
+        const fps = this.frameRate ?? (await monitorRefreshRate());
         return {
-            frameRate: { ideal: this.frameRate ?? AUTO_TARGET_FPS },
+            frameRate: { ideal: fps, max: fps },
             ...(resolution ? { width: { ideal: resolution.width }, height: { ideal: resolution.height } } : {}),
         };
     }
 
     private async applyScreenConstraints() {
-        await this.videoTrack?.applyConstraints(this.screenConstraints()).catch(() => {});
+        await this.videoTrack?.applyConstraints(await this.screenConstraints()).catch(() => {});
         if (this.videoTrack) this.setVideoTrack(this.videoTrack);
     }
 
@@ -93,7 +98,7 @@ export default class Stream {
     async chooseScreen() {
         this.closeVideoTrack();
         try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: this.screenConstraints(), audio: false });
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: await this.screenConstraints(), audio: false });
             const track = stream.getVideoTracks()[0];
             track.addEventListener("ended", () => this.handleVideoEnded(track));
             this.videoTrack = track;
