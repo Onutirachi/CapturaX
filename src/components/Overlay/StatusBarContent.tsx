@@ -67,7 +67,7 @@ function MediaBubbles() {
 
 export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; setFixed: (value: boolean) => void }) {
     const vsctx = useContext(VideoStreamContext);
-    const { latency, fps: measuredFps } = useContext(FrameStatsContext)?.stats ?? { latency: null, fps: null };
+    const { latency, latencyAvailable, fps: measuredFps } = useContext(FrameStatsContext)?.stats ?? { latency: null, latencyAvailable: false, fps: null };
     if (!vsctx) return null;
     const { videoTrack } = vsctx;
 
@@ -111,12 +111,12 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
                 {resolutionTag && <Tag text={resolutionTag.text} color={resolutionTag.color}></Tag>}
                 {aspectRatioTag && <Tag text={aspectRatioTag}></Tag>}
             </InfoBubble>
-            <InfoBubble>
+            <InfoBubble className="min-w-24 tabular-nums">
                 <span title={`Configured: ${Math.round(configuredFps)} FPS`}>{`${Math.round(measuredFps ?? configuredFps)} FPS`}</span>
             </InfoBubble>
-            {latency !== null && (
-                <InfoBubble>
-                    <span title="Time from frame capture (driver timestamp) to display">{`Latency ${Math.round(latency)} ms`}</span>
+            {latencyAvailable && (
+                <InfoBubble className="min-w-36 tabular-nums">
+                    <span title="Time from frame capture (driver timestamp) to display">{latency !== null ? `Latency ${Math.round(latency)} ms` : "Latency —"}</span>
                 </InfoBubble>
             )}
             <Controls fixed={fixed} setFixed={setFixed} />

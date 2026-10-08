@@ -5,6 +5,8 @@ import { NativeContext } from "../../context/NativeContext";
 import AmbientLight from "./AmbientLight";
 
 const STATS_UPDATE_MS = 500;
+/** Janelas sem medição em que a última latência continua valendo (captura de tela só gera frame quando algo muda). */
+const LATENCY_HOLD_WINDOWS = 6;
 
 function median(values: number[]) {
     const sorted = [...values].sort((a, b) => a - b);
@@ -37,6 +39,8 @@ export default function VideoStream() {
         if (!video || !videoStream || !setStats) return;
 
         let latencySamples: number[] = [];
+        let lastLatency: number | null = null;
+        let windowsWithoutLatency = 0;
         let presentedFrames: number | null = null;
         let windowStartFrames: number | null = null;
         let windowStart = performance.now();
@@ -55,8 +59,15 @@ export default function VideoStream() {
         const interval = window.setInterval(() => {
             const now = performance.now();
             const frames = presentedFrames !== null && windowStartFrames !== null ? presentedFrames - windowStartFrames : 0;
+            if (latencySamples.length > 0) {
+                lastLatency = median(latencySamples);
+                windowsWithoutLatency = 0;
+            } else {
+                windowsWithoutLatency++;
+            }
             setStats({
-                latency: latencySamples.length > 0 ? median(latencySamples) : null,
+                latency: windowsWithoutLatency <= LATENCY_HOLD_WINDOWS ? lastLatency : null,
+                latencyAvailable: lastLatency !== null,
                 fps: frames > 0 ? (frames * 1000) / (now - windowStart) : null,
             });
             latencySamples = [];
