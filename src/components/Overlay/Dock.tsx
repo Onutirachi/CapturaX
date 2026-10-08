@@ -44,7 +44,7 @@ export default function Dock({ active, hover }: DockProps) {
                             title={vsctx.ambientLight ? "Disable ambient light" : "Enable ambient light"}
                             onClick={() => vsctx.setAmbientLight(!vsctx.ambientLight)}
                             className={`${buttonClass} ${vsctx.ambientLight ? "bg-normal" : ""}`}>
-                            <Icon src="./assets/Dock/ambient_light.svg" color={vsctx.ambientLight ? "#ffaa00" : undefined} />
+                            <Icon src="./assets/Dock/ambient_light.svg" color={vsctx.ambientLight ? "var(--color-accent)" : undefined} />
                         </button>
 
                         <div className="w-8 [border-top:var(--border)]" />
@@ -59,7 +59,7 @@ export default function Dock({ active, hover }: DockProps) {
                                 vsctx.setVolume(Number(e.currentTarget.value));
                                 vsctx.setMuted(false);
                             }}
-                            className="h-32 w-11 cursor-pointer accent-good [writing-mode:vertical-lr] [direction:rtl]"
+                            className="h-32 w-11 cursor-pointer accent-accent [writing-mode:vertical-lr] [direction:rtl]"
                         />
                         <button title={vsctx.muted ? "Unmute" : "Mute"} onClick={() => vsctx.setMuted(!vsctx.muted)} className={buttonClass}>
                             <Icon src={volumeIcon(vsctx.volume, vsctx.muted)} />

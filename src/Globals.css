@@ -1,8 +1,6 @@
 @import "tailwindcss";
 
 @theme {
-    --primary-color: #3b82f6;
-    --secondary-color: #2ecc71;
 
     /* --text-color-light: #f1f5f0 */
     --background-color-light: #94a3b8;
@@ -14,7 +12,11 @@
     --color-main: #000;
     --color-side: #fff;
 
-    --color-good: #3b82f6;
+    /* Laranja da logo = destaque (estados ativos, sliders, botões principais).
+       Azul = secundário/informativo. Vermelho = erro e gravação. */
+    --color-accent: #ff7304;
+    --color-accent-light: #ff9a4d;
+    --color-info: #3b82f6;
     --color-bad: #ef4444;
 
     --border: 1px solid #334155;

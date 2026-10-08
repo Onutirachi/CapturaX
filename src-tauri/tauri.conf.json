@@ -1,6 +1,6 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "capturax-react",
+    "productName": "CapturaX",
     "version": "0.1.0",
     "identifier": "com.carlos-landini.capturax-react",
     "build": {

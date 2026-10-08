@@ -74,7 +74,7 @@ export default function ToolbarContent() {
                 }}>
                 <DropOption key={"Auto"} value={"Auto"} className="flex gap-3">
                     {`Automatic`}
-                    <Tag text="Auto" color="#ffaa00" />
+                    <Tag text="Auto" color="var(--color-accent)" />
                 </DropOption>
                 {[...RESOLUTION_LIST].reverse().map(({ width, height, tag, color }, index) => (
                     <DropOption key={index} value={tag} className="flex gap-3">
