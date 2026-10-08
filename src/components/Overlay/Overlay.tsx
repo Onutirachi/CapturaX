@@ -1,4 +1,5 @@
-import { useContext, useRef, useState } from "preact/hooks";
+import { useContext, useEffect, useRef, useState } from "preact/hooks";
+import { CLOSE_DROPDOWNS_EVENT } from "../../core/components/DropDown";
 import Toolbar from "./Toolbar";
 import Dock from "./Dock";
 import StatusBar from "./StatusBar";
@@ -32,6 +33,11 @@ function ActivityBadge({ hidden }: { hidden: boolean }) {
 export default function Overlay() {
     const [active, setActive] = useState<boolean>(false);
     const hideTimeout = useRef<number | null>(null);
+
+    // A Toolbar escondeu: fecha os menus abertos nela (senão ficariam boiando sobre o vídeo).
+    useEffect(() => {
+        if (!active) window.dispatchEvent(new Event(CLOSE_DROPDOWNS_EVENT));
+    }, [active]);
 
     // Toolbar e Dock compartilham o mesmo estado: passar o mouse em qualquer um mostra os dois.
     const hover: HoverHandlers = {

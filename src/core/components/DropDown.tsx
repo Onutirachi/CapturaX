@@ -12,6 +12,9 @@ type DropDownProps = {
     value?: string | null;
 };
 
+/** Evento global para fechar dropdowns abertos (ex.: quando a barra que os contém se esconde). */
+export const CLOSE_DROPDOWNS_EVENT = "capturax:close-dropdowns";
+
 type DropOptionProps = {
     children: ComponentChildren;
     className?: string;
@@ -89,6 +92,12 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     }, [open]);
 
     useEffect(() => {
+        const close = () => setOpen(false);
+        window.addEventListener(CLOSE_DROPDOWNS_EVENT, close);
+        return () => window.removeEventListener(CLOSE_DROPDOWNS_EVENT, close);
+    }, []);
+
+    useEffect(() => {
         const handler = (e: MouseEvent) => {
             if (dropDownRef.current && !dropDownRef.current.contains(e.target as any)) {
                 setOpen(false);
@@ -105,9 +114,17 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
         <div data-value={controlled ? controlledValue : value} className="w-auto min-w-3xs h-11 relative" ref={dropDownRef}>
             <div className="absolute bg-normal -translate-y-[50%] translate-x-[20%] px-1 rounded-sm text-sm z-1">{title}</div>
             <div
-                className="w-full h-full bg-dark [border:var(--border)] rounded-xl cursor-pointer overflow-hidden flex items-center px-3 relative"
+                className="w-full h-full bg-dark [border:var(--border)] rounded-xl cursor-pointer overflow-hidden flex items-center gap-3 px-3 relative"
                 onClick={toggleOpen}>
-                {shown}
+                {/* Todas as opções empilhadas na mesma célula (só a escolhida visível): a largura do
+                    dropdown é sempre a da maior opção, sem quebrar linha nem pular ao trocar. */}
+                <div className="grid">
+                    {Children.map(children, (child: any) => (
+                        <div className={`[grid-area:1/1] whitespace-nowrap flex items-center ${child === shown || (shown && child?.props?.value === (shown as any).props?.value) ? "" : "invisible"}`}>
+                            {child}
+                        </div>
+                    ))}
+                </div>
                 <div
                     className={`h-[50%] aspect-square ml-auto bg-center mask-contain mask-no-repeat mask-[url(./assets/DropDown/chevron.svg)] bg-white transition ${
                         open ? "-rotate-180" : "rotate-0"
@@ -118,7 +135,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                     z-2
                     absolute top-full left-0
                     w-full h-auto
-                    p-3 mt-2 pr-1.5
+                    p-1.5 mt-2
                     rounded-xl bg-dark 
                     box-border
                     transition
@@ -127,7 +144,6 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                 <div
                     className="
                         w-full h-max max-h-100
-                        pr-1.5
                         overflow-y-auto overflow-x-hidden 
                         grid grid-cols-1 auto-rows-auto
                     ">
@@ -138,7 +154,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                                 onClick={() => {
                                     selectOption(child);
                                 }}
-                                className="bg-transparent hover:bg-normal cursor-pointer p-1.5 rounded-md box-border">
+                                className="bg-transparent hover:bg-normal cursor-pointer p-1.5 rounded-md box-border whitespace-nowrap">
                                 {child}
                             </div>
                         );

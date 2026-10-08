@@ -10,6 +10,7 @@ export default function StatusBar({ active }: { active: boolean }) {
                 className={`
                         h-full w-full
                         [border-top:var(--border)]
+                        bg-darker/80 backdrop-blur-xs
                         transition-transform duration-300
                         flex gap-3 items-center justify-end
                         p-3
