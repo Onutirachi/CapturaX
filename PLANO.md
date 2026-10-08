@@ -1,7 +1,11 @@
 # Plano — CapturaX híbrido (Preact + Rust)
 
 Plano combinado em 2026-10-08 (revisado no mesmo dia). Contexto e histórico em [NOTAS.md](NOTAS.md);
-arquitetura atual em [AGENTS.md](AGENTS.md). Nada daqui foi implementado ainda.
+arquitetura atual em [AGENTS.md](AGENTS.md).
+
+**Status:** fases 0 e 2–6 implementadas na branch `feat/hibrido` (o que foi validado e o que falta
+testar está no NOTAS.md). Fase 1 implementada, mas as medições dependem de rodar com a placa.
+Fase 7 continua para o futuro.
 
 ## Objetivo
 

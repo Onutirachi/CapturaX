@@ -11,13 +11,49 @@ A arquitetura e as convenções estão no [AGENTS.md](AGENTS.md); aqui fica só 
 - Fluxo combinado: o usuário roda o app e vai contando o que funciona e o que não funciona;
   o Claude compara com a lista abaixo e corrige.
 
+## Branch `feat/hibrido` (2026-10-08) — aguardando teste do usuário
+Implementado tudo do [PLANO.md](PLANO.md), exceto as medições da Fase 1 (dependem de rodar com a
+placa). Só junta na `master` depois de o usuário testar. Hardware do usuário: placa **ezcap Live
+GAMER ULTRA** (áudio aparece como "HDMI (ezcap Live GAMER ULTRA)"), **Voicemeeter** como saída
+padrão, headset Logitech G533.
+
+**Validado aqui (sem a placa):**
+- Muxer + AAC: H.264 real + tom de 440 Hz → MP4 final e segmentos HLS decodificam no ffmpeg
+  (300 frames, áudio alinhado em 0,000 s, volume exato).
+- WASAPI: lista dispositivos/apps, loopback por processo capta um tom tocado pelo próprio
+  processo, mixer em tempo real (149 blocos em 1,5 s), Discord excluído do plano de captura.
+- Servidor: playlist/segmentos/página OK; `../` e afins → 404; POST/DELETE → 405; cabeçalho de
+  64 KB → 431; conexão parada cai em 10 s; máx. 12 conexões por IP; ffmpeg toca o link ao vivo.
+- Página de quem assiste no Chrome: detecta o ao vivo, toca, controles com ícones.
+
+**Precisa testar (checklist):**
+1. Preview de áudio nativo: escolhe sozinho o áudio da placa na primeira vez? Estala? Latência?
+   Comparar com "Low-latency audio" desligado (motor do WebView).
+2. Gravar (F10): arquivo em `Vídeos\CapturaX`, imagem/áudio sincronizados, sem travar o preview.
+   Testar preset Original em 4K/60 e o HEVC.
+3. Áudio dos apps: Discord fora da gravação; marcar/desmarcar durante a gravação.
+4. Print (F9): arquivo em `Imagens\CapturaX` + área de transferência.
+5. Captura de tela (opção no Video Device): o WebView2 mostra o seletor?
+6. Transmissão: "Accept viewers" → link local abre no celular (mesma rede); UPnP abre a porta?
+   CGNAT? Link externo pelo 4G do celular. "Fix firewall" pede admin e resolve.
+7. Instalador (`npx tauri build`): instala por máquina e cria a regra "CapturaX Stream".
+
+**Riscos conhecidos:**
+- Timestamp do vídeo: ancorado no primeiro frame que chega ao Worker (não no instante da
+  captura); se a sincronia ficar fixa para um lado, ajustar "Audio/video sync" (padrão 0).
+- Atraso do encoder AAC (~20–40 ms) não é compensado automaticamente.
+- Captura por app: árvores que contêm um app excluído (ex.: o Explorer, pai de tudo) não são
+  capturadas inteiras; o som do próprio Explorer fica de fora.
+- Medições da Fase 1 (latência do preview vs. OBS; encoder não atrasar o preview) ainda não feitas.
+
 ## Decisão de arquitetura
 - Reescrever tudo em Rust (egui + nokhwa + cpal) foi avaliado e **descartado por enquanto**:
   o WebView (`getUserMedia` + `<video>`) já faz conversão de formato na GPU, sincroniza
-  áudio/vídeo e tem baixa latência.
-- Ideia para o futuro (híbrido): um comando Tauri em Rust (nokhwa / Media Foundation) que
-  liste os **modos exatos** do dispositivo (resolução + FPS + formato) para preencher os
-  dropdowns, no lugar da lista fixa de `constants.ts`. O navegador só informa faixas mín/máx.
+  áudio/vídeo e tem baixa latência. Virou o **híbrido** do [PLANO.md](PLANO.md): vídeo no WebView,
+  o resto no Rust.
+- Ideia para o futuro: um comando Tauri em Rust (Media Foundation) que liste os **modos exatos**
+  do dispositivo (resolução + FPS + formato) para preencher os dropdowns, no lugar da lista fixa
+  de `constants.ts`. O navegador só informa faixas mín/máx.
 
 ## Recursos adicionados
 - **Latência:** `VideoStream` mede com `requestVideoFrameCallback`
