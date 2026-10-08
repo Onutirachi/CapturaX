@@ -44,10 +44,12 @@ function toBytes(source: AllowSharedBufferSource): ArrayBuffer {
 function createEncoder() {
     encoder = new VideoEncoder({
         output: (chunk, metadata) => {
+            // O HEVC do Chromium não manda `description` (vem em Annex B); o Rust monta a partir
+            // do primeiro keyframe. Por isso a config vai no primeiro pacote, com ou sem ela.
             const description = metadata?.decoderConfig?.description;
-            if (!configSent && description) {
+            if (!configSent) {
                 configSent = true;
-                const copy = toBytes(description);
+                const copy = description ? toBytes(description) : new ArrayBuffer(0);
                 post({ type: "config", codec: settings.codec, description: copy, width: settings.width, height: settings.height }, [copy]);
             }
             const data = new ArrayBuffer(chunk.byteLength);

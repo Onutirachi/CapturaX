@@ -5,6 +5,7 @@
 //! roda numa thread própria que junta os dois num MP4 fragmentado e entrega para o destino.
 
 pub mod aac;
+mod bitstream;
 mod file;
 pub mod fmp4;
 
@@ -181,6 +182,8 @@ struct SessionState {
     base_us: Option<i64>,
     last_video_dts: Option<u64>,
     pending_audio: VecDeque<(Arc<Vec<f32>>, i64)>,
+    /// Pacotes de vídeo em Annex B (decidido pela config: sem `description`).
+    annexb: bool,
     audio_started: bool,
     aac_frames: u64,
     stats: Arc<Stats>,
@@ -206,7 +209,23 @@ impl SessionState {
     }
 
     fn on_video(&mut self, data: Vec<u8>, pts_us: i64, key: bool) {
-        let Some(video) = self.video.clone() else { return };
+        let Some(video) = self.video.as_mut() else { return };
+        // O encoder HEVC do Chromium manda Annex B sem `description`: os parâmetros vêm no
+        // primeiro keyframe e o resto é convertido para o formato do MP4. Com `description`, os
+        // pacotes já vêm no formato do MP4 (e não dá para detectar pelo conteúdo: um tamanho de
+        // 256–511 bytes também começa com 00 00 01).
+        let annexb = self.annexb;
+        if video.description.is_empty() {
+            if !(key && bitstream::is_annexb(&data)) {
+                return;
+            }
+            match bitstream::build_description(video.codec, &data) {
+                Some(description) => video.description = description,
+                None => return,
+            }
+        }
+        let data = if annexb { bitstream::to_length_prefixed(video.codec, &data) } else { data };
+        let video = video.clone();
         let base = match self.base_us {
             Some(base) => base,
             None => {
@@ -310,6 +329,7 @@ fn run_session(options: SessionOptions, receiver: mpsc::Receiver<Message>, stats
         base_us: None,
         last_video_dts: None,
         pending_audio: VecDeque::new(),
+        annexb: false,
         audio_started: false,
         aac_frames: 0,
         stats,
@@ -321,6 +341,7 @@ fn run_session(options: SessionOptions, receiver: mpsc::Receiver<Message>, stats
             Message::VideoConfig(track) => {
                 // Depois de começar, o formato não pode mudar no meio do arquivo.
                 if state.video.is_none() {
+                    state.annexb = track.description.is_empty();
                     state.video = Some(track);
                 }
             }
@@ -395,7 +416,8 @@ mod tests {
             frames.push((pts, key, raw[i + 13..i + 13 + size].to_vec()));
             i += 13 + size;
         }
-        let track = VideoTrack { codec: VideoCodec::Avc, description, width: 1280, height: 720 };
+        let codec = std::fs::read_to_string(dir.join("codec.txt")).ok().and_then(|c| parse_codec(c.trim())).unwrap_or(VideoCodec::Avc);
+        let track = VideoTrack { codec, description, width: 1280, height: 720 };
         let base: i64 = 5_000_000_000;
         let end = frames.last().unwrap().0;
 

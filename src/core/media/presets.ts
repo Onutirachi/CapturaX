@@ -9,7 +9,15 @@ export type EncoderSettings = {
     bitrate: number;
     /** Intervalo entre keyframes; define o tamanho dos fragmentos/segmentos. */
     keyframeSecs: number;
+    /**
+     * Informar o FPS ao encoder. O Chromium recusa FPS acima de 30 em resoluções maiores que
+     * 1080p no encoder de hardware do Windows, mas codifica normalmente se o FPS for omitido.
+     */
+    declareFramerate?: boolean;
 };
+
+/** Sem `framerate`, o encoder assume 30 fps e gasta o bitrate por frame como se fossem 30. */
+const ASSUMED_FPS = 30;
 
 export type SourceInfo = { width: number; height: number; fps: number };
 
@@ -105,12 +113,13 @@ export function streamSettings(config: StreamConfig, source: SourceInfo): Encode
 
 /** Configuração completa do VideoEncoder para estas opções. */
 export function encoderConfig(settings: EncoderSettings): VideoEncoderConfig {
+    const declare = settings.declareFramerate !== false;
     const base: VideoEncoderConfig = {
         codec: settings.codec,
         width: settings.width,
         height: settings.height,
-        bitrate: settings.bitrate,
-        framerate: settings.fps,
+        bitrate: declare ? settings.bitrate : Math.round((settings.bitrate * ASSUMED_FPS) / settings.fps),
+        ...(declare ? { framerate: settings.fps } : {}),
         hardwareAcceleration: "prefer-hardware",
         latencyMode: "realtime",
         bitrateMode: "variable",
@@ -119,14 +128,20 @@ export function encoderConfig(settings: EncoderSettings): VideoEncoderConfig {
     return { ...base, hevc: { format: "hevc" } } as VideoEncoderConfig;
 }
 
-/** Usa o codec pedido se a máquina suportar; senão cai para H.264. */
+async function supported(settings: EncoderSettings) {
+    const result = await VideoEncoder.isConfigSupported(encoderConfig(settings)).catch(() => ({ supported: false }));
+    return !!result.supported;
+}
+
+/** Usa o codec pedido se a máquina suportar (com ou sem declarar o FPS); senão cai para H.264. */
 export async function resolveSupported(settings: EncoderSettings): Promise<EncoderSettings> {
-    const supported = await VideoEncoder.isConfigSupported(encoderConfig(settings)).catch(() => ({ supported: false }));
-    if (supported.supported) return settings;
-    if (!settings.codec.startsWith("avc")) {
-        const fallback = { ...settings, codec: codecString("h264", settings.width, settings.height, settings.fps) };
-        const ok = await VideoEncoder.isConfigSupported(encoderConfig(fallback)).catch(() => ({ supported: false }));
-        if (ok.supported) return fallback;
+    const codecs = [settings.codec];
+    if (!settings.codec.startsWith("avc")) codecs.push(codecString("h264", settings.width, settings.height, settings.fps));
+    for (const codec of codecs) {
+        for (const declareFramerate of [true, false]) {
+            const candidate = { ...settings, codec, declareFramerate };
+            if (await supported(candidate)) return candidate;
+        }
     }
     throw new Error(`This PC cannot encode ${settings.width}x${settings.height} @ ${settings.fps} fps`);
 }

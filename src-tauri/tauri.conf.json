@@ -18,7 +18,8 @@
                 "minWidth": 960,
                 "minHeight": 600,
                 "resizable": true,
-                "decorations": false
+                "decorations": false,
+                "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-features=PlatformHEVCEncoderSupport"
             }
         ],
         "security": {
