@@ -7,6 +7,12 @@ import type { StreamConfig } from "../../core/native/api";
 import { streamBitrateKbps, streamSize, type SourceInfo } from "../../core/media/presets";
 import { NumberInput, Segmented } from "./controls";
 import { FpsPicker, ResolutionPicker } from "./QualityPickers";
+import { DropDown, DropOption } from "../../core/components/DropDown";
+import Tag from "../../core/components/Tag";
+import Resolution from "../../core/utils/Resolution";
+import { choicesOf, formatFps, fpsColor, modeKey, parseModeKey } from "../../core/utils/videoModes";
+
+const NATIVE = "native";
 
 function useStreamConfig() {
     const nctx = useContext(NativeContext)!;
@@ -41,6 +47,57 @@ export function ResolutionSelect() {
 export function FpsSelect() {
     const { stream, set } = useStreamConfig();
     return <FpsPicker value={stream.fps || null} source={useSource()} onChange={(fps) => set({ fps: fps ?? 0 })} />;
+}
+
+/**
+ * Resolução + FPS da transmissão. Com os modos reais do dispositivo: uma lista só, como a do
+ * preview, com o que não passa do que está sendo capturado (a transmissão nunca aumenta a imagem).
+ * Sem eles (tela): resolução e FPS separados.
+ */
+export function StreamQualityPicker() {
+    const { stream, set } = useStreamConfig();
+    const source = useSource();
+    const modes = useContext(VideoStreamContext)?.deviceModes ?? null;
+
+    if (!modes) {
+        return (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-5 pt-2">
+                <ResolutionSelect />
+                <FpsSelect />
+            </div>
+        );
+    }
+
+    const choices = choicesOf(modes).filter((m) => m.width <= source.width && m.height <= source.height && m.fps <= source.fps + 0.5);
+    const value = stream.height ? modeKey({ width: stream.width, height: stream.height, fps: stream.fps || source.fps }) : NATIVE;
+    const nativeTag = Resolution.getTag(source);
+    return (
+        <div className="pt-2">
+            <DropDown
+                title="Resolution & FPS"
+                value={choices.some((c) => modeKey(c) === value) ? value : NATIVE}
+                onChoose={(v) => {
+                    const mode = v === NATIVE ? null : parseModeKey(v);
+                    set(mode ? { width: mode.width, height: mode.height, fps: mode.fps } : { width: 0, height: 0, fps: 0 });
+                }}>
+                <DropOption value={NATIVE} className="flex gap-3">
+                    {`Native (${source.width} x ${source.height})`}
+                    <Tag text={nativeTag.text} color={nativeTag.color} />
+                    <Tag text={`${formatFps(Math.round(source.fps))} FPS`} color={fpsColor(source.fps)} />
+                </DropOption>
+                {choices.map((mode) => {
+                    const tag = Resolution.getTag(mode);
+                    return (
+                        <DropOption key={modeKey(mode)} value={modeKey(mode)} className="flex gap-3">
+                            {`${mode.width} x ${mode.height}`}
+                            <Tag text={tag.text} color={tag.color} />
+                            <Tag text={`${formatFps(mode.fps)} FPS`} color={fpsColor(mode.fps)} />
+                        </DropOption>
+                    );
+                })}
+            </DropDown>
+        </div>
+    );
 }
 
 export function BitrateControl() {

@@ -22,11 +22,13 @@ export type NativeContextType = {
     recording: Activity;
     streaming: Activity;
     toggleRecording: () => Promise<void>;
-    /** Parado: abre a janela de "Go live". Ao vivo: encerra. */
+    /** Abre a janela da transmissão (parado: "Go live"; ao vivo: ajustes + parar). */
     toggleStreaming: () => Promise<void>;
     goLiveOpen: boolean;
+    /** Parado: começa. Ao vivo: aplica a qualidade nova (reinicia a transmissão). */
     confirmGoLive: () => Promise<void>;
     cancelGoLive: () => void;
+    stopStreaming: () => Promise<void>;
     screenshot: () => Promise<void>;
     settingsTab: SettingsTab | null;
     openSettings: (tab?: SettingsTab | null) => void;
@@ -60,6 +62,8 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const recorder = useRef<EncoderSession | null>(null);
     const streamer = useRef<EncoderSession | null>(null);
     const trackRef = useRef<MediaStreamTrack | null>(null);
+    /** Trilha com que a transmissão foi configurada (outra fonte → perguntar a qualidade de novo). */
+    const streamTrackId = useRef<string | null>(null);
     trackRef.current = videoTrack;
 
     const alert = useCallback((value: Parameters<NonNullable<typeof setAlert>>[0]) => setAlert?.(value), [setAlert]);
@@ -130,11 +134,13 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         native.setPreviewVolume(volume, muted).catch(() => {});
     }, [volume, muted]);
 
-    // Dispositivo reaberto (troca de resolução, reconexão): os encoders seguem com a trilha nova.
+    // Dispositivo reaberto (troca de fonte/modo, reconexão): os encoders seguem com a trilha nova.
+    // Ao vivo, a qualidade escolhida pode não servir mais: reabre a janela para escolher de novo.
     useEffect(() => {
         if (!videoTrack) return;
         recorder.current?.setTrack(videoTrack);
         streamer.current?.setTrack(videoTrack);
+        if (streamer.current && streamTrackId.current !== videoTrack.id) setGoLiveOpen(true);
     }, [videoTrack]);
 
     const startRecording = async () => {
@@ -172,7 +178,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         }
     };
 
-    const startStreaming = async () => {
+    const startStreaming = async (restarting = false) => {
         const track = trackRef.current;
         const current = configRef.current;
         if (!track || !current) {
@@ -185,8 +191,9 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             await calibrateClock();
             const id = await native.streamStart();
             streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(`Stream error: ${message}`)));
+            streamTrackId.current = track.id;
             setStreaming("active");
-            alert(alerts.info("You are live"));
+            alert(alerts.info(restarting ? `Stream updated: ${settings.width}x${settings.height} @ ${settings.fps} fps` : "You are live"));
         } catch (error) {
             setStreaming("idle");
             alert(alerts.error(`Could not start the stream (${errorText(error)})`));
@@ -194,10 +201,12 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     };
 
     const stopStreaming = async () => {
+        setGoLiveOpen(false);
         setStreaming("stopping");
         try {
             await streamer.current?.stop();
             streamer.current = null;
+            streamTrackId.current = null;
             await native.streamStop();
             alert(alerts.info("Stream ended"));
         } catch (error) {
@@ -214,13 +223,24 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     };
     const toggleStreaming = async () => {
         if (busy(streaming)) return;
-        if (streaming === "active") {
-            await stopStreaming();
-            return;
-        }
-        // Liga o servidor já, para o link (e a porta no roteador) estar pronto na janela.
         setGoLiveOpen(true);
-        native.streamPrepare().catch(() => {});
+        // Parado: liga o servidor já, para o link (e a porta no roteador) estar pronto na janela.
+        if (streaming !== "active") native.streamPrepare().catch(() => {});
+    };
+
+    /** Nova qualidade ao vivo: o formato do vídeo muda, então a transmissão recomeça (quem assiste
+     * reconecta sozinho em 1–2 s). O servidor fica no ar durante a troca. */
+    const restartStreaming = async () => {
+        setStreaming("starting");
+        try {
+            await native.streamPrepare();
+            await streamer.current?.stop();
+            streamer.current = null;
+            await native.streamStop();
+        } catch (error) {
+            alert(alerts.error(`Could not update the stream (${errorText(error)})`));
+        }
+        await startStreaming(true);
     };
     const confirmGoLive = async () => {
         if (busy(streaming)) return;
@@ -231,11 +251,12 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             await native.setConfig(configRef.current!).catch(() => {});
         }
         setGoLiveOpen(false);
-        await startStreaming();
+        await (streaming === "active" ? restartStreaming() : startStreaming());
     };
     const cancelGoLive = () => {
         setGoLiveOpen(false);
-        native.streamUnprepare().catch(() => {});
+        // Ao vivo, fechar a janela só mantém como está.
+        if (streaming !== "active") native.streamUnprepare().catch(() => {});
     };
 
     const screenshot = async () => {
@@ -292,6 +313,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 goLiveOpen,
                 confirmGoLive,
                 cancelGoLive,
+                stopStreaming,
                 screenshot,
                 settingsTab,
                 openSettings: (tab = "audio") => setSettingsTab(tab),

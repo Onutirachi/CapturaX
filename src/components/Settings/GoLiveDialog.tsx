@@ -1,9 +1,10 @@
-// Janela que aparece ao clicar em transmitir: qualidade na hora e o link para copiar antes de começar.
+// Janela da transmissão: antes de começar (qualidade + link para copiar) e ao vivo (mudar a
+// qualidade ou parar). Também reabre sozinha quando a fonte muda durante a transmissão.
 import { useContext, useEffect } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import Icon from "../Overlay/Icon";
 import { Button, CopyField, Note } from "./controls";
-import { BitrateControl, FpsSelect, ResolutionSelect, UploadNote } from "./StreamQuality";
+import { BitrateControl, StreamQualityPicker, UploadNote } from "./StreamQuality";
 
 export default function GoLiveDialog() {
     const nctx = useContext(NativeContext);
@@ -24,6 +25,7 @@ export default function GoLiveDialog() {
     const server = nctx.server;
     const upnp = server?.upnp;
     const starting = nctx.streaming === "starting";
+    const live = nctx.streaming === "active";
 
     return (
         <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-black/60 backdrop-blur-xs" onPointerDown={(e) => e.target === e.currentTarget && nctx.cancelGoLive()}>
@@ -32,8 +34,8 @@ export default function GoLiveDialog() {
                     <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-accent/20">
                         <Icon src="./assets/Dock/live.svg" color="var(--color-accent)" />
                     </div>
-                    <h1 className="text-xl font-semibold flex-1">Go live</h1>
-                    <button title="Cancel (Esc)" onClick={() => nctx.cancelGoLive()} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
+                    <h1 className="text-xl font-semibold flex-1">{live ? "Stream settings" : "Go live"}</h1>
+                    <button title="Close (Esc)" onClick={() => nctx.cancelGoLive()} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
                         <Icon src="./assets/Settings/close.svg" />
                     </button>
                 </header>
@@ -58,25 +60,29 @@ export default function GoLiveDialog() {
                     )}
                 </section>
 
-                <section className="flex flex-col gap-3">
+                <section className="flex flex-col gap-4">
                     <h2 className="text-sm text-(--text-muted)">Quality</h2>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <ResolutionSelect />
-                        <FpsSelect />
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                        <span className="text-(--text-muted)">Bitrate</span>
+                    <StreamQualityPicker />
+                    <div className="flex items-center gap-4">
+                        <span className="text-sm text-(--text-muted) w-14">Bitrate</span>
                         <BitrateControl />
                     </div>
                     <Note>
                         <UploadNote />
+                        {live && " Applying restarts the stream; viewers reconnect by themselves in a second or two."}
                     </Note>
                 </section>
 
-                <footer className="flex justify-end gap-3">
-                    <Button onClick={() => nctx.cancelGoLive()}>Cancel</Button>
+                <footer className="flex items-center gap-3">
+                    {live && (
+                        <Button variant="danger" onClick={() => nctx.stopStreaming()}>
+                            Stop streaming
+                        </Button>
+                    )}
+                    <div className="flex-1" />
+                    <Button onClick={() => nctx.cancelGoLive()}>{live ? "Close" : "Cancel"}</Button>
                     <Button variant="accent" onClick={() => nctx.confirmGoLive()} disabled={starting}>
-                        {starting ? "Starting…" : "Go live"}
+                        {starting ? "Starting…" : live ? "Apply" : "Go live"}
                     </Button>
                 </footer>
             </div>

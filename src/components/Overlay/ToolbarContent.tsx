@@ -107,7 +107,9 @@ export default function ToolbarContent() {
                 onChoose={async (value) => {
                     setIsScreen(value === SCREEN_SOURCE);
                     setVideoId(value);
-                    stream.setVideoDevice(value, modesOf(value));
+                    const deviceModes = value === SCREEN_SOURCE ? null : modesOf(value);
+                    vsctx.setDeviceModes(deviceModes);
+                    stream.setVideoDevice(value, deviceModes);
                 }}>
                 {videoDevicesList.map(({ deviceId, label }) => (
                     <DropOption key={deviceId} value={deviceId} className="flex gap-3">
