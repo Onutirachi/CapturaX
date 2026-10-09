@@ -24,7 +24,36 @@ pub struct VideoDeviceModes {
     pub name: String,
     /// Link simbólico do Windows (contém `vid_xxxx&pid_xxxx`, usado para casar com o WebView).
     pub symbolic_link: String,
+    /// Aparelho físico; o áudio do mesmo aparelho tem o mesmo (ver `audio::DeviceInfo`).
+    pub container_id: Option<String>,
     pub modes: Vec<VideoMode>,
+}
+
+/// `ContainerId` do aparelho dono de uma interface de dispositivo (link simbólico).
+fn container_id(symbolic_link: &str) -> Option<String> {
+    use windows::core::{GUID, PCWSTR};
+    use windows::Win32::Devices::DeviceAndDriverInstallation::{
+        CM_Get_DevNode_PropertyW, CM_Get_Device_Interface_PropertyW, CM_Locate_DevNodeW, CM_LOCATE_DEVNODE_NORMAL, CR_SUCCESS,
+    };
+    use windows::Win32::Devices::Properties::{DEVPKEY_Device_ContainerId, DEVPKEY_Device_InstanceId, DEVPROPTYPE};
+    let link: Vec<u16> = symbolic_link.encode_utf16().chain([0]).collect();
+    unsafe {
+        let mut kind = DEVPROPTYPE::default();
+        let mut instance = [0u16; 512];
+        let mut size = std::mem::size_of_val(&instance) as u32;
+        let result = CM_Get_Device_Interface_PropertyW(PCWSTR(link.as_ptr()), &DEVPKEY_Device_InstanceId, &mut kind, Some(instance.as_mut_ptr() as *mut u8), &mut size, 0);
+        if result != CR_SUCCESS {
+            return None;
+        }
+        let mut node = 0u32;
+        if CM_Locate_DevNodeW(&mut node, PCWSTR(instance.as_ptr()), CM_LOCATE_DEVNODE_NORMAL) != CR_SUCCESS {
+            return None;
+        }
+        let mut container = GUID::zeroed();
+        let mut size = std::mem::size_of::<GUID>() as u32;
+        let result = CM_Get_DevNode_PropertyW(node, &DEVPKEY_Device_ContainerId, &mut kind, Some(&mut container as *mut GUID as *mut u8), &mut size, 0);
+        (result == CR_SUCCESS).then(|| format!("{container:?}").to_lowercase())
+    }
 }
 
 fn format_name(subtype: GUID) -> String {
@@ -108,7 +137,7 @@ pub fn list() -> Result<Vec<VideoDeviceModes>> {
             let name = string_attribute(&activate, &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME);
             let symbolic_link = string_attribute(&activate, &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK);
             match modes_of(&activate) {
-                Ok(modes) => devices.push(VideoDeviceModes { name, symbolic_link, modes }),
+                Ok(modes) => devices.push(VideoDeviceModes { name, container_id: container_id(&symbolic_link), symbolic_link, modes }),
                 Err(error) => eprintln!("Could not read modes of {name}: {error}"),
             }
         }
@@ -124,7 +153,7 @@ mod tests {
     fn list_video_modes() {
         let _com = crate::audio::ComGuard::new();
         for device in super::list().unwrap() {
-            println!("{} [{}]", device.name, device.symbolic_link);
+            println!("{} [{}] container {:?}", device.name, device.symbolic_link, device.container_id);
             for mode in &device.modes {
                 println!("   {}x{} @ {} {}", mode.width, mode.height, mode.fps, mode.format);
             }

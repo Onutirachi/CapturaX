@@ -5,6 +5,7 @@ import { Row, Section, Select, Slider, Toggle, type Option } from "./controls";
 import AppAudio from "./AppAudio";
 
 const NONE = "none";
+const AUTO = "auto";
 const SAME = "same";
 const DEFAULT = "default";
 
@@ -27,11 +28,11 @@ export default function AudioTab() {
                 </Row>
                 {audio.nativePreview && (
                     <>
-                        <Row label="Input" hint="Usually the audio of the capture card.">
+                        <Row label="Input" hint="Usually the audio of the capture card. Auto uses the audio of the same device as the video.">
                             <Select
-                                value={audio.previewInput ?? NONE}
-                                options={[{ value: NONE, label: "No audio" }, ...inputs]}
-                                onChange={(v) => set({ previewInput: v === NONE ? null : v })}
+                                value={audio.previewInputAuto ? AUTO : (audio.previewInput ?? NONE)}
+                                options={[{ value: AUTO, label: "Auto (same device as video)" }, { value: NONE, label: "No audio" }, ...inputs]}
+                                onChange={(v) => set(v === AUTO ? { previewInputAuto: true } : { previewInputAuto: false, previewInput: v === NONE ? null : v })}
                             />
                         </Row>
                         <Row label="Output" hint="Where you listen (headset, speakers).">

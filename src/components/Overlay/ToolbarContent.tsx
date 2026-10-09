@@ -10,11 +10,11 @@ import { NativeContext } from "../../context/NativeContext";
 import { native, type CaptureSources } from "../../core/native/api";
 import Resolution from "../../core/utils/Resolution";
 import { monitorRefreshRate } from "../../core/utils/refreshRate";
-import { chooseMode, choicesOf, deviceName, findDevice, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
+import { chooseMode, choicesOf, deviceName, findDevice, pairedAudio, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
 
 const NO_AUDIO = "none";
 const DEFAULT_OUTPUT = "default";
-const AUTO_PICKED_KEY = "audioInputAutoPicked";
+const AUTO_AUDIO = "auto";
 const AUTO = "Auto";
 
 /** "Screen 2 - 27G2G4": o número que o Windows dá à tela + o nome do monitor. */
@@ -83,17 +83,14 @@ export default function ToolbarContent() {
         else stream?.updateAudioTrack();
     }, [nativeAudio, stream]);
 
-    // Primeira vez: escolhe o áudio da mesma placa do vídeo (ex.: "HDMI (ezcap Live GAMER ULTRA)").
-    const videoLabel = vsctx?.videoTrack?.label ?? "";
+    // Áudio automático: o do mesmo aparelho do vídeo atual (tela/janela ou aparelho sem áudio = nenhum).
+    const videoTrack = vsctx?.videoTrack ?? null;
     const inputs = nctx?.devices.inputs ?? [];
+    const paired = videoTrack && deviceModes ? pairedAudio(findDevice(deviceModes, videoTrack.label), inputs) : null;
     useEffect(() => {
-        if (!nctx || !config || !nativeAudio || config.audio.previewInput || localStorage.getItem(AUTO_PICKED_KEY)) return;
-        const name = videoLabel.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, "").trim().toLowerCase();
-        if (!name || inputs.length === 0) return;
-        localStorage.setItem(AUTO_PICKED_KEY, "1");
-        const match = inputs.find((device) => device.name.toLowerCase().includes(name));
-        if (match) nctx.updateConfig((c) => ({ ...c, audio: { ...c.audio, previewInput: match.id } }));
-    }, [videoLabel, inputs, config, nativeAudio]);
+        // Sem trilha (trocando de fonte): mantém o anterior em vez de cortar o som por um instante.
+        if (videoTrack) native.audioSetPairedInput(paired?.id ?? null).catch(() => {});
+    }, [videoTrack, paired?.id]);
 
     if (!vsctx || !actx || !stream) return null;
     if ((videoDevicesList.length === 0 && !nativeCapture) || deviceModes === null) return null;
@@ -173,7 +170,13 @@ export default function ToolbarContent() {
 
             {nativeAudio && config ? (
                 <>
-                    <DropDown title="Audio Device" value={config.audio.previewInput ?? NO_AUDIO} onChoose={(value) => setAudio({ previewInput: value === NO_AUDIO ? null : value })}>
+                    <DropDown
+                        title="Audio Device"
+                        value={config.audio.previewInputAuto ? AUTO_AUDIO : (config.audio.previewInput ?? NO_AUDIO)}
+                        onChoose={(value) =>
+                            setAudio(value === AUTO_AUDIO ? { previewInputAuto: true } : { previewInputAuto: false, previewInput: value === NO_AUDIO ? null : value })
+                        }>
+                        <DropOption value={AUTO_AUDIO}>{`Auto (${paired ? paired.name : "no audio"})`}</DropOption>
                         <DropOption value={NO_AUDIO} className="text-(--text-muted)">
                             No audio
                         </DropOption>

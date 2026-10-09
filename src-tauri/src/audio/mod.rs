@@ -607,6 +607,15 @@ mod tests {
 
     #[test]
     #[ignore]
+    fn audio_containers() {
+        let _com = ComGuard::new();
+        for device in wasapi::list_devices(windows::Win32::Media::Audio::eCapture).unwrap() {
+            println!("{} container {:?}", device.name, device.container_id);
+        }
+    }
+
+    #[test]
+    #[ignore]
     fn audio_enumerate_only() {
         let engine = AudioEngine::new();
         for _ in 0..20 {

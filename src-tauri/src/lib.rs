@@ -42,6 +42,7 @@ pub fn run() {
             commands::audio_devices,
             commands::audio_set_preview_volume,
             commands::audio_apps,
+            commands::audio_set_paired_input,
             commands::video_modes,
             commands::capture_sources,
             commands::capture_start,

@@ -7,12 +7,12 @@ use std::mem::ManuallyDrop;
 use std::sync::mpsc;
 use std::time::Duration;
 use windows::core::{implement, Interface, Ref, Result, HRESULT, PCWSTR};
-use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
+use windows::Win32::Devices::FunctionDiscovery::{PKEY_Device_ContainerId, PKEY_Device_FriendlyName};
 use windows::Win32::Foundation::{CloseHandle, E_FAIL, HANDLE, RPC_E_CHANGED_MODE, WAIT_OBJECT_0};
 use windows::Win32::Media::Audio::*;
 use windows::Win32::Media::KernelStreaming::{KSDATAFORMAT_SUBTYPE_PCM, SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT, WAVE_FORMAT_EXTENSIBLE};
 use windows::Win32::Media::Multimedia::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-use windows::Win32::System::Com::StructuredStorage::{PropVariantToStringAlloc, PROPVARIANT};
+use windows::Win32::System::Com::StructuredStorage::{PropVariantToGUID, PropVariantToStringAlloc, PROPVARIANT};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, BLOB, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ};
 use windows::Win32::System::Threading::{AvSetMmThreadCharacteristicsW, CreateEventW, WaitForSingleObject};
 use windows::Win32::System::Variant::VT_BLOB;
@@ -52,6 +52,8 @@ pub struct DeviceInfo {
     pub id: String,
     pub name: String,
     pub is_default: bool,
+    /// Aparelho físico (o vídeo e o áudio de uma placa USB têm o mesmo).
+    pub container_id: Option<String>,
 }
 
 fn enumerator() -> Result<IMMDeviceEnumerator> {
@@ -79,6 +81,14 @@ fn device_name(device: &IMMDevice) -> Result<String> {
     }
 }
 
+fn device_container(device: &IMMDevice) -> Result<String> {
+    unsafe {
+        let store = device.OpenPropertyStore(STGM_READ)?;
+        let value = store.GetValue(&PKEY_Device_ContainerId)?;
+        Ok(format!("{:?}", PropVariantToGUID(&value)?).to_lowercase())
+    }
+}
+
 pub fn list_devices(flow: EDataFlow) -> Result<Vec<DeviceInfo>> {
     let enumerator = enumerator()?;
     let default_id = unsafe { enumerator.GetDefaultAudioEndpoint(flow, eConsole) }.and_then(|d| device_id(&d)).ok();
@@ -88,7 +98,8 @@ pub fn list_devices(flow: EDataFlow) -> Result<Vec<DeviceInfo>> {
         let device = unsafe { collection.Item(i)? };
         let id = device_id(&device)?;
         let name = device_name(&device).unwrap_or_else(|_| id.clone());
-        devices.push(DeviceInfo { is_default: default_id.as_deref() == Some(id.as_str()), id, name });
+        let container_id = device_container(&device).ok();
+        devices.push(DeviceInfo { is_default: default_id.as_deref() == Some(id.as_str()), id, name, container_id });
     }
     Ok(devices)
 }

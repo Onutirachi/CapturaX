@@ -1,7 +1,17 @@
 // Modos reais do dispositivo (lidos pelo Media Foundation no Rust) e a escolha automática.
 
 export type VideoMode = { width: number; height: number; fps: number; format: string };
-export type VideoDeviceModes = { name: string; symbolicLink: string; modes: VideoMode[] };
+export type VideoDeviceModes = { name: string; symbolicLink: string; containerId: string | null; modes: VideoMode[] };
+
+/** ContainerId que o Windows usa para "sem aparelho" (dispositivos virtuais, placa-mãe). */
+const NO_CONTAINER = "00000000-0000-0000-ffff-ffffffffffff";
+
+/** Entrada de áudio do mesmo aparelho do vídeo (ex.: "HDMI (ezcap Live GAMER ULTRA)"). */
+export function pairedAudio<T extends { containerId: string | null }>(video: VideoDeviceModes | null, inputs: T[]): T | null {
+    const container = video?.containerId;
+    if (!container || container === NO_CONTAINER) return null;
+    return inputs.find((input) => input.containerId === container) ?? null;
+}
 export type Size = { width: number; height: number };
 export type ModeChoice = Size & { fps: number };
 

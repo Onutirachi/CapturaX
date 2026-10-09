@@ -199,10 +199,10 @@ Hoje: `LocalHlsSink` (servidor no PC). Depois: `RelaySink`, que envia os mesmos 
 HTTPS para um servidor hospedado. O app e a página de quem assiste não mudam.
 
 ### Fase 9 — Próximos (combinados em 2026-10-08, ainda não implementados)
-1. **Áudio automático pareado com o vídeo:** opção "Automatic (same device as video)" no Audio
-   Device. O Windows dá o mesmo `ContainerId` ao vídeo e ao áudio de um mesmo aparelho USB (a
-   ezcap aparece como dois dispositivos com o mesmo contêiner); segue a troca de placa e cai em
-   "sem áudio" quando o dispositivo de vídeo não tiver áudio. Substitui o palpite pelo nome.
+1. ~~**Áudio automático pareado com o vídeo**~~ — **feito** (2026-10-09). "Auto" no Audio Device
+   (padrão): o Rust lê o `ContainerId` do vídeo (Media Foundation → devnode) e das entradas WASAPI;
+   o WebView informa o par do vídeo atual (`audio_set_paired_input`) e o Rust resolve na hora.
+   Tela/janela ou aparelho sem áudio = sem áudio. Substituiu o palpite pelo nome.
 2. ~~**Telas e janelas no dropdown de vídeo, sem o seletor do navegador**~~ — **feito**
    (2026-10-09). Windows Graphics Capture no Rust (sem borda amarela, com cursor), grupos
    "Devices / Screens / Windows" no dropdown, telas como "Screen 2 - 27G2G4". Em vez de levar a

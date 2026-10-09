@@ -2,12 +2,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { VideoDeviceModes } from "../utils/videoModes";
 
-export type DeviceInfo = { id: string; name: string; isDefault: boolean };
+/** `containerId`: aparelho físico (vídeo e áudio de uma mesma placa USB têm o mesmo). */
+export type DeviceInfo = { id: string; name: string; isDefault: boolean; containerId: string | null };
 export type AudioDevices = { inputs: DeviceInfo[]; outputs: DeviceInfo[] };
 
 export type AudioConfig = {
     nativePreview: boolean;
     previewInput: string | null;
+    /** Usa o áudio do mesmo aparelho do vídeo (o Rust resolve com `audioSetPairedInput`). */
+    previewInputAuto: boolean;
     previewOutput: string | null;
     previewDelayMs: number;
     recordInput: string | null;
@@ -95,6 +98,7 @@ export const native = {
     audioDevices: () => invoke<AudioDevices>("audio_devices"),
     setPreviewVolume: (volume: number, muted: boolean) => invoke<void>("audio_set_preview_volume", { volume, muted }),
     audioApps: () => invoke<AppListEntry[]>("audio_apps"),
+    audioSetPairedInput: (id: string | null) => invoke<void>("audio_set_paired_input", { id }),
     videoModes: () => invoke<VideoDeviceModes[]>("video_modes"),
     captureSources: () => invoke<CaptureSources>("capture_sources"),
     captureStart: (id: string, fps: number, cursor: boolean) => invoke<{ width: number; height: number }>("capture_start", { id, fps, cursor }),

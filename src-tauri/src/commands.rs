@@ -26,6 +26,8 @@ pub struct AppState {
     streaming: Mutex<Option<u32>>,
     /// Janela de "Go live" aberta: o servidor fica no ar mesmo sem "Accept viewers".
     preparing: AtomicBool,
+    /// Áudio do mesmo aparelho do vídeo atual (o WebView informa), para o modo automático.
+    paired_input: Mutex<Option<String>>,
 }
 
 impl AppState {
@@ -39,6 +41,7 @@ impl AppState {
             recording: Mutex::new(None),
             streaming: Mutex::new(None),
             preparing: AtomicBool::new(false),
+            paired_input: Mutex::new(None),
         }
     }
 
@@ -48,14 +51,24 @@ impl AppState {
     }
 
     fn config(&self) -> Config {
-        self.config.lock().unwrap().current.clone()
+        self.effective(&self.config.lock().unwrap().current)
+    }
+
+    /// Configuração com o áudio automático resolvido (o par do vídeo atual, ou nenhum).
+    fn effective(&self, config: &Config) -> Config {
+        let mut config = config.clone();
+        if config.audio.preview_input_auto {
+            config.audio.preview_input = self.paired_input.lock().unwrap().clone();
+        }
+        config
     }
 
     /// Aplica a configuração ao motor de áudio e ao servidor.
     pub async fn apply(&self, config: &Config) {
         let audio = self.audio.clone();
-        let preview = preview_settings(config);
-        let mix = mix_settings(config);
+        let effective = self.effective(config);
+        let preview = preview_settings(&effective);
+        let mix = mix_settings(&effective);
         // Troca de dispositivo espera threads de áudio terminarem: fora do executor async.
         let _ = tauri::async_runtime::spawn_blocking(move || {
             audio.set_preview(preview);
@@ -137,7 +150,8 @@ pub fn clock_now() -> i64 {
 
 #[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Config {
-    state.config()
+    // A salva, sem o áudio automático resolvido (o front devolve isso no `set_config`).
+    state.config.lock().unwrap().current.clone()
 }
 
 #[tauri::command]
@@ -221,6 +235,20 @@ pub async fn audio_apps(state: State<'_, AppState>) -> Result<Vec<AppListEntry>,
 pub async fn video_modes() -> Result<Vec<crate::video_modes::VideoDeviceModes>, String> {
     let _com = crate::audio::ComGuard::new();
     crate::video_modes::list().map_err(|e| e.to_string())
+}
+
+/// O WebView informa o áudio do mesmo aparelho do vídeo atual (`None` = o vídeo não tem áudio).
+#[tauri::command]
+pub async fn audio_set_paired_input(state: State<'_, AppState>, id: Option<String>) -> Result<(), String> {
+    if *state.paired_input.lock().unwrap() == id {
+        return Ok(());
+    }
+    *state.paired_input.lock().unwrap() = id;
+    let config = state.config.lock().unwrap().current.clone();
+    if config.audio.preview_input_auto {
+        state.apply(&config).await;
+    }
+    Ok(())
 }
 
 // ---- Captura de tela/janela ---------------------------------------------------------------

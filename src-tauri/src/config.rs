@@ -19,6 +19,8 @@ pub struct AudioConfig {
     pub native_preview: bool,
     /// Endpoint WASAPI de entrada do preview (ex. áudio da placa). `None` = nenhum.
     pub preview_input: Option<String>,
+    /// Usa o áudio do mesmo aparelho do vídeo (ContainerId) em vez de `preview_input`.
+    pub preview_input_auto: bool,
     /// Endpoint de saída do preview. `None` = saída padrão do Windows.
     pub preview_output: Option<String>,
     /// Atraso extra do áudio do preview, para alinhar com o vídeo (lip-sync).
@@ -49,6 +51,7 @@ impl Default for AudioConfig {
         Self {
             native_preview: true,
             preview_input: None,
+            preview_input_auto: true,
             preview_output: None,
             preview_delay_ms: 0,
             record_input: None,
