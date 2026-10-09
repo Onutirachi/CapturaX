@@ -210,9 +210,10 @@ HTTPS para um servidor hospedado. O app e a página de quem assiste não mudam.
    uma trilha de vídeo comum: preview completo e o mesmo caminho de gravação/transmissão/print.
    Custo medido: 1080p a ~90 fps ≈ 2% da CPU (build de debug). Se um dia pesar (4K a 144 Hz),
    converter para NV12 na GPU antes de copiar reduz a cópia pela metade.
-3. **Critério do automático:** hoje é "o mais fluido até ~60 fps, depois a maior resolução"
-   (placa: 1440p60; webcam: 1080p30). Avaliar uma opção "priorizar fluidez" para jogar (ex.:
-   1080p120 na ezcap).
+3. ~~**Critério do automático / priorizar fluidez**~~ — **feito** (2026-10-09). O Auto continua
+   "o mais fluido até ~60 fps, depois a maior resolução" (placa: 1440p60; webcam: 1080p30). Opção
+   extra **Smoothest** no Mode: o maior FPS a partir de 720p (ezcap: 1080p120); só aparece quando
+   é diferente do Auto.
 
 ### Fase 10 — Assistir sem abrir porta (só estudo, não implementar ainda)
 Hoje quem assiste pela internet precisa da porta aberta no roteador (UPnP ou manual) e não

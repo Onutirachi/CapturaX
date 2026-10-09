@@ -10,12 +10,13 @@ import { NativeContext } from "../../context/NativeContext";
 import { native, type CaptureSources } from "../../core/native/api";
 import Resolution from "../../core/utils/Resolution";
 import { monitorRefreshRate } from "../../core/utils/refreshRate";
-import { chooseMode, choicesOf, deviceName, findDevice, pairedAudio, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
+import { chooseMode, chooseSmoothest, choicesOf, deviceName, findDevice, pairedAudio, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
 
 const NO_AUDIO = "none";
 const DEFAULT_OUTPUT = "default";
 const AUTO_AUDIO = "auto";
 const AUTO = "Auto";
+const SMOOTHEST = "Smoothest";
 
 /** "Screen 2 - 27G2G4": o número que o Windows dá à tela + o nome do monitor. */
 const screenLabel = (screen: CaptureSources["screens"][number]) => `Screen ${screen.number}${screen.name ? ` - ${screen.name}` : ""}`;
@@ -106,6 +107,9 @@ export default function ToolbarContent() {
     const autoFps = capturing ? captureRefresh(videoId!) : isScreen ? refreshRate : null;
     const modes = isScreen || capturing ? null : modesOf(videoId);
     const auto = modes ? chooseMode(modes, null, null) : null;
+    // Só aparece quando é diferente do automático (ex.: placa com 1440p60 e 1080p120).
+    const smoothest = modes ? chooseSmoothest(modes) : null;
+    const showSmoothest = !!smoothest && !!auto && modeKey(smoothest) !== modeKey(auto);
 
     // Sem modos fixos (tela ou dispositivo desconhecido): listas do app, na tela até o monitor.
     const screenSize = { width: Math.round(window.screen.width * devicePixelRatio), height: Math.round(window.screen.height * devicePixelRatio) };
@@ -222,12 +226,19 @@ export default function ToolbarContent() {
                 <DropDown
                     title="Mode"
                     storageKey="Video mode"
-                    onChoose={async (value) => stream.setMode(value === AUTO ? null : parseModeKey(value))}>
+                    onChoose={async (value) => stream.setMode(value === AUTO ? null : value === SMOOTHEST ? (modes && chooseSmoothest(modes)) : parseModeKey(value))}>
                     <DropOption key={AUTO} value={AUTO}>
                         {auto ? `Auto (${auto.width} x ${auto.height})` : "Auto"}
                         {auto && <Tag text={resolutionTag(auto).text} color={resolutionTag(auto).color} />}
                         {auto && <Tag text={`${formatFps(auto.fps)} FPS`} color={fpsColor(auto.fps)} />}
                     </DropOption>
+                    {showSmoothest && (
+                        <DropOption key={SMOOTHEST} value={SMOOTHEST}>
+                            {`Smoothest (${smoothest.width} x ${smoothest.height})`}
+                            <Tag text={resolutionTag(smoothest).text} color={resolutionTag(smoothest).color} />
+                            <Tag text={`${formatFps(smoothest.fps)} FPS`} color={fpsColor(smoothest.fps)} />
+                        </DropOption>
+                    )}
                     {choicesOf(modes).map((mode) => {
                         const tag = resolutionTag(mode);
                         return (

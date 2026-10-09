@@ -47,6 +47,21 @@ export function usableModes(modes: VideoMode[]) {
     return modes.filter((m) => SUPPORTED_FORMATS.has(m.format.toUpperCase()));
 }
 
+/** Abaixo disso o "mais fluido" não considera (240 fps em 480p não serve para jogar). */
+const SMOOTHEST_MIN_HEIGHT = 720;
+
+/**
+ * "Mais fluido", para jogar: o maior FPS a partir de 720p, depois a maior resolução
+ * (ezcap: 1080p120 em vez do 1440p60 do automático).
+ */
+export function chooseSmoothest(modes: VideoMode[]): ModeChoice | null {
+    const sizes = resolutionsOf(modes);
+    const candidates = sizes.some((s) => s.height >= SMOOTHEST_MIN_HEIGHT) ? sizes.filter((s) => s.height >= SMOOTHEST_MIN_HEIGHT) : sizes;
+    const maxFps = (s: Size) => fpsFor(modes, s)[0] ?? 0;
+    const best = [...candidates].sort((a, b) => maxFps(b) - maxFps(a) || b.width * b.height - a.width * a.height)[0];
+    return best ? { ...best, fps: maxFps(best) } : null;
+}
+
 /**
  * Automático: o mais fluido primeiro (até ~60 fps), depois a maior resolução, depois o maior FPS.
  * Placa com 1440p60 e 4K30 → 1440p60; webcam com 1080p30 e uma foto 2304x1536 a 2 fps → 1080p30.
