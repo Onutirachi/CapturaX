@@ -91,7 +91,7 @@ export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean
                     const mode = v === NATIVE ? null : parseModeKey(v);
                     set(mode ? { width: mode.width, height: mode.height, fps: mode.fps } : { width: 0, height: 0, fps: 0 });
                 }}>
-                <DropOption value={NATIVE} className="flex gap-3">
+                <DropOption value={NATIVE}>
                     {`Native (${source.width} x ${source.height})`}
                     <Tag text={nativeTag.text} color={nativeTag.color} />
                     <Tag text={`${formatFps(Math.round(source.fps))} FPS`} color={fpsColor(source.fps)} />
@@ -99,7 +99,7 @@ export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean
                 {choices.map((mode) => {
                     const tag = Resolution.getTag(mode);
                     return (
-                        <DropOption key={modeKey(mode)} value={modeKey(mode)} className="flex gap-3">
+                        <DropOption key={modeKey(mode)} value={modeKey(mode)}>
                             {`${mode.width} x ${mode.height}`}
                             <Tag text={tag.text} color={tag.color} />
                             <Tag text={`${formatFps(mode.fps)} FPS`} color={fpsColor(mode.fps)} />

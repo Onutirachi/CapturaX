@@ -1,5 +1,5 @@
 import { ComponentChildren } from "preact";
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import { Children } from "preact/compat";
 import ScrollText from "./ScrollText";
 
@@ -24,13 +24,26 @@ type DropOptionProps = {
     value: string;
 };
 
-/** Os trechos de texto rolam se não couberem; bandeirinhas e ícones ficam fixos. */
+const isText = (child: unknown) => typeof child === "string" || typeof child === "number";
+
+/**
+ * Uma célula de texto (rola se não couber) seguida das bandeirinhas. O próprio elemento não gera
+ * caixa (`contents`): no menu aberto, texto e bandeirinhas viram colunas alinhadas entre as opções.
+ */
 export function DropOption({ children, className, value }: DropOptionProps) {
+    const parts = Children.toArray(children);
+    const text = parts.filter(isText).join("");
     return (
-        <div data-value={value} className={`min-w-0 items-center ${className ? className : ""}`}>
-            {Children.map(children, (child) => (typeof child === "string" || typeof child === "number" ? <ScrollText>{child}</ScrollText> : child))}
+        <div data-value={value} className={`contents ${className ? className : ""}`}>
+            {text ? <ScrollText>{text}</ScrollText> : <span />}
+            {parts.filter((child) => !isText(child))}
         </div>
     );
+}
+
+/** Quantas bandeirinhas (colunas além do texto) a opção com mais delas tem. */
+function tagColumns(children: ComponentChildren) {
+    return Math.max(0, ...(Children.toArray(children) as any[]).map((child) => Children.toArray(child?.props?.children).filter((part) => !isText(part)).length));
 }
 
 export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue, fullWidth = false }: DropDownProps) {
@@ -39,6 +52,9 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     const [open, setOpen] = useState<boolean>(false);
     const [value, setValue] = useState<string | null>(null);
     const [display, setDisplay] = useState<any | null>(null);
+    /** Menu alinhado pela direita quando não cabe à direita do dropdown. */
+    const [alignRight, setAlignRight] = useState(false);
+    const menuRef = useRef<HTMLDivElement | null>(null);
 
     const toggleOpen = () => {
         setOpen(!open);
@@ -83,6 +99,12 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
 
     const shown = controlled ? (Children.toArray(children) as any[]).find((child) => child.props?.value === controlledValue) ?? null : display;
 
+    useLayoutEffect(() => {
+        if (!open || !menuRef.current || !dropDownRef.current) return;
+        const box = dropDownRef.current.getBoundingClientRect();
+        setAlignRight(box.left + menuRef.current.offsetWidth > window.innerWidth - 8);
+    }, [open]);
+
     useEffect(() => {
         if (!open) return;
         // Captura no document roda antes do listener de Esc do fullscreen (window, bubble).
@@ -124,7 +146,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                     dropdown é sempre a da maior opção, sem quebrar linha nem pular ao trocar. */}
                 <div className="grid grid-cols-[minmax(0,1fr)] min-w-0 flex-1">
                     {Children.map(children, (child: any) => (
-                        <div className={`[grid-area:1/1] min-w-0 whitespace-nowrap flex items-center [&>*]:min-w-0 ${child === shown || (shown && child?.props?.value === (shown as any).props?.value) ? "" : "invisible"}`}>
+                        <div className={`[grid-area:1/1] min-w-0 whitespace-nowrap flex items-center gap-3 [&>:first-child]:flex-1 [&>*]:min-w-0 ${child === shown || (shown && child?.props?.value === (shown as any).props?.value) ? "" : "invisible"}`}>
                             {child}
                         </div>
                     ))}
@@ -135,10 +157,11 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                     }`}></div>
             </div>
             <div
+                ref={menuRef}
                 className={`
                     z-2
-                    absolute top-full left-0
-                    w-full h-auto
+                    absolute top-full ${alignRight ? "right-0" : "left-0"}
+                    w-max min-w-full max-w-[min(28rem,calc(100vw-2rem))] h-auto
                     p-1.5 mt-2
                     rounded-xl bg-dark 
                     box-border
@@ -146,11 +169,8 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                     ${open ? "visibility-visible opacity-100 translate-y-0" : "visibility-hidden opacity-0 pointer-events-none -translate-y-2.5"}
                 `}>
                 <div
-                    className="
-                        w-full h-max max-h-100
-                        overflow-y-auto overflow-x-hidden 
-                        grid grid-cols-1 auto-rows-auto
-                    ">
+                    className="w-full h-max max-h-100 overflow-y-auto overflow-x-hidden grid auto-rows-auto"
+                    style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${tagColumns(children)}, max-content)` }}>
                     {Children.map(children, (child: any) => {
                         return (
                             <div
@@ -158,7 +178,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                                 onClick={() => {
                                     selectOption(child);
                                 }}
-                                className="scroll-on-hover bg-transparent hover:bg-normal cursor-pointer p-1.5 rounded-md box-border whitespace-nowrap min-w-0 [&>*]:min-w-0">
+                                className="scroll-on-hover col-span-full grid grid-cols-subgrid gap-x-3 items-center bg-transparent hover:bg-normal cursor-pointer p-1.5 rounded-md box-border whitespace-nowrap min-w-0 [&_.tag]:w-auto">
                                 {child}
                             </div>
                         );

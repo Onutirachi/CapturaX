@@ -30,17 +30,18 @@ export function ResolutionPicker({ value, source, onChange, fullWidth }: { value
                 const [width, height] = v.split("x").map(Number);
                 onChange({ width, height });
             }}>
-            <DropOption value={NATIVE} className="flex gap-3">
+            <DropOption value={NATIVE}>
                 {`Native (${source.width} x ${source.height})`}
-                {nativeTag && <Tag text={nativeTag.text} color={nativeTag.color} />}
+                <Tag text={nativeTag.text} color={nativeTag.color} />
             </DropOption>
             {custom && (
-                <DropOption value={key(custom)} className="flex gap-3">
+                <DropOption value={key(custom)}>
                     {`${custom.width} x ${custom.height}`}
+                    <Tag text={Resolution.getTag(custom).text} color={Resolution.getTag(custom).color} />
                 </DropOption>
             )}
             {options.map((r) => (
-                <DropOption key={key(r)} value={key(r)} className="flex gap-3">
+                <DropOption key={key(r)} value={key(r)}>
                     {`${r.width} x ${r.height}`}
                     <Tag text={r.tag} color={r.color} />
                 </DropOption>
@@ -55,12 +56,12 @@ export function FpsPicker({ value, source, onChange, fullWidth }: { value: numbe
     const options = FRAMERATE_LIST.filter((f) => f <= sourceFps || f === value);
     return (
         <DropDown title="Framerate" fullWidth={fullWidth} value={value ? String(value) : NATIVE} onChoose={(v) => onChange(v === NATIVE ? null : Number(v))}>
-            <DropOption value={NATIVE} className="flex gap-3">
+            <DropOption value={NATIVE}>
                 Native
                 <Tag text={`${formatFps(sourceFps)} FPS`} color={fpsColor(sourceFps)} />
             </DropOption>
             {[...options].map((f) => (
-                <DropOption key={f} value={String(f)} className="flex gap-3">
+                <DropOption key={f} value={String(f)}>
                     <Tag text={`${f} FPS`} color={fpsColor(f)} />
                 </DropOption>
             ))}

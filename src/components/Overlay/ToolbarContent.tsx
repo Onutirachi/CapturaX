@@ -112,11 +112,11 @@ export default function ToolbarContent() {
                     stream.setVideoDevice(value, deviceModes);
                 }}>
                 {videoDevicesList.map(({ deviceId, label }) => (
-                    <DropOption key={deviceId} value={deviceId} className="flex gap-3">
+                    <DropOption key={deviceId} value={deviceId}>
                         {deviceName(label)}
                     </DropOption>
                 ))}
-                <DropOption key={SCREEN_SOURCE} value={SCREEN_SOURCE} className="flex gap-3">
+                <DropOption key={SCREEN_SOURCE} value={SCREEN_SOURCE}>
                     Screen / window capture
                 </DropOption>
             </DropDown>
@@ -130,11 +130,11 @@ export default function ToolbarContent() {
             {nativeAudio && config ? (
                 <>
                     <DropDown title="Audio Device" value={config.audio.previewInput ?? NO_AUDIO} onChoose={(value) => setAudio({ previewInput: value === NO_AUDIO ? null : value })}>
-                        <DropOption value={NO_AUDIO} className="flex gap-3 text-(--text-muted)">
+                        <DropOption value={NO_AUDIO} className="text-(--text-muted)">
                             No audio
                         </DropOption>
                         {inputs.map(({ id, name }) => (
-                            <DropOption key={id} value={id} className="flex gap-3">
+                            <DropOption key={id} value={id}>
                                 {name}
                             </DropOption>
                         ))}
@@ -144,11 +144,11 @@ export default function ToolbarContent() {
                         title="Audio Output"
                         value={config.audio.previewOutput ?? DEFAULT_OUTPUT}
                         onChoose={(value) => setAudio({ previewOutput: value === DEFAULT_OUTPUT ? null : value })}>
-                        <DropOption value={DEFAULT_OUTPUT} className="flex gap-3">
+                        <DropOption value={DEFAULT_OUTPUT}>
                             Windows default
                         </DropOption>
                         {(nctx?.devices.outputs ?? []).map(({ id, name }) => (
-                            <DropOption key={id} value={id} className="flex gap-3">
+                            <DropOption key={id} value={id}>
                                 {name}
                             </DropOption>
                         ))}
@@ -163,7 +163,7 @@ export default function ToolbarContent() {
                         if (!nativeAudio) stream.updateAudioTrack();
                     }}>
                     {audioDevicesList.map(({ deviceId, label }) => (
-                        <DropOption key={deviceId} value={deviceId} className="flex gap-3">
+                        <DropOption key={deviceId} value={deviceId}>
                             {deviceName(label)}
                         </DropOption>
                     ))}
@@ -176,18 +176,17 @@ export default function ToolbarContent() {
                     title="Mode"
                     storageKey="Video mode"
                     onChoose={async (value) => stream.setMode(value === AUTO ? null : parseModeKey(value))}>
-                    <DropOption key={AUTO} value={AUTO} className="flex gap-3">
-                        {/* A bandeirinha "Auto" já diz que é automático; o texto mostra o modo escolhido. */}
-                        {auto ? `${auto.width} x ${auto.height}` : "Automatic"}
-                        <Tag text="Auto" color="var(--color-accent)" />
+                    <DropOption key={AUTO} value={AUTO}>
+                        {auto ? `Auto (${auto.width} x ${auto.height})` : "Auto"}
+                        {auto && <Tag text={resolutionTag(auto).text} color={resolutionTag(auto).color} />}
                         {auto && <Tag text={`${formatFps(auto.fps)} FPS`} color={fpsColor(auto.fps)} />}
                     </DropOption>
                     {choicesOf(modes).map((mode) => {
                         const tag = resolutionTag(mode);
                         return (
-                            <DropOption key={modeKey(mode)} value={modeKey(mode)} className="flex gap-3">
+                            <DropOption key={modeKey(mode)} value={modeKey(mode)}>
                                 {`${mode.width} x ${mode.height}`}
-                                {tag && <Tag text={tag.text} color={tag.color} />}
+                                <Tag text={tag.text} color={tag.color} />
                                 <Tag text={`${formatFps(mode.fps)} FPS`} color={fpsColor(mode.fps)} />
                             </DropOption>
                         );
@@ -199,16 +198,16 @@ export default function ToolbarContent() {
                         title="Resolution"
                         storageKey="Resolution (size)"
                         onChoose={async (value) => stream.setResolution(value === AUTO ? null : parseSizeKey(value))}>
-                        <DropOption key={AUTO} value={AUTO} className="flex gap-3">
-                            Automatic
-                            <Tag text="Auto" color="var(--color-accent)" />
+                        <DropOption key={AUTO} value={AUTO}>
+                            {isScreen ? `Auto (${screenSize.width} x ${screenSize.height})` : "Auto"}
+                            {isScreen && <Tag text={resolutionTag(screenSize).text} color={resolutionTag(screenSize).color} />}
                         </DropOption>
                         {sizes.map((size) => {
                             const tag = resolutionTag(size);
                             return (
-                                <DropOption key={sizeKey(size)} value={sizeKey(size)} className="flex gap-3">
+                                <DropOption key={sizeKey(size)} value={sizeKey(size)}>
                                     {`${size.width} x ${size.height}`}
-                                    {tag && <Tag text={tag.text} color={tag.color} />}
+                                    <Tag text={tag.text} color={tag.color} />
                                 </DropOption>
                             );
                         })}
@@ -218,11 +217,12 @@ export default function ToolbarContent() {
                         title="Framerate"
                         storageKey="Framerate (fps)"
                         onChoose={async (value) => stream.setFrameRate(value === AUTO ? null : Number(value))}>
-                        <DropOption key={AUTO} value={AUTO} className="flex gap-3">
-                            {isScreen ? `Automatic (${refreshRate} FPS)` : "Automatic"}
+                        <DropOption key={AUTO} value={AUTO}>
+                            Auto
+                            {isScreen && <Tag text={`${refreshRate} FPS`} color={fpsColor(refreshRate)} />}
                         </DropOption>
                         {fpsOptions.map((fps) => (
-                            <DropOption key={fps} value={String(fps)} className="flex gap-3">
+                            <DropOption key={fps} value={String(fps)}>
                                 <Tag text={`${fps} FPS`} color={fpsColor(fps)} />
                             </DropOption>
                         ))}
