@@ -15,6 +15,8 @@ export type AudioConfig = {
     recordInputVolume: number;
     recordMic: string | null;
     recordMicVolume: number;
+    /** Gravações: mistura + "sem o mic" + "só o mic" em faixas separadas. */
+    recordMicSeparate: boolean;
     recordSystem: boolean;
     recordSystemVolume: number;
     excludedApps: string[];

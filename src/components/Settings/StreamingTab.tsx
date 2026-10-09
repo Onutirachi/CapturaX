@@ -2,7 +2,6 @@ import { useContext, useState } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import { native, errorText, type StreamConfig, type UpnpStatus } from "../../core/native/api";
 import { Badge, Button, CopyField, Note, NumberInput, Row, Section, Toggle } from "./controls";
-import { BitrateControl, StreamQualityPicker, UploadNote } from "./StreamQuality";
 
 function formatWatching(seconds: number) {
     if (seconds < 60) return `${seconds}s`;
@@ -51,7 +50,8 @@ export default function StreamingTab() {
                 <Row label="Accept viewers" hint="Keeps the link online on this PC.">
                     <Toggle checked={stream.acceptViewers} onChange={(acceptViewers) => set({ acceptViewers })} />
                 </Row>
-                <Row label={live ? "You are live" : "Not live"} hint={live ? `${server?.viewers.length ?? 0} watching now` : "Start from here or from the Dock."}>
+                <Row label={live ? "You are live" : "Not live"} hint={live ? `${server?.viewers.length ?? 0} watching now` : "Quality is chosen when you go live (from here or from the Dock)."}>
+                    {live && <Button onClick={() => nctx.toggleStreaming()}>Change quality</Button>}
                     <Button variant={live ? "danger" : "accent"} onClick={() => (live ? nctx.stopStreaming() : nctx.toggleStreaming())} disabled={nctx.streaming === "starting" || nctx.streaming === "stopping"}>
                         {live ? "Stop" : "Go live"}
                     </Button>
@@ -90,15 +90,6 @@ export default function StreamingTab() {
                         )
                     }>
                     {server?.firewallOk ? <Badge color="var(--color-accent)">OK</Badge> : <Button onClick={fixFirewall} disabled={fixing}>{fixing ? "Waiting…" : "Fix firewall"}</Button>}
-                </Row>
-            </Section>
-
-            <Section title="Quality" description={<UploadNote />}>
-                <Row label="Resolution & FPS" hint="Up to what is being captured; keeps its aspect ratio.">
-                    <StreamQualityPicker />
-                </Row>
-                <Row label="Bitrate" hint="Automatic picks a good value for the resolution and frame rate.">
-                    <BitrateControl />
                 </Row>
             </Section>
 

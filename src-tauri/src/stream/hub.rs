@@ -235,7 +235,7 @@ impl FragmentSink for LiveSink {
         Ok(())
     }
 
-    fn finish(&mut self, _video: &VideoTrack, _audio: Option<&AudioTrack>) -> std::io::Result<Option<PathBuf>> {
+    fn finish(&mut self, _video: &VideoTrack, _audio: &[AudioTrack]) -> std::io::Result<Option<PathBuf>> {
         self.hub.end();
         Ok(None)
     }

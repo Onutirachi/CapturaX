@@ -41,6 +41,25 @@ export function DropOption({ children, className, value }: DropOptionProps) {
     );
 }
 
+/** Área visível onde o menu precisa caber: o primeiro ancestral que corta/rola (ex.: a lista das
+ * configurações) ou a janela. */
+function visibleArea(element: HTMLElement) {
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        if (/auto|scroll|hidden|clip/.test(style.overflowX + style.overflowY)) {
+            const r = parent.getBoundingClientRect();
+            return { left: Math.max(r.left, 0), top: Math.max(r.top, 0), right: Math.min(r.right, window.innerWidth), bottom: Math.min(r.bottom, window.innerHeight) };
+        }
+    }
+    return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+}
+
+const MARGIN = 8;
+const MENU_MAX_WIDTH = 448;
+const MENU_MAX_HEIGHT = 400;
+
+type Placement = { right: boolean; up: boolean; maxWidth: number; maxHeight: number };
+
 /** Quantas bandeirinhas (colunas além do texto) a opção com mais delas tem. */
 function tagColumns(children: ComponentChildren) {
     return Math.max(0, ...(Children.toArray(children) as any[]).map((child) => Children.toArray(child?.props?.children).filter((part) => !isText(part)).length));
@@ -52,8 +71,8 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     const [open, setOpen] = useState<boolean>(false);
     const [value, setValue] = useState<string | null>(null);
     const [display, setDisplay] = useState<any | null>(null);
-    /** Menu alinhado pela direita quando não cabe à direita do dropdown. */
-    const [alignRight, setAlignRight] = useState(false);
+    /** Lado e direção do menu, para caber na área visível sem gerar rolagem. */
+    const [placement, setPlacement] = useState<Placement>({ right: false, up: false, maxWidth: MENU_MAX_WIDTH, maxHeight: MENU_MAX_HEIGHT });
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     const toggleOpen = () => {
@@ -101,8 +120,27 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
 
     useLayoutEffect(() => {
         if (!open || !menuRef.current || !dropDownRef.current) return;
+        const menu = menuRef.current;
         const box = dropDownRef.current.getBoundingClientRect();
-        setAlignRight(box.left + menuRef.current.offsetWidth > window.innerWidth - 8);
+        const area = visibleArea(dropDownRef.current);
+        // Largura natural (a do maior texto), sem o limite da última vez.
+        const previous = menu.style.maxWidth;
+        menu.style.maxWidth = `${MENU_MAX_WIDTH}px`;
+        const width = menu.offsetWidth;
+        menu.style.maxWidth = previous;
+        const height = Math.min(menu.scrollHeight, MENU_MAX_HEIGHT);
+        const spaceRight = area.right - box.left - MARGIN;
+        const spaceLeft = box.right - area.left - MARGIN;
+        const right = width > spaceRight && spaceLeft > spaceRight;
+        const spaceBelow = area.bottom - box.bottom - MARGIN * 2;
+        const spaceAbove = box.top - area.top - MARGIN * 2;
+        const up = height > spaceBelow && spaceAbove > spaceBelow;
+        setPlacement({
+            right,
+            up,
+            maxWidth: Math.max(box.width, Math.min(MENU_MAX_WIDTH, right ? spaceLeft : spaceRight)),
+            maxHeight: Math.max(120, Math.min(MENU_MAX_HEIGHT, up ? spaceAbove : spaceBelow)),
+        });
     }, [open]);
 
     useEffect(() => {
@@ -158,19 +196,22 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
             </div>
             <div
                 ref={menuRef}
+                style={{ maxWidth: placement.maxWidth }}
                 className={`
                     z-2
-                    absolute top-full ${alignRight ? "right-0" : "left-0"}
-                    w-max min-w-full max-w-[min(28rem,calc(100vw-2rem))] h-auto
-                    p-1.5 mt-2
-                    rounded-xl bg-dark 
+                    absolute ${placement.up ? "bottom-full mb-2" : "top-full mt-2"} ${placement.right ? "right-0" : "left-0"}
+                    w-max min-w-full h-auto
+                    p-1.5
+                    rounded-xl bg-dark
                     box-border
-                    transition
-                    ${open ? "visibility-visible opacity-100 translate-y-0" : "visibility-hidden opacity-0 pointer-events-none -translate-y-2.5"}
+                    transition-all transition-discrete
+                    ${placement.up ? "starting:translate-y-2.5" : "starting:-translate-y-2.5"} starting:opacity-0
+                    ${open ? "block opacity-100 translate-y-0" : `hidden opacity-0 pointer-events-none ${placement.up ? "translate-y-2.5" : "-translate-y-2.5"}`}
                 `}>
+                {/* Fechado é `display: none` (não só transparente): senão a área ocupada gera rolagem. */}
                 <div
-                    className="w-full h-max max-h-100 overflow-y-auto overflow-x-hidden grid auto-rows-auto"
-                    style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${tagColumns(children)}, max-content)` }}>
+                    className="w-full h-max overflow-y-auto overflow-x-hidden grid auto-rows-auto"
+                    style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${tagColumns(children)}, max-content)`, maxHeight: placement.maxHeight - 12 }}>
                     {Children.map(children, (child: any) => {
                         return (
                             <div

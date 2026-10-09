@@ -18,7 +18,8 @@ pub struct FileSink {
     moov_offset: Option<u64>,
     moof_offsets: Vec<u64>,
     video_index: Vec<IndexedSample>,
-    audio_index: Vec<IndexedSample>,
+    /// Uma lista por faixa de áudio.
+    audio_index: Vec<Vec<IndexedSample>>,
 }
 
 impl FileSink {
@@ -50,7 +51,11 @@ impl FragmentSink for FileSink {
     fn fragment(&mut self, fragment: &Fragment) -> std::io::Result<()> {
         self.moof_offsets.push(self.position);
         let mut offset = self.position + fragment.payload_offset as u64;
-        for (meta, index) in [(&fragment.video, &mut self.video_index), (&fragment.audio, &mut self.audio_index)] {
+        if self.audio_index.len() < fragment.audio.len() {
+            self.audio_index.resize_with(fragment.audio.len(), Vec::new);
+        }
+        let indexes = std::iter::once((&fragment.video, &mut self.video_index)).chain(fragment.audio.iter().zip(self.audio_index.iter_mut()));
+        for (meta, index) in indexes {
             for m in meta {
                 index.push(IndexedSample { offset, size: m.size, duration: m.duration, sync: m.sync });
                 offset += m.size as u64;
@@ -61,7 +66,7 @@ impl FragmentSink for FileSink {
         self.file()?.flush()
     }
 
-    fn finish(&mut self, video: &VideoTrack, audio: Option<&AudioTrack>) -> std::io::Result<Option<PathBuf>> {
+    fn finish(&mut self, video: &VideoTrack, audio: &[AudioTrack]) -> std::io::Result<Option<PathBuf>> {
         if self.video_index.is_empty() {
             // Nada gravado (ex.: parou antes do primeiro keyframe): não deixa arquivo vazio.
             self.file = None;

@@ -2,13 +2,11 @@ import { useContext, useEffect } from "preact/hooks";
 import { NativeContext, type SettingsTab } from "../../context/NativeContext";
 import Icon from "../Overlay/Icon";
 import AudioTab from "./AudioTab";
-import AppsTab from "./AppsTab";
 import RecordingTab from "./RecordingTab";
 import StreamingTab from "./StreamingTab";
 
 const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: "audio", label: "Audio", icon: "./assets/Settings/audio.svg" },
-    { id: "apps", label: "App audio", icon: "./assets/Settings/apps.svg" },
     { id: "recording", label: "Recording", icon: "./assets/Dock/record.svg" },
     { id: "streaming", label: "Streaming", icon: "./assets/Dock/live.svg" },
 ];
@@ -58,7 +56,6 @@ export default function Settings() {
                     </header>
                     <div className="flex-1 overflow-y-auto p-6">
                         {tab === "audio" && <AudioTab />}
-                        {tab === "apps" && <AppsTab />}
                         {tab === "recording" && <RecordingTab />}
                         {tab === "streaming" && <StreamingTab />}
                     </div>

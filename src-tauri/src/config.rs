@@ -31,6 +31,8 @@ pub struct AudioConfig {
     /// Microfone opcional na gravação/transmissão.
     pub record_mic: Option<String>,
     pub record_mic_volume: f32,
+    /// Gravações com o microfone também em trilhas separadas (para editar depois).
+    pub record_mic_separate: bool,
     /// Áudio dos apps (loopback app por app, sem o CapturaX e sem os excluídos).
     pub record_system: bool,
     pub record_system_volume: f32,
@@ -54,6 +56,7 @@ impl Default for AudioConfig {
             record_input_volume: 1.0,
             record_mic: None,
             record_mic_volume: 1.0,
+            record_mic_separate: false,
             record_system: true,
             record_system_volume: 1.0,
             excluded_apps: vec!["discord.exe".into()],

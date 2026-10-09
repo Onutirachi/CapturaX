@@ -2,6 +2,7 @@ import { useContext } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import type { AudioConfig } from "../../core/native/api";
 import { Row, Section, Select, Slider, Toggle, type Option } from "./controls";
+import AppAudio from "./AppAudio";
 
 const NONE = "none";
 const SAME = "same";
@@ -65,16 +66,14 @@ export default function AudioTab() {
                     <Select value={audio.recordMic ?? NONE} options={[{ value: NONE, label: "None" }, ...inputs]} onChange={(v) => set({ recordMic: v === NONE ? null : v })} />
                     {audio.recordMic && <Slider value={audio.recordMicVolume} min={0} max={2} step={0.05} onChange={(recordMicVolume) => set({ recordMicVolume })} format={percent} />}
                 </Row>
-                <Row
-                    label="App audio"
-                    hint={
-                        <>
-                            Sound from other apps (music, browser…), minus the ones you leave out.{" "}
-                            <button className="text-accent-light hover:underline cursor-pointer" onClick={() => nctx.openSettings("apps")}>
-                                Choose apps
-                            </button>
-                        </>
-                    }>
+                {audio.recordMic && (
+                    <Row
+                        label="Microphone on separate tracks"
+                        hint="Recordings also get “Game and apps (no mic)” and “Microphone” as extra audio tracks, so a video editor can remove or adjust your voice. Players keep playing the full mix. The stream always has a single track.">
+                        <Toggle checked={audio.recordMicSeparate} onChange={(recordMicSeparate) => set({ recordMicSeparate })} />
+                    </Row>
+                )}
+                <Row label="App audio" hint="Sound from other apps (music, browser…), minus the ones you leave out below.">
                     {audio.recordSystem && (
                         <Slider value={audio.recordSystemVolume} min={0} max={2} step={0.05} onChange={(recordSystemVolume) => set({ recordSystemVolume })} format={percent} />
                     )}
@@ -84,6 +83,8 @@ export default function AudioTab() {
                     <Slider value={audio.avOffsetMs} min={-300} max={300} step={5} onChange={(avOffsetMs) => set({ avOffsetMs })} format={ms} />
                 </Row>
             </Section>
+
+            <AppAudio />
         </div>
     );
 }

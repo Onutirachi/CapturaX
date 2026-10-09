@@ -28,7 +28,7 @@ pub trait FragmentSink: Send {
     fn init(&mut self, bytes: &[u8], moov_offset: usize, codecs: &str) -> std::io::Result<()>;
     fn fragment(&mut self, fragment: &Fragment) -> std::io::Result<()>;
     /// Devolve o arquivo final, se houver.
-    fn finish(&mut self, video: &VideoTrack, audio: Option<&AudioTrack>) -> std::io::Result<Option<PathBuf>>;
+    fn finish(&mut self, video: &VideoTrack, audio: &[AudioTrack]) -> std::io::Result<Option<PathBuf>>;
 }
 
 pub use file::FileSink;
@@ -45,6 +45,8 @@ pub struct SessionOptions {
     pub sink: Box<dyn FragmentSink>,
     pub audio: Option<MixSettings>,
     pub audio_bitrate_kbps: u32,
+    /// Além da mistura completa, grava "sem o microfone" e "só o microfone" em faixas próprias.
+    pub separate_mic: bool,
     /// Duração mínima de cada fragmento (corta sempre num keyframe).
     pub fragment_secs: f64,
     /// Baixa latência: corta também a cada `part_secs`, sem esperar o keyframe.
@@ -54,7 +56,8 @@ pub struct SessionOptions {
 enum Message {
     VideoConfig(VideoTrack),
     Video { data: Vec<u8>, pts_us: i64, key: bool },
-    Audio { samples: Arc<Vec<f32>>, pts_us: i64 },
+    /// Um bloco por faixa de áudio (mistura completa primeiro).
+    Audio { tracks: Vec<Arc<Vec<f32>>>, pts_us: i64 },
     Stop(mpsc::Sender<Result<Option<PathBuf>, String>>),
 }
 
@@ -100,11 +103,20 @@ impl MediaManager {
         let (sender, receiver) = mpsc::channel();
         let stats = Arc::new(Stats::default());
 
+        let separate_mic = options.separate_mic;
         let mix_output = options.audio.as_ref().map(|settings| {
             let sender = sender.clone();
             self.audio.add_mix_output(
                 settings,
-                Box::new(move |block: &PcmBlock| sender.send(Message::Audio { samples: block.samples.clone(), pts_us: block.pts_us }).is_ok()),
+                Box::new(move |block: &PcmBlock| {
+                    let mut tracks = vec![block.samples.clone()];
+                    if separate_mic {
+                        // Mixer sem microfone (ex.: já rodava para a transmissão): faixa do mic em silêncio.
+                        let (rest, mic) = block.stems.clone().unwrap_or_else(|| (block.samples.clone(), Arc::new(vec![0.0; block.samples.len()])));
+                        tracks.extend([rest, mic]);
+                    }
+                    sender.send(Message::Audio { tracks, pts_us: block.pts_us }).is_ok()
+                }),
             )
         });
 
@@ -180,15 +192,16 @@ struct SessionState {
     sink: Box<dyn FragmentSink>,
     fragmenter: Fragmenter,
     video: Option<VideoTrack>,
-    audio_track: Option<AudioTrack>,
-    aac: Option<AacEncoder>,
+    audio_tracks: Vec<AudioTrack>,
+    /// Um encoder por faixa de áudio (vazio = sem áudio).
+    aac: Vec<AacEncoder>,
     base_us: Option<i64>,
     last_video_dts: Option<u64>,
-    pending_audio: VecDeque<(Arc<Vec<f32>>, i64)>,
+    pending_audio: VecDeque<(Vec<Arc<Vec<f32>>>, i64)>,
     /// Pacotes de vídeo em Annex B (decidido pela config: sem `description`).
     annexb: bool,
     audio_started: bool,
-    aac_frames: u64,
+    aac_frames: Vec<u64>,
     stats: Arc<Stats>,
     error: Option<String>,
 }
@@ -237,17 +250,14 @@ impl SessionState {
                 }
                 self.base_us = Some(pts_us);
                 self.stats.started_us.store(clock::now_us(), Ordering::Relaxed);
-                let (init, moov_offset) = fmp4::init_segment(&video, self.audio_track.as_ref());
-                let codecs = match self.audio_track {
-                    Some(_) => format!("{},mp4a.40.2", video.codec_string),
-                    None => video.codec_string.clone(),
-                };
+                let (init, moov_offset) = fmp4::init_segment(&video, &self.audio_tracks);
+                let codecs = std::iter::once(video.codec_string.as_str()).chain(self.audio_tracks.iter().map(|_| "mp4a.40.2")).collect::<Vec<_>>().join(",");
                 if let Err(error) = self.sink.init(&init, moov_offset, &codecs) {
                     eprintln!("Could not write media header: {error}");
                     self.error = Some(error.to_string());
                 }
-                for (samples, pts) in std::mem::take(&mut self.pending_audio) {
-                    self.on_audio(&samples, pts);
+                for (tracks, pts) in std::mem::take(&mut self.pending_audio) {
+                    self.on_audio(&tracks, pts);
                 }
                 pts_us
             }
@@ -263,82 +273,95 @@ impl SessionState {
         self.emit(fragment);
     }
 
-    fn on_audio(&mut self, samples: &[f32], pts_us: i64) {
-        if self.aac.is_none() {
+    fn on_audio(&mut self, tracks: &[Arc<Vec<f32>>], pts_us: i64) {
+        if self.aac.is_empty() {
             return;
         }
         let Some(base) = self.base_us else {
-            self.pending_audio.push_back((Arc::new(samples.to_vec()), pts_us));
+            self.pending_audio.push_back((tracks.to_vec(), pts_us));
             while self.pending_audio.front().is_some_and(|(_, pts)| pts_us - pts > MAX_PENDING_AUDIO_US) {
                 self.pending_audio.pop_front();
             }
             return;
         };
 
-        let mut padded;
-        let mut samples = samples;
+        // Alinha o começo do áudio exatamente com o primeiro keyframe (igual em todas as faixas).
+        let (mut skip, mut pad) = (0, 0);
         if !self.audio_started {
-            // Alinha o começo do áudio exatamente com o primeiro keyframe.
             let offset_frames = (pts_us - base) * SAMPLE_RATE as i64 / 1_000_000;
             if offset_frames < 0 {
-                let skip = (-offset_frames) as usize * CHANNELS;
-                if skip >= samples.len() {
+                skip = (-offset_frames) as usize * CHANNELS;
+                if tracks.first().is_none_or(|samples| skip >= samples.len()) {
                     return;
                 }
-                samples = &samples[skip..];
-            } else if offset_frames > 0 {
-                padded = vec![0.0; (offset_frames as usize).min(SAMPLE_RATE as usize) * CHANNELS];
-                padded.extend_from_slice(samples);
-                samples = &padded;
+            } else {
+                pad = (offset_frames as usize).min(SAMPLE_RATE as usize) * CHANNELS;
             }
             self.audio_started = true;
         }
 
-        let mut frames = Vec::new();
-        if let Err(error) = self.aac.as_mut().unwrap().encode(samples, &mut frames) {
-            eprintln!("AAC encoder failed: {error}");
-            self.aac = None;
-            return;
-        }
-        for data in frames {
-            let dts = self.aac_frames * aac::FRAME_SAMPLES as u64;
-            self.aac_frames += 1;
-            self.fragmenter.push_audio(Sample { data, dts, sync: true });
+        for (track, samples) in tracks.iter().enumerate().take(self.aac.len()) {
+            let mut padded;
+            let mut samples: &[f32] = &samples[skip.min(samples.len())..];
+            if pad > 0 {
+                padded = vec![0.0; pad];
+                padded.extend_from_slice(samples);
+                samples = &padded;
+            }
+            let mut frames = Vec::new();
+            if let Err(error) = self.aac[track].encode(samples, &mut frames) {
+                eprintln!("AAC encoder failed: {error}");
+                self.aac.clear();
+                return;
+            }
+            for data in frames {
+                let dts = self.aac_frames[track] * aac::FRAME_SAMPLES as u64;
+                self.aac_frames[track] += 1;
+                self.fragmenter.push_audio(track, Sample { data, dts, sync: true });
+            }
         }
     }
 }
 
 fn run_session(options: SessionOptions, receiver: mpsc::Receiver<Message>, stats: Arc<Stats>) {
     let _com = ComGuard::new();
-    let aac = match options.audio {
-        Some(_) => match AacEncoder::new(options.audio_bitrate_kbps) {
-            Ok(encoder) => Some(encoder),
-            Err(error) => {
-                eprintln!("Could not create AAC encoder, recording without audio: {error}");
-                None
-            }
-        },
-        None => None,
+    // Nomes que aparecem nos editores de vídeo; a primeira faixa é a que os players tocam.
+    let names: &[&str] = match (&options.audio, options.separate_mic) {
+        (None, _) => &[],
+        (Some(_), false) => &["CapturaX Audio"],
+        (Some(_), true) => &["Mix", "Game and apps (no mic)", "Microphone"],
     };
-    let audio_track = aac.as_ref().map(|encoder| AudioTrack {
-        config: AUDIO_SPECIFIC_CONFIG.to_vec(),
-        sample_rate: SAMPLE_RATE,
-        channels: CHANNELS as u16,
-        bitrate: encoder.bitrate,
-    });
+    let aac: Vec<AacEncoder> = match names.iter().map(|_| AacEncoder::new(options.audio_bitrate_kbps)).collect::<Result<Vec<_>, _>>() {
+        Ok(encoders) => encoders,
+        Err(error) => {
+            eprintln!("Could not create AAC encoder, recording without audio: {error}");
+            Vec::new()
+        }
+    };
+    let audio_tracks: Vec<AudioTrack> = aac
+        .iter()
+        .zip(names)
+        .map(|(encoder, name)| AudioTrack {
+            name: name.to_string(),
+            config: AUDIO_SPECIFIC_CONFIG.to_vec(),
+            sample_rate: SAMPLE_RATE,
+            channels: CHANNELS as u16,
+            bitrate: encoder.bitrate,
+        })
+        .collect();
 
     let mut state = SessionState {
         sink: options.sink,
-        fragmenter: Fragmenter::new(options.fragment_secs, options.part_secs, SAMPLE_RATE),
+        fragmenter: Fragmenter::new(options.fragment_secs, options.part_secs, SAMPLE_RATE, audio_tracks.len()),
         video: None,
-        audio_track,
+        aac_frames: vec![0; audio_tracks.len()],
+        audio_tracks,
         aac,
         base_us: None,
         last_video_dts: None,
         pending_audio: VecDeque::new(),
         annexb: false,
         audio_started: false,
-        aac_frames: 0,
         stats,
         error: None,
     };
@@ -353,12 +376,12 @@ fn run_session(options: SessionOptions, receiver: mpsc::Receiver<Message>, stats
                 }
             }
             Message::Video { data, pts_us, key } => state.on_video(data, pts_us, key),
-            Message::Audio { samples, pts_us } => state.on_audio(&samples, pts_us),
+            Message::Audio { tracks, pts_us } => state.on_audio(&tracks, pts_us),
             Message::Stop(reply) => {
                 let fragment = state.fragmenter.finish();
                 state.emit(fragment);
                 let result = match (&state.video, state.base_us) {
-                    (Some(video), Some(_)) => state.sink.finish(video, state.audio_track.as_ref()).map_err(|e| e.to_string()),
+                    (Some(video), Some(_)) => state.sink.finish(video, &state.audio_tracks).map_err(|e| e.to_string()),
                     _ => Ok(None),
                 };
                 let result = match state.error.take() {
@@ -403,7 +426,7 @@ mod tests {
             self.count += 1;
             std::fs::write(self.dir.join(format!("seg{:03}.m4s", self.count)), &fragment.bytes)
         }
-        fn finish(&mut self, _: &VideoTrack, _: Option<&AudioTrack>) -> std::io::Result<Option<PathBuf>> {
+        fn finish(&mut self, _: &VideoTrack, _: &[AudioTrack]) -> std::io::Result<Option<PathBuf>> {
             Ok(None)
         }
     }
@@ -433,8 +456,9 @@ mod tests {
         let options = SessionOptions {
             kind: SessionKind::Stream,
             sink: Box::new(crate::stream::LiveSink::new(server.hub.clone())),
-            audio: Some(MixSettings { inputs: vec![], system: None, excluded: vec![], offset_ms: 0 }),
+            audio: Some(MixSettings { inputs: vec![], mic: None, system: None, excluded: vec![], offset_ms: 0 }),
             audio_bitrate_kbps: 128,
+            separate_mic: false,
             fragment_secs: 1.0,
             part_secs: Some(0.1),
         };
@@ -469,7 +493,7 @@ mod tests {
                     phase = (phase + 440.0 / SAMPLE_RATE as f32).fract();
                     block.extend([v, v]);
                 }
-                sender.send(Message::Audio { samples: Arc::new(block), pts_us: audio_pts }).unwrap();
+                sender.send(Message::Audio { tracks: vec![Arc::new(block)], pts_us: audio_pts }).unwrap();
                 audio_pts += 10_000;
             }
             std::thread::sleep(Duration::from_millis(2));
@@ -508,13 +532,16 @@ mod tests {
             Box::new(DirSink { dir: hls_dir, count: 0 }),
         ];
 
-        for sink in sinks {
+        // O arquivo testa as faixas separadas (mistura, sem mic, só mic); o HLS, uma faixa só.
+        for (i, sink) in sinks.into_iter().enumerate() {
+            let separate_mic = i == 0;
             let (sender, receiver) = mpsc::channel();
             let options = SessionOptions {
                 kind: SessionKind::Recording,
                 sink,
-                audio: Some(MixSettings { inputs: vec![], system: None, excluded: vec![], offset_ms: 0 }),
+                audio: Some(MixSettings { inputs: vec![], mic: None, system: None, excluded: vec![], offset_ms: 0 }),
                 audio_bitrate_kbps: 192,
+                separate_mic,
                 fragment_secs: 1.0,
                 part_secs: None,
             };
@@ -537,7 +564,9 @@ mod tests {
                     phase = (phase + 440.0 / SAMPLE_RATE as f32).fract();
                     block.extend([v, v]);
                 }
-                sender.send(Message::Audio { samples: Arc::new(block), pts_us: audio_pts }).unwrap();
+                let block = Arc::new(block);
+                let tracks = if separate_mic { vec![block.clone(), block.clone(), Arc::new(vec![0.0; block.len()])] } else { vec![block] };
+                sender.send(Message::Audio { tracks, pts_us: audio_pts }).unwrap();
                 audio_pts += 10_000;
             }
             let (reply, result) = mpsc::channel();

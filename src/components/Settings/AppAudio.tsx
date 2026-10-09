@@ -9,7 +9,8 @@ function Checkbox({ checked, disabled, onChange }: { checked: boolean; disabled?
     return <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange?.(e.currentTarget.checked)} className="w-5 h-5 accent-accent cursor-pointer disabled:cursor-not-allowed" />;
 }
 
-export default function AppsTab() {
+/** Quais apps entram no áudio dos apps (seção da aba Audio). */
+export default function AppAudio() {
     const nctx = useContext(NativeContext)!;
     const audio = nctx.config!.audio;
     const [apps, setApps] = useState<AppListEntry[]>([]);
@@ -59,11 +60,11 @@ export default function AppsTab() {
     return (
         <div className="flex flex-col gap-6">
             <Section
-                title="App audio"
+                title="Apps"
                 description="Checked apps go into recordings and streams. Unchecked ones are left out, so whoever is watching doesn't hear them (like your Discord call). Changes apply right away, even while recording.">
                 {!audio.recordSystem && (
                     <div className="px-4 py-3">
-                        <Note tone="warning">App audio is turned off in the Audio tab, so no app is captured right now.</Note>
+                        <Note tone="warning">App audio is turned off above, so no app is captured right now.</Note>
                     </div>
                 )}
                 <div className="flex items-center gap-4 px-4 py-3 opacity-70">

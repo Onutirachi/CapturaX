@@ -9,7 +9,7 @@ import { AlertsContext } from "./AlertsContext";
 import { VideoStreamContext } from "./VideoStreamContext";
 
 type Activity = "idle" | "starting" | "active" | "stopping";
-export type SettingsTab = "audio" | "apps" | "recording" | "streaming";
+export type SettingsTab = "audio" | "recording" | "streaming";
 
 export type NativeContextType = {
     config: Config | null;

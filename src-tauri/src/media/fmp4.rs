@@ -6,6 +6,7 @@
 
 pub const VIDEO_TIMESCALE: u32 = 90_000;
 pub const VIDEO_TRACK: u32 = 1;
+/// Primeira faixa de áudio; as outras (trilhas separadas) vêm em seguida.
 pub const AUDIO_TRACK: u32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -27,6 +28,8 @@ pub struct VideoTrack {
 
 #[derive(Clone, Debug)]
 pub struct AudioTrack {
+    /// Nome que os editores de vídeo mostram (`hdlr`).
+    pub name: String,
     pub config: Vec<u8>,
     pub sample_rate: u32,
     pub channels: u16,
@@ -92,13 +95,7 @@ fn ftyp(w: &mut Writer) {
     w.end();
 }
 
-/// Duração total de cada faixa (no timescale da faixa), para o MP4 final.
-struct Durations {
-    video: u64,
-    audio: u64,
-}
-
-fn mvhd(w: &mut Writer, duration_ms: u64) {
+fn mvhd(w: &mut Writer, duration_ms: u64, next_track: u32) {
     w.begin_full(b"mvhd", 1, 0);
     w.u64(0);
     w.u64(0);
@@ -109,12 +106,15 @@ fn mvhd(w: &mut Writer, duration_ms: u64) {
     w.zeros(10);
     w.matrix();
     w.zeros(24);
-    w.u32(AUDIO_TRACK + 1);
+    w.u32(next_track);
     w.end();
 }
 
-fn tkhd(w: &mut Writer, track: u32, duration_ms: u64, audio: bool, width: u32, height: u32) {
-    w.begin_full(b"tkhd", 1, 0x3);
+/// `alternate_group`: faixas de áudio do mesmo grupo são alternativas (o player toca uma, a
+/// habilitada); editores importam todas.
+#[allow(clippy::too_many_arguments)]
+fn tkhd(w: &mut Writer, track: u32, duration_ms: u64, audio: bool, enabled: bool, alternate_group: u16, width: u32, height: u32) {
+    w.begin_full(b"tkhd", 1, if enabled { 0x3 } else { 0x2 });
     w.u64(0);
     w.u64(0);
     w.u32(track);
@@ -122,7 +122,7 @@ fn tkhd(w: &mut Writer, track: u32, duration_ms: u64, audio: bool, width: u32, h
     w.u64(duration_ms);
     w.zeros(8);
     w.u16(0);
-    w.u16(0);
+    w.u16(alternate_group);
     w.u16(if audio { 0x0100 } else { 0 });
     w.u16(0);
     w.matrix();
@@ -333,22 +333,22 @@ fn sample_tables(w: &mut Writer, samples: &[IndexedSample], with_sync: bool) {
     w.end();
 }
 
-fn moov(video: &VideoTrack, audio: Option<&AudioTrack>, index: Option<(&[IndexedSample], &[IndexedSample])>) -> Vec<u8> {
-    let durations = match index {
-        Some((v, a)) => Durations { video: v.iter().map(|s| s.duration as u64).sum(), audio: a.iter().map(|s| s.duration as u64).sum() },
-        None => Durations { video: 0, audio: 0 },
-    };
-    let video_ms = durations.video * 1000 / VIDEO_TIMESCALE as u64;
-    let audio_ms = audio.map_or(0, |a| durations.audio * 1000 / a.sample_rate as u64);
+/// `index`: amostras do vídeo e de cada faixa de áudio (MP4 final); `None` = fragmentado.
+fn moov(video: &VideoTrack, audio: &[AudioTrack], index: Option<(&[IndexedSample], &[Vec<IndexedSample>])>) -> Vec<u8> {
+    let total = |samples: &[IndexedSample]| samples.iter().map(|s| s.duration as u64).sum::<u64>();
+    let video_duration = index.map_or(0, |(v, _)| total(v));
+    let audio_durations: Vec<u64> = (0..audio.len()).map(|i| index.and_then(|(_, a)| a.get(i)).map_or(0, |a| total(a))).collect();
+    let video_ms = video_duration * 1000 / VIDEO_TIMESCALE as u64;
+    let audio_ms: Vec<u64> = audio.iter().zip(&audio_durations).map(|(a, d)| d * 1000 / a.sample_rate as u64).collect();
 
     let mut w = Writer::default();
     w.begin(b"moov");
-    mvhd(&mut w, video_ms.max(audio_ms));
+    mvhd(&mut w, audio_ms.iter().copied().fold(video_ms, u64::max), AUDIO_TRACK + audio.len() as u32);
 
     w.begin(b"trak");
-    tkhd(&mut w, VIDEO_TRACK, video_ms, false, video.width, video.height);
+    tkhd(&mut w, VIDEO_TRACK, video_ms, false, true, 0, video.width, video.height);
     w.begin(b"mdia");
-    mdhd(&mut w, VIDEO_TIMESCALE, durations.video);
+    mdhd(&mut w, VIDEO_TIMESCALE, video_duration);
     hdlr(&mut w, b"vide", "CapturaX Video");
     w.begin(b"minf");
     w.begin_full(b"vmhd", 0, 1);
@@ -366,21 +366,22 @@ fn moov(video: &VideoTrack, audio: Option<&AudioTrack>, index: Option<(&[Indexed
     w.end();
     w.end();
 
-    if let Some(audio) = audio {
+    let group = if audio.len() > 1 { 1 } else { 0 };
+    for (i, track) in audio.iter().enumerate() {
         w.begin(b"trak");
-        tkhd(&mut w, AUDIO_TRACK, audio_ms, true, 0, 0);
+        tkhd(&mut w, AUDIO_TRACK + i as u32, audio_ms[i], true, i == 0, group, 0, 0);
         w.begin(b"mdia");
-        mdhd(&mut w, audio.sample_rate, durations.audio);
-        hdlr(&mut w, b"soun", "CapturaX Audio");
+        mdhd(&mut w, track.sample_rate, audio_durations[i]);
+        hdlr(&mut w, b"soun", &track.name);
         w.begin(b"minf");
         w.begin_full(b"smhd", 0, 0);
         w.u32(0);
         w.end();
         dinf(&mut w);
         w.begin(b"stbl");
-        stsd(&mut w, None, Some(audio));
+        stsd(&mut w, None, Some(track));
         match index {
-            Some((_, samples)) => sample_tables(&mut w, samples, false),
+            Some((_, samples)) => sample_tables(&mut w, samples.get(i).map_or(&[], |s| s.as_slice()), false),
             None => empty_tables(&mut w),
         }
         w.end();
@@ -391,7 +392,7 @@ fn moov(video: &VideoTrack, audio: Option<&AudioTrack>, index: Option<(&[Indexed
 
     if index.is_none() {
         w.begin(b"mvex");
-        for track in [VIDEO_TRACK, AUDIO_TRACK].into_iter().take(if audio.is_some() { 2 } else { 1 }) {
+        for track in VIDEO_TRACK..AUDIO_TRACK + audio.len() as u32 {
             w.begin_full(b"trex", 0, 0);
             w.u32(track);
             w.u32(1);
@@ -408,7 +409,7 @@ fn moov(video: &VideoTrack, audio: Option<&AudioTrack>, index: Option<(&[Indexed
 
 /// Segmento de inicialização (`ftyp` + `moov` vazio com `mvex`). Devolve também onde o `moov`
 /// começa, para o arquivo final poder apagá-lo depois.
-pub fn init_segment(video: &VideoTrack, audio: Option<&AudioTrack>) -> (Vec<u8>, usize) {
+pub fn init_segment(video: &VideoTrack, audio: &[AudioTrack]) -> (Vec<u8>, usize) {
     let mut w = Writer::default();
     ftyp(&mut w);
     let moov_offset = w.buf.len();
@@ -417,7 +418,7 @@ pub fn init_segment(video: &VideoTrack, audio: Option<&AudioTrack>) -> (Vec<u8>,
 }
 
 /// `moov` completo (não fragmentado) para o fim do arquivo gravado.
-pub fn progressive_moov(video: &VideoTrack, audio: Option<&AudioTrack>, video_samples: &[IndexedSample], audio_samples: &[IndexedSample]) -> Vec<u8> {
+pub fn progressive_moov(video: &VideoTrack, audio: &[AudioTrack], video_samples: &[IndexedSample], audio_samples: &[Vec<IndexedSample>]) -> Vec<u8> {
     moov(video, audio, Some((video_samples, audio_samples)))
 }
 
@@ -440,7 +441,8 @@ pub struct Fragment {
     /// Início das amostras dentro de `bytes` (logo depois do cabeçalho do `mdat`).
     pub payload_offset: usize,
     pub video: Vec<SampleMeta>,
-    pub audio: Vec<SampleMeta>,
+    /// Uma lista por faixa de áudio.
+    pub audio: Vec<Vec<SampleMeta>>,
     pub duration_secs: f64,
     /// Começa num keyframe (dá para começar a tocar daqui).
     pub starts_with_key: bool,
@@ -454,14 +456,15 @@ pub struct Fragmenter {
     part: Option<u64>,
     audio_rate: u32,
     video: Vec<Sample>,
-    audio: Vec<Sample>,
+    /// Uma fila por faixa de áudio.
+    audio: Vec<Vec<Sample>>,
     last_video_duration: u32,
     /// Já recebeu o primeiro keyframe (antes dele, o vídeo é descartado).
     started: bool,
 }
 
 impl Fragmenter {
-    pub fn new(min_duration_secs: f64, part_secs: Option<f64>, audio_rate: u32) -> Self {
+    pub fn new(min_duration_secs: f64, part_secs: Option<f64>, audio_rate: u32, audio_tracks: usize) -> Self {
         let ticks = |secs: f64| (secs * VIDEO_TIMESCALE as f64) as u64;
         Self {
             sequence: 0,
@@ -469,14 +472,14 @@ impl Fragmenter {
             part: part_secs.map(ticks),
             audio_rate,
             video: Vec::new(),
-            audio: Vec::new(),
+            audio: (0..audio_tracks).map(|_| Vec::new()).collect(),
             last_video_duration: VIDEO_TIMESCALE / 30,
             started: false,
         }
     }
 
-    pub fn push_audio(&mut self, sample: Sample) {
-        self.audio.push(sample);
+    pub fn push_audio(&mut self, track: usize, sample: Sample) {
+        self.audio[track].push(sample);
     }
 
     /// Fecha o fragmento anterior quando chega um keyframe e já passou a duração mínima.
@@ -516,14 +519,18 @@ impl Fragmenter {
         self.last_video_duration = *durations.last().unwrap();
 
         // Áudio até o instante em que o próximo fragmento começa.
-        let audio = match next_video_dts {
-            Some(end) => {
-                let end_audio = end * self.audio_rate as u64 / VIDEO_TIMESCALE as u64;
-                let split = self.audio.iter().position(|s| s.dts >= end_audio).unwrap_or(self.audio.len());
-                self.audio.drain(..split).collect::<Vec<_>>()
-            }
-            None => std::mem::take(&mut self.audio),
-        };
+        let end_audio = next_video_dts.map(|end| end * self.audio_rate as u64 / VIDEO_TIMESCALE as u64);
+        let audio: Vec<Vec<Sample>> = self
+            .audio
+            .iter_mut()
+            .map(|queue| match end_audio {
+                Some(end) => {
+                    let split = queue.iter().position(|s| s.dts >= end).unwrap_or(queue.len());
+                    queue.drain(..split).collect()
+                }
+                None => std::mem::take(queue),
+            })
+            .collect();
 
         self.sequence += 1;
         let duration_secs = durations.iter().map(|&d| d as f64).sum::<f64>() / VIDEO_TIMESCALE as f64;
@@ -532,9 +539,9 @@ impl Fragmenter {
             .zip(&durations)
             .map(|(s, &duration)| SampleMeta { size: s.data.len() as u32, duration, sync: s.sync })
             .collect();
-        let audio_meta: Vec<SampleMeta> = audio
+        let audio_meta: Vec<Vec<SampleMeta>> = audio
             .iter()
-            .map(|s| SampleMeta { size: s.data.len() as u32, duration: crate::media::aac::FRAME_SAMPLES, sync: true })
+            .map(|track| track.iter().map(|s| SampleMeta { size: s.data.len() as u32, duration: crate::media::aac::FRAME_SAMPLES, sync: true }).collect())
             .collect();
 
         let mut w = Writer::default();
@@ -543,11 +550,15 @@ impl Fragmenter {
         w.u32(self.sequence);
         w.end();
 
+        // Ordem no mdat: vídeo e depois cada faixa de áudio.
         let mut offset_fields = Vec::new();
-        for (track, samples, meta) in [(VIDEO_TRACK, &video, &video_meta), (AUDIO_TRACK, &audio, &audio_meta)] {
+        let mut payload = 0usize;
+        let tracks = std::iter::once((VIDEO_TRACK, &video, &video_meta)).chain(audio.iter().zip(&audio_meta).enumerate().map(|(i, (s, m))| (AUDIO_TRACK + i as u32, s, m)));
+        for (track, samples, meta) in tracks {
             if samples.is_empty() {
                 continue;
             }
+            let bytes: usize = samples.iter().map(|s| s.data.len()).sum();
             let is_video = track == VIDEO_TRACK;
             w.begin(b"traf");
             w.begin_full(b"tfhd", 0, 0x02_0000); // default-base-is-moof
@@ -559,7 +570,8 @@ impl Fragmenter {
             let flags = 0x1 | 0x100 | 0x200 | if is_video { 0x400 } else { 0 };
             w.begin_full(b"trun", 0, flags);
             w.u32(samples.len() as u32);
-            offset_fields.push((w.buf.len(), is_video));
+            offset_fields.push((w.buf.len(), payload));
+            payload += bytes;
             w.u32(0); // data_offset, preenchido abaixo
             for m in meta.iter() {
                 w.u32(m.duration);
@@ -574,16 +586,14 @@ impl Fragmenter {
         w.end();
 
         let moof_size = w.buf.len();
-        let video_bytes: usize = video.iter().map(|s| s.data.len()).sum();
-        let audio_bytes: usize = audio.iter().map(|s| s.data.len()).sum();
-        for (position, is_video) in offset_fields {
-            let offset = moof_size + 8 + if is_video { 0 } else { video_bytes };
+        for (position, start) in offset_fields {
+            let offset = moof_size + 8 + start;
             w.buf[position..position + 4].copy_from_slice(&(offset as u32).to_be_bytes());
         }
 
-        w.u32((8 + video_bytes + audio_bytes) as u32);
+        w.u32((8 + payload) as u32);
         w.bytes(b"mdat");
-        for s in video.iter().chain(audio.iter()) {
+        for s in video.iter().chain(audio.iter().flatten()) {
             w.bytes(&s.data);
         }
 
@@ -603,7 +613,7 @@ mod tests {
     /// Modo baixa latência: pedaços de 100 ms no meio do GOP não podem perder frames.
     #[test]
     fn low_latency_parts_keep_every_frame() {
-        let mut fragmenter = Fragmenter::new(1.0, Some(0.1), 48_000);
+        let mut fragmenter = Fragmenter::new(1.0, Some(0.1), 48_000, 1);
         let mut frames_out = 0;
         let mut parts = 0;
         for i in 0..240u64 {

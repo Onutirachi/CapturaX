@@ -93,6 +93,7 @@ fn mix_settings(config: &Config) -> MixSettings {
     }
     MixSettings {
         inputs,
+        mic: audio.record_mic.clone(),
         system: audio.record_system.then_some(audio.record_system_volume),
         excluded: audio.excluded_apps.iter().map(|e| e.to_lowercase()).collect(),
         offset_ms: audio.av_offset_ms,
@@ -249,6 +250,7 @@ pub async fn recording_start(app: AppHandle, state: State<'_, AppState>) -> Resu
         sink: Box::new(sink),
         audio: has_audio(&mix).then_some(mix),
         audio_bitrate_kbps: config.recording.audio_bitrate_kbps,
+        separate_mic: config.audio.record_mic_separate && config.audio.record_mic.is_some(),
         fragment_secs: 1.0,
         part_secs: None,
     });
@@ -278,6 +280,8 @@ pub async fn stream_start(state: State<'_, AppState>) -> Result<u32, String> {
         sink: Box::new(LiveSink::new(state.stream.hub.clone())),
         audio: has_audio(&mix).then_some(mix),
         audio_bitrate_kbps: config.stream.audio_bitrate_kbps,
+        // Quem assiste ouve uma faixa só.
+        separate_mic: false,
         fragment_secs: 1.0,
         part_secs: Some(LIVE_PART_SECS),
     });

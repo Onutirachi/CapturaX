@@ -85,6 +85,8 @@ struct Subscription {
 pub struct PcmBlock {
     pub pts_us: i64,
     pub samples: Arc<Vec<f32>>,
+    /// Com microfone: (tudo menos o microfone, só o microfone), para trilhas separadas.
+    pub stems: Option<(Arc<Vec<f32>>, Arc<Vec<f32>>)>,
 }
 
 /// Recebe os blocos do mixer; devolve `false` para ser removido (sessão encerrada).
@@ -101,6 +103,8 @@ pub struct PreviewSettings {
 pub struct MixSettings {
     /// (dispositivo, volume)
     pub inputs: Vec<(String, f32)>,
+    /// Qual das `inputs` é o microfone (vira uma parte separada em `PcmBlock::stems`).
+    pub mic: Option<String>,
     /// Volume do áudio dos apps; `None` = sem áudio do sistema.
     pub system: Option<f32>,
     pub excluded: Vec<String>,
@@ -119,6 +123,7 @@ struct MixInput {
     ring: Arc<Ring>,
     gain: Arc<Gain>,
     primed: bool,
+    mic: bool,
 }
 
 struct Mixer {
@@ -292,13 +297,14 @@ impl AudioEngine {
         let offset_us = Arc::new(AtomicI32::new(settings.offset_ms * 1000));
 
         let mut seen = HashSet::new();
-        for (device, volume) in &settings.inputs {
+        for (i, (device, volume)) in settings.inputs.iter().enumerate() {
             // O mesmo dispositivo duas vezes (placa = microfone?) entraria dobrado.
             if !seen.insert(device.clone()) {
                 continue;
             }
+            let mic = settings.mic.as_ref() == Some(device) && !settings.inputs[..i].iter().any(|(other, _)| other == device);
             let subscription = self.subscribe(state, SourceKey::Device(device.clone()), MIX_RING_FRAMES);
-            inputs.lock().unwrap().push(MixInput { key: subscription.key.clone(), ring: subscription.ring.clone(), gain: Gain::new(*volume), primed: false });
+            inputs.lock().unwrap().push(MixInput { key: subscription.key.clone(), ring: subscription.ring.clone(), gain: Gain::new(*volume), primed: false, mic });
             subscriptions.lock().unwrap().push(subscription);
         }
 
@@ -382,6 +388,7 @@ impl AudioEngine {
                         ring: subscription.ring.clone(),
                         gain: system_gain.clone(),
                         primed: false,
+                        mic: false,
                     });
                     subscriptions.lock().unwrap().push(subscription);
                 }
@@ -552,8 +559,12 @@ fn run_mixer(stop: Arc<AtomicBool>, inputs: Arc<Mutex<Vec<MixInput>>>, outputs: 
             emitted = due - due % BLOCK_FRAMES as i64;
         }
         while emitted + BLOCK_FRAMES as i64 <= due {
-            let mut mix = vec![0.0f32; BLOCK_FRAMES * CHANNELS];
+            // Soma separada do microfone (se houver), para quem grava em trilhas separadas.
+            let mut rest = vec![0.0f32; BLOCK_FRAMES * CHANNELS];
+            let mut mic = vec![0.0f32; BLOCK_FRAMES * CHANNELS];
+            let mut has_mic = false;
             for input in inputs.lock().unwrap().iter_mut() {
+                has_mic |= input.mic;
                 let level = input.ring.len_frames();
                 if level > MIX_MAX_FRAMES {
                     input.ring.trim_to(MIX_JITTER_FRAMES);
@@ -569,15 +580,20 @@ fn run_mixer(stop: Arc<AtomicBool>, inputs: Arc<Mutex<Vec<MixInput>>>, outputs: 
                     input.primed = false;
                 }
                 let volume = input.gain.get();
-                for (out, sample) in mix.iter_mut().zip(&scratch[..read * CHANNELS]) {
+                let target = if input.mic { &mut mic } else { &mut rest };
+                for (out, sample) in target.iter_mut().zip(&scratch[..read * CHANNELS]) {
                     *out += sample * volume;
                 }
             }
-            for sample in &mut mix {
-                *sample = sample.clamp(-1.0, 1.0);
-            }
+            let mix: Vec<f32> = rest.iter().zip(&mic).map(|(a, b)| (a + b).clamp(-1.0, 1.0)).collect();
+            let stems = has_mic.then(|| {
+                for sample in rest.iter_mut().chain(mic.iter_mut()) {
+                    *sample = sample.clamp(-1.0, 1.0);
+                }
+                (Arc::new(rest), Arc::new(mic))
+            });
             let pts_us = start + emitted * 1_000_000 / SAMPLE_RATE as i64 - MIX_LATENCY_US + offset_us.load(Ordering::Relaxed) as i64;
-            let block = PcmBlock { pts_us, samples: Arc::new(mix) };
+            let block = PcmBlock { pts_us, samples: Arc::new(mix), stems };
             outputs.lock().unwrap().retain_mut(|(_, sink)| sink(&block));
             emitted += BLOCK_FRAMES as i64;
         }
@@ -711,7 +727,7 @@ mod tests {
         let peak = Arc::new(AtomicU32::new(0));
         let counter = blocks.clone();
         let level = peak.clone();
-        let settings = MixSettings { inputs: vec![], system: Some(1.0), excluded: vec!["discord.exe".into()], offset_ms: 0 };
+        let settings = MixSettings { inputs: vec![], mic: None, system: Some(1.0), excluded: vec!["discord.exe".into()], offset_ms: 0 };
         let id = engine.add_mix_output(&settings, Box::new(move |block| {
             counter.fetch_add(1, Ordering::Relaxed);
             let max = block.samples.iter().fold(0f32, |m, s| m.max(s.abs()));

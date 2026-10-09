@@ -61,6 +61,9 @@ src-tauri/src/
   (`VideoEncoder`, `prefer-hardware`) → packets sent **in order** via `media_video_chunk` (raw binary
   body, metadata in headers) with timestamps converted to the QPC clock. The Rust mixer adds audio
   (device + mic + apps) stamped with the same clock; `media/` muxes into fMP4.
+- **Mic on separate tracks** (`audio.recordMicSeparate`, recordings only): the mixer also emits
+  "everything but the mic" and "mic only" (`PcmBlock::stems`); the file gets 3 AAC tracks (Mix,
+  Game and apps, Microphone) in one alternate group, only the Mix enabled, so players play the mix.
 - **Recording file**: fMP4 while running (crash-safe); on stop a full `moov` is appended and old
   `moov`/`moof` boxes are renamed to `free`, so it becomes a regular MP4.
 - **Stream (low latency)**: the stream session cuts fMP4 parts every 100 ms (`part_secs`);
