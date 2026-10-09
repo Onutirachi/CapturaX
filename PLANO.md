@@ -215,6 +215,16 @@ HTTPS para um servidor hospedado. O app e a página de quem assiste não mudam.
    extra **Smoothest** no Mode: o maior FPS a partir de 720p (ezcap: 1080p120); só aparece quando
    é diferente do Auto.
 
+### Fase 11 — Fontes da gravação/transmissão — **feito** (2026-10-09)
+Decidido com o usuário: o preview (barra de cima) é só para dispositivos — ver a própria tela no
+CapturaX não faz sentido. Gravação e transmissão escolhem a fonte nas suas janelas: a mesma do
+preview, uma tela ou uma janela (ex.: transmitir a tela inteira com o CapturaX mostrando o PS5).
+Botões "Ver gravação" / "Ver live" mostram no preview o que está saindo e travam os dropdowns até
+voltar (apagados quando a fonte é a do preview). Placas aceitam um dono só, então a saída nunca abre
+outro dispositivo. Áudio separado: o que você ouve × o que vai junto; o "Auto" do áudio gravado é o
+do aparelho do preview (o som do console vai junto ao transmitir a tela). Saída de áudio só nas
+configurações. Barra de baixo mostra fonte, resolução e FPS de cada saída.
+
 ### Fase 10 — Assistir sem abrir porta (só estudo, não implementar ainda)
 Hoje quem assiste pela internet precisa da porta aberta no roteador (UPnP ou manual) e não
 funciona atrás de CGNAT. Opções gratuitas levantadas em 2026-10-09, para entender antes de decidir:

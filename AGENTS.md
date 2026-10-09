@@ -76,9 +76,20 @@ src-tauri/src/
   `PlatformHEVCEncoderSupport` feature (set in `tauri.conf.json` `additionalBrowserArgs`) and comes
   as Annex B without a description; above 1080p, >30 fps is only accepted without `framerate`.
 
+### Outputs and their sources
+The top bar only picks devices: that is the preview. Recording and streaming each have a **source**
+(`config.recording.source` / `config.stream.source`): `null` = same as the preview, or a screen /
+window, chosen in their dialogs (`RecordDialog`, `GoLiveDialog`, `OutputSource.tsx`). Capture cards
+usually allow a single owner, so outputs never open a different device than the preview.
+While an output with its own source runs, the top bar shows "View recording" / "View live": the
+preview then shows that output and the dropdowns are locked until you switch back (greyed out when
+the source is the preview). F10 records with the last dialog choices. Screens and windows share one
+capture at a time (`captureHub.ts`), so recording and streaming can use the same one, not two.
+Audio is split the same way: what you hear (preview input/output) vs what goes into outputs (one
+mix for both); its "Auto" device is the audio of the preview device, even when the source is a screen.
+
 ### Screen/window capture (`src-tauri/src/capture/`)
-Screens and windows are listed in the Video Device dropdown ("Screens" / "Windows" groups, screens
-named "Screen 2 - 27G2G4" from `\\.\DISPLAYn` + the DisplayConfig monitor name). Windows Graphics
+Screens are named "Screen 2 - 27G2G4" from `\\.\DISPLAYn` + the DisplayConfig monitor name. Windows Graphics
 Capture runs in Rust (no yellow border, cursor on) and each BGRA frame is copied into WebView2
 shared buffers (`bridge.rs`: `CreateSharedBuffer` + `PostSharedBufferToScript`, a 64-byte header
 whose first u32 is 1 while the frame waits for the WebView, and a small `PostWebMessageAsJson` per
@@ -123,8 +134,8 @@ Video source manager, instantiated once in `ToolbarContent`:
   app cannot see or change it.
 - `setVideoDevice(id, modes)`, `setMode()`, `setResolution()`, `setFrameRate()` (`null` = auto)
   **reopen** the device with `resizeMode: "none"` (native mode), coalesced by `requestVideoRestart()`
-- Screen/window: `setCaptureSource(id, refreshRate)` (native capture, only FPS is adjustable via `capture_set_fps`).
-  `SCREEN_SOURCE` + `getDisplayMedia` is only a fallback outside the app (no `chrome.webview`)
+- `SCREEN_SOURCE` + `getDisplayMedia` is only a fallback outside the app (no `chrome.webview`); in the app,
+  screens and windows are output sources, not preview sources
 - Browser audio fallback: `updateAudioTrack()` / `clearAudio()`
 
 ### Core Reusable Components (`src/core/components/`)
