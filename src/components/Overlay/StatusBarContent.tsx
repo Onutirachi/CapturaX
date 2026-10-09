@@ -1,3 +1,4 @@
+import { trackSettings } from "../../core/native/screenCapture";
 import { useContext } from "preact/hooks";
 import Tag from "../../core/components/Tag";
 import Resolution from "../../core/utils/Resolution";
@@ -81,7 +82,7 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
         );
     }
 
-    const settings = videoTrack.getSettings();
+    const settings = trackSettings(videoTrack);
     const width = settings.width || 0;
     const height = settings.height || 0;
     const resolutionTag = Resolution.getStandardTag({ width, height });

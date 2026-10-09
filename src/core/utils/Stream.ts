@@ -4,6 +4,8 @@ import { monitorRefreshRate } from "./refreshRate";
 import { SetAlertType } from "../../context/AlertsContext";
 import { SetVideoStreamType } from "../../context/VideoStreamContext";
 import { SetVideoTrackType } from "../../context/VideoStreamContext";
+import { NativeScreenCapture } from "../native/screenCapture";
+import { errorText } from "../native/api";
 
 // `resizeMode` ainda não está nos tipos do TypeScript.
 type VideoConstraints = MediaTrackConstraints & { resizeMode?: "none" | "crop-and-scale" };
@@ -13,8 +15,11 @@ const MAX_HEIGHT = 4320;
 const AUTO_TARGET_FPS = 60;
 const FPS_TOLERANCE = 0.97;
 
-/** Valor especial do dropdown de vídeo: captura de tela/janela em vez de dispositivo. */
+/** Valor especial do dropdown de vídeo: seletor de tela do navegador (só fora do app, sem a captura nativa). */
 export const SCREEN_SOURCE = "screen";
+
+/** Telas e janelas da captura nativa: `screen:\\.\DISPLAY2`, `window:<hwnd>`. */
+export const isCaptureSource = (id: string) => id.startsWith("screen:") || id.startsWith("window:");
 
 export type StreamType = { setAlert: SetAlertType; setVideoStream: SetVideoStreamType; setVideoTrack: SetVideoTrackType };
 
@@ -22,7 +27,11 @@ export default class Stream {
     private mediaStream: MediaStream = new MediaStream();
 
     private videoId: string | null = null;
-    private source: "device" | "screen" = "device";
+    /** device = câmera/placa; screen = seletor do navegador; capture = tela/janela pelo Rust. */
+    private source: "device" | "screen" | "capture" = "device";
+    private nativeCapture: NativeScreenCapture | null = null;
+    /** Taxa de atualização da tela capturada (FPS do automático). */
+    private captureRefreshRate = 60;
     public audioId: string | null = null;
     private currentAudioId: string | null = null;
     private resolution: Size | null = null;
@@ -48,6 +57,16 @@ export default class Stream {
 
     get isScreen() {
         return this.source === "screen";
+    }
+
+    /** Tela ou janela capturada pelo Rust. `refreshRate` = FPS do automático. */
+    setCaptureSource(id: string, refreshRate: number) {
+        this.source = "capture";
+        this.videoId = id;
+        this.modes = null;
+        this.resolution = null;
+        this.captureRefreshRate = refreshRate;
+        return this.requestVideoRestart();
     }
 
     /** `modes`: modos reais do dispositivo, se conhecidos. */
@@ -80,6 +99,11 @@ export default class Stream {
     /** `null` = automático. */
     setFrameRate(frameRate: number | null) {
         this.frameRate = frameRate;
+        if (this.source === "capture") {
+            const fps = frameRate ?? this.captureRefreshRate;
+            if (this.nativeCapture) return this.nativeCapture.setFps(fps).then(() => this.videoTrack && this.setVideoTrack(this.videoTrack));
+            return;
+        }
         return this.isScreen ? this.applyScreenConstraints() : this.requestVideoRestart();
     }
 
@@ -99,6 +123,8 @@ export default class Stream {
     }
 
     private closeVideoTrack() {
+        this.nativeCapture?.stop();
+        this.nativeCapture = null;
         if (!this.videoTrack) return;
         this.mediaStream.removeTrack(this.videoTrack);
         this.videoTrack.stop();
@@ -176,7 +202,26 @@ export default class Stream {
         return attempts;
     }
 
+    private async openCapture(id: string) {
+        this.closeVideoTrack();
+        try {
+            let track: MediaStreamTrack | null = null;
+            const capture = await NativeScreenCapture.start(id, this.frameRate ?? this.captureRefreshRate, true, () => track && this.handleVideoEnded(track));
+            // Trocou de fonte enquanto abria.
+            if (this.videoId !== id || this.source !== "capture") return capture.stop();
+            track = capture.track;
+            this.nativeCapture = capture;
+            this.videoTrack = track;
+            this.mediaStream.addTrack(track);
+            this.setVideoTrack(track);
+            this.setAlert(null);
+        } catch (error) {
+            this.handleError(`Could not capture this screen or window (${errorText(error)})`);
+        }
+    }
+
     private async openVideoTrack() {
+        if (this.source === "capture" && this.videoId) return this.openCapture(this.videoId);
         if (!this.videoId || this.isScreen) return;
 
         // Fecha antes de abrir: muitas placas de captura não aceitam duas sessões ao mesmo tempo,
@@ -212,7 +257,10 @@ export default class Stream {
         this.mediaStream.removeTrack(track);
         this.videoTrack = null;
         this.setVideoTrack(null);
-        this.handleWarning(this.isScreen ? "Screen capture stopped" : "Video device disconnected");
+        this.nativeCapture?.stop();
+        this.nativeCapture = null;
+        const message = this.source === "capture" ? (this.videoId?.startsWith("window:") ? "The captured window was closed" : "Screen capture stopped") : this.isScreen ? "Screen capture stopped" : "Video device disconnected";
+        this.handleWarning(message);
     }
 
     private handleAudioEnded(track: MediaStreamTrack) {
@@ -226,7 +274,7 @@ export default class Stream {
     /** Chamado quando a lista de dispositivos muda: reabre o que caiu e voltou. */
     handleDeviceChange(devices: MediaDeviceInfo[]) {
         const available = (id: string | null) => id !== null && devices.some((device) => device.deviceId === id);
-        if (!this.isScreen && !this.videoTrack && available(this.videoId)) this.requestVideoRestart();
+        if (this.source === "device" && !this.videoTrack && available(this.videoId)) this.requestVideoRestart();
         if (!this.audioTrack && available(this.audioId)) this.updateAudioTrack();
     }
 

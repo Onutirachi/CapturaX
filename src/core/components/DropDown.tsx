@@ -11,6 +11,8 @@ type DropDownProps = {
     storageKey?: string;
     /** Modo controlado: o valor vem de fora (ex.: config do Rust) e nada é salvo aqui. */
     value?: string | null;
+    /** Chamado ao abrir o menu (ex.: atualizar a lista de janelas). */
+    onOpen?: () => void;
     /** Ocupa a largura toda do pai (ex.: janelas); sem isso, cresce até um limite e o texto rola. */
     fullWidth?: boolean;
 };
@@ -60,12 +62,21 @@ const MENU_MAX_HEIGHT = 400;
 
 type Placement = { right: boolean; up: boolean; maxWidth: number; maxHeight: number };
 
-/** Quantas bandeirinhas (colunas além do texto) a opção com mais delas tem. */
-function tagColumns(children: ComponentChildren) {
-    return Math.max(0, ...(Children.toArray(children) as any[]).map((child) => Children.toArray(child?.props?.children).filter((part) => !isText(part)).length));
+/** Título de grupo dentro do menu (ex.: "Screens"); não é uma opção. */
+export function DropHeader({ children }: { children: ComponentChildren }) {
+    return <>{children}</>;
 }
 
-export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue, fullWidth = false }: DropDownProps) {
+const isHeader = (child: any) => child?.type === DropHeader;
+/** Só as opções (sem os títulos de grupo). */
+const optionsOf = (children: ComponentChildren) => (Children.toArray(children) as any[]).filter((child) => !isHeader(child));
+
+/** Quantas bandeirinhas (colunas além do texto) a opção com mais delas tem. */
+function tagColumns(children: ComponentChildren) {
+    return Math.max(0, ...optionsOf(children).map((child) => Children.toArray(child?.props?.children).filter((part) => !isText(part)).length));
+}
+
+export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue, fullWidth = false, onOpen }: DropDownProps) {
     const controlled = controlledValue !== undefined;
     const dropDownRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState<boolean>(false);
@@ -76,6 +87,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     const toggleOpen = () => {
+        if (!open) onOpen?.();
         setOpen(!open);
     };
 
@@ -92,12 +104,12 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
 
     // Só re-seleciona quando as opções mudam de verdade (ex.: dispositivo plugado/desplugado).
     // `children` é um array novo a cada render do pai, então não pode ser a dependência.
-    const optionValues = (Children.toArray(children) as any[]).map((child) => child.props?.value).join("\u0000");
+    const optionValues = optionsOf(children).map((child) => child.props?.value).join("\u0000");
 
     useEffect(() => {
         if (controlled) return;
         const storedValue = localStorage.getItem(storageKey);
-        const optionsArray = Children.toArray(children) as any;
+        const optionsArray = optionsOf(children);
 
         if (storedValue) {
             const found = optionsArray.find((child: any) => child.props?.value === storedValue);
@@ -116,7 +128,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
         onChoose(value);
     }, [value]);
 
-    const shown = controlled ? (Children.toArray(children) as any[]).find((child) => child.props?.value === controlledValue) ?? null : display;
+    const shown = controlled ? optionsOf(children).find((child) => child.props?.value === controlledValue) ?? null : display;
 
     useLayoutEffect(() => {
         if (!open || !menuRef.current || !dropDownRef.current) return;
@@ -183,8 +195,8 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                 {/* Todas as opções empilhadas na mesma célula (só a escolhida visível): a largura do
                     dropdown é sempre a da maior opção, sem quebrar linha nem pular ao trocar. */}
                 <div className="grid grid-cols-[minmax(0,1fr)] min-w-0 flex-1">
-                    {Children.map(children, (child: any) => (
-                        <div className={`[grid-area:1/1] min-w-0 whitespace-nowrap flex items-center gap-3 [&>:first-child]:flex-1 [&>*]:min-w-0 ${child === shown || (shown && child?.props?.value === (shown as any).props?.value) ? "" : "invisible"}`}>
+                    {optionsOf(children).map((child: any) => (
+                        <div key={child.props.value} className={`[grid-area:1/1] min-w-0 whitespace-nowrap flex items-center gap-3 [&>:first-child]:flex-1 [&>*]:min-w-0 ${child === shown || (shown && child?.props?.value === (shown as any).props?.value) ? "" : "invisible"}`}>
                             {child}
                         </div>
                     ))}
@@ -213,6 +225,12 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                     className="w-full h-max overflow-y-auto overflow-x-hidden grid auto-rows-auto"
                     style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${tagColumns(children)}, max-content)`, maxHeight: placement.maxHeight - 12 }}>
                     {Children.map(children, (child: any) => {
+                        if (isHeader(child))
+                            return (
+                                <div className="col-span-full px-1.5 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-(--text-muted) first:pt-0.5">
+                                    {child.props.children}
+                                </div>
+                            );
                         return (
                             <div
                                 key={child.props.value}

@@ -83,6 +83,10 @@ export type ServerStatus = {
     error: string | null;
 };
 
+export type ScreenSource = { id: string; number: number; name: string; width: number; height: number; refreshRate: number; primary: boolean };
+export type WindowSource = { id: string; title: string; app: string; width: number; height: number };
+export type CaptureSources = { screens: ScreenSource[]; windows: WindowSource[] };
+
 export const native = {
     clockNow: () => invoke<number>("clock_now"),
     getConfig: () => invoke<Config>("get_config"),
@@ -92,6 +96,10 @@ export const native = {
     setPreviewVolume: (volume: number, muted: boolean) => invoke<void>("audio_set_preview_volume", { volume, muted }),
     audioApps: () => invoke<AppListEntry[]>("audio_apps"),
     videoModes: () => invoke<VideoDeviceModes[]>("video_modes"),
+    captureSources: () => invoke<CaptureSources>("capture_sources"),
+    captureStart: (id: string, fps: number, cursor: boolean) => invoke<{ width: number; height: number }>("capture_start", { id, fps, cursor }),
+    captureSetFps: (fps: number) => invoke<void>("capture_set_fps", { fps }),
+    captureStop: () => invoke<void>("capture_stop"),
 
     recordingStart: () => invoke<{ id: number; path: string }>("recording_start"),
     recordingStop: () => invoke<string | null>("recording_stop"),

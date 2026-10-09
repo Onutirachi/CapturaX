@@ -223,6 +223,29 @@ pub async fn video_modes() -> Result<Vec<crate::video_modes::VideoDeviceModes>, 
     crate::video_modes::list().map_err(|e| e.to_string())
 }
 
+// ---- Captura de tela/janela ---------------------------------------------------------------
+
+#[tauri::command]
+pub async fn capture_sources() -> crate::capture::sources::CaptureSources {
+    tauri::async_runtime::spawn_blocking(crate::capture::sources::list).await.unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn capture_start(capture: State<'_, crate::capture::ScreenCapture>, id: String, fps: u32, cursor: bool) -> Result<crate::capture::CaptureStarted, String> {
+    capture.start(&id, fps, cursor)
+}
+
+#[tauri::command]
+pub fn capture_set_fps(capture: State<'_, crate::capture::ScreenCapture>, fps: u32) {
+    capture.set_fps(fps);
+}
+
+#[tauri::command]
+pub async fn capture_stop(capture: State<'_, crate::capture::ScreenCapture>) -> Result<(), String> {
+    capture.stop();
+    Ok(())
+}
+
 // ---- Gravação e transmissão -------------------------------------------------------------
 
 #[derive(Serialize)]

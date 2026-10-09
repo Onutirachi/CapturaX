@@ -1,3 +1,4 @@
+import { trackSettings } from "../core/native/screenCapture";
 import { ComponentChildren, createContext } from "preact";
 import { useCallback, useContext, useEffect, useRef, useState } from "preact/hooks";
 import { native, errorText, type AudioDevices, type Config, type MediaStatus, type ServerStatus } from "../core/native/api";
@@ -41,7 +42,7 @@ export const NativeContext = createContext<NativeContextType | null>(null);
 const SAVE_DELAY_MS = 250;
 
 function sourceInfo(track: MediaStreamTrack): SourceInfo {
-    const settings = track.getSettings();
+    const settings = trackSettings(track);
     return { width: settings.width ?? 1920, height: settings.height ?? 1080, fps: settings.frameRate ?? 60 };
 }
 

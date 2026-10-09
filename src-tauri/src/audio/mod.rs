@@ -6,7 +6,7 @@
 //! - **Mixer**: só roda durante gravação/transmissão; soma dispositivo, microfone e apps (menos
 //!   o CapturaX e os excluídos) em blocos de 10 ms com timestamp no relógio QPC.
 
-mod apps;
+pub mod apps;
 mod ring;
 mod wasapi;
 

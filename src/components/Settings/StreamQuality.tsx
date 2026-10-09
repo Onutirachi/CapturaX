@@ -1,5 +1,6 @@
 // Qualidade da transmissão: resolução e FPS (mesmas listas do app, com "nativo") e bitrate
 // automático por padrão.
+import { trackSettings } from "../../core/native/screenCapture";
 import { useContext } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
@@ -23,7 +24,8 @@ function useStreamConfig() {
 
 /** Fonte atual (sem vídeo ainda, assume 1080p60 só para as estimativas). */
 export function useSource(): SourceInfo {
-    const settings = useContext(VideoStreamContext)?.videoTrack?.getSettings();
+    const videoTrack = useContext(VideoStreamContext)?.videoTrack;
+    const settings = videoTrack ? trackSettings(videoTrack) : undefined;
     return { width: settings?.width ?? 1920, height: settings?.height ?? 1080, fps: settings?.frameRate ?? 60 };
 }
 

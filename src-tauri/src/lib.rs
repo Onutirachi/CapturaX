@@ -2,6 +2,7 @@
 compile_error!("CapturaX only supports Windows (WASAPI, Media Foundation and WebView2).");
 
 mod audio;
+mod capture;
 mod clock;
 mod commands;
 mod config;
@@ -21,6 +22,7 @@ pub fn run() {
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 window::auto_grant_media_permissions(&window)?;
+                app.manage(capture::ScreenCapture::new(capture::Bridge::new(window)?));
             }
             let config_dir = app.path().app_config_dir()?;
             let state = AppState::new(config::ConfigStore::load(config_dir));
@@ -41,6 +43,10 @@ pub fn run() {
             commands::audio_set_preview_volume,
             commands::audio_apps,
             commands::video_modes,
+            commands::capture_sources,
+            commands::capture_start,
+            commands::capture_set_fps,
+            commands::capture_stop,
             commands::recording_start,
             commands::recording_stop,
             commands::stream_start,
@@ -61,6 +67,9 @@ pub fn run() {
         if let RunEvent::Exit = event {
             // Finaliza a gravação em andamento (o arquivo vira um MP4 comum) antes de sair.
             handle.state::<AppState>().shutdown();
+            if let Some(capture) = handle.try_state::<capture::ScreenCapture>() {
+                capture.stop();
+            }
         }
     });
 }

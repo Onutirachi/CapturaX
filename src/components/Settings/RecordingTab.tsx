@@ -1,3 +1,4 @@
+import { trackSettings } from "../../core/native/screenCapture";
 import { useContext, useEffect, useState } from "preact/hooks";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -33,7 +34,7 @@ export default function RecordingTab() {
             .catch(() => {});
     }, []);
 
-    const settings = track?.getSettings();
+    const settings = track ? trackSettings(track) : undefined;
     const source = settings ? { width: settings.width ?? 1920, height: settings.height ?? 1080, fps: settings.frameRate ?? 60 } : null;
     const result = source ? recordingSettings(recording, source) : null;
     const pickerSource = source ?? { width: 1920, height: 1080, fps: 60 };

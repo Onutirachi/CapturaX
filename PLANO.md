@@ -203,14 +203,34 @@ HTTPS para um servidor hospedado. O app e a página de quem assiste não mudam.
    Device. O Windows dá o mesmo `ContainerId` ao vídeo e ao áudio de um mesmo aparelho USB (a
    ezcap aparece como dois dispositivos com o mesmo contêiner); segue a troca de placa e cai em
    "sem áudio" quando o dispositivo de vídeo não tiver áudio. Substitui o palpite pelo nome.
-2. **Telas e janelas no dropdown de vídeo, sem o seletor do navegador:** captura nativa no Rust
-   (Windows Graphics Capture: lista monitores e janelas, opção de cursor, sem a borda amarela no
-   Windows 11). Como os quadros nascem no Rust, a codificação para gravar/transmitir também passa
-   a ser no Rust (Media Foundation + encoder da GPU) e o preview vira uma miniatura leve — quem
-   transmite a tela não precisa de preview. Maior das três mudanças.
+2. ~~**Telas e janelas no dropdown de vídeo, sem o seletor do navegador**~~ — **feito**
+   (2026-10-09). Windows Graphics Capture no Rust (sem borda amarela, com cursor), grupos
+   "Devices / Screens / Windows" no dropdown, telas como "Screen 2 - 27G2G4". Em vez de levar a
+   codificação para o Rust, os quadros vão ao WebView por memória compartilhada do WebView2 e viram
+   uma trilha de vídeo comum: preview completo e o mesmo caminho de gravação/transmissão/print.
+   Custo medido: 1080p a ~90 fps ≈ 2% da CPU (build de debug). Se um dia pesar (4K a 144 Hz),
+   converter para NV12 na GPU antes de copiar reduz a cópia pela metade.
 3. **Critério do automático:** hoje é "o mais fluido até ~60 fps, depois a maior resolução"
    (placa: 1440p60; webcam: 1080p30). Avaliar uma opção "priorizar fluidez" para jogar (ex.:
    1080p120 na ezcap).
+
+### Fase 10 — Assistir sem abrir porta (só estudo, não implementar ainda)
+Hoje quem assiste pela internet precisa da porta aberta no roteador (UPnP ou manual) e não
+funciona atrás de CGNAT. Opções gratuitas levantadas em 2026-10-09, para entender antes de decidir:
+- **IPv6:** sem NAT, não precisa abrir porta no roteador (só o firewall). Quem assiste também
+  precisa de IPv6 (celular quase sempre tem; alguns Wi-Fi não). Alguns roteadores bloqueiam
+  entrada em IPv6. Barato: mostrar um link IPv6 quando houver.
+- **WebRTC P2P:** o vídeo vai direto do PC para quem assiste, furando o NAT sozinho (STUN gratuito).
+  Só a "apresentação" inicial passa por um servidor pequeno e gratuito (ex.: Cloudflare Workers),
+  sem vídeo passando por ele. Funciona na grande maioria das redes, link fixo, menor atraso
+  (~0,2 s). Não funciona quando os dois lados estão em NAT restritivo (precisaria de um servidor de
+  repasse TURN, que custa banda). Mudança grande, mas o WebView já tem WebRTC com encoder de GPU.
+- **Cloudflare Tunnel:** o app abre uma conexão de saída e a Cloudflare repassa. O "quick tunnel"
+  dispensa conta, mas o link muda a cada vez; link fixo exige domínio próprio. Os termos do plano
+  grátis restringem servir vídeo — arriscado para uso contínuo.
+- **Tailscale Funnel:** link fixo `*.ts.net`, grátis, mas exige instalar o Tailscale e criar conta;
+  banda limitada por eles.
+- **ngrok grátis:** 1 GB/mês, a live gasta isso em ~20 min. Descartado.
 
 ### Fase 8 — Multi-idioma (planejado em 2026-10-08, ainda não implementado)
 - **Idiomas iniciais:** inglês e português (Brasil). Inglês é a base e o fallback.

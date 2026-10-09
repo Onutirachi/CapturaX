@@ -76,6 +76,17 @@ src-tauri/src/
   `PlatformHEVCEncoderSupport` feature (set in `tauri.conf.json` `additionalBrowserArgs`) and comes
   as Annex B without a description; above 1080p, >30 fps is only accepted without `framerate`.
 
+### Screen/window capture (`src-tauri/src/capture/`)
+Screens and windows are listed in the Video Device dropdown ("Screens" / "Windows" groups, screens
+named "Screen 2 - 27G2G4" from `\\.\DISPLAYn` + the DisplayConfig monitor name). Windows Graphics
+Capture runs in Rust (no yellow border, cursor on) and each BGRA frame is copied into WebView2
+shared buffers (`bridge.rs`: `CreateSharedBuffer` + `PostSharedBufferToScript`, a 64-byte header
+whose first u32 is 1 while the frame waits for the WebView, and a small `PostWebMessageAsJson` per
+frame). `src/core/native/screenCapture.ts` turns them into a `MediaStreamTrackGenerator` track, so
+preview, recording, streaming and screenshots work exactly like a capture card. Generated tracks
+don't report size/FPS in `getSettings()`: use `trackSettings(track)`. All WebView2 calls happen on
+the main thread (`run_on_main_thread`).
+
 ### App audio (system audio minus excluded apps)
 Process loopback can only include/exclude one process **tree**, so the mixer captures each app with an
 audio session separately and sums them, never capturing CapturaX's own tree or a tree that contains an
@@ -101,7 +112,8 @@ Video source manager, instantiated once in `ToolbarContent`:
   app cannot see or change it.
 - `setVideoDevice(id, modes)`, `setMode()`, `setResolution()`, `setFrameRate()` (`null` = auto)
   **reopen** the device with `resizeMode: "none"` (native mode), coalesced by `requestVideoRestart()`
-- Screen: `setVideoDevice(SCREEN_SOURCE)` / `chooseScreen()` use `getDisplayMedia`; resolution/FPS changes use `applyConstraints`
+- Screen/window: `setCaptureSource(id, refreshRate)` (native capture, only FPS is adjustable via `capture_set_fps`).
+  `SCREEN_SOURCE` + `getDisplayMedia` is only a fallback outside the app (no `chrome.webview`)
 - Browser audio fallback: `updateAudioTrack()` / `clearAudio()`
 
 ### Core Reusable Components (`src/core/components/`)
