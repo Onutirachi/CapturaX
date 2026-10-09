@@ -146,15 +146,17 @@ export function Button({
     );
 }
 
-export function CopyField({ value }: { value: string }) {
+export function CopyField({ value, fullWidth = false }: { value: string; fullWidth?: boolean }) {
     const [copied, setCopied] = useState(false);
     return (
-        <div className="flex items-center gap-2">
-            <code className="px-2 h-9 flex items-center rounded-lg bg-dark [border:var(--border)] text-sm select-all">{value}</code>
+        <div className={`flex items-center gap-2 min-w-0 ${fullWidth ? "w-full" : ""}`}>
+            <code className={`px-2 h-9 flex items-center rounded-lg bg-dark [border:var(--border)] text-sm select-all min-w-0 truncate ${fullWidth ? "flex-1" : ""}`}>
+                {value}
+            </code>
             <button
                 title="Copy"
                 onClick={() => navigator.clipboard.writeText(value).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-normal hover:brightness-125 cursor-pointer">
+                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-normal hover:brightness-125 cursor-pointer">
                 <Icon src={copied ? "./assets/Alerts/check.svg" : "./assets/Settings/copy.svg"} color={copied ? "var(--color-accent)" : undefined} />
             </button>
         </div>

@@ -177,7 +177,8 @@ export default function ToolbarContent() {
                     storageKey="Video mode"
                     onChoose={async (value) => stream.setMode(value === AUTO ? null : parseModeKey(value))}>
                     <DropOption key={AUTO} value={AUTO} className="flex gap-3">
-                        {auto ? `Automatic (${auto.width} x ${auto.height})` : "Automatic"}
+                        {/* A bandeirinha "Auto" já diz que é automático; o texto mostra o modo escolhido. */}
+                        {auto ? `${auto.width} x ${auto.height}` : "Automatic"}
                         <Tag text="Auto" color="var(--color-accent)" />
                         {auto && <Tag text={`${formatFps(auto.fps)} FPS`} color={fpsColor(auto.fps)} />}
                     </DropOption>

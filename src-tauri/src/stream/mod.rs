@@ -5,6 +5,7 @@
 //! cabeçalho e de tempo. O vídeo é público para quem tiver o link; o PC não fica exposto.
 
 pub mod firewall;
+mod public_ip;
 mod hub;
 pub mod upnp;
 
@@ -89,6 +90,10 @@ pub struct ServerStatus {
     pub local_url: Option<String>,
     pub public_url: Option<String>,
     pub upnp: UpnpStatus,
+    /// IP público desta conexão (consulta DNS), mesmo sem UPnP.
+    pub public_ip: Option<String>,
+    /// Atrás de CGNAT: o IP que o roteador vê não é o público, então porta aberta não adianta.
+    pub cgnat: bool,
     pub firewall_ok: bool,
     pub live: bool,
     pub viewers: Vec<ViewerInfo>,
@@ -108,7 +113,12 @@ pub struct StreamServer {
     upnp_status: Arc<Mutex<UpnpStatus>>,
     firewall_ok: AtomicBool,
     error: Mutex<Option<String>>,
+    /// Último IP público consultado e quando.
+    public_ip: Arc<Mutex<Option<(IpAddr, std::time::Instant)>>>,
+    public_ip_pending: Arc<AtomicBool>,
 }
+
+const PUBLIC_IP_MAX_AGE: Duration = Duration::from_secs(300);
 
 impl StreamServer {
     pub fn new() -> Self {
@@ -118,6 +128,8 @@ impl StreamServer {
             upnp_status: Arc::new(Mutex::new(UpnpStatus::Disabled)),
             firewall_ok: AtomicBool::new(false),
             error: Mutex::new(None),
+            public_ip: Arc::default(),
+            public_ip_pending: Arc::default(),
         }
     }
 
@@ -175,21 +187,50 @@ impl StreamServer {
         *running = Some(Running { port, upnp, shutdown, task });
     }
 
+    /// Consulta o IP público em segundo plano se o valor guardado estiver velho.
+    fn refresh_public_ip(&self) {
+        let fresh = self.public_ip.lock().unwrap().is_some_and(|(_, at)| at.elapsed() < PUBLIC_IP_MAX_AGE);
+        if fresh || self.public_ip_pending.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        let (cache, pending) = (self.public_ip.clone(), self.public_ip_pending.clone());
+        tauri::async_runtime::spawn_blocking(move || {
+            if let Some(ip) = public_ip::lookup() {
+                *cache.lock().unwrap() = Some((IpAddr::V4(ip), std::time::Instant::now()));
+            }
+            pending.store(false, Ordering::Relaxed);
+        });
+    }
+
     pub async fn status(&self) -> ServerStatus {
         let running = self.running.lock().await;
         let port = running.as_ref().map_or(0, |r| r.port);
         let upnp = self.upnp_status.lock().unwrap().clone();
         let live = self.hub.is_live();
-        let public_url = match &upnp {
-            UpnpStatus::Mapped { external_ip, cgnat: false } => Some(format!("http://{external_ip}:{port}/")),
+        if running.is_some() {
+            self.refresh_public_ip();
+        }
+        let public_ip = self.public_ip.lock().unwrap().map(|(ip, _)| ip);
+        // CGNAT: o roteador diz ter um IP que não é o público (ou um IP de faixa da operadora).
+        let cgnat = match (&upnp, public_ip) {
+            (UpnpStatus::Mapped { cgnat: true, .. }, _) => true,
+            (UpnpStatus::Mapped { external_ip, .. }, Some(public)) => external_ip.parse::<IpAddr>().ok() != Some(public),
+            _ => false,
+        };
+        // IP público pela consulta DNS; se ela ainda não respondeu, o que o roteador informou.
+        let mapped_ip = match &upnp {
+            UpnpStatus::Mapped { external_ip, .. } => external_ip.parse::<IpAddr>().ok(),
             _ => None,
         };
+        let public_url = public_ip.or(mapped_ip).filter(|_| !cgnat).map(|ip| format!("http://{ip}:{port}/"));
         ServerStatus {
             running: running.is_some(),
             port,
             local_url: running.as_ref().and_then(|_| lan_ip()).map(|ip| format!("http://{ip}:{port}/")),
             public_url,
             upnp,
+            public_ip: public_ip.map(|ip| ip.to_string()),
+            cgnat,
             firewall_ok: self.firewall_ok.load(Ordering::Relaxed),
             live,
             viewers: self.hub.viewers(),

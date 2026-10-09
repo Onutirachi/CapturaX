@@ -71,6 +71,10 @@ export type ServerStatus = {
     localUrl: string | null;
     publicUrl: string | null;
     upnp: UpnpStatus;
+    /** IP público desta conexão (consulta DNS). */
+    publicIp: string | null;
+    /** Atrás de CGNAT: abrir a porta não adianta. */
+    cgnat: boolean;
     firewallOk: boolean;
     live: boolean;
     viewers: ViewerInfo[];

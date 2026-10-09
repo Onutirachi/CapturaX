@@ -29,7 +29,7 @@ export default function GoLiveDialog() {
 
     return (
         <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-black/60 backdrop-blur-xs" onPointerDown={(e) => e.target === e.currentTarget && nctx.cancelGoLive()}>
-            <div className="flex flex-col gap-5 w-[min(560px,100%)] p-6 rounded-2xl bg-darker [border:var(--border)] shadow-2xl">
+            <div className="flex flex-col gap-5 w-[min(460px,100%)] p-6 rounded-2xl bg-darker [border:var(--border)] shadow-2xl">
                 <header className="flex items-center gap-3">
                     <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-accent/20">
                         <Icon src="./assets/Dock/live.svg" color="var(--color-accent)" />
@@ -42,17 +42,26 @@ export default function GoLiveDialog() {
 
                 <section className="flex flex-col gap-2">
                     <h2 className="text-sm text-(--text-muted)">Link to share</h2>
-                    {server?.publicUrl ? (
-                        <CopyField value={server.publicUrl} />
-                    ) : server?.localUrl ? (
+                    {server?.localUrl ? (
                         <>
-                            <CopyField value={server.localUrl} />
+                            {server.publicUrl && (
+                                <div className="flex items-center gap-3">
+                                    <span className="w-24 shrink-0 text-sm">Internet</span>
+                                    <CopyField value={server.publicUrl} fullWidth />
+                                </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                                <span className="w-24 shrink-0 text-sm">Local network</span>
+                                <CopyField value={server.localUrl} fullWidth />
+                            </div>
                             <p className="text-sm text-(--text-muted)">
-                                {upnp?.state === "searching"
-                                    ? "Opening the port on your router… the internet link shows up here."
-                                    : upnp?.state === "mapped" && upnp.cgnat
-                                      ? "Only works on your network: your provider uses CGNAT (see Settings → Streaming)."
-                                      : "Only works on your network for now (see Settings → Streaming to open the port)."}
+                                {server.cgnat
+                                    ? "Your provider uses CGNAT: the internet link won't reach this PC (see Settings → Streaming)."
+                                    : upnp?.state === "mapped"
+                                      ? "Port opened on your router: the internet link works from anywhere."
+                                      : upnp?.state === "searching"
+                                        ? "Opening the port on your router…"
+                                        : `The internet link needs port ${server.port} open on your router (see Settings → Streaming).`}
                             </p>
                         </>
                     ) : (
@@ -60,18 +69,20 @@ export default function GoLiveDialog() {
                     )}
                 </section>
 
-                <section className="flex flex-col gap-4">
+                <section className="flex flex-col gap-2">
                     <h2 className="text-sm text-(--text-muted)">Quality</h2>
-                    <StreamQualityPicker />
-                    <div className="flex items-center gap-4">
-                        <span className="text-sm text-(--text-muted) w-14">Bitrate</span>
-                        <BitrateControl />
-                    </div>
-                    <Note>
-                        <UploadNote />
-                        {live && " Applying restarts the stream; viewers reconnect by themselves in a second or two."}
-                    </Note>
+                    <StreamQualityPicker fullWidth />
                 </section>
+
+                <section className="flex flex-col gap-2">
+                    <h2 className="text-sm text-(--text-muted)">Bitrate</h2>
+                    <BitrateControl />
+                </section>
+
+                <Note>
+                    <UploadNote />
+                    {live && " Applying restarts the stream; viewers reconnect by themselves in a second or two."}
+                </Note>
 
                 <footer className="flex items-center gap-3">
                     {live && (

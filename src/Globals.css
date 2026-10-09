@@ -74,3 +74,27 @@ body {
         border-radius: 5px;
     }
 }
+
+/* ScrollText: vai e volta com pausas nas pontas. */
+@keyframes scroll-text {
+    0%,
+    15% {
+        transform: translateX(0);
+    }
+    85%,
+    100% {
+        transform: translateX(var(--scroll-distance));
+    }
+}
+
+.scroll-text {
+    animation: scroll-text var(--scroll-duration) ease-in-out infinite alternate;
+}
+
+/* Nas listas abertas, só rola a opção sob o mouse (a lista inteira se mexendo cansa). */
+.scroll-on-hover .scroll-text {
+    animation-play-state: paused;
+}
+.scroll-on-hover:hover .scroll-text {
+    animation-play-state: running;
+}

@@ -1,6 +1,7 @@
 import { ComponentChildren } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { Children } from "preact/compat";
+import ScrollText from "./ScrollText";
 
 type DropDownProps = {
     children: ComponentChildren;
@@ -10,6 +11,8 @@ type DropDownProps = {
     storageKey?: string;
     /** Modo controlado: o valor vem de fora (ex.: config do Rust) e nada é salvo aqui. */
     value?: string | null;
+    /** Ocupa a largura toda do pai (ex.: janelas); sem isso, cresce até um limite e o texto rola. */
+    fullWidth?: boolean;
 };
 
 /** Evento global para fechar dropdowns abertos (ex.: quando a barra que os contém se esconde). */
@@ -21,15 +24,16 @@ type DropOptionProps = {
     value: string;
 };
 
+/** Os trechos de texto rolam se não couberem; bandeirinhas e ícones ficam fixos. */
 export function DropOption({ children, className, value }: DropOptionProps) {
     return (
-        <div data-value={value} className={`${className ? className : ""}`}>
-            {children}
+        <div data-value={value} className={`min-w-0 items-center ${className ? className : ""}`}>
+            {Children.map(children, (child) => (typeof child === "string" || typeof child === "number" ? <ScrollText>{child}</ScrollText> : child))}
         </div>
     );
 }
 
-export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue }: DropDownProps) {
+export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue, fullWidth = false }: DropDownProps) {
     const controlled = controlledValue !== undefined;
     const dropDownRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState<boolean>(false);
@@ -111,22 +115,22 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     }, [dropDownRef]);
 
     return (
-        <div data-value={controlled ? controlledValue : value} className="w-auto min-w-3xs h-11 relative" ref={dropDownRef}>
+        <div data-value={controlled ? controlledValue : value} className={`h-11 relative ${fullWidth ? "w-full" : "w-auto min-w-3xs max-w-80"}`} ref={dropDownRef}>
             <div className="absolute bg-normal -translate-y-[50%] translate-x-[20%] px-1 rounded-sm text-sm z-1">{title}</div>
             <div
                 className="w-full h-full bg-dark [border:var(--border)] rounded-xl cursor-pointer overflow-hidden flex items-center gap-3 px-3 relative"
                 onClick={toggleOpen}>
                 {/* Todas as opções empilhadas na mesma célula (só a escolhida visível): a largura do
                     dropdown é sempre a da maior opção, sem quebrar linha nem pular ao trocar. */}
-                <div className="grid">
+                <div className="grid grid-cols-[minmax(0,1fr)] min-w-0 flex-1">
                     {Children.map(children, (child: any) => (
-                        <div className={`[grid-area:1/1] whitespace-nowrap flex items-center ${child === shown || (shown && child?.props?.value === (shown as any).props?.value) ? "" : "invisible"}`}>
+                        <div className={`[grid-area:1/1] min-w-0 whitespace-nowrap flex items-center [&>*]:min-w-0 ${child === shown || (shown && child?.props?.value === (shown as any).props?.value) ? "" : "invisible"}`}>
                             {child}
                         </div>
                     ))}
                 </div>
                 <div
-                    className={`h-[50%] aspect-square ml-auto bg-center mask-contain mask-no-repeat mask-[url(./assets/DropDown/chevron.svg)] bg-white transition ${
+                    className={`h-[50%] aspect-square ml-auto shrink-0 bg-center mask-contain mask-no-repeat mask-[url(./assets/DropDown/chevron.svg)] bg-white transition ${
                         open ? "-rotate-180" : "rotate-0"
                     }`}></div>
             </div>
@@ -154,7 +158,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
                                 onClick={() => {
                                     selectOption(child);
                                 }}
-                                className="bg-transparent hover:bg-normal cursor-pointer p-1.5 rounded-md box-border whitespace-nowrap">
+                                className="scroll-on-hover bg-transparent hover:bg-normal cursor-pointer p-1.5 rounded-md box-border whitespace-nowrap min-w-0 [&>*]:min-w-0">
                                 {child}
                             </div>
                         );

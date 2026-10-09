@@ -54,7 +54,7 @@ export function FpsSelect() {
  * preview, com o que não passa do que está sendo capturado (a transmissão nunca aumenta a imagem).
  * Sem eles (tela): resolução e FPS separados.
  */
-export function StreamQualityPicker() {
+export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean }) {
     const { stream, set } = useStreamConfig();
     const source = useSource();
     const modes = useContext(VideoStreamContext)?.deviceModes ?? null;
@@ -69,13 +69,18 @@ export function StreamQualityPicker() {
     }
 
     const choices = choicesOf(modes).filter((m) => m.width <= source.width && m.height <= source.height && m.fps <= source.fps + 0.5);
-    const value = stream.height ? modeKey({ width: stream.width, height: stream.height, fps: stream.fps || source.fps }) : NATIVE;
+    const saved = stream.height ? { width: stream.width, height: stream.height, fps: stream.fps || Math.round(source.fps) } : null;
+    // Qualidade salva que não é um modo deste dispositivo (ex.: veio de outra fonte): aparece na
+    // lista assim mesmo, para a tela mostrar o que a transmissão vai usar de verdade.
+    if (saved && !choices.some((c) => modeKey(c) === modeKey(saved))) choices.unshift(saved);
+    const value = saved ? modeKey(saved) : NATIVE;
     const nativeTag = Resolution.getTag(source);
     return (
-        <div className="pt-2">
+        <div className={`pt-2 ${fullWidth ? "w-full" : ""}`}>
             <DropDown
                 title="Resolution & FPS"
-                value={choices.some((c) => modeKey(c) === value) ? value : NATIVE}
+                fullWidth={fullWidth}
+                value={value}
                 onChoose={(v) => {
                     const mode = v === NATIVE ? null : parseModeKey(v);
                     set(mode ? { width: mode.width, height: mode.height, fps: mode.fps } : { width: 0, height: 0, fps: 0 });
