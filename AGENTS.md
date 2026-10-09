@@ -76,17 +76,18 @@ src-tauri/src/
   `PlatformHEVCEncoderSupport` feature (set in `tauri.conf.json` `additionalBrowserArgs`) and comes
   as Annex B without a description; above 1080p, >30 fps is only accepted without `framerate`.
 
-### Outputs and their sources
-The top bar only picks devices: that is the preview. Recording and streaming each have a **source**
-(`config.recording.source` / `config.stream.source`): `null` = same as the preview, or a screen /
-window, chosen in their dialogs (`RecordDialog`, `GoLiveDialog`, `OutputSource.tsx`). Capture cards
-usually allow a single owner, so outputs never open a different device than the preview.
-While an output with its own source runs, the top bar shows "View recording" / "View live": the
-preview then shows that output and the dropdowns are locked until you switch back (greyed out when
-the source is the preview). F10 records with the last dialog choices. Screens and windows share one
-capture at a time (`captureHub.ts`), so recording and streaming can use the same one, not two.
-Audio is split the same way: what you hear (preview input/output) vs what goes into outputs (one
-mix for both); its "Auto" device is the audio of the preview device, even when the source is a screen.
+### Outputs (record / stream)
+The top bar only picks devices: that is the preview and what you hear. Recording and streaming
+share one **Record / Stream** window (`OutputDialog.tsx`, opened by both Dock buttons) with one
+**source** (`config.outputSource`: `null` = same as the preview, or a screen / window), one audio
+mix (device audio, microphone, PC sound, with volumes) and the quality of each. Its buttons are
+Record / Record and stream / Stream (and "… too" while the other one runs). Everything chosen there
+is saved right away, even if the window is closed without starting. Source and audio devices are
+locked while anything runs. Capture cards usually allow a single owner, so outputs never open a
+different device than the preview. With a screen/window source, the top bar shows "View output":
+the preview shows it and the dropdowns lock until you switch back (greyed out when the source is
+the preview). F10 records with the last choices. Settings → Audio keeps only what rarely changes
+(output device, delay, A/V sync, separate mic tracks, the app list).
 
 ### Screen/window capture (`src-tauri/src/capture/`)
 Screens are named "Screen 2 - 27G2G4" from `\\.\DISPLAYn` + the DisplayConfig monitor name. Windows Graphics

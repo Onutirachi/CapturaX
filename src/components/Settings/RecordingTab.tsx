@@ -29,7 +29,7 @@ function useRecordingConfig() {
 export function RecordingQuality() {
     const t = useT();
     const { recording, set } = useRecordingConfig();
-    const source = useOutputSourceInfo("record").info;
+    const source = useOutputSourceInfo().info;
     const result = recordingSettings(recording, source);
     const gbPerHour = ((result.bitrate + recording.audioBitrateKbps * 1000) * 3600) / 8 / 1e9;
 

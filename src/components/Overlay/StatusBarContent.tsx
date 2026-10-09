@@ -79,7 +79,7 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
     const nctx = useContext(NativeContext);
     const { latency, latencyAvailable, fps: measuredFps } = useContext(FrameStatsContext)?.stats ?? { latency: null, latencyAvailable: false, fps: null };
     if (!vsctx) return null;
-    const videoTrack = (nctx?.feedback ? nctx.outputs[nctx.feedback]?.track : null) ?? vsctx.videoTrack;
+    const videoTrack = (nctx?.feedback ? nctx.outputTrack : null) ?? vsctx.videoTrack;
 
     if (!videoTrack) {
         return (

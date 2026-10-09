@@ -54,8 +54,8 @@ export default function StreamingTab() {
                     <Toggle checked={stream.acceptViewers} onChange={(acceptViewers) => set({ acceptViewers })} />
                 </Row>
                 <Row label={t(live ? "streaming.live" : "streaming.notLive")} hint={live ? t("streaming.watchingNow", { count: server?.viewers.length ?? 0 }) : t("streaming.notLiveHint")}>
-                    {live && <Button onClick={() => nctx.toggleStreaming()}>{t("streaming.changeQuality")}</Button>}
-                    <Button variant={live ? "danger" : "accent"} onClick={() => (live ? nctx.stopStreaming() : nctx.toggleStreaming())} disabled={nctx.streaming === "starting" || nctx.streaming === "stopping"}>
+                    {live && <Button onClick={() => nctx.openOutputDialog()}>{t("streaming.changeQuality")}</Button>}
+                    <Button variant={live ? "danger" : "accent"} onClick={() => (live ? nctx.stopStreaming() : nctx.openOutputDialog())} disabled={nctx.streaming === "starting" || nctx.streaming === "stopping"}>
                         {t(live ? "streaming.stop" : "streaming.goLive")}
                     </Button>
                 </Row>

@@ -4,9 +4,8 @@ import Toolbar from "./Toolbar";
 import { ActionDock, ViewDock } from "./Dock";
 import StatusBar from "./StatusBar";
 import Settings from "../Settings/Settings";
-import GoLiveDialog from "../Settings/GoLiveDialog";
+import OutputDialog from "../Settings/OutputDialog";
 import { NativeContext } from "../../context/NativeContext";
-import RecordDialog from "../Settings/RecordDialog";
 
 const HIDETIME = 2000;
 
@@ -62,8 +61,7 @@ export default function Overlay() {
             <ActionDock active={active} hover={hover} />
             <StatusBar active={active} />
             <Settings />
-            <GoLiveDialog />
-            <RecordDialog />
+            <OutputDialog />
         </>
     );
 }

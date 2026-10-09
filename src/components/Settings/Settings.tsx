@@ -24,13 +24,13 @@ export default function Settings() {
         // Captura no document: o Esc fecha as configurações sem sair do fullscreen.
         const onKey = (e: KeyboardEvent) => {
             // Com a janela de "Go live" por cima, o Esc fecha só ela.
-            if (e.key !== "Escape" || nctx?.goLiveOpen) return;
+            if (e.key !== "Escape" || nctx?.outputDialogOpen) return;
             e.stopPropagation();
             nctx?.openSettings(null);
         };
         document.addEventListener("keydown", onKey, true);
         return () => document.removeEventListener("keydown", onKey, true);
-    }, [tab, nctx?.goLiveOpen]);
+    }, [tab, nctx?.outputDialogOpen]);
 
     if (!nctx || !tab || !nctx.config) return null;
 

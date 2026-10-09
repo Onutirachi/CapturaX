@@ -26,7 +26,7 @@ export default function VideoStream() {
     const hidden = ctx?.previewHidden ?? false;
     // "Ver gravação/live": o preview mostra o que está saindo em vez do dispositivo.
     const nctx = useContext(NativeContext);
-    const feedbackTrack = nctx?.feedback ? (nctx.outputs[nctx.feedback]?.track ?? null) : null;
+    const feedbackTrack = nctx?.feedback ? nctx.outputTrack : null;
     const feedbackStream = useMemo(() => (feedbackTrack ? new MediaStream([feedbackTrack]) : null), [feedbackTrack]);
     const videoStream = hidden ? null : (feedbackStream ?? ctx?.videoStream ?? null);
     // Com o preview nativo, quem toca o áudio é o Rust (WASAPI); o <video> fica mudo.

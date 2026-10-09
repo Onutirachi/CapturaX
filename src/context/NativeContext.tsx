@@ -33,28 +33,29 @@ export type NativeContextType = {
     server: ServerStatus | null;
     recording: Activity;
     streaming: Activity;
+    /** F10: grava/para direto, com as últimas escolhas da janela. */
     toggleRecording: () => Promise<void>;
-    /** Abre a janela da transmissão (parado: "Go live"; ao vivo: ajustes + parar). */
-    toggleStreaming: () => Promise<void>;
-    goLiveOpen: boolean;
-    /** Parado: começa. Ao vivo: aplica a qualidade nova (reinicia a transmissão). */
-    confirmGoLive: () => Promise<void>;
-    cancelGoLive: () => void;
+    /** Janela "Gravar / Transmitir": fonte, áudio e qualidade das duas saídas. */
+    outputDialogOpen: boolean;
+    openOutputDialog: () => void;
+    closeOutputDialog: () => void;
+    /** Começa a gravação e/ou a transmissão (as que ainda não estiverem rodando). */
+    startOutputs: (which: { record: boolean; stream: boolean }) => Promise<void>;
+    /** Ao vivo: aplica a qualidade nova (reinicia a transmissão). */
+    applyStreamQuality: () => Promise<void>;
+    stopRecording: () => Promise<void>;
     /** A fonte mudou ao vivo: a janela só sai aplicando uma qualidade nova ou parando. */
     mustReconfigure: boolean;
-    /** Janela de gravação (fonte + qualidade antes de começar). */
-    recordDialogOpen: boolean;
-    openRecordDialog: () => void;
-    closeRecordDialog: () => void;
-    confirmRecord: () => Promise<void>;
     /** Telas e janelas disponíveis como fonte da gravação/transmissão. */
     captureSources: CaptureSources;
     refreshCaptureSources: () => void;
     /** Gravação/transmissão em andamento (fonte, tamanho, FPS). */
     outputs: Record<OutputKind, OutputInfo | null>;
-    /** Preview mostrando o que sai na gravação/transmissão (menu de cima travado). */
-    feedback: OutputKind | null;
-    setFeedback: (kind: OutputKind | null) => void;
+    /** Preview mostrando o que sai (menu de cima travado). Só quando a fonte não é o preview. */
+    feedback: boolean;
+    setFeedback: (on: boolean) => void;
+    /** Trilha da saída (tela/janela) quando a fonte não é o preview. */
+    outputTrack: MediaStreamTrack | null;
     stopStreaming: () => Promise<void>;
     screenshot: () => Promise<void>;
     settingsTab: SettingsTab | null;
@@ -82,18 +83,17 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const [streaming, setStreaming] = useState<Activity>("idle");
     const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
     const [server, setServer] = useState<ServerStatus | null>(null);
-    const [goLiveOpen, setGoLiveOpen] = useState(false);
+    const [outputDialogOpen, setOutputDialogOpen] = useState(false);
     const [mustReconfigure, setMustReconfigure] = useState(false);
-    const [recordDialogOpen, setRecordDialogOpen] = useState(false);
     const [captureSources, setCaptureSources] = useState<CaptureSources>({ screens: [], windows: [] });
     const [outputs, setOutputs] = useState<Record<OutputKind, OutputInfo | null>>({ record: null, stream: null });
-    const [feedback, setFeedbackState] = useState<OutputKind | null>(null);
+    const [feedback, setFeedbackState] = useState(false);
     const opened = useRef<Record<OutputKind, OpenOutput | null>>({ record: null, stream: null });
     const sourcesRef = useRef(captureSources);
     sourcesRef.current = captureSources;
 
     const configRef = useRef<Config | null>(null);
-    const feedbackRef = useRef<OutputKind | null>(null);
+    const feedbackRef = useRef(false);
     feedbackRef.current = feedback;
     const saveTimer = useRef<number | null>(null);
     const recorder = useRef<EncoderSession | null>(null);
@@ -133,7 +133,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     }, []);
     useEffect(refreshCaptureSources, []);
 
-    /** Abre a fonte de uma saída: a trilha do preview ou uma tela/janela (compartilhada se for a mesma). */
+    /** Abre a fonte de uma saída: a trilha do preview ou a tela/janela (as duas saídas compartilham). */
     const openOutput = async (kind: OutputKind, wanted: OutputSourceId, fps: number | null, onEnded: () => void): Promise<OpenOutput | null> => {
         // A lista pode estar velha (janela aberta agora): atualiza antes de validar.
         const sources = wanted ? await native.captureSources().catch(() => sourcesRef.current) : sourcesRef.current;
@@ -152,7 +152,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         opened.current[kind]?.release();
         opened.current[kind] = null;
         setOutputs((current) => ({ ...current, [kind]: null }));
-        setFeedbackState((current) => (current === kind ? null : current));
+        if (!opened.current.record && !opened.current.stream) setFeedbackState(false);
     };
 
     const describeOutput = (kind: OutputKind, out: OpenOutput, settings: { width: number; height: number; fps: number }) =>
@@ -161,7 +161,8 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             [kind]: { source: out.source, track: out.track, label: sourceLabel(out.source, sourcesRef.current, trackRef.current), ...settings },
         }));
 
-    const setFeedback = (kind: OutputKind | null) => setFeedbackState(kind && opened.current[kind] ? kind : null);
+    const outputTrack = opened.current.stream?.track ?? opened.current.record?.track ?? null;
+    const setFeedback = (on: boolean) => setFeedbackState(on && !!(opened.current.stream || opened.current.record));
 
     // Dispositivos de áudio do Windows; a lista do WebView avisa quando algo é plugado.
     useEffect(() => {
@@ -186,7 +187,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         return () => window.clearInterval(interval);
     }, []);
 
-    const watchServer = streaming !== "idle" || goLiveOpen || settingsTab === "streaming" || !!config?.stream.acceptViewers;
+    const watchServer = streaming !== "idle" || outputDialogOpen || settingsTab === "streaming" || !!config?.stream.acceptViewers;
     useEffect(() => {
         if (!watchServer) return;
         const poll = () =>
@@ -223,7 +224,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         }
         if (streamer.current && !opened.current.stream && streamTrackId.current !== videoTrack.id) {
             setMustReconfigure(true);
-            setGoLiveOpen(true);
+            setOutputDialogOpen(true);
         }
     }, [videoTrack]);
 
@@ -234,7 +235,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         let out: OpenOutput | null = null;
         try {
             const fps = current.recording.preset === "custom" ? current.recording.fps : null;
-            out = await openOutput("record", current.recording.source, fps, () => {
+            out = await openOutput("record", current.outputSource, fps, () => {
                 alert(alerts.warning(t("native.recordSourceEnded")));
                 stopRecordingRef.current();
             });
@@ -280,7 +281,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         if (!current) return;
         setStreaming("starting");
         try {
-            const out = await openOutput("stream", current.stream.source, current.stream.fps || null, () => {
+            const out = await openOutput("stream", current.outputSource, current.stream.fps || null, () => {
                 alert(alerts.warning(t("native.streamSourceEnded")));
                 stopStreamingRef.current();
             });
@@ -309,7 +310,6 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     };
 
     const stopStreaming = async () => {
-        setGoLiveOpen(false);
         setMustReconfigure(false);
         setStreaming("stopping");
         try {
@@ -333,12 +333,34 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         if (busy(recording)) return;
         await (recording === "active" ? stopRecording() : startRecording());
     };
-    const toggleStreaming = async () => {
-        if (busy(streaming)) return;
+
+    /** Garante que o que foi escolhido na janela já foi salvo no Rust antes de começar. */
+    const flushConfig = async () => {
+        if (saveTimer.current === null) return;
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        await native.setConfig(configRef.current!).catch(() => {});
+    };
+
+    const openOutputDialog = () => {
         refreshCaptureSources();
-        setGoLiveOpen(true);
-        // Parado: liga o servidor já, para o link (e a porta no roteador) estar pronto na janela.
+        setOutputDialogOpen(true);
+        // Liga o servidor já, para o link (e a porta no roteador) estar pronto na janela.
         if (streaming !== "active") native.streamPrepare().catch(() => {});
+    };
+    const closeOutputDialog = () => {
+        if (mustReconfigure) return;
+        setOutputDialogOpen(false);
+        if (streaming === "idle") native.streamUnprepare().catch(() => {});
+    };
+    const startOutputs = async (which: { record: boolean; stream: boolean }) => {
+        await flushConfig();
+        setOutputDialogOpen(false);
+        const tasks: Promise<void>[] = [];
+        if (which.record && recording === "idle") tasks.push(startRecording());
+        if (which.stream && streaming === "idle") tasks.push(startStreaming());
+        await Promise.all(tasks);
+        if (which.stream === false && streaming === "idle") native.streamUnprepare().catch(() => {});
     };
 
     /** Nova qualidade ao vivo: o formato do vídeo muda, então a transmissão recomeça (quem assiste
@@ -356,42 +378,15 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         closeOutput("stream");
         await startStreaming(true);
     };
-    const confirmGoLive = async () => {
-        if (busy(streaming)) return;
-        // Garante que a qualidade escolhida na janela já foi salva antes de começar.
-        if (saveTimer.current !== null) {
-            window.clearTimeout(saveTimer.current);
-            saveTimer.current = null;
-            await native.setConfig(configRef.current!).catch(() => {});
-        }
-        setGoLiveOpen(false);
-        await (streaming === "active" ? restartStreaming() : startStreaming());
-    };
-    const cancelGoLive = () => {
-        if (mustReconfigure) return;
-        setGoLiveOpen(false);
-        // Ao vivo, fechar a janela só mantém como está.
-        if (streaming !== "active") native.streamUnprepare().catch(() => {});
-    };
-
-    const openRecordDialog = () => {
-        if (busy(recording)) return;
-        refreshCaptureSources();
-        setRecordDialogOpen(true);
-    };
-    const confirmRecord = async () => {
-        if (busy(recording)) return;
-        if (saveTimer.current !== null) {
-            window.clearTimeout(saveTimer.current);
-            saveTimer.current = null;
-            await native.setConfig(configRef.current!).catch(() => {});
-        }
-        setRecordDialogOpen(false);
-        await startRecording();
+    const applyStreamQuality = async () => {
+        if (streaming !== "active") return;
+        await flushConfig();
+        setOutputDialogOpen(false);
+        await restartStreaming();
     };
 
     const screenshot = async () => {
-        const track = (feedbackRef.current && opened.current[feedbackRef.current]?.track) || trackRef.current;
+        const track = (feedbackRef.current && (opened.current.stream?.track ?? opened.current.record?.track)) || trackRef.current;
         if (!track) {
             alert(alerts.warning(t("native.nothingToCapture")));
             return;
@@ -440,20 +435,19 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 recording,
                 streaming,
                 toggleRecording,
-                toggleStreaming,
-                goLiveOpen,
-                confirmGoLive,
-                cancelGoLive,
+                outputDialogOpen,
+                openOutputDialog,
+                closeOutputDialog,
+                startOutputs,
+                applyStreamQuality,
+                stopRecording,
                 mustReconfigure,
-                recordDialogOpen,
-                openRecordDialog,
-                closeRecordDialog: () => setRecordDialogOpen(false),
-                confirmRecord,
                 captureSources,
                 refreshCaptureSources,
                 outputs,
                 feedback,
                 setFeedback,
+                outputTrack,
                 stopStreaming,
                 screenshot,
                 settingsTab,

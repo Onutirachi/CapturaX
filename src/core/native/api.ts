@@ -34,7 +34,6 @@ export type VideoCodecName = "h264" | "hevc";
 export type OutputSourceId = string | null;
 
 export type RecordingConfig = {
-    source: OutputSourceId;
     folder: string | null;
     preset: RecordingPreset;
     codec: VideoCodecName;
@@ -46,7 +45,6 @@ export type RecordingConfig = {
 };
 
 export type StreamConfig = {
-    source: OutputSourceId;
     acceptViewers: boolean;
     port: number;
     upnp: boolean;
@@ -63,6 +61,8 @@ export type StreamConfig = {
 export type Config = {
     /** Idioma da interface (`"pt-BR"`); `null` = o do Windows. */
     language: string | null;
+    /** Fonte da gravação e da transmissão (as duas usam a mesma). */
+    outputSource: OutputSourceId;
     audio: AudioConfig;
     recording: RecordingConfig;
     stream: StreamConfig;

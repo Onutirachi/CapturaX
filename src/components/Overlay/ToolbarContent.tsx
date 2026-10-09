@@ -7,7 +7,7 @@ import { nativeCaptureAvailable } from "../../core/native/screenCapture";
 import Icon from "./Icon";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { AlertsContext } from "../../context/AlertsContext";
-import { NativeContext, type OutputKind } from "../../context/NativeContext";
+import { NativeContext } from "../../context/NativeContext";
 import { native } from "../../core/native/api";
 import Resolution from "../../core/utils/Resolution";
 import { monitorRefreshRate } from "../../core/utils/refreshRate";
@@ -248,33 +248,32 @@ export default function ToolbarContent() {
                 </>
             )}
 
-            <FeedbackButton kind="record" />
-            <FeedbackButton kind="stream" />
+            <FeedbackButton />
         </>
     );
 }
 
 /**
- * "Ver gravação" / "Ver live": aparece enquanto a ação acontece e troca o preview pelo que está
+ * "Ver saída": aparece enquanto grava/transmite uma tela ou janela e troca o preview pelo que está
  * saindo (o menu de cima trava até voltar). Apagado quando a fonte já é a do preview.
  */
-function FeedbackButton({ kind }: { kind: OutputKind }) {
+function FeedbackButton() {
     const t = useT();
     const nctx = useContext(NativeContext);
-    const output = nctx?.outputs[kind];
+    const output = nctx?.outputs.stream ?? nctx?.outputs.record;
     if (!nctx || !output) return null;
     const samePreview = output.source === null;
-    const active = nctx.feedback === kind;
+    const active = nctx.feedback;
     return (
         <button
             disabled={samePreview}
             title={samePreview ? t("toolbar.feedbackSame") : active ? t("toolbar.feedbackBack") : t("toolbar.feedbackHint", { source: output.label })}
-            onClick={() => nctx.setFeedback(active ? null : kind)}
+            onClick={() => nctx.setFeedback(!active)}
             className={`h-11 px-3 flex items-center gap-2 rounded-xl [border:var(--border)] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                active ? (kind === "record" ? "bg-bad/30" : "bg-accent/30") : "bg-dark hover:bg-normal"
+                active ? "bg-accent/30" : "bg-dark hover:bg-normal"
             }`}>
-            <Icon src={kind === "record" ? "./assets/Dock/record.svg" : "./assets/Dock/live.svg"} color={kind === "record" ? "var(--color-bad)" : "var(--color-accent)"} />
-            {kind === "record" ? t("toolbar.viewRecording") : t("toolbar.viewLive")}
+            <Icon src="./assets/Dock/preview.svg" color="var(--color-accent)" />
+            {t("toolbar.viewOutput")}
         </button>
     );
 }

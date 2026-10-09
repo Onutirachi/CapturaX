@@ -9,6 +9,9 @@ use std::path::PathBuf;
 pub struct Config {
     /// Idioma da interface (`"pt-BR"`); `None` = o do Windows.
     pub language: Option<String>,
+    /// Fonte da gravação e da transmissão (as duas usam a mesma): `None` = a do preview;
+    /// `screen:...`/`window:...` = tela/janela.
+    pub output_source: Option<String>,
     pub audio: AudioConfig,
     pub recording: RecordingConfig,
     pub stream: StreamConfig,
@@ -75,8 +78,6 @@ impl Default for AudioConfig {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RecordingConfig {
-    /// Fonte: `None` = a mesma do preview; `screen:...`/`window:...` = tela/janela.
-    pub source: Option<String>,
     /// Pasta de destino. `None` = `Vídeos\CapturaX`.
     pub folder: Option<String>,
     /// "original" | "high" | "medium" | "light" | "custom"
@@ -94,7 +95,6 @@ pub struct RecordingConfig {
 impl Default for RecordingConfig {
     fn default() -> Self {
         Self {
-            source: None,
             folder: None,
             preset: "high".into(),
             codec: "h264".into(),
@@ -110,8 +110,6 @@ impl Default for RecordingConfig {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct StreamConfig {
-    /// Fonte: `None` = a mesma do preview; `screen:...`/`window:...` = tela/janela.
-    pub source: Option<String>,
     /// Servidor no ar (link responde, mesmo que "Offline").
     pub accept_viewers: bool,
     pub port: u16,
@@ -132,7 +130,6 @@ pub struct StreamConfig {
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
-            source: None,
             accept_viewers: false,
             port: 8787,
             upnp: true,

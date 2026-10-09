@@ -106,14 +106,14 @@ export function ActionDock(props: DockProps) {
             </button>
             <button
                 title={t(recording === "active" ? "dock.stopRecording" : "dock.record")}
-                onClick={() => (recording === "active" ? nctx.toggleRecording() : nctx.openRecordDialog())}
+                onClick={() => (recording === "active" ? nctx.stopRecording() : nctx.openOutputDialog())}
                 disabled={recording === "starting" || recording === "stopping"}
                 className={`${buttonClass} ${recording === "active" ? "bg-bad/25" : ""}`}>
                 <Icon src={recording === "active" ? "./assets/Dock/record_stop.svg" : "./assets/Dock/record.svg"} color={recording === "idle" ? undefined : "var(--color-bad)"} />
             </button>
             <button
                 title={t(streaming === "active" ? "dock.streamSettings" : "dock.goLive")}
-                onClick={() => nctx.toggleStreaming()}
+                onClick={() => nctx.openOutputDialog()}
                 disabled={streaming === "starting" || streaming === "stopping"}
                 className={`${buttonClass} ${streaming === "active" ? "bg-accent/25" : ""}`}>
                 <Icon src="./assets/Dock/live.svg" color={streaming === "idle" ? undefined : "var(--color-accent)"} />

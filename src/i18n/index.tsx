@@ -85,7 +85,8 @@ export function tx(key: MessageKey, vars: Record<string, ComponentChildren>): Co
     return text.split(/\{(\w+)\}/).map((part, i) => (i % 2 === 1 ? (part in vars ? vars[part] : `{${part}}`) : part));
 }
 
-const formatVar =(value: string | number) => (typeof value === "number" ? new Intl.NumberFormat(currentCode).format(value) : value);
+// Sem separador de milhar: portas e contagens ficam legíveis ("8787", não "8.787").
+const formatVar = (value: string | number) => (typeof value === "number" ? new Intl.NumberFormat(currentCode, { useGrouping: false }).format(value) : value);
 
 /** Bases das chaves com plural (`viewers_one` → `viewers`). */
 type PluralKey = MessageKey extends infer K ? (K extends `${infer Base}_${"one" | "other"}` ? Base : never) : never;

@@ -24,7 +24,7 @@ function useStreamConfig() {
 
 /** Fonte da transmissão (a placa do preview ou a tela/janela escolhida). */
 export function useSource(): SourceInfo {
-    return useOutputSourceInfo("stream").info;
+    return useOutputSourceInfo().info;
 }
 
 /** Upload que cada espectador consome (vídeo + áudio). */
@@ -58,7 +58,7 @@ export function FpsSelect({ fullWidth }: { fullWidth?: boolean }) {
 export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean }) {
     const t = useT();
     const { stream, set } = useStreamConfig();
-    const { info: source, modes } = useOutputSourceInfo("stream");
+    const { info: source, modes } = useOutputSourceInfo();
 
     if (!modes) {
         return fullWidth ? (
