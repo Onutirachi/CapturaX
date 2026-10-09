@@ -233,14 +233,16 @@ funciona atrás de CGNAT. Opções gratuitas levantadas em 2026-10-09, para ente
   banda limitada por eles.
 - **ngrok grátis:** 1 GB/mês, a live gasta isso em ~20 min. Descartado.
 
-### Fase 8 — Multi-idioma (planejado em 2026-10-08, ainda não implementado)
+### Fase 8 — Multi-idioma — **feito** (2026-10-09)
 - **Idiomas iniciais:** inglês e português (Brasil). Inglês é a base e o fallback.
 - **Detecção automática:** o Rust informa o idioma da interface do Windows
   (`GetUserDefaultUILanguage`, comando `system_locale`). Procura `pt-BR` exato → idioma `pt` →
   inglês. A página de quem assiste usa o idioma do navegador de quem assiste
   (`navigator.languages`), independente do app.
 - **Escolha manual:** Configurações → Geral → Idioma ("Automático (sistema)" + lista), salvo no
-  `settings.json`. Troca na hora, sem reiniciar.
+  `settings.json` (`language`). Troca na hora, sem reiniciar.
+- Feito com `GetUserPreferredUILanguages` (comando `system_languages`), `src/i18n/index.tsx`
+  (`t`, `tx` para texto com elementos, `useT`, `errorText`) e erros do Rust em `src-tauri/src/error.rs`.
 - **Estrutura para crescer:**
   - Um arquivo por idioma em `src/i18n/` (`en.ts` é a fonte das chaves; os outros são tipados como
     `Record<keyof typeof en, string>`, então faltar uma tradução é erro de compilação).

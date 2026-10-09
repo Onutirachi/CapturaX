@@ -10,6 +10,7 @@ import Icon from "./Icon";
 import ButtonToggle from "../../core/components/ButtonToggle";
 import InfoBubble from "./InfoBubble";
 import Alerts from "./Alerts";
+import { useT } from "../../i18n";
 
 type ControlsProps = { fixed: boolean; setFixed: (value: boolean) => void };
 
@@ -40,6 +41,7 @@ function formatBytes(bytes: number) {
 
 /** Indicadores de gravação e transmissão em andamento. */
 function MediaBubbles() {
+    const t = useT();
     const nctx = useContext(NativeContext);
     if (!nctx) return null;
     const recording = nctx.status?.sessions.find((s) => s.kind === "recording");
@@ -52,14 +54,14 @@ function MediaBubbles() {
                 <InfoBubble>
                     <span className="w-3 h-3 rounded-full bg-bad animate-pulse" />
                     <span title={nctx.status?.recording?.path}>
-                        {nctx.recording === "stopping" ? "Saving…" : `REC ${formatDuration(recording?.elapsedSecs ?? 0)} · ${formatBytes(recording?.bytes ?? 0)}`}
+                        {nctx.recording === "stopping" ? t("status.saving") : `REC ${formatDuration(recording?.elapsedSecs ?? 0)} · ${formatBytes(recording?.bytes ?? 0)}`}
                     </span>
                 </InfoBubble>
             )}
             {nctx.streaming !== "idle" && (
                 <InfoBubble>
-                    <span className="px-1.5 rounded-sm bg-accent text-sm font-semibold">LIVE</span>
-                    <span title="Viewers">{`${formatDuration(streaming?.elapsedSecs ?? 0)} · ${viewers} watching`}</span>
+                    <span className="px-1.5 rounded-sm bg-accent text-sm font-semibold">{t("status.live")}</span>
+                    <span>{`${formatDuration(streaming?.elapsedSecs ?? 0)} · ${t("status.watching", { count: viewers })}`}</span>
                 </InfoBubble>
             )}
         </>
@@ -67,6 +69,7 @@ function MediaBubbles() {
 }
 
 export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; setFixed: (value: boolean) => void }) {
+    const t = useT();
     const vsctx = useContext(VideoStreamContext);
     const { latency, latencyAvailable, fps: measuredFps } = useContext(FrameStatsContext)?.stats ?? { latency: null, latencyAvailable: false, fps: null };
     if (!vsctx) return null;
@@ -98,12 +101,12 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
                 {isCapturing ? (
                     <>
                         <Icon src="./assets/StatusBar/play.svg" />
-                        <span>Capturing</span>
+                        <span>{t("status.capturing")}</span>
                     </>
                 ) : (
                     <>
                         <Icon src="./assets/StatusBar/pause.svg" />
-                        <span>Not capturing</span>
+                        <span>{t("status.notCapturing")}</span>
                     </>
                 )}
             </InfoBubble>
@@ -113,11 +116,11 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
                 {aspectRatioTag && <Tag text={aspectRatioTag}></Tag>}
             </InfoBubble>
             <InfoBubble className="min-w-24 tabular-nums">
-                <span title={`Configured: ${Math.round(configuredFps)} FPS`}>{`${Math.round(measuredFps ?? configuredFps)} FPS`}</span>
+                <span title={t("status.configuredFps", { fps: Math.round(configuredFps) })}>{`${Math.round(measuredFps ?? configuredFps)} FPS`}</span>
             </InfoBubble>
             {latencyAvailable && (
                 <InfoBubble className="min-w-36 tabular-nums">
-                    <span title="Time from frame capture (driver timestamp) to display">{latency !== null ? `Latency ${Math.round(latency)} ms` : "Latency —"}</span>
+                    <span title={t("status.latencyHint")}>{latency !== null ? t("status.latency", { ms: Math.round(latency) }) : t("status.latencyUnknown")}</span>
                 </InfoBubble>
             )}
             <Controls fixed={fixed} setFixed={setFixed} />

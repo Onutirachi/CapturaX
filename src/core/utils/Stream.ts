@@ -6,6 +6,7 @@ import { SetVideoStreamType } from "../../context/VideoStreamContext";
 import { SetVideoTrackType } from "../../context/VideoStreamContext";
 import { NativeScreenCapture } from "../native/screenCapture";
 import { errorText } from "../native/api";
+import { t } from "../../i18n";
 
 // `resizeMode` ainda não está nos tipos do TypeScript.
 type VideoConstraints = MediaTrackConstraints & { resizeMode?: "none" | "crop-and-scale" };
@@ -145,8 +146,8 @@ export default class Stream {
             this.setAlert(null);
         } catch (error) {
             const name = error instanceof DOMException ? error.name : String(error);
-            if (name === "NotAllowedError") this.handleWarning("Screen capture cancelled: use \"Choose screen\" to pick one");
-            else this.handleError(`Could not capture the screen (${name})`);
+            if (name === "NotAllowedError") this.handleWarning(t("stream.screenCancelled"));
+            else this.handleError(t("stream.screenFailed", { detail: name }));
         }
     }
 
@@ -216,7 +217,7 @@ export default class Stream {
             this.setVideoTrack(track);
             this.setAlert(null);
         } catch (error) {
-            this.handleError(`Could not capture this screen or window (${errorText(error)})`);
+            this.handleError(errorText(error));
         }
     }
 
@@ -239,17 +240,17 @@ export default class Stream {
 
                 const { width, height, frameRate } = this.videoTrack.getSettings();
                 console.debug(`Video opened at ${width}x${height} @ ${frameRate} fps`, constraints);
-                if (scaled) this.handleWarning(`${width}x${height} is not native on this device; scaling in software`);
+                if (scaled) this.handleWarning(t("stream.scaled", { size: `${width}x${height}` }));
                 else this.setAlert(null);
                 return;
             } catch (error) {
                 if (error instanceof DOMException && error.name === "OverconstrainedError") continue;
-                this.handleError(`Could not open video device (${error instanceof DOMException ? error.name : error})`);
+                this.handleError(t("stream.videoFailed", { detail: error instanceof DOMException ? error.name : String(error) }));
                 return;
             }
         }
 
-        this.handleError("This device does not support the selected resolution/framerate");
+        this.handleError(t("stream.unsupportedMode"));
     }
 
     private handleVideoEnded(track: MediaStreamTrack) {
@@ -259,7 +260,12 @@ export default class Stream {
         this.setVideoTrack(null);
         this.nativeCapture?.stop();
         this.nativeCapture = null;
-        const message = this.source === "capture" ? (this.videoId?.startsWith("window:") ? "The captured window was closed" : "Screen capture stopped") : this.isScreen ? "Screen capture stopped" : "Video device disconnected";
+        const message =
+            this.source === "capture" && this.videoId?.startsWith("window:")
+                ? t("stream.windowClosed")
+                : this.source === "capture" || this.isScreen
+                  ? t("stream.screenStopped")
+                  : t("stream.videoDisconnected");
         this.handleWarning(message);
     }
 
@@ -268,7 +274,7 @@ export default class Stream {
         this.mediaStream.removeTrack(track);
         this.audioTrack = null;
         this.currentAudioId = null;
-        this.handleWarning("Audio device disconnected");
+        this.handleWarning(t("stream.audioDisconnected"));
     }
 
     /** Chamado quando a lista de dispositivos muda: reabre o que caiu e voltou. */
@@ -315,7 +321,7 @@ export default class Stream {
             this.mediaStream.addTrack(track);
             this.currentAudioId = this.audioId;
         } catch (error) {
-            this.handleError(`Could not open audio device (${error instanceof DOMException ? error.name : error})`);
+            this.handleError(t("stream.audioFailed", { detail: error instanceof DOMException ? error.name : String(error) }));
         }
     }
 

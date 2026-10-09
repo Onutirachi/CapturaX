@@ -7,6 +7,8 @@ use std::path::PathBuf;
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Config {
+    /// Idioma da interface (`"pt-BR"`); `None` = o do Windows.
+    pub language: Option<String>,
     pub audio: AudioConfig,
     pub recording: RecordingConfig,
     pub stream: StreamConfig,

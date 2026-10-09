@@ -92,6 +92,17 @@ Process loopback can only include/exclude one process **tree**, so the mixer cap
 audio session separately and sums them, never capturing CapturaX's own tree or a tree that contains an
 excluded executable (`audio/apps.rs::plan_captures`). Exclusions are saved by lowercase exe name.
 
+### Languages (`src/i18n/`)
+All UI text goes through `t("key", { vars })` (components call `const t = useT()` so they re-render
+when the language changes; non-component code imports `t`). `en.ts` defines the keys; other
+languages are typed `Messages`, so a missing translation is a compile error. Plurals use
+`<key>_one` / `<key>_other` with `{ count }`; `tx()` accepts elements as variables (bold, code).
+The language comes from Settings → General (`config.language`) or Windows (`system_languages`);
+the viewer page uses the watcher's browser languages. Errors shown to the user are never English
+sentences built in Rust: they are `crate::error::coded(code, data)` JSON and `errorText()`
+translates `error.<code>`. Dropdown titles are translated, so uncontrolled dropdowns need an
+explicit `storageKey`.
+
 ### Context Providers
 - `VideoStreamContext` — `videoStream`, `videoTrack`, `volume`/`muted`, `ambientLight`
 - `FrameStatsContext` — measured `latency` (ms) + `fps`, updated 2×/s; separate so only the StatusBar re-renders

@@ -2,6 +2,7 @@
 import { type ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import Icon from "../Overlay/Icon";
+import { useT } from "../../i18n";
 
 export function Section({ title, description, children }: { title: string; description?: ComponentChildren; children: ComponentChildren }) {
     return (
@@ -147,6 +148,7 @@ export function Button({
 }
 
 export function CopyField({ value, fullWidth = false }: { value: string; fullWidth?: boolean }) {
+    const t = useT();
     const [copied, setCopied] = useState(false);
     return (
         <div className={`flex items-center gap-2 min-w-0 ${fullWidth ? "w-full" : ""}`}>
@@ -154,7 +156,7 @@ export function CopyField({ value, fullWidth = false }: { value: string; fullWid
                 {value}
             </code>
             <button
-                title="Copy"
+                title={t("common.copy")}
                 onClick={() => navigator.clipboard.writeText(value).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}
                 className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-normal hover:brightness-125 cursor-pointer">
                 <Icon src={copied ? "./assets/Alerts/check.svg" : "./assets/Settings/copy.svg"} color={copied ? "var(--color-accent)" : undefined} />

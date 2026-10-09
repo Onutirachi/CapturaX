@@ -1,5 +1,6 @@
 // Qualidade de gravação/transmissão → configuração do VideoEncoder (WebCodecs).
 import type { RecordingConfig, StreamConfig, VideoCodecName } from "../native/api";
+import { t } from "../../i18n";
 
 export type EncoderSettings = {
     codec: string;
@@ -177,7 +178,7 @@ export async function resolveSupported(settings: EncoderSettings): Promise<Encod
             if (await supported(candidate)) return candidate;
         }
     }
-    throw new Error(`This PC cannot encode ${settings.width}x${settings.height} @ ${settings.fps} fps`);
+    throw new Error(t("encoder.unsupported", { size: `${settings.width}x${settings.height}`, fps: settings.fps }));
 }
 
 export async function isHevcSupported() {

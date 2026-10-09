@@ -45,13 +45,13 @@ pub fn is_cgnat(ip: IpAddr) -> bool {
 
 pub async fn map(port: u16) -> Result<(Mapping, UpnpStatus), String> {
     let options = SearchOptions { timeout: Some(Duration::from_secs(5)), ..Default::default() };
-    let gateway = search_gateway(options).await.map_err(|e| format!("No UPnP router found ({e})"))?;
-    let local_ip = local_ip_towards(gateway.addr).ok_or("Could not determine the local IP")?;
+    let gateway = search_gateway(options).await.map_err(|e| crate::error::with_detail("upnp_no_router", e))?;
+    let local_ip = local_ip_towards(gateway.addr).ok_or_else(|| crate::error::code("no_local_ip"))?;
     gateway
         .add_port(PortMappingProtocol::TCP, port, SocketAddr::new(local_ip, port), LEASE_SECS, DESCRIPTION)
         .await
-        .map_err(|e| format!("The router refused to open the port ({e})"))?;
-    let external_ip = gateway.get_external_ip().await.map_err(|e| format!("Could not read the external IP ({e})"))?;
+        .map_err(|e| crate::error::with_detail("upnp_refused", e))?;
+    let external_ip = gateway.get_external_ip().await.map_err(|e| crate::error::with_detail("upnp_no_external_ip", e))?;
     let status = UpnpStatus::Mapped { external_ip: external_ip.to_string(), cgnat: is_cgnat(external_ip) };
     Ok((Mapping { gateway, port }, status))
 }
@@ -59,7 +59,7 @@ pub async fn map(port: u16) -> Result<(Mapping, UpnpStatus), String> {
 impl Mapping {
     /// Renova antes do lease expirar.
     pub async fn renew(&self) -> Result<(), String> {
-        let local_ip = local_ip_towards(self.gateway.addr).ok_or("Could not determine the local IP")?;
+        let local_ip = local_ip_towards(self.gateway.addr).ok_or_else(|| crate::error::code("no_local_ip"))?;
         self.gateway
             .add_port(PortMappingProtocol::TCP, self.port, SocketAddr::new(local_ip, self.port), LEASE_SECS, DESCRIPTION)
             .await

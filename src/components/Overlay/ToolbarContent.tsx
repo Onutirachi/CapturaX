@@ -11,6 +11,7 @@ import { native, type CaptureSources } from "../../core/native/api";
 import Resolution from "../../core/utils/Resolution";
 import { monitorRefreshRate } from "../../core/utils/refreshRate";
 import { chooseMode, chooseSmoothest, choicesOf, deviceName, findDevice, pairedAudio, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
+import { t as translate, useT } from "../../i18n";
 
 const NO_AUDIO = "none";
 const DEFAULT_OUTPUT = "default";
@@ -19,12 +20,14 @@ const AUTO = "Auto";
 const SMOOTHEST = "Smoothest";
 
 /** "Screen 2 - 27G2G4": o número que o Windows dá à tela + o nome do monitor. */
-const screenLabel = (screen: CaptureSources["screens"][number]) => `Screen ${screen.number}${screen.name ? ` - ${screen.name}` : ""}`;
+const screenLabel = (screen: CaptureSources["screens"][number]) =>
+    screen.name ? translate("toolbar.screenNamed", { number: screen.number, name: screen.name }) : translate("toolbar.screen", { number: screen.number });
 
 /** Bandeirinha da resolução: o nome padrão, ou a proporção em cinza. */
 const resolutionTag = (size: Size) => Resolution.getTag(size);
 
 export default function ToolbarContent() {
+    const t = useT();
     const [videoDevicesList, setVideoDevicesList] = useState<MediaDeviceInfo[]>([]);
     const [audioDevicesList, setaudioDevicesList] = useState<MediaDeviceInfo[]>([]);
     const [isScreen, setIsScreen] = useState(false);
@@ -121,7 +124,8 @@ export default function ToolbarContent() {
     return (
         <>
             <DropDown
-                title="Video Device"
+                title={t("toolbar.videoDevice")}
+                storageKey="Video Device"
                 onOpen={loadCaptureSources}
                 onChoose={async (value) => {
                     setIsScreen(value === SCREEN_SOURCE);
@@ -135,13 +139,13 @@ export default function ToolbarContent() {
                     vsctx.setDeviceModes(deviceModes);
                     stream.setVideoDevice(value, deviceModes);
                 }}>
-                {nativeCapture && videoDevicesList.length > 0 && <DropHeader>Devices</DropHeader>}
+                {nativeCapture && videoDevicesList.length > 0 && <DropHeader>{t("toolbar.devices")}</DropHeader>}
                 {videoDevicesList.map(({ deviceId, label }) => (
                     <DropOption key={deviceId} value={deviceId}>
                         {deviceName(label)}
                     </DropOption>
                 ))}
-                {nativeCapture && captureSources.screens.length > 0 && <DropHeader>Screens</DropHeader>}
+                {nativeCapture && captureSources.screens.length > 0 && <DropHeader>{t("toolbar.screens")}</DropHeader>}
                 {captureSources.screens.map((screen) => {
                     const tag = resolutionTag(screen);
                     return (
@@ -152,7 +156,7 @@ export default function ToolbarContent() {
                         </DropOption>
                     );
                 })}
-                {nativeCapture && captureSources.windows.length > 0 && <DropHeader>Windows</DropHeader>}
+                {nativeCapture && captureSources.windows.length > 0 && <DropHeader>{t("toolbar.windows")}</DropHeader>}
                 {captureSources.windows.map((window) => (
                     <DropOption key={window.id} value={window.id}>
                         {window.title}
@@ -161,28 +165,28 @@ export default function ToolbarContent() {
                 ))}
                 {!nativeCapture && (
                     <DropOption key={SCREEN_SOURCE} value={SCREEN_SOURCE}>
-                        Screen / window capture
+                        {t("toolbar.browserScreen")}
                     </DropOption>
                 )}
             </DropDown>
 
             {isScreen && (
                 <button className="h-11 px-4 rounded-xl bg-accent hover:brightness-110 transition cursor-pointer" onClick={() => stream.chooseScreen()}>
-                    Choose screen
+                    {t("toolbar.chooseScreen")}
                 </button>
             )}
 
             {nativeAudio && config ? (
                 <>
                     <DropDown
-                        title="Audio Device"
+                        title={t("toolbar.audioDevice")}
                         value={config.audio.previewInputAuto ? AUTO_AUDIO : (config.audio.previewInput ?? NO_AUDIO)}
                         onChoose={(value) =>
                             setAudio(value === AUTO_AUDIO ? { previewInputAuto: true } : { previewInputAuto: false, previewInput: value === NO_AUDIO ? null : value })
                         }>
-                        <DropOption value={AUTO_AUDIO}>{`Auto (${paired ? paired.name : "no audio"})`}</DropOption>
+                        <DropOption value={AUTO_AUDIO}>{t("toolbar.autoNamed", { name: paired ? paired.name : t("toolbar.noAudioLower") })}</DropOption>
                         <DropOption value={NO_AUDIO} className="text-(--text-muted)">
-                            No audio
+                            {t("toolbar.noAudio")}
                         </DropOption>
                         {inputs.map(({ id, name }) => (
                             <DropOption key={id} value={id}>
@@ -192,11 +196,11 @@ export default function ToolbarContent() {
                     </DropDown>
 
                     <DropDown
-                        title="Audio Output"
+                        title={t("toolbar.audioOutput")}
                         value={config.audio.previewOutput ?? DEFAULT_OUTPUT}
                         onChoose={(value) => setAudio({ previewOutput: value === DEFAULT_OUTPUT ? null : value })}>
                         <DropOption value={DEFAULT_OUTPUT}>
-                            Windows default
+                            {t("toolbar.windowsDefault")}
                         </DropOption>
                         {(nctx?.devices.outputs ?? []).map(({ id, name }) => (
                             <DropOption key={id} value={id}>
@@ -207,7 +211,7 @@ export default function ToolbarContent() {
                 </>
             ) : (
                 <DropDown
-                    title="Audio Device"
+                    title={t("toolbar.audioDevice")}
                     storageKey="Audio Device (browser)"
                     onChoose={async (value) => {
                         stream.audioId = value;
@@ -224,17 +228,17 @@ export default function ToolbarContent() {
             {modes ? (
                 // Modos reais da placa: resolução e FPS juntos, só o que existe.
                 <DropDown
-                    title="Mode"
+                    title={t("toolbar.mode")}
                     storageKey="Video mode"
                     onChoose={async (value) => stream.setMode(value === AUTO ? null : value === SMOOTHEST ? (modes && chooseSmoothest(modes)) : parseModeKey(value))}>
                     <DropOption key={AUTO} value={AUTO}>
-                        {auto ? `Auto (${auto.width} x ${auto.height})` : "Auto"}
+                        {auto ? t("toolbar.autoNamed", { name: `${auto.width} x ${auto.height}` }) : t("toolbar.auto")}
                         {auto && <Tag text={resolutionTag(auto).text} color={resolutionTag(auto).color} />}
                         {auto && <Tag text={`${formatFps(auto.fps)} FPS`} color={fpsColor(auto.fps)} />}
                     </DropOption>
                     {showSmoothest && (
                         <DropOption key={SMOOTHEST} value={SMOOTHEST}>
-                            {`Smoothest (${smoothest.width} x ${smoothest.height})`}
+                            {t("toolbar.smoothest", { size: `${smoothest.width} x ${smoothest.height}` })}
                             <Tag text={resolutionTag(smoothest).text} color={resolutionTag(smoothest).color} />
                             <Tag text={`${formatFps(smoothest.fps)} FPS`} color={fpsColor(smoothest.fps)} />
                         </DropOption>
@@ -255,11 +259,11 @@ export default function ToolbarContent() {
                     {/* Tela/janela pelo Rust: sempre no tamanho real; só o FPS é escolhido. */}
                     {!capturing && (
                         <DropDown
-                            title="Resolution"
+                            title={t("toolbar.resolution")}
                             storageKey="Resolution (size)"
                             onChoose={async (value) => stream.setResolution(value === AUTO ? null : parseSizeKey(value))}>
                             <DropOption key={AUTO} value={AUTO}>
-                                {isScreen ? `Auto (${screenSize.width} x ${screenSize.height})` : "Auto"}
+                                {isScreen ? t("toolbar.autoNamed", { name: `${screenSize.width} x ${screenSize.height}` }) : t("toolbar.auto")}
                                 {isScreen && <Tag text={resolutionTag(screenSize).text} color={resolutionTag(screenSize).color} />}
                             </DropOption>
                             {sizes.map((size) => {
@@ -275,11 +279,11 @@ export default function ToolbarContent() {
                     )}
 
                     <DropDown
-                        title="Framerate"
+                        title={t("toolbar.framerate")}
                         storageKey="Framerate (fps)"
                         onChoose={async (value) => stream.setFrameRate(value === AUTO ? null : Number(value))}>
                         <DropOption key={AUTO} value={AUTO}>
-                            Auto
+                            {t("toolbar.auto")}
                             {autoFps !== null && <Tag text={`${autoFps} FPS`} color={fpsColor(autoFps)} />}
                         </DropOption>
                         {fpsOptions.map((fps) => (

@@ -28,7 +28,7 @@ pub fn fix() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe = exe.display().to_string();
     if exe.contains('"') {
-        return Err("Unexpected executable path".into());
+        return Err(crate::error::code("firewall_failed"));
     }
     let script = format!(
         "/c netsh advfirewall firewall delete rule name=all program=\"{exe}\" & \
@@ -46,7 +46,7 @@ pub fn fix() -> Result<(), String> {
         ..Default::default()
     };
     unsafe {
-        ShellExecuteExW(&mut info).map_err(|_| "Administrator permission was denied".to_string())?;
+        ShellExecuteExW(&mut info).map_err(|_| crate::error::code("firewall_denied"))?;
         if !info.hProcess.is_invalid() {
             WaitForSingleObject(info.hProcess, 30_000);
             let mut code = 0;
@@ -57,6 +57,6 @@ pub fn fix() -> Result<(), String> {
     if rule_exists() {
         Ok(())
     } else {
-        Err("Could not create the firewall rule".into())
+        Err(crate::error::code("firewall_failed"))
     }
 }

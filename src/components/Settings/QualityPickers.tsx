@@ -6,6 +6,7 @@ import Resolution from "../../core/utils/Resolution";
 import { FRAMERATE_LIST, RESOLUTION_LIST } from "../../core/utils/constants";
 import type { SourceInfo } from "../../core/media/presets";
 import { fpsColor, formatFps } from "../../core/utils/videoModes";
+import { useT } from "../../i18n";
 
 const NATIVE = "native";
 
@@ -15,6 +16,7 @@ const key = (size: Size) => `${size.width}x${size.height}`;
 
 /** `value = null` = nativo. Só oferece resoluções até a da fonte (nunca aumenta a imagem). */
 export function ResolutionPicker({ value, source, onChange, fullWidth }: { value: Size | null; source: SourceInfo; onChange: (value: Size | null) => void; fullWidth?: boolean }) {
+    const t = useT();
     const nativeTag = Resolution.getTag(source);
     const options = RESOLUTION_LIST.filter((r) => r.width <= source.width && r.height <= source.height);
     const selected = value ? key(value) : NATIVE;
@@ -22,7 +24,7 @@ export function ResolutionPicker({ value, source, onChange, fullWidth }: { value
     const custom = value && !options.some((r) => key(r) === selected) ? value : null;
     return (
         <DropDown
-            title="Resolution"
+            title={t("toolbar.resolution")}
             fullWidth={fullWidth}
             value={selected}
             onChoose={(v) => {
@@ -31,7 +33,7 @@ export function ResolutionPicker({ value, source, onChange, fullWidth }: { value
                 onChange({ width, height });
             }}>
             <DropOption value={NATIVE}>
-                {`Native (${source.width} x ${source.height})`}
+                {t("quality.native", { size: `${source.width} x ${source.height}` })}
                 <Tag text={nativeTag.text} color={nativeTag.color} />
             </DropOption>
             {custom && (
@@ -52,12 +54,13 @@ export function ResolutionPicker({ value, source, onChange, fullWidth }: { value
 
 /** `value = null` = nativo. */
 export function FpsPicker({ value, source, onChange, fullWidth }: { value: number | null; source: SourceInfo; onChange: (value: number | null) => void; fullWidth?: boolean }) {
+    const t = useT();
     const sourceFps = Math.round(source.fps);
     const options = FRAMERATE_LIST.filter((f) => f <= sourceFps || f === value);
     return (
-        <DropDown title="Framerate" fullWidth={fullWidth} value={value ? String(value) : NATIVE} onChoose={(v) => onChange(v === NATIVE ? null : Number(v))}>
+        <DropDown title={t("toolbar.framerate")} fullWidth={fullWidth} value={value ? String(value) : NATIVE} onChoose={(v) => onChange(v === NATIVE ? null : Number(v))}>
             <DropOption value={NATIVE}>
-                Native
+                {t("quality.nativeShort")}
                 <Tag text={`${formatFps(sourceFps)} FPS`} color={fpsColor(sourceFps)} />
             </DropOption>
             {[...options].map((f) => (

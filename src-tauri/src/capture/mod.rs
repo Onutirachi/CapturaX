@@ -60,7 +60,7 @@ impl ScreenCapture {
     pub fn start(&self, id: &str, fps: u32, cursor: bool) -> Result<CaptureStarted, String> {
         self.stop();
         self.fps.store(fps.max(1), Ordering::Relaxed);
-        Target::parse(id).ok_or("This screen or window is no longer available")?;
+        Target::parse(id).ok_or_else(|| crate::error::code("capture_gone"))?;
         let id = id.to_string();
         let stop = Arc::new(AtomicBool::new(false));
         let (ready, started) = mpsc::channel();
@@ -71,7 +71,7 @@ impl ScreenCapture {
                 .spawn(move || run(&id, cursor, bridge, fps, stop, ready))
                 .map_err(|e| e.to_string())?
         };
-        let result = started.recv_timeout(Duration::from_secs(5)).unwrap_or_else(|_| Err("Screen capture did not start".into()));
+        let result = started.recv_timeout(Duration::from_secs(5)).unwrap_or_else(|_| Err(crate::error::code("capture_timeout")));
         *self.running.lock().unwrap() = Some(Running { stop, thread: Some(thread) });
         if result.is_err() {
             self.stop();
@@ -169,7 +169,7 @@ fn run(id: &str, cursor: bool, bridge: Arc<Bridge>, fps: Arc<AtomicU32>, stop: A
     let (item, device, context, winrt_device, pool, session, size) = match setup() {
         Ok(parts) => parts,
         Err(error) => {
-            let _ = ready.send(Err(format!("Could not capture this screen or window ({})", error.message())));
+            let _ = ready.send(Err(crate::error::with_detail("capture_failed", error.message())));
             return;
         }
     };
@@ -196,7 +196,7 @@ fn run(id: &str, cursor: bool, bridge: Arc<Bridge>, fps: Arc<AtomicU32>, stop: A
     // Windows 11 24H2+: o próprio Windows limita a taxa (menos trabalho); antes disso, só o filtro abaixo.
     let _ = session.SetMinUpdateInterval(TimeSpan { Duration: 10_000_000 / applied_fps.max(1) as i64 });
     if let Err(error) = session.StartCapture() {
-        let _ = ready.send(Err(format!("Could not start the capture ({})", error.message())));
+        let _ = ready.send(Err(crate::error::with_detail("capture_failed", error.message())));
         return;
     }
     let _ = ready.send(Ok(CaptureStarted { width: size.Width as u32 & !1, height: size.Height as u32 & !1 }));

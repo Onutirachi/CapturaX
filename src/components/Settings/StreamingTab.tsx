@@ -2,31 +2,34 @@ import { useContext, useState } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import { native, errorText, type StreamConfig, type UpnpStatus } from "../../core/native/api";
 import { Badge, Button, CopyField, Note, NumberInput, Row, Section, Toggle } from "./controls";
+import { t as translate, tx, useT } from "../../i18n";
 
 function formatWatching(seconds: number) {
-    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 60) return translate("time.seconds", { n: seconds });
     const minutes = Math.floor(seconds / 60);
-    return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+    return minutes < 60 ? translate("time.minutes", { n: minutes }) : translate("time.hoursMinutes", { h: Math.floor(minutes / 60), m: minutes % 60 });
 }
 
 function UpnpText({ status }: { status: UpnpStatus }) {
+    const t = useT();
     switch (status.state) {
         case "disabled":
-            return <>Off: open the port on the router yourself.</>;
+            return <>{t("upnp.disabled")}</>;
         case "searching":
-            return <>Asking the router to open the port…</>;
+            return <>{t("upnp.searching")}</>;
         case "mapped":
             return status.cgnat ? (
-                <span className="text-[goldenrod]">The router opened the port, but your internet provider uses CGNAT ({status.externalIp}): the link won't work from outside.</span>
+                <span className="text-[goldenrod]">{t("upnp.cgnat", { ip: status.externalIp })}</span>
             ) : (
-                <>Port opened on the router (public IP {status.externalIp}).</>
+                <>{t("upnp.mapped", { ip: status.externalIp })}</>
             );
         case "failed":
-            return <span className="text-[goldenrod]">{status.reason}. Open the port manually on the router, or enable UPnP there.</span>;
+            return <span className="text-[goldenrod]">{t("upnp.failed", { reason: errorText(status.reason) })}</span>;
     }
 }
 
 export default function StreamingTab() {
+    const t = useT();
     const nctx = useContext(NativeContext)!;
     const stream = nctx.config!.stream;
     const server = nctx.server;
@@ -46,77 +49,75 @@ export default function StreamingTab() {
 
     return (
         <div className="flex flex-col gap-6">
-            <Section title="Link" description="Friends watch in any browser. The link stays the same; while you're not live it shows “Offline” and starts by itself when you go live.">
-                <Row label="Accept viewers" hint="Keeps the link online on this PC.">
+            <Section title={t("streaming.link")} description={t("streaming.linkDescription")}>
+                <Row label={t("streaming.acceptViewers")} hint={t("streaming.acceptViewersHint")}>
                     <Toggle checked={stream.acceptViewers} onChange={(acceptViewers) => set({ acceptViewers })} />
                 </Row>
-                <Row label={live ? "You are live" : "Not live"} hint={live ? `${server?.viewers.length ?? 0} watching now` : "Quality is chosen when you go live (from here or from the Dock)."}>
-                    {live && <Button onClick={() => nctx.toggleStreaming()}>Change quality</Button>}
+                <Row label={t(live ? "streaming.live" : "streaming.notLive")} hint={live ? t("streaming.watchingNow", { count: server?.viewers.length ?? 0 }) : t("streaming.notLiveHint")}>
+                    {live && <Button onClick={() => nctx.toggleStreaming()}>{t("streaming.changeQuality")}</Button>}
                     <Button variant={live ? "danger" : "accent"} onClick={() => (live ? nctx.stopStreaming() : nctx.toggleStreaming())} disabled={nctx.streaming === "starting" || nctx.streaming === "stopping"}>
-                        {live ? "Stop" : "Go live"}
+                        {t(live ? "streaming.stop" : "streaming.goLive")}
                     </Button>
                 </Row>
                 {server?.publicUrl && (
-                    <Row label="Internet link" hint="Send this to whoever is watching.">
+                    <Row label={t("streaming.internetLink")} hint={t("streaming.internetLinkHint")}>
                         <CopyField value={server.publicUrl} />
                     </Row>
                 )}
                 {server?.localUrl && (
-                    <Row label="Local network link" hint="Same Wi-Fi/network as this PC.">
+                    <Row label={t("streaming.localLink")} hint={t("streaming.localLinkHint")}>
                         <CopyField value={server.localUrl} />
                     </Row>
                 )}
                 {server?.error && (
                     <div className="px-4 py-3">
-                        <Note tone="error">{server.error}</Note>
+                        <Note tone="error">{errorText(server.error)}</Note>
                     </div>
                 )}
             </Section>
 
-            <Section title="Network">
-                <Row label="Port" hint="Changing it restarts the link.">
+            <Section title={t("streaming.network")}>
+                <Row label={t("streaming.port")} hint={t("streaming.portHint")}>
                     <NumberInput value={stream.port} min={1024} max={65535} onChange={(port) => set({ port })} />
                 </Row>
-                <Row label="Open the port automatically (UPnP)" hint={server ? <UpnpText status={server.upnp} /> : "Applies when the link is online."}>
+                <Row label={t("streaming.upnp")} hint={server ? <UpnpText status={server.upnp} /> : t("streaming.upnpOffline")}>
                     <Toggle checked={stream.upnp} onChange={(upnp) => set({ upnp })} />
                 </Row>
                 <Row
-                    label="Windows Firewall"
+                    label={t("streaming.firewall")}
                     hint={
                         server?.firewallOk ? (
-                            "Allowed (only CapturaX, only incoming TCP)."
+                            t("streaming.firewallOk")
                         ) : (
-                            <>Not allowed yet. Fixing asks for administrator permission once.{firewallError && <span className="text-bad"> {firewallError}</span>}</>
+                            <>{t("streaming.firewallMissing")}{firewallError && <span className="text-bad"> {errorText(firewallError)}</span>}</>
                         )
                     }>
-                    {server?.firewallOk ? <Badge color="var(--color-accent)">OK</Badge> : <Button onClick={fixFirewall} disabled={fixing}>{fixing ? "Waiting…" : "Fix firewall"}</Button>}
+                    {server?.firewallOk ? <Badge color="var(--color-accent)">OK</Badge> : <Button onClick={fixFirewall} disabled={fixing}>{t(fixing ? "streaming.waiting" : "streaming.fixFirewall")}</Button>}
                 </Row>
             </Section>
 
-            <Section title="Viewers" description="Blocking stops an address from opening the link.">
-                {(server?.viewers ?? []).length === 0 && <Row label={<span className="text-(--text-muted)">Nobody watching right now.</span>} />}
+            <Section title={t("streaming.viewers")} description={t("streaming.viewersDescription")}>
+                {(server?.viewers ?? []).length === 0 && <Row label={<span className="text-(--text-muted)">{t("streaming.nobody")}</span>} />}
                 {(server?.viewers ?? []).map((viewer) => (
-                    <Row key={viewer.ip} label={viewer.ip} hint={`Watching for ${formatWatching(viewer.watchingSecs)}`}>
+                    <Row key={viewer.ip} label={viewer.ip} hint={t("streaming.watchingFor", { time: formatWatching(viewer.watchingSecs) })}>
                         <Button variant="danger" onClick={() => set({ blockedIps: [...stream.blockedIps, viewer.ip] })}>
-                            Block
+                            {t("streaming.block")}
                         </Button>
                     </Row>
                 ))}
                 {stream.blockedIps.map((ip) => (
-                    <Row key={ip} label={<span className="text-(--text-muted)">{ip}</span>} hint="Blocked">
-                        <Button onClick={() => set({ blockedIps: stream.blockedIps.filter((b) => b !== ip) })}>Unblock</Button>
+                    <Row key={ip} label={<span className="text-(--text-muted)">{ip}</span>} hint={t("streaming.blocked")}>
+                        <Button onClick={() => set({ blockedIps: stream.blockedIps.filter((b) => b !== ip) })}>{t("streaming.unblock")}</Button>
                     </Row>
                 ))}
             </Section>
 
             <Note tone={cgnat ? "warning" : "info"}>
                 <p>
-                    <b>Same link every time:</b> home internet usually changes its public IP from time to time. A free DDNS (DuckDNS, No-IP, or the one in
-                    your router) gives you a fixed name like <code>myname.duckdns.org:{stream.port}</code>.
+                    {tx("streaming.ddns", { title: <b>{t("streaming.ddnsTitle")}</b>, example: <code>myname.duckdns.org:{stream.port}</code> })}
                 </p>
                 <p className="mt-2">
-                    <b>Behind CGNAT or can't open ports?</b> Ask your provider for a public IP, or use a tunnel such as Cloudflare Tunnel or Tailscale
-                    Funnel pointing to <code>http://localhost:{stream.port}</code> (they also add HTTPS).
+                    {tx("streaming.tunnel", { title: <b>{t("streaming.tunnelTitle")}</b>, address: <code>http://localhost:{stream.port}</code> })}
                 </p>
             </Note>
         </div>

@@ -3,6 +3,7 @@ import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { FrameStatsContext, EMPTY_FRAME_STATS } from "../../context/FrameStatsContext";
 import { NativeContext } from "../../context/NativeContext";
 import AmbientLight from "./AmbientLight";
+import { useT } from "../../i18n";
 
 const STATS_UPDATE_MS = 500;
 /** Janelas sem medição em que a última latência continua valendo (captura de tela só gera frame quando algo muda). */
@@ -14,6 +15,7 @@ function median(values: number[]) {
 }
 
 export default function VideoStream() {
+    const t = useT();
     const ctx = useContext(VideoStreamContext);
     const setStats = useContext(FrameStatsContext)?.setStats;
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -96,8 +98,8 @@ export default function VideoStream() {
             {hidden && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-(--text-muted) pointer-events-none">
                     <div className="w-10 h-10 mask-center mask-contain mask-no-repeat bg-(--text-muted) mask-[url(./assets/Dock/preview_off.svg)]" />
-                    <span>Preview hidden to save resources</span>
-                    <span className="text-sm">Recording and streaming keep working</span>
+                    <span>{t("preview.hidden")}</span>
+                    <span className="text-sm">{t("preview.hiddenHint")}</span>
                 </div>
             )}
             {ctx.ambientLight && !hidden && <AmbientLight videoRef={videoRef} />}

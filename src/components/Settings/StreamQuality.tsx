@@ -12,6 +12,7 @@ import { DropDown, DropOption } from "../../core/components/DropDown";
 import Tag from "../../core/components/Tag";
 import Resolution from "../../core/utils/Resolution";
 import { choicesOf, formatFps, fpsColor, modeKey, parseModeKey } from "../../core/utils/videoModes";
+import { tx, useT } from "../../i18n";
 
 const NATIVE = "native";
 
@@ -58,6 +59,7 @@ export function FpsSelect({ fullWidth }: { fullWidth?: boolean }) {
  * Sem eles (tela): resolução e FPS separados.
  */
 export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean }) {
+    const t = useT();
     const { stream, set } = useStreamConfig();
     const source = useSource();
     const modes = useContext(VideoStreamContext)?.deviceModes ?? null;
@@ -86,7 +88,7 @@ export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean
     return (
         <div className={`pt-2 ${fullWidth ? "w-full" : ""}`}>
             <DropDown
-                title="Resolution & FPS"
+                title={t("quality.resolutionFps")}
                 fullWidth={fullWidth}
                 value={value}
                 onChoose={(v) => {
@@ -94,7 +96,7 @@ export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean
                     set(mode ? { width: mode.width, height: mode.height, fps: mode.fps } : { width: 0, height: 0, fps: 0 });
                 }}>
                 <DropOption value={NATIVE}>
-                    {`Native (${source.width} x ${source.height})`}
+                    {t("quality.native", { size: `${source.width} x ${source.height}` })}
                     <Tag text={nativeTag.text} color={nativeTag.color} />
                     <Tag text={`${formatFps(Math.round(source.fps))} FPS`} color={fpsColor(source.fps)} />
                 </DropOption>
@@ -114,18 +116,19 @@ export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean
 }
 
 export function BitrateControl() {
+    const t = useT();
     const { stream, set } = useStreamConfig();
     const source = useSource();
     const auto = streamBitrateKbps({ ...stream, bitrateAuto: true }, source);
     const { width, height, fps } = streamSize(stream, source);
     return (
-        <div className="flex items-center gap-3" title={`Sent as ${width}x${height} @ ${fps} fps`}>
+        <div className="flex items-center gap-3" title={t("quality.sentAs", { size: `${width}x${height}`, fps })}>
             <Segmented
                 value={stream.bitrateAuto ? "auto" : "manual"}
                 onChange={(v) => set(v === "auto" ? { bitrateAuto: true } : { bitrateAuto: false, bitrateKbps: stream.bitrateAuto ? auto : stream.bitrateKbps })}
                 options={[
-                    { value: "auto", label: `Auto (${(auto / 1000).toFixed(1)} Mbps)` },
-                    { value: "manual", label: "Manual" },
+                    { value: "auto", label: t("toolbar.autoNamed", { name: `${(auto / 1000).toFixed(1)} Mbps` }) },
+                    { value: "manual", label: t("quality.manual") },
                 ]}
             />
             {!stream.bitrateAuto && (
@@ -137,10 +140,11 @@ export function BitrateControl() {
 
 /** Upload por espectador e atraso esperado. */
 export function UploadNote() {
+    useT();
     const perViewer = usePerViewerMbps();
     return (
         <>
-            Each viewer uses about <b>{perViewer.toFixed(1)} Mbps</b> of your upload and sees the stream about half a second to a second behind you.
+            {tx("quality.uploadNote", { mbps: <b>{perViewer.toFixed(1)} Mbps</b> })}
         </>
     );
 }

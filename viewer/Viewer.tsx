@@ -13,6 +13,7 @@ import volumeHighUrl from "../public/assets/Dock/volume_high.svg?url";
 import volumeLowUrl from "../public/assets/Dock/volume_low.svg?url";
 import volumeMuteUrl from "../public/assets/Dock/volume_mute.svg?url";
 import playUrl from "../public/assets/StatusBar/play.svg?url";
+import { t } from "../src/i18n";
 
 type LiveStatus = { live: boolean; session: string; codecs?: string };
 const OFFLINE: LiveStatus = { live: false, session: "" };
@@ -91,14 +92,14 @@ export default function Viewer() {
             player = new LowLatencyPlayer(video, `${base}/live.mp4`, status.codecs, {
                 onReady: play,
                 onEnded: reconnect,
-                onFull: () => setError("This stream is full right now. Try again in a bit."),
+                onFull: () => setError(t("viewer.full")),
             });
         } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
             video.src = `${base}/index.m3u8`; // Safari / iPhone
             video.addEventListener("loadedmetadata", play, { once: true });
             video.addEventListener("error", reconnect, { once: true });
         } else {
-            setError("This browser can't play the stream.");
+            setError(t("viewer.unsupported"));
         }
         return () => {
             if (player) player.destroy();
@@ -167,9 +168,9 @@ export default function Viewer() {
                     <img src={logoUrl} alt="CapturaX" className="h-10 select-none" draggable={false} />
                     <div className="flex items-center gap-2 text-lg">
                         <span className="w-2.5 h-2.5 rounded-full bg-(--text-muted)" />
-                        {status === null ? "Connecting…" : "Offline"}
+                        {t(status === null ? "viewer.connecting" : "viewer.offline")}
                     </div>
-                    <p className="text-(--text-muted) max-w-sm">{error ?? "The stream will start here automatically as soon as it goes live. Keep this page open."}</p>
+                    <p className="text-(--text-muted) max-w-sm">{error ?? t("viewer.waiting")}</p>
                 </div>
             )}
 
@@ -178,7 +179,7 @@ export default function Viewer() {
                     <div className="w-6 h-6 flex items-center justify-center">
                         <Icon src={playUrl} />
                     </div>
-                    Click to watch with sound
+                    {t("viewer.clickForSound")}
                 </button>
             )}
 
@@ -187,10 +188,10 @@ export default function Viewer() {
                     className={`absolute inset-x-0 bottom-0 flex items-center gap-2 p-3 bg-linear-to-t from-black/70 to-transparent transition-opacity duration-300 ${
                         idle ? "opacity-0" : "opacity-100"
                     }`}>
-                    <span className="px-2 py-0.5 rounded-md bg-accent text-sm font-semibold">LIVE</span>
+                    <span className="px-2 py-0.5 rounded-md bg-accent text-sm font-semibold">{t("status.live")}</span>
                     <img src={logoUrl} alt="" className="h-3.5 ml-2 opacity-80 select-none" draggable={false} />
                     <div className="flex-1" />
-                    <button title={muted ? "Unmute" : "Mute"} onClick={() => (needsClick ? unmute() : setMuted(!muted))} className={button}>
+                    <button title={t(muted ? "dock.unmute" : "dock.mute")} onClick={() => (needsClick ? unmute() : setMuted(!muted))} className={button}>
                         <Icon src={volumeIcon} />
                     </button>
                     <input
@@ -205,12 +206,12 @@ export default function Viewer() {
                             if (needsClick) unmute();
                         }}
                         className="w-28 accent-accent cursor-pointer"
-                        title="Volume"
+                        title={t("viewer.volume")}
                     />
-                    <button title={ambient ? "Disable ambient light" : "Enable ambient light"} onClick={() => setAmbient(!ambient)} className={`${button} ${ambient ? "bg-normal" : ""}`}>
+                    <button title={t(ambient ? "dock.ambientOff" : "dock.ambientOn")} onClick={() => setAmbient(!ambient)} className={`${button} ${ambient ? "bg-normal" : ""}`}>
                         <Icon src={ambientUrl} color={ambient ? "var(--color-accent)" : undefined} />
                     </button>
-                    <button title="Fullscreen (double-click)" onClick={toggleFullscreen} className={button}>
+                    <button title={t("viewer.fullscreen")} onClick={toggleFullscreen} className={button}>
                         <Icon src={full ? fullscreenExitUrl : fullscreenUrl} />
                     </button>
                 </div>

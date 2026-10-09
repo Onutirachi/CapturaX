@@ -251,6 +251,25 @@ pub async fn audio_set_paired_input(state: State<'_, AppState>, id: Option<Strin
     Ok(())
 }
 
+/// Idiomas da interface do Windows, do preferido para o último (ex.: `["pt-BR", "en-US"]`).
+#[tauri::command]
+pub fn system_languages() -> Vec<String> {
+    use windows::core::PWSTR;
+    use windows::Win32::Globalization::{GetUserPreferredUILanguages, MUI_LANGUAGE_NAME};
+    let (mut count, mut size) = (0u32, 0u32);
+    unsafe {
+        if GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &mut count, None, &mut size).is_err() {
+            return Vec::new();
+        }
+        let mut buffer = vec![0u16; size as usize];
+        if GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &mut count, Some(PWSTR(buffer.as_mut_ptr())), &mut size).is_err() {
+            return Vec::new();
+        }
+        // Lista de strings separadas por \0, terminada em \0\0.
+        buffer.split(|&c| c == 0).filter(|s| !s.is_empty()).map(String::from_utf16_lossy).collect()
+    }
+}
+
 // ---- Captura de tela/janela ---------------------------------------------------------------
 
 #[tauri::command]
@@ -294,7 +313,7 @@ pub async fn recording_start(app: AppHandle, state: State<'_, AppState>) -> Resu
         _ => app.path().video_dir().map_err(|e| e.to_string())?.join("CapturaX"),
     };
     let path = folder.join(format!("CapturaX {}.mp4", timestamp()));
-    let sink = FileSink::create(path.clone()).map_err(|e| format!("Could not create {} ({e})", path.display()))?;
+    let sink = FileSink::create(path.clone()).map_err(|e| crate::error::coded("recording_file", serde_json::json!({ "path": path.display().to_string(), "detail": e.to_string() })))?;
     let mix = mix_settings(&config);
     let id = state.media.start(SessionOptions {
         kind: SessionKind::Recording,

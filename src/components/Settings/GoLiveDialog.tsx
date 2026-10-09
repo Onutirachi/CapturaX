@@ -5,8 +5,10 @@ import { NativeContext } from "../../context/NativeContext";
 import Icon from "../Overlay/Icon";
 import { Button, CopyField, Note } from "./controls";
 import { BitrateControl, StreamQualityPicker, UploadNote } from "./StreamQuality";
+import { errorText, useT } from "../../i18n";
 
 export default function GoLiveDialog() {
+    const t = useT();
     const nctx = useContext(NativeContext);
     const open = nctx?.goLiveOpen ?? false;
 
@@ -35,70 +37,70 @@ export default function GoLiveDialog() {
                     <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-accent/20">
                         <Icon src="./assets/Dock/live.svg" color="var(--color-accent)" />
                     </div>
-                    <h1 className="text-xl font-semibold flex-1">{live ? "Stream settings" : "Go live"}</h1>
+                    <h1 className="text-xl font-semibold flex-1">{t(live ? "golive.settings" : "golive.title")}</h1>
                     {!locked && (
-                        <button title="Close (Esc)" onClick={() => nctx.cancelGoLive()} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
+                        <button title={t("common.closeEsc")} onClick={() => nctx.cancelGoLive()} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
                             <Icon src="./assets/Settings/close.svg" />
                         </button>
                     )}
                 </header>
 
-                {locked && <Note tone="warning">The video source changed. Choose the stream quality for the new source to keep streaming, or stop the stream.</Note>}
+                {locked && <Note tone="warning">{t("golive.sourceChanged")}</Note>}
 
                 <section className="flex flex-col gap-2">
-                    <h2 className="text-sm text-(--text-muted)">Link to share</h2>
+                    <h2 className="text-sm text-(--text-muted)">{t("golive.linkToShare")}</h2>
                     {server?.localUrl ? (
                         <>
                             {server.publicUrl && (
                                 <div className="flex items-center gap-3">
-                                    <span className="w-24 shrink-0 text-sm">Internet</span>
+                                    <span className="w-24 shrink-0 text-sm">{t("golive.internet")}</span>
                                     <CopyField value={server.publicUrl} fullWidth />
                                 </div>
                             )}
                             <div className="flex items-center gap-3">
-                                <span className="w-24 shrink-0 text-sm">Local network</span>
+                                <span className="w-24 shrink-0 text-sm">{t("golive.localNetwork")}</span>
                                 <CopyField value={server.localUrl} fullWidth />
                             </div>
                             <p className="text-sm text-(--text-muted)">
                                 {server.cgnat
-                                    ? "Your provider uses CGNAT: the internet link won't reach this PC (see Settings → Streaming)."
+                                    ? t("golive.cgnat")
                                     : upnp?.state === "mapped"
-                                      ? "Port opened on your router: the internet link works from anywhere."
+                                      ? t("golive.mapped")
                                       : upnp?.state === "searching"
-                                        ? "Opening the port on your router…"
-                                        : `The internet link needs port ${server.port} open on your router (see Settings → Streaming).`}
+                                        ? t("golive.searching")
+                                        : t("golive.needsPort", { port: server.port })}
                             </p>
                         </>
                     ) : (
-                        <p className="text-sm text-(--text-muted)">{server?.error ?? "Starting the link…"}</p>
+                        <p className="text-sm text-(--text-muted)">{server?.error ? errorText(server.error) : t("golive.starting")}</p>
                     )}
                 </section>
 
                 <section className="flex flex-col gap-2">
-                    <h2 className="text-sm text-(--text-muted)">Quality</h2>
+                    <h2 className="text-sm text-(--text-muted)">{t("recording.quality")}</h2>
                     <StreamQualityPicker fullWidth />
                 </section>
 
                 <section className="flex flex-col gap-2">
-                    <h2 className="text-sm text-(--text-muted)">Bitrate</h2>
+                    <h2 className="text-sm text-(--text-muted)">{t("golive.bitrate")}</h2>
                     <BitrateControl />
                 </section>
 
                 <Note>
                     <UploadNote />
-                    {live && " Applying restarts the stream; viewers reconnect by themselves in a second or two."}
+                    {live && ` ${t("golive.applyNote")}`}
                 </Note>
 
                 <footer className="flex items-center gap-3">
                     {live && (
                         <Button variant="danger" onClick={() => nctx.stopStreaming()}>
-                            Stop streaming
+                            {t("golive.stop")}
                         </Button>
                     )}
                     <div className="flex-1" />
-                    {!locked && <Button onClick={() => nctx.cancelGoLive()}>{live ? "Close" : "Cancel"}</Button>}
+                    {!locked && <Button onClick={() => nctx.cancelGoLive()}>{t(live ? "common.close" : "common.cancel")}</Button>}
                     <Button variant="accent" onClick={() => nctx.confirmGoLive()} disabled={starting}>
-                        {starting ? "Starting…" : live ? "Apply" : "Go live"}
+                        {t(starting ? "golive.startingButton" : live ? "golive.apply" : "streaming.goLive")}
                     </Button>
                 </footer>
             </div>

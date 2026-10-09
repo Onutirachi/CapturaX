@@ -76,8 +76,8 @@ impl Bridge {
                 let core = w.borrow().clone().ok_or("WebView not ready")?;
                 unsafe {
                     let environment = core.cast::<ICoreWebView2_2>().and_then(|c| c.Environment()).map_err(|e| e.to_string())?;
-                    let environment = environment.cast::<ICoreWebView2Environment12>().map_err(|_| "WebView2 runtime too old for screen capture")?;
-                    let poster = core.cast::<ICoreWebView2_17>().map_err(|_| "WebView2 runtime too old for screen capture")?;
+                    let environment = environment.cast::<ICoreWebView2Environment12>().map_err(|_| crate::error::code("webview_too_old"))?;
+                    let poster = core.cast::<ICoreWebView2_17>().map_err(|_| crate::error::code("webview_too_old"))?;
                     // Os buffers antigos deixam de valer no WebView também.
                     BUFFERS.with(|b| b.borrow_mut().drain(..).for_each(|old| drop(old.Close())));
                     let mut pointers = Vec::new();

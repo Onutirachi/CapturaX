@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import { native, errorText, type AppListEntry } from "../../core/native/api";
 import { Badge, Button, Note, Section } from "./controls";
+import { useT } from "../../i18n";
 
 const REFRESH_MS = 3000;
 
@@ -11,6 +12,7 @@ function Checkbox({ checked, disabled, onChange }: { checked: boolean; disabled?
 
 /** Quais apps entram no áudio dos apps (seção da aba Audio). */
 export default function AppAudio() {
+    const t = useT();
     const nctx = useContext(NativeContext)!;
     const audio = nctx.config!.audio;
     const [apps, setApps] = useState<AppListEntry[]>([]);
@@ -60,18 +62,18 @@ export default function AppAudio() {
     return (
         <div className="flex flex-col gap-6">
             <Section
-                title="Apps"
-                description="Checked apps go into recordings and streams. Unchecked ones are left out, so whoever is watching doesn't hear them (like your Discord call). Changes apply right away, even while recording.">
+                title={t("apps.title")}
+                description={t("apps.description")}>
                 {!audio.recordSystem && (
                     <div className="px-4 py-3">
-                        <Note tone="warning">App audio is turned off above, so no app is captured right now.</Note>
+                        <Note tone="warning">{t("apps.off")}</Note>
                     </div>
                 )}
                 <div className="flex items-center gap-4 px-4 py-3 opacity-70">
                     <Checkbox checked={false} disabled />
                     <div className="flex-1">
                         <div>CapturaX</div>
-                        <div className="text-sm text-(--text-muted)">Always left out, so the preview sound is never recorded twice.</div>
+                        <div className="text-sm text-(--text-muted)">{t("apps.selfHint")}</div>
                     </div>
                 </div>
                 {[...apps, ...extra].map((app) => (
@@ -81,25 +83,25 @@ export default function AppAudio() {
                             <div className="truncate">{app.name}</div>
                             <div className="text-sm text-(--text-muted) truncate">{app.exe}</div>
                         </div>
-                        {app.playing ? <Badge color="var(--color-accent)">Playing</Badge> : app.running ? <Badge>Open</Badge> : <Badge color="transparent">Not running</Badge>}
+                        {app.playing ? <Badge color="var(--color-accent)">{t("apps.playing")}</Badge> : app.running ? <Badge>{t("apps.open")}</Badge> : <Badge color="transparent">{t("apps.notRunning")}</Badge>}
                     </label>
                 ))}
                 <div className="flex items-center gap-3 px-4 py-3">
                     <input
                         value={manual}
-                        placeholder="Add an app that isn't open (e.g. discord.exe)"
+                        placeholder={t("apps.addPlaceholder")}
                         onInput={(e) => setManual(e.currentTarget.value)}
                         onKeyDown={(e) => e.key === "Enter" && addManual()}
                         className="flex-1 h-9 px-3 rounded-lg bg-dark [border:var(--border)] outline-none focus:border-accent"
                     />
                     <Button onClick={addManual} disabled={!manual.trim()}>
-                        Add (left out)
+                        {t("apps.add")}
                     </Button>
                 </div>
             </Section>
-            {error && <Note tone="error">Could not list apps: {error}</Note>}
+            {error && <Note tone="error">{t("apps.listFailed", { detail: error })}</Note>}
             <Note>
-                Windows separates audio per program: two things playing in the same program (like two browser tabs) are included or left out together.
+                {t("apps.perProgram")}
             </Note>
         </div>
     );

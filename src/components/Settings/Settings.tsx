@@ -4,14 +4,18 @@ import Icon from "../Overlay/Icon";
 import AudioTab from "./AudioTab";
 import RecordingTab from "./RecordingTab";
 import StreamingTab from "./StreamingTab";
+import { useT, type MessageKey } from "../../i18n";
+import GeneralTab from "./GeneralTab";
 
-const TABS: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: "audio", label: "Audio", icon: "./assets/Settings/audio.svg" },
-    { id: "recording", label: "Recording", icon: "./assets/Dock/record.svg" },
-    { id: "streaming", label: "Streaming", icon: "./assets/Dock/live.svg" },
+const TABS: { id: SettingsTab; label: MessageKey; icon: string }[] = [
+    { id: "general", label: "settings.general", icon: "./assets/Settings/language.svg" },
+    { id: "audio", label: "settings.audio", icon: "./assets/Settings/audio.svg" },
+    { id: "recording", label: "settings.recording", icon: "./assets/Dock/record.svg" },
+    { id: "streaming", label: "settings.streaming", icon: "./assets/Dock/live.svg" },
 ];
 
 export default function Settings() {
+    const t = useT();
     const nctx = useContext(NativeContext);
     const tab = nctx?.settingsTab ?? null;
 
@@ -43,18 +47,19 @@ export default function Settings() {
                             <div className="w-6 h-6 flex items-center justify-center">
                                 <Icon src={icon} color={tab === id ? "var(--color-accent-light)" : undefined} />
                             </div>
-                            {label}
+                            {t(label)}
                         </button>
                     ))}
                 </nav>
                 <div className="flex-1 flex flex-col min-w-0">
                     <header className="flex items-center justify-between h-14 px-6 [border-bottom:var(--border)]">
-                        <h1 className="text-xl font-semibold">{TABS.find((t) => t.id === tab)?.label}</h1>
-                        <button title="Close (Esc)" onClick={() => nctx.openSettings(null)} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
+                        <h1 className="text-xl font-semibold">{t(TABS.find((item) => item.id === tab)!.label)}</h1>
+                        <button title={t("common.closeEsc")} onClick={() => nctx.openSettings(null)} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
                             <Icon src="./assets/Settings/close.svg" />
                         </button>
                     </header>
                     <div className="flex-1 overflow-y-auto p-6">
+                        {tab === "general" && <GeneralTab />}
                         {tab === "audio" && <AudioTab />}
                         {tab === "recording" && <RecordingTab />}
                         {tab === "streaming" && <StreamingTab />}

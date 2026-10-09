@@ -158,7 +158,7 @@ impl StreamServer {
         let listener = match TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port))).await {
             Ok(listener) => listener,
             Err(error) => {
-                *self.error.lock().unwrap() = Some(format!("Port {port} is not available ({error})"));
+                *self.error.lock().unwrap() = Some(crate::error::coded("port_unavailable", serde_json::json!({ "port": port, "detail": error.to_string() })));
                 return;
             }
         };

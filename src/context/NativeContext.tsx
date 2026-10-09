@@ -8,9 +8,10 @@ import { recordingSettings, resolveSupported, streamSettings, type SourceInfo } 
 import { alerts, fileName } from "../core/utils/alerts";
 import { AlertsContext } from "./AlertsContext";
 import { VideoStreamContext } from "./VideoStreamContext";
+import { applyLanguageSetting, t } from "../i18n";
 
 type Activity = "idle" | "starting" | "active" | "stopping";
-export type SettingsTab = "audio" | "recording" | "streaming";
+export type SettingsTab = "general" | "audio" | "recording" | "streaming";
 
 export type NativeContextType = {
     config: Config | null;
@@ -79,7 +80,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 configRef.current = loaded;
                 setConfig(loaded);
             })
-            .catch((error) => alert(alerts.error(`Could not load settings (${errorText(error)})`)));
+            .catch((error) => alert(alerts.error(t("native.loadFailed", { detail: errorText(error) }))));
         calibrateClock().catch(() => {});
     }, []);
 
@@ -91,7 +92,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
         saveTimer.current = window.setTimeout(() => {
             saveTimer.current = null;
-            native.setConfig(configRef.current!).catch((error) => alert(alerts.error(`Could not save settings (${errorText(error)})`)));
+            native.setConfig(configRef.current!).catch((error) => alert(alerts.error(t("native.saveFailed", { detail: errorText(error) }))));
         }, SAVE_DELAY_MS);
     }, []);
 
@@ -131,6 +132,12 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         return () => window.clearInterval(interval);
     }, [watchServer]);
 
+    // Idioma: o escolhido nas configurações ou o do Windows.
+    const language = config?.language;
+    useEffect(() => {
+        if (config) applyLanguageSetting(language ?? null);
+    }, [language, !!config]);
+
     // Volume do preview nativo acompanha o slider da Dock.
     const volume = vsctx?.volume ?? 1;
     const muted = vsctx?.muted ?? false;
@@ -154,7 +161,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         const track = trackRef.current;
         const current = configRef.current;
         if (!track || !current) {
-            alert(alerts.warning("Nothing to record: no video source"));
+            alert(alerts.warning(t("native.nothingToRecord")));
             return;
         }
         setRecording("starting");
@@ -162,12 +169,12 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             const settings = await resolveSupported(recordingSettings(current.recording, sourceInfo(track)));
             await calibrateClock();
             const { id, path } = await native.recordingStart();
-            recorder.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(`Recording error: ${message}`)));
+            recorder.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(t("native.recordingError", { detail: message }))));
             setRecording("active");
-            alert(alerts.info(`Recording ${settings.width}x${settings.height} @ ${settings.fps} fps → ${fileName(path)}`));
+            alert(alerts.info(t("native.recordingStarted", { size: `${settings.width}x${settings.height}`, fps: settings.fps, file: fileName(path) })));
         } catch (error) {
             setRecording("idle");
-            alert(alerts.error(`Could not start recording (${errorText(error)})`));
+            alert(alerts.error(t("native.recordingStartFailed", { detail: errorText(error) })));
         }
     };
 
@@ -177,9 +184,9 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             await recorder.current?.stop();
             recorder.current = null;
             const path = await native.recordingStop();
-            alert(path ? alerts.success(`Saved ${fileName(path)}`) : alerts.warning("Recording was empty and was discarded"));
+            alert(path ? alerts.success(t("native.recordingSaved", { file: fileName(path) })) : alerts.warning(t("native.recordingEmpty")));
         } catch (error) {
-            alert(alerts.error(`Could not finish recording (${errorText(error)})`));
+            alert(alerts.error(t("native.recordingStopFailed", { detail: errorText(error) })));
         } finally {
             setRecording("idle");
         }
@@ -189,7 +196,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         const track = trackRef.current;
         const current = configRef.current;
         if (!track || !current) {
-            alert(alerts.warning("Nothing to stream: no video source"));
+            alert(alerts.warning(t("native.nothingToStream")));
             return;
         }
         setStreaming("starting");
@@ -197,15 +204,15 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             const settings = await resolveSupported(streamSettings(current.stream, sourceInfo(track)));
             await calibrateClock();
             const id = await native.streamStart();
-            streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(`Stream error: ${message}`)));
+            streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(t("native.streamError", { detail: message }))));
             streamTrackId.current = track.id;
             setMustReconfigure(false);
             setStreaming("active");
-            alert(alerts.info(restarting ? `Stream updated: ${settings.width}x${settings.height} @ ${settings.fps} fps` : "You are live"));
+            alert(alerts.info(restarting ? t("native.streamUpdated", { size: `${settings.width}x${settings.height}`, fps: settings.fps }) : t("native.live")));
         } catch (error) {
             setStreaming("idle");
             setMustReconfigure(false);
-            alert(alerts.error(`Could not start the stream (${errorText(error)})`));
+            alert(alerts.error(t("native.streamStartFailed", { detail: errorText(error) })));
         }
     };
 
@@ -218,9 +225,9 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             streamer.current = null;
             streamTrackId.current = null;
             await native.streamStop();
-            alert(alerts.info("Stream ended"));
+            alert(alerts.info(t("native.streamEnded")));
         } catch (error) {
-            alert(alerts.error(`Could not stop the stream (${errorText(error)})`));
+            alert(alerts.error(t("native.streamStopFailed", { detail: errorText(error) })));
         } finally {
             setStreaming("idle");
         }
@@ -248,7 +255,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             streamer.current = null;
             await native.streamStop();
         } catch (error) {
-            alert(alerts.error(`Could not update the stream (${errorText(error)})`));
+            alert(alerts.error(t("native.streamUpdateFailed", { detail: errorText(error) })));
         }
         await startStreaming(true);
     };
@@ -273,7 +280,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const screenshot = async () => {
         const track = trackRef.current;
         if (!track) {
-            alert(alerts.warning("Nothing to capture: no video source"));
+            alert(alerts.warning(t("native.nothingToCapture")));
             return;
         }
         try {
@@ -285,9 +292,9 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             const path = await native.saveScreenshot(new Uint8Array(await blob.arrayBuffer()));
             let copied = true;
             await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).catch(() => (copied = false));
-            alert(alerts.success(`Screenshot saved${copied ? " and copied" : ""}: ${fileName(path)}`));
+            alert(alerts.success(t(copied ? "native.screenshotCopied" : "native.screenshotSaved", { file: fileName(path) })));
         } catch (error) {
-            alert(alerts.error(`Could not take screenshot (${errorText(error)})`));
+            alert(alerts.error(t("native.screenshotFailed", { detail: errorText(error) })));
         }
     };
 

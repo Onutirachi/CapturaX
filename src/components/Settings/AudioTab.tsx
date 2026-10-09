@@ -3,6 +3,7 @@ import { NativeContext } from "../../context/NativeContext";
 import type { AudioConfig } from "../../core/native/api";
 import { Row, Section, Select, Slider, Toggle, type Option } from "./controls";
 import AppAudio from "./AppAudio";
+import { useT } from "../../i18n";
 
 const NONE = "none";
 const AUTO = "auto";
@@ -13,6 +14,7 @@ const percent = (v: number) => `${Math.round(v * 100)}%`;
 const ms = (v: number) => `${v > 0 ? "+" : ""}${v} ms`;
 
 export default function AudioTab() {
+    const t = useT();
     const nctx = useContext(NativeContext)!;
     const audio = nctx.config!.audio;
     const set = (patch: Partial<AudioConfig>) => nctx.updateConfig((c) => ({ ...c, audio: { ...c.audio, ...patch } }));
@@ -22,65 +24,65 @@ export default function AudioTab() {
 
     return (
         <div className="flex flex-col gap-6">
-            <Section title="Preview" description="What you hear while playing.">
-                <Row label="Low-latency audio" hint="Plays the capture audio straight through Windows (about 10–20 ms). Turn off to use the browser engine.">
+            <Section title={t("audio.preview")} description={t("audio.previewDescription")}>
+                <Row label={t("audio.lowLatency")} hint={t("audio.lowLatencyHint")}>
                     <Toggle checked={audio.nativePreview} onChange={(nativePreview) => set({ nativePreview })} />
                 </Row>
                 {audio.nativePreview && (
                     <>
-                        <Row label="Input" hint="Usually the audio of the capture card. Auto uses the audio of the same device as the video.">
+                        <Row label={t("audio.input")} hint={t("audio.inputHint")}>
                             <Select
                                 value={audio.previewInputAuto ? AUTO : (audio.previewInput ?? NONE)}
-                                options={[{ value: AUTO, label: "Auto (same device as video)" }, { value: NONE, label: "No audio" }, ...inputs]}
+                                options={[{ value: AUTO, label: t("audio.inputAuto") }, { value: NONE, label: t("toolbar.noAudio") }, ...inputs]}
                                 onChange={(v) => set(v === AUTO ? { previewInputAuto: true } : { previewInputAuto: false, previewInput: v === NONE ? null : v })}
                             />
                         </Row>
-                        <Row label="Output" hint="Where you listen (headset, speakers).">
+                        <Row label={t("audio.output")} hint={t("audio.outputHint")}>
                             <Select
                                 value={audio.previewOutput ?? DEFAULT}
-                                options={[{ value: DEFAULT, label: "Windows default" }, ...outputs]}
+                                options={[{ value: DEFAULT, label: t("toolbar.windowsDefault") }, ...outputs]}
                                 onChange={(v) => set({ previewOutput: v === DEFAULT ? null : v })}
                             />
                         </Row>
-                        <Row label="Audio delay" hint="Delays the sound to line up with the picture (lip-sync). Keep at 0 for the lowest latency.">
+                        <Row label={t("audio.delay")} hint={t("audio.delayHint")}>
                             <Slider value={audio.previewDelayMs} min={0} max={300} step={5} onChange={(previewDelayMs) => set({ previewDelayMs })} format={(v) => `${v} ms`} />
                         </Row>
                     </>
                 )}
             </Section>
 
-            <Section title="Recording and streaming" description="What goes into recordings and to people watching the link. Independent from the preview.">
-                <Row label="Capture device audio" hint="Recorded straight from the device, at full quality.">
+            <Section title={t("audio.recordingAndStreaming")} description={t("audio.recordingAndStreamingDescription")}>
+                <Row label={t("audio.deviceAudio")} hint={t("audio.deviceAudioHint")}>
                     <Toggle checked={audio.recordInputEnabled} onChange={(recordInputEnabled) => set({ recordInputEnabled })} />
                 </Row>
                 {audio.recordInputEnabled && (
-                    <Row label="Device">
+                    <Row label={t("audio.device")}>
                         <Select
                             value={audio.recordInput ?? SAME}
-                            options={[{ value: SAME, label: "Same as preview" }, ...inputs]}
+                            options={[{ value: SAME, label: t("audio.sameAsPreview") }, ...inputs]}
                             onChange={(v) => set({ recordInput: v === SAME ? null : v })}
                         />
                         <Slider value={audio.recordInputVolume} min={0} max={2} step={0.05} onChange={(recordInputVolume) => set({ recordInputVolume })} format={percent} />
                     </Row>
                 )}
-                <Row label="Microphone" hint="Optional, for commentary.">
-                    <Select value={audio.recordMic ?? NONE} options={[{ value: NONE, label: "None" }, ...inputs]} onChange={(v) => set({ recordMic: v === NONE ? null : v })} />
+                <Row label={t("audio.microphone")} hint={t("audio.microphoneHint")}>
+                    <Select value={audio.recordMic ?? NONE} options={[{ value: NONE, label: t("common.none") }, ...inputs]} onChange={(v) => set({ recordMic: v === NONE ? null : v })} />
                     {audio.recordMic && <Slider value={audio.recordMicVolume} min={0} max={2} step={0.05} onChange={(recordMicVolume) => set({ recordMicVolume })} format={percent} />}
                 </Row>
                 {audio.recordMic && (
                     <Row
-                        label="Microphone on separate tracks"
-                        hint="Recordings also get “Game and apps (no mic)” and “Microphone” as extra audio tracks, so a video editor can remove or adjust your voice. Players keep playing the full mix. The stream always has a single track.">
+                        label={t("audio.separateMic")}
+                        hint={t("audio.separateMicHint")}>
                         <Toggle checked={audio.recordMicSeparate} onChange={(recordMicSeparate) => set({ recordMicSeparate })} />
                     </Row>
                 )}
-                <Row label="App audio" hint="Sound from other apps (music, browser…), minus the ones you leave out below.">
+                <Row label={t("audio.appAudio")} hint={t("audio.appAudioHint")}>
                     {audio.recordSystem && (
                         <Slider value={audio.recordSystemVolume} min={0} max={2} step={0.05} onChange={(recordSystemVolume) => set({ recordSystemVolume })} format={percent} />
                     )}
                     <Toggle checked={audio.recordSystem} onChange={(recordSystem) => set({ recordSystem })} />
                 </Row>
-                <Row label="Audio/video sync" hint="Fine-tunes recordings and streams. Positive values delay the audio.">
+                <Row label={t("audio.sync")} hint={t("audio.syncHint")}>
                     <Slider value={audio.avOffsetMs} min={-300} max={300} step={5} onChange={(avOffsetMs) => set({ avOffsetMs })} format={ms} />
                 </Row>
             </Section>

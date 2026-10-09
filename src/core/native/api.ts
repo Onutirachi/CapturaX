@@ -55,7 +55,13 @@ export type StreamConfig = {
     blockedIps: string[];
 };
 
-export type Config = { audio: AudioConfig; recording: RecordingConfig; stream: StreamConfig };
+export type Config = {
+    /** Idioma da interface (`"pt-BR"`); `null` = o do Windows. */
+    language: string | null;
+    audio: AudioConfig;
+    recording: RecordingConfig;
+    stream: StreamConfig;
+};
 
 export type AppListEntry = { exe: string; name: string; running: boolean; playing: boolean; excluded: boolean };
 
@@ -98,6 +104,7 @@ export const native = {
     audioDevices: () => invoke<AudioDevices>("audio_devices"),
     setPreviewVolume: (volume: number, muted: boolean) => invoke<void>("audio_set_preview_volume", { volume, muted }),
     audioApps: () => invoke<AppListEntry[]>("audio_apps"),
+    systemLanguages: () => invoke<string[]>("system_languages"),
     audioSetPairedInput: (id: string | null) => invoke<void>("audio_set_paired_input", { id }),
     videoModes: () => invoke<VideoDeviceModes[]>("video_modes"),
     captureSources: () => invoke<CaptureSources>("capture_sources"),
@@ -128,8 +135,5 @@ export const native = {
 };
 
 /** Mensagem de erro legível de uma rejeição do `invoke`. */
-export function errorText(error: unknown) {
-    if (typeof error === "string") return error;
-    if (error instanceof Error) return error.message;
-    return String(error);
-}
+/** Texto do erro no idioma atual (erros do Rust vêm com código; ver `src/i18n`). */
+export { errorText } from "../../i18n";
