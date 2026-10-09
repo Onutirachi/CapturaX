@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from "preact/hooks";
+import { useContext, useEffect, useMemo, useRef } from "preact/hooks";
 import { VideoStreamContext } from "../../context/VideoStreamContext";
 import { FrameStatsContext, EMPTY_FRAME_STATS } from "../../context/FrameStatsContext";
 import { NativeContext } from "../../context/NativeContext";
@@ -24,9 +24,13 @@ export default function VideoStream() {
     const muted = ctx?.muted ?? false;
     // Preview oculto: o <video> fica sem fonte (o WebView para de desenhar), a captura continua.
     const hidden = ctx?.previewHidden ?? false;
-    const videoStream = hidden ? null : (ctx?.videoStream ?? null);
+    // "Ver gravação/live": o preview mostra o que está saindo em vez do dispositivo.
+    const nctx = useContext(NativeContext);
+    const feedbackTrack = nctx?.feedback ? (nctx.outputs[nctx.feedback]?.track ?? null) : null;
+    const feedbackStream = useMemo(() => (feedbackTrack ? new MediaStream([feedbackTrack]) : null), [feedbackTrack]);
+    const videoStream = hidden ? null : (feedbackStream ?? ctx?.videoStream ?? null);
     // Com o preview nativo, quem toca o áudio é o Rust (WASAPI); o <video> fica mudo.
-    const nativeAudio = useContext(NativeContext)?.config?.audio.nativePreview ?? true;
+    const nativeAudio = nctx?.config?.audio.nativePreview ?? true;
 
     // srcObject vai pelo efeito: como prop, o Preact não consegue zerar (tentaria "" e falharia).
     useEffect(() => {

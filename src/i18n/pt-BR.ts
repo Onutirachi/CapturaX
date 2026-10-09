@@ -127,8 +127,8 @@ export const ptBR: Messages = {
 
     "common.closeEsc": "Fechar (Esc)",
 
-    "audio.preview": "Preview",
-    "audio.previewDescription": "O que você ouve enquanto joga.",
+    "audio.preview": "O que você ouve",
+    "audio.previewDescription": "Só para você, enquanto joga. Não vai para a gravação nem para a transmissão.",
     "audio.lowLatency": "Áudio de baixa latência",
     "audio.lowLatencyHint": "Toca o áudio da captura direto pelo Windows (cerca de 10–20 ms). Desligue para usar o mecanismo do navegador.",
     "audio.input": "Entrada",
@@ -138,12 +138,12 @@ export const ptBR: Messages = {
     "audio.outputHint": "Onde você escuta (headset, caixas de som).",
     "audio.delay": "Atraso do áudio",
     "audio.delayHint": "Atrasa o som para alinhar com a imagem (lip-sync). Deixe em 0 para a menor latência.",
-    "audio.recordingAndStreaming": "Gravação e transmissão",
-    "audio.recordingAndStreamingDescription": "O que vai para as gravações e para quem assiste pelo link. Independente do preview.",
+    "audio.recordingAndStreaming": "O que vai na gravação e na transmissão",
+    "audio.recordingAndStreamingDescription": "Independente do que você ouve. O mesmo áudio vai para as duas.",
     "audio.deviceAudio": "Áudio do dispositivo de captura",
-    "audio.deviceAudioHint": "Gravado direto do dispositivo, com qualidade total.",
+    "audio.deviceAudioHint": "Normalmente o áudio da placa. O Auto mantém o som do console mesmo quando você grava ou transmite uma tela.",
     "audio.device": "Dispositivo",
-    "audio.sameAsPreview": "O mesmo do preview",
+    "audio.sameAsPreview": "Auto (mesmo aparelho do vídeo do preview)",
     "audio.microphone": "Microfone",
     "audio.microphoneHint": "Opcional, para narração.",
 
@@ -281,4 +281,36 @@ export const ptBR: Messages = {
     "viewer.clickForSound": "Clique para assistir com som",
     "viewer.volume": "Volume",
     "viewer.fullscreen": "Tela cheia (clique duplo)",
+
+    "native.recordSourceEnded": "A tela ou janela gravada sumiu; a gravação parou",
+    "native.streamSourceEnded": "A tela ou janela transmitida sumiu; a transmissão parou",
+
+    "error.capture_busy": "Gravação e transmissão podem usar a mesma tela ou janela, mas não duas diferentes ao mesmo tempo",
+
+    "source.preview": "Mesma do preview",
+    "source.window": "Janela",
+    "source.screenUnknown": "Tela",
+
+    "toolbar.viewRecording": "Ver gravação",
+    "toolbar.viewLive": "Ver live",
+    "toolbar.feedbackSame": "É a mesma do preview: você já está vendo",
+    "toolbar.feedbackBack": "Voltar ao preview normal",
+    "toolbar.feedbackHint": "Mostrar {source} no preview (trava o menu até voltar)",
+
+    "source.title": "Fonte",
+    "source.previewNamed": "Mesma do preview ({name})",
+
+    "audioSummary.mic": "microfone ({name})",
+    "audioSummary.apps": "apps do PC",
+    "audioSummary.appsExcept": "apps do PC (menos {apps})",
+    "audioSummary.none": "Sem áudio",
+    "audioSummary.change": "Alterar",
+
+    "recording.format": "Formato",
+    "recording.formatDescription": "A qualidade e a fonte são escolhidas ao começar a gravar.",
+
+    "record.title": "Gravar",
+    "record.audio": "Áudio",
+    "record.hotkey": "F10 começa e para com estas escolhas.",
+    "record.start": "Começar a gravar",
 };

@@ -47,39 +47,45 @@ function MediaBubbles() {
     const recording = nctx.status?.sessions.find((s) => s.kind === "recording");
     const streaming = nctx.status?.sessions.find((s) => s.kind === "stream");
     const viewers = nctx.server?.viewers.length ?? 0;
+    // "Tela 2 · 1920x1080 · 60 FPS"
+    const describe = (kind: "record" | "stream") => {
+        const output = nctx.outputs[kind];
+        return output ? ` · ${output.label} · ${output.width}x${output.height} · ${output.fps} FPS` : "";
+    };
 
     return (
-        <>
+        <div className="mr-auto flex gap-3 items-center min-w-0">
             {nctx.recording !== "idle" && (
                 <InfoBubble>
                     <span className="w-3 h-3 rounded-full bg-bad animate-pulse" />
                     <span title={nctx.status?.recording?.path}>
-                        {nctx.recording === "stopping" ? t("status.saving") : `REC ${formatDuration(recording?.elapsedSecs ?? 0)} · ${formatBytes(recording?.bytes ?? 0)}`}
+                        {nctx.recording === "stopping" ? t("status.saving") : `REC ${formatDuration(recording?.elapsedSecs ?? 0)} · ${formatBytes(recording?.bytes ?? 0)}${describe("record")}`}
                     </span>
                 </InfoBubble>
             )}
             {nctx.streaming !== "idle" && (
                 <InfoBubble>
                     <span className="px-1.5 rounded-sm bg-accent text-sm font-semibold">{t("status.live")}</span>
-                    <span>{`${formatDuration(streaming?.elapsedSecs ?? 0)} · ${t("status.watching", { count: viewers })}`}</span>
+                    <span>{`${formatDuration(streaming?.elapsedSecs ?? 0)} · ${t("status.watching", { count: viewers })}${describe("stream")}`}</span>
                 </InfoBubble>
             )}
-        </>
+        </div>
     );
 }
 
 export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; setFixed: (value: boolean) => void }) {
     const t = useT();
     const vsctx = useContext(VideoStreamContext);
+    const nctx = useContext(NativeContext);
     const { latency, latencyAvailable, fps: measuredFps } = useContext(FrameStatsContext)?.stats ?? { latency: null, latencyAvailable: false, fps: null };
     if (!vsctx) return null;
-    const { videoTrack } = vsctx;
+    const videoTrack = (nctx?.feedback ? nctx.outputs[nctx.feedback]?.track : null) ?? vsctx.videoTrack;
 
     if (!videoTrack) {
         return (
             <>
-                <Alerts />
                 <MediaBubbles />
+                <Alerts />
                 <Controls fixed={fixed} setFixed={setFixed} />
             </>
         );
@@ -95,8 +101,8 @@ export default function StatusBarContent({ fixed, setFixed }: { fixed: boolean; 
 
     return (
         <>
-            <Alerts />
             <MediaBubbles />
+            <Alerts />
             <InfoBubble>
                 {isCapturing ? (
                     <>

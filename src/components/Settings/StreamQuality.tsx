@@ -1,9 +1,7 @@
 // Qualidade da transmissão: resolução e FPS (mesmas listas do app, com "nativo") e bitrate
 // automático por padrão.
-import { trackSettings } from "../../core/native/screenCapture";
 import { useContext } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
-import { VideoStreamContext } from "../../context/VideoStreamContext";
 import type { StreamConfig } from "../../core/native/api";
 import { streamBitrateKbps, streamSize, type SourceInfo } from "../../core/media/presets";
 import { NumberInput, Segmented } from "./controls";
@@ -13,6 +11,7 @@ import Tag from "../../core/components/Tag";
 import Resolution from "../../core/utils/Resolution";
 import { choicesOf, formatFps, fpsColor, modeKey, parseModeKey } from "../../core/utils/videoModes";
 import { tx, useT } from "../../i18n";
+import { useOutputSourceInfo } from "./OutputSource";
 
 const NATIVE = "native";
 
@@ -23,11 +22,9 @@ function useStreamConfig() {
     return { stream, set };
 }
 
-/** Fonte atual (sem vídeo ainda, assume 1080p60 só para as estimativas). */
+/** Fonte da transmissão (a placa do preview ou a tela/janela escolhida). */
 export function useSource(): SourceInfo {
-    const videoTrack = useContext(VideoStreamContext)?.videoTrack;
-    const settings = videoTrack ? trackSettings(videoTrack) : undefined;
-    return { width: settings?.width ?? 1920, height: settings?.height ?? 1080, fps: settings?.frameRate ?? 60 };
+    return useOutputSourceInfo("stream").info;
 }
 
 /** Upload que cada espectador consome (vídeo + áudio). */
@@ -61,8 +58,7 @@ export function FpsSelect({ fullWidth }: { fullWidth?: boolean }) {
 export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean }) {
     const t = useT();
     const { stream, set } = useStreamConfig();
-    const source = useSource();
-    const modes = useContext(VideoStreamContext)?.deviceModes ?? null;
+    const { info: source, modes } = useOutputSourceInfo("stream");
 
     if (!modes) {
         return fullWidth ? (

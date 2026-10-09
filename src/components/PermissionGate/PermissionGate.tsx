@@ -35,8 +35,9 @@ export default function PermissionGate({ children }: { children: ComponentChildr
             await releaseStream({ video: true });
         } catch (error) {
             const status = statusFromError(error);
-            // Sem câmera nenhuma o app ainda captura telas e janelas.
-            if (status !== "notFound") {
+            // Sem câmera nenhuma o app ainda grava/transmite telas; câmera ocupada (outro app) não é
+            // falta de permissão: segue, e o erro aparece só nesse dispositivo (dá para escolher outro).
+            if (status !== "notFound" && status !== "inUse") {
                 console.error("Error to get camera permission: ", error);
                 setStatus(status);
                 return;

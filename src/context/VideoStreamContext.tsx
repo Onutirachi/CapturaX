@@ -25,6 +25,9 @@ export type VideoStreamContextType = {
     /** Modos reais do dispositivo de vídeo atual (null = tela ou dispositivo desconhecido). */
     deviceModes: VideoMode[] | null;
     setDeviceModes: (v: VideoMode[] | null) => void;
+    /** Entrada de áudio do mesmo aparelho do vídeo do preview (o "Auto" do áudio). */
+    pairedAudioId: string | null;
+    setPairedAudioId: (v: string | null) => void;
 };
 
 export const VideoStreamContext = createContext<VideoStreamContextType | null>(null);
@@ -47,6 +50,7 @@ export function VideoStreamProvider({ children }: { children: ComponentChildren 
     const [ambientLight, setAmbientLight] = useState<boolean>(() => loadStored("ambientLight", false));
     const [previewHidden, setPreviewHidden] = useState<boolean>(() => loadStored("previewHidden", false));
     const [deviceModes, setDeviceModes] = useState<VideoMode[] | null>(null);
+    const [pairedAudioId, setPairedAudioId] = useState<string | null>(null);
 
     useEffect(() => localStorage.setItem("volume", JSON.stringify(volume)), [volume]);
     useEffect(() => localStorage.setItem("muted", JSON.stringify(muted)), [muted]);
@@ -54,7 +58,7 @@ export function VideoStreamProvider({ children }: { children: ComponentChildren 
     useEffect(() => localStorage.setItem("previewHidden", JSON.stringify(previewHidden)), [previewHidden]);
 
     return (
-        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, ambientLight, setAmbientLight, previewHidden, setPreviewHidden, deviceModes, setDeviceModes }}>
+        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, ambientLight, setAmbientLight, previewHidden, setPreviewHidden, deviceModes, setDeviceModes, pairedAudioId, setPairedAudioId }}>
             {children}
         </VideoStreamContext.Provider>
     );

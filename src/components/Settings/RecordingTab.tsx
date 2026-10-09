@@ -1,14 +1,13 @@
-import { trackSettings } from "../../core/native/screenCapture";
 import { useContext, useEffect, useState } from "preact/hooks";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { videoDir, join } from "@tauri-apps/api/path";
 import { NativeContext } from "../../context/NativeContext";
-import { VideoStreamContext } from "../../context/VideoStreamContext";
 import type { RecordingConfig, RecordingPreset, VideoCodecName } from "../../core/native/api";
 import { isHevcSupported, recordingSettings } from "../../core/media/presets";
 import { FpsPicker, ResolutionPicker } from "./QualityPickers";
 import { Button, NumberInput, Row, Section, Segmented, Select } from "./controls";
+import { useOutputSourceInfo } from "./OutputSource";
 import { useT, type MessageKey } from "../../i18n";
 
 const PRESET_HINTS: Record<RecordingPreset, MessageKey> = {
@@ -19,12 +18,64 @@ const PRESET_HINTS: Record<RecordingPreset, MessageKey> = {
     custom: "recording.hint.custom",
 };
 
-export default function RecordingTab() {
-    const t = useT();
+function useRecordingConfig() {
     const nctx = useContext(NativeContext)!;
-    const track = useContext(VideoStreamContext)?.videoTrack ?? null;
     const recording = nctx.config!.recording;
     const set = (patch: Partial<RecordingConfig>) => nctx.updateConfig((c) => ({ ...c, recording: { ...c.recording, ...patch } }));
+    return { nctx, recording, set };
+}
+
+/** Qualidade da gravação (na janela de gravar), calculada para a fonte escolhida. */
+export function RecordingQuality() {
+    const t = useT();
+    const { recording, set } = useRecordingConfig();
+    const source = useOutputSourceInfo("record").info;
+    const result = recordingSettings(recording, source);
+    const gbPerHour = ((result.bitrate + recording.audioBitrateKbps * 1000) * 3600) / 8 / 1e9;
+
+    return (
+        <>
+            <Row label={t("recording.preset")} hint={t(PRESET_HINTS[recording.preset])}>
+                <Segmented<RecordingPreset>
+                    value={recording.preset}
+                    onChange={(preset) => set({ preset })}
+                    options={[
+                        { value: "original", label: t("recording.preset.original") },
+                        { value: "high", label: t("recording.preset.high") },
+                        { value: "medium", label: t("recording.preset.medium") },
+                        { value: "light", label: t("recording.preset.light") },
+                        { value: "custom", label: t("recording.preset.custom") },
+                    ]}
+                />
+            </Row>
+            {recording.preset === "custom" && (
+                <>
+                    <Row label={t("toolbar.resolution")} hint={t("recording.resolutionHint")}>
+                        <ResolutionPicker
+                            value={recording.width && recording.height ? { width: recording.width, height: recording.height } : null}
+                            source={source}
+                            onChange={(size) => set({ width: size?.width ?? null, height: size?.height ?? null })}
+                        />
+                    </Row>
+                    <Row label={t("recording.frameRate")}>
+                        <FpsPicker value={recording.fps} source={source} onChange={(fps) => set({ fps })} />
+                    </Row>
+                    <Row label={t("recording.videoBitrate")} hint={t("recording.videoBitrateHint")}>
+                        <NumberInput value={recording.bitrateKbps / 1000} min={1} max={150} step={0.5} suffix="Mbps" onChange={(mbps) => set({ bitrateKbps: Math.round(mbps * 1000) })} />
+                    </Row>
+                </>
+            )}
+            <Row
+                label={t("recording.currentSource")}
+                hint={t("recording.currentSourceHint", { size: `${result.width}x${result.height}`, fps: result.fps, mbps: (result.bitrate / 1e6).toFixed(1), gb: gbPerHour.toFixed(1) })}
+            />
+        </>
+    );
+}
+
+export default function RecordingTab() {
+    const t = useT();
+    const { nctx, recording, set } = useRecordingConfig();
 
     const [hevc, setHevc] = useState<boolean | null>(null);
     const [defaultFolder, setDefaultFolder] = useState("");
@@ -36,12 +87,6 @@ export default function RecordingTab() {
             .catch(() => {});
     }, []);
 
-    const settings = track ? trackSettings(track) : undefined;
-    const source = settings ? { width: settings.width ?? 1920, height: settings.height ?? 1080, fps: settings.frameRate ?? 60 } : null;
-    const result = source ? recordingSettings(recording, source) : null;
-    const pickerSource = source ?? { width: 1920, height: 1080, fps: 60 };
-    const gbPerHour = result ? ((result.bitrate + recording.audioBitrateKbps * 1000) * 3600) / 8 / 1e9 : 0;
-
     const chooseFolder = async () => {
         const folder = await open({ directory: true, defaultPath: recording.folder ?? defaultFolder });
         if (typeof folder === "string") set({ folder });
@@ -51,37 +96,7 @@ export default function RecordingTab() {
 
     return (
         <div className="flex flex-col gap-6">
-            <Section title={t("recording.quality")} description={t(PRESET_HINTS[recording.preset])}>
-                <Row label={t("recording.preset")}>
-                    <Segmented<RecordingPreset>
-                        value={recording.preset}
-                        onChange={(preset) => set({ preset })}
-                        options={[
-                            { value: "original", label: t("recording.preset.original") },
-                            { value: "high", label: t("recording.preset.high") },
-                            { value: "medium", label: t("recording.preset.medium") },
-                            { value: "light", label: t("recording.preset.light") },
-                            { value: "custom", label: t("recording.preset.custom") },
-                        ]}
-                    />
-                </Row>
-                {recording.preset === "custom" && (
-                    <>
-                        <Row label={t("toolbar.resolution")} hint={t("recording.resolutionHint")}>
-                            <ResolutionPicker
-                                value={recording.width && recording.height ? { width: recording.width, height: recording.height } : null}
-                                source={pickerSource}
-                                onChange={(size) => set({ width: size?.width ?? null, height: size?.height ?? null })}
-                            />
-                        </Row>
-                        <Row label={t("recording.frameRate")}>
-                            <FpsPicker value={recording.fps} source={pickerSource} onChange={(fps) => set({ fps })} />
-                        </Row>
-                        <Row label={t("recording.videoBitrate")} hint={t("recording.videoBitrateHint")}>
-                            <NumberInput value={recording.bitrateKbps / 1000} min={1} max={150} step={0.5} suffix="Mbps" onChange={(mbps) => set({ bitrateKbps: Math.round(mbps * 1000) })} />
-                        </Row>
-                    </>
-                )}
+            <Section title={t("recording.format")} description={t("recording.formatDescription")}>
                 <Row
                     label={t("recording.codec")}
                     hint={t(hevc === false ? "recording.hevcUnavailable" : "recording.hevcHint")}>
@@ -102,12 +117,6 @@ export default function RecordingTab() {
                         options={[128, 160, 192].map((k) => ({ value: String(k), label: `${k} kbps AAC` }))}
                     />
                 </Row>
-                {result && (
-                    <Row
-                        label={t("recording.currentSource")}
-                        hint={t("recording.currentSourceHint", { size: `${result.width}x${result.height}`, fps: result.fps, mbps: (result.bitrate / 1e6).toFixed(1), gb: gbPerHour.toFixed(1) })}
-                    />
-                )}
             </Section>
 
             <Section title={t("recording.files")} description={t("recording.filesDescription")}>

@@ -30,7 +30,11 @@ export type AudioConfig = {
 export type RecordingPreset = "original" | "high" | "medium" | "light" | "custom";
 export type VideoCodecName = "h264" | "hevc";
 
+/** Fonte da gravação/transmissão: `null` = a mesma do preview; senão `screen:...`/`window:...`. */
+export type OutputSourceId = string | null;
+
 export type RecordingConfig = {
+    source: OutputSourceId;
     folder: string | null;
     preset: RecordingPreset;
     codec: VideoCodecName;
@@ -42,6 +46,7 @@ export type RecordingConfig = {
 };
 
 export type StreamConfig = {
+    source: OutputSourceId;
     acceptViewers: boolean;
     port: number;
     upnp: boolean;

@@ -127,8 +127,8 @@ export const en = {
 
     "common.closeEsc": "Close (Esc)",
 
-    "audio.preview": "Preview",
-    "audio.previewDescription": "What you hear while playing.",
+    "audio.preview": "What you hear",
+    "audio.previewDescription": "Only for you, while playing. Not recorded or streamed.",
     "audio.lowLatency": "Low-latency audio",
     "audio.lowLatencyHint": "Plays the capture audio straight through Windows (about 10–20 ms). Turn off to use the browser engine.",
     "audio.input": "Input",
@@ -138,12 +138,12 @@ export const en = {
     "audio.outputHint": "Where you listen (headset, speakers).",
     "audio.delay": "Audio delay",
     "audio.delayHint": "Delays the sound to line up with the picture (lip-sync). Keep at 0 for the lowest latency.",
-    "audio.recordingAndStreaming": "Recording and streaming",
-    "audio.recordingAndStreamingDescription": "What goes into recordings and to people watching the link. Independent from the preview.",
+    "audio.recordingAndStreaming": "What goes into recordings and streams",
+    "audio.recordingAndStreamingDescription": "Independent from what you hear. The same audio goes into both.",
     "audio.deviceAudio": "Capture device audio",
-    "audio.deviceAudioHint": "Recorded straight from the device, at full quality.",
+    "audio.deviceAudioHint": "Usually the capture card audio. Auto keeps the console sound even when you record or stream a screen.",
     "audio.device": "Device",
-    "audio.sameAsPreview": "Same as preview",
+    "audio.sameAsPreview": "Auto (same device as the preview video)",
     "audio.microphone": "Microphone",
     "audio.microphoneHint": "Optional, for commentary.",
 
@@ -281,6 +281,38 @@ export const en = {
     "viewer.clickForSound": "Click to watch with sound",
     "viewer.volume": "Volume",
     "viewer.fullscreen": "Fullscreen (double-click)",
+
+    "native.recordSourceEnded": "The recorded screen or window is gone; recording stopped",
+    "native.streamSourceEnded": "The streamed screen or window is gone; the stream stopped",
+
+    "error.capture_busy": "Recording and streaming can share one screen or window, but not two different ones at the same time",
+
+    "source.preview": "Same as preview",
+    "source.window": "Window",
+    "source.screenUnknown": "Screen",
+
+    "toolbar.viewRecording": "View recording",
+    "toolbar.viewLive": "View live",
+    "toolbar.feedbackSame": "It's the same as the preview: you are already seeing it",
+    "toolbar.feedbackBack": "Back to the normal preview",
+    "toolbar.feedbackHint": "Show {source} in the preview (locks the menu until you come back)",
+
+    "source.title": "Source",
+    "source.previewNamed": "Same as preview ({name})",
+
+    "audioSummary.mic": "microphone ({name})",
+    "audioSummary.apps": "PC apps",
+    "audioSummary.appsExcept": "PC apps (except {apps})",
+    "audioSummary.none": "No audio",
+    "audioSummary.change": "Change",
+
+    "recording.format": "Format",
+    "recording.formatDescription": "Quality and source are chosen when you start recording.",
+
+    "record.title": "Record",
+    "record.audio": "Audio",
+    "record.hotkey": "F10 starts and stops with these choices.",
+    "record.start": "Start recording",
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -106,7 +106,7 @@ export function ActionDock(props: DockProps) {
             </button>
             <button
                 title={t(recording === "active" ? "dock.stopRecording" : "dock.record")}
-                onClick={() => nctx.toggleRecording()}
+                onClick={() => (recording === "active" ? nctx.toggleRecording() : nctx.openRecordDialog())}
                 disabled={recording === "starting" || recording === "stopping"}
                 className={`${buttonClass} ${recording === "active" ? "bg-bad/25" : ""}`}>
                 <Icon src={recording === "active" ? "./assets/Dock/record_stop.svg" : "./assets/Dock/record.svg"} color={recording === "idle" ? undefined : "var(--color-bad)"} />

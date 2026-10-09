@@ -28,7 +28,8 @@ pub struct AudioConfig {
     /// Atraso extra do áudio do preview, para alinhar com o vídeo (lip-sync).
     pub preview_delay_ms: u32,
 
-    /// Dispositivo gravado junto (ex. áudio da placa). `None` = o mesmo do preview.
+    /// Dispositivo gravado junto (ex. áudio da placa). `None` = automático: o áudio do mesmo
+    /// aparelho do vídeo do preview (independente do que se está ouvindo).
     pub record_input: Option<String>,
     pub record_input_enabled: bool,
     pub record_input_volume: f32,
@@ -74,6 +75,8 @@ impl Default for AudioConfig {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RecordingConfig {
+    /// Fonte: `None` = a mesma do preview; `screen:...`/`window:...` = tela/janela.
+    pub source: Option<String>,
     /// Pasta de destino. `None` = `Vídeos\CapturaX`.
     pub folder: Option<String>,
     /// "original" | "high" | "medium" | "light" | "custom"
@@ -91,6 +94,7 @@ pub struct RecordingConfig {
 impl Default for RecordingConfig {
     fn default() -> Self {
         Self {
+            source: None,
             folder: None,
             preset: "high".into(),
             codec: "h264".into(),
@@ -106,6 +110,8 @@ impl Default for RecordingConfig {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct StreamConfig {
+    /// Fonte: `None` = a mesma do preview; `screen:...`/`window:...` = tela/janela.
+    pub source: Option<String>,
     /// Servidor no ar (link responde, mesmo que "Offline").
     pub accept_viewers: bool,
     pub port: u16,
@@ -126,6 +132,7 @@ pub struct StreamConfig {
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
+            source: None,
             accept_viewers: false,
             port: 8787,
             upnp: true,

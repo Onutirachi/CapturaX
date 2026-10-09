@@ -57,8 +57,14 @@ impl AppState {
     /// Configuração com o áudio automático resolvido (o par do vídeo atual, ou nenhum).
     fn effective(&self, config: &Config) -> Config {
         let mut config = config.clone();
+        let paired = self.paired_input.lock().unwrap().clone();
         if config.audio.preview_input_auto {
-            config.audio.preview_input = self.paired_input.lock().unwrap().clone();
+            config.audio.preview_input = paired.clone();
+        }
+        // Gravação/transmissão no automático: o áudio do aparelho do preview, mesmo que se esteja
+        // ouvindo outra coisa (ou que a fonte seja uma tela: o som do console vai junto).
+        if config.audio.record_input.is_none() {
+            config.audio.record_input = paired;
         }
         config
     }
@@ -97,7 +103,7 @@ fn mix_settings(config: &Config) -> MixSettings {
     let audio = &config.audio;
     let mut inputs = Vec::new();
     if audio.record_input_enabled {
-        if let Some(device) = audio.record_input.clone().or_else(|| audio.preview_input.clone()) {
+        if let Some(device) = audio.record_input.clone() {
             inputs.push((device, audio.record_input_volume));
         }
     }
@@ -245,7 +251,7 @@ pub async fn audio_set_paired_input(state: State<'_, AppState>, id: Option<Strin
     }
     *state.paired_input.lock().unwrap() = id;
     let config = state.config.lock().unwrap().current.clone();
-    if config.audio.preview_input_auto {
+    if config.audio.preview_input_auto || config.audio.record_input.is_none() {
         state.apply(&config).await;
     }
     Ok(())

@@ -1,7 +1,10 @@
 import { trackSettings } from "../core/native/screenCapture";
 import { ComponentChildren, createContext } from "preact";
 import { useCallback, useContext, useEffect, useRef, useState } from "preact/hooks";
-import { native, errorText, type AudioDevices, type Config, type MediaStatus, type ServerStatus } from "../core/native/api";
+import { native, errorText, type AudioDevices, type CaptureSources, type Config, type MediaStatus, type OutputSourceId, type ServerStatus } from "../core/native/api";
+import { acquireCapture } from "../core/native/captureHub";
+import { nativeCaptureAvailable } from "../core/native/screenCapture";
+import { sourceLabel, sourceRefreshRate, validSource } from "../core/utils/outputSources";
 import { calibrateClock } from "../core/native/clock";
 import EncoderSession from "../core/media/EncoderSession";
 import { recordingSettings, resolveSupported, streamSettings, type SourceInfo } from "../core/media/presets";
@@ -11,6 +14,13 @@ import { VideoStreamContext } from "./VideoStreamContext";
 import { applyLanguageSetting, t } from "../i18n";
 
 type Activity = "idle" | "starting" | "active" | "stopping";
+export type OutputKind = "record" | "stream";
+
+/** O que uma gravação/transmissão em andamento está mandando. */
+export type OutputInfo = { source: OutputSourceId; track: MediaStreamTrack; label: string; width: number; height: number; fps: number };
+
+/** Trilha aberta para uma saída (tela/janela própria, ou a do preview). */
+type OpenOutput = { source: OutputSourceId; track: MediaStreamTrack; release: () => void };
 export type SettingsTab = "general" | "audio" | "recording" | "streaming";
 
 export type NativeContextType = {
@@ -32,6 +42,19 @@ export type NativeContextType = {
     cancelGoLive: () => void;
     /** A fonte mudou ao vivo: a janela só sai aplicando uma qualidade nova ou parando. */
     mustReconfigure: boolean;
+    /** Janela de gravação (fonte + qualidade antes de começar). */
+    recordDialogOpen: boolean;
+    openRecordDialog: () => void;
+    closeRecordDialog: () => void;
+    confirmRecord: () => Promise<void>;
+    /** Telas e janelas disponíveis como fonte da gravação/transmissão. */
+    captureSources: CaptureSources;
+    refreshCaptureSources: () => void;
+    /** Gravação/transmissão em andamento (fonte, tamanho, FPS). */
+    outputs: Record<OutputKind, OutputInfo | null>;
+    /** Preview mostrando o que sai na gravação/transmissão (menu de cima travado). */
+    feedback: OutputKind | null;
+    setFeedback: (kind: OutputKind | null) => void;
     stopStreaming: () => Promise<void>;
     screenshot: () => Promise<void>;
     settingsTab: SettingsTab | null;
@@ -61,8 +84,17 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const [server, setServer] = useState<ServerStatus | null>(null);
     const [goLiveOpen, setGoLiveOpen] = useState(false);
     const [mustReconfigure, setMustReconfigure] = useState(false);
+    const [recordDialogOpen, setRecordDialogOpen] = useState(false);
+    const [captureSources, setCaptureSources] = useState<CaptureSources>({ screens: [], windows: [] });
+    const [outputs, setOutputs] = useState<Record<OutputKind, OutputInfo | null>>({ record: null, stream: null });
+    const [feedback, setFeedbackState] = useState<OutputKind | null>(null);
+    const opened = useRef<Record<OutputKind, OpenOutput | null>>({ record: null, stream: null });
+    const sourcesRef = useRef(captureSources);
+    sourcesRef.current = captureSources;
 
     const configRef = useRef<Config | null>(null);
+    const feedbackRef = useRef<OutputKind | null>(null);
+    feedbackRef.current = feedback;
     const saveTimer = useRef<number | null>(null);
     const recorder = useRef<EncoderSession | null>(null);
     const streamer = useRef<EncoderSession | null>(null);
@@ -95,6 +127,41 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             native.setConfig(configRef.current!).catch((error) => alert(alerts.error(t("native.saveFailed", { detail: errorText(error) }))));
         }, SAVE_DELAY_MS);
     }, []);
+
+    const refreshCaptureSources = useCallback(() => {
+        if (nativeCaptureAvailable()) native.captureSources().then(setCaptureSources).catch(() => {});
+    }, []);
+    useEffect(refreshCaptureSources, []);
+
+    /** Abre a fonte de uma saída: a trilha do preview ou uma tela/janela (compartilhada se for a mesma). */
+    const openOutput = async (kind: OutputKind, wanted: OutputSourceId, fps: number | null, onEnded: () => void): Promise<OpenOutput | null> => {
+        // A lista pode estar velha (janela aberta agora): atualiza antes de validar.
+        const sources = wanted ? await native.captureSources().catch(() => sourcesRef.current) : sourcesRef.current;
+        if (wanted) setCaptureSources(sources);
+        const source = validSource(wanted, sources);
+        if (source === null) {
+            const track = trackRef.current;
+            return track ? { source: null, track, release: () => {} } : null;
+        }
+        const { track, release } = await acquireCapture(source, fps ?? sourceRefreshRate(source, sources), onEnded);
+        opened.current[kind] = { source, track, release };
+        return { source, track, release };
+    };
+
+    const closeOutput = (kind: OutputKind) => {
+        opened.current[kind]?.release();
+        opened.current[kind] = null;
+        setOutputs((current) => ({ ...current, [kind]: null }));
+        setFeedbackState((current) => (current === kind ? null : current));
+    };
+
+    const describeOutput = (kind: OutputKind, out: OpenOutput, settings: { width: number; height: number; fps: number }) =>
+        setOutputs((current) => ({
+            ...current,
+            [kind]: { source: out.source, track: out.track, label: sourceLabel(out.source, sourcesRef.current, trackRef.current), ...settings },
+        }));
+
+    const setFeedback = (kind: OutputKind | null) => setFeedbackState(kind && opened.current[kind] ? kind : null);
 
     // Dispositivos de áudio do Windows; a lista do WebView avisa quando algo é plugado.
     useEffect(() => {
@@ -149,31 +216,44 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     // Ao vivo, a qualidade escolhida pode não servir mais: reabre a janela para escolher de novo.
     useEffect(() => {
         if (!videoTrack) return;
-        recorder.current?.setTrack(videoTrack);
-        streamer.current?.setTrack(videoTrack);
-        if (streamer.current && streamTrackId.current !== videoTrack.id) {
+        if (!opened.current.record) recorder.current?.setTrack(videoTrack);
+        if (!opened.current.stream) streamer.current?.setTrack(videoTrack);
+        for (const kind of ["record", "stream"] as const) {
+            setOutputs((current) => (current[kind] && current[kind]!.source === null ? { ...current, [kind]: { ...current[kind]!, track: videoTrack, label: sourceLabel(null, sourcesRef.current, videoTrack) } } : current));
+        }
+        if (streamer.current && !opened.current.stream && streamTrackId.current !== videoTrack.id) {
             setMustReconfigure(true);
             setGoLiveOpen(true);
         }
     }, [videoTrack]);
 
     const startRecording = async () => {
-        const track = trackRef.current;
         const current = configRef.current;
-        if (!track || !current) {
-            alert(alerts.warning(t("native.nothingToRecord")));
-            return;
-        }
+        if (!current) return;
         setRecording("starting");
+        let out: OpenOutput | null = null;
         try {
+            const fps = current.recording.preset === "custom" ? current.recording.fps : null;
+            out = await openOutput("record", current.recording.source, fps, () => {
+                alert(alerts.warning(t("native.recordSourceEnded")));
+                stopRecordingRef.current();
+            });
+            if (!out) {
+                setRecording("idle");
+                alert(alerts.warning(t("native.nothingToRecord")));
+                return;
+            }
+            const track = out.track;
             const settings = await resolveSupported(recordingSettings(current.recording, sourceInfo(track)));
             await calibrateClock();
             const { id, path } = await native.recordingStart();
             recorder.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(t("native.recordingError", { detail: message }))));
+            describeOutput("record", out, settings);
             setRecording("active");
             alert(alerts.info(t("native.recordingStarted", { size: `${settings.width}x${settings.height}`, fps: settings.fps, file: fileName(path) })));
         } catch (error) {
             setRecording("idle");
+            closeOutput("record");
             alert(alerts.error(t("native.recordingStartFailed", { detail: errorText(error) })));
         }
     };
@@ -188,23 +268,34 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         } catch (error) {
             alert(alerts.error(t("native.recordingStopFailed", { detail: errorText(error) })));
         } finally {
+            closeOutput("record");
             setRecording("idle");
         }
     };
+    const stopRecordingRef = useRef(stopRecording);
+    stopRecordingRef.current = stopRecording;
 
     const startStreaming = async (restarting = false) => {
-        const track = trackRef.current;
         const current = configRef.current;
-        if (!track || !current) {
-            alert(alerts.warning(t("native.nothingToStream")));
-            return;
-        }
+        if (!current) return;
         setStreaming("starting");
         try {
+            const out = await openOutput("stream", current.stream.source, current.stream.fps || null, () => {
+                alert(alerts.warning(t("native.streamSourceEnded")));
+                stopStreamingRef.current();
+            });
+            if (!out) {
+                setStreaming("idle");
+                setMustReconfigure(false);
+                alert(alerts.warning(t("native.nothingToStream")));
+                return;
+            }
+            const track = out.track;
             const settings = await resolveSupported(streamSettings(current.stream, sourceInfo(track)));
             await calibrateClock();
             const id = await native.streamStart();
             streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(t("native.streamError", { detail: message }))));
+            describeOutput("stream", out, settings);
             streamTrackId.current = track.id;
             setMustReconfigure(false);
             setStreaming("active");
@@ -212,6 +303,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         } catch (error) {
             setStreaming("idle");
             setMustReconfigure(false);
+            closeOutput("stream");
             alert(alerts.error(t("native.streamStartFailed", { detail: errorText(error) })));
         }
     };
@@ -229,9 +321,12 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         } catch (error) {
             alert(alerts.error(t("native.streamStopFailed", { detail: errorText(error) })));
         } finally {
+            closeOutput("stream");
             setStreaming("idle");
         }
     };
+    const stopStreamingRef = useRef(stopStreaming);
+    stopStreamingRef.current = stopStreaming;
 
     const busy = (activity: Activity) => activity === "starting" || activity === "stopping";
     const toggleRecording = async () => {
@@ -240,6 +335,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     };
     const toggleStreaming = async () => {
         if (busy(streaming)) return;
+        refreshCaptureSources();
         setGoLiveOpen(true);
         // Parado: liga o servidor já, para o link (e a porta no roteador) estar pronto na janela.
         if (streaming !== "active") native.streamPrepare().catch(() => {});
@@ -257,6 +353,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         } catch (error) {
             alert(alerts.error(t("native.streamUpdateFailed", { detail: errorText(error) })));
         }
+        closeOutput("stream");
         await startStreaming(true);
     };
     const confirmGoLive = async () => {
@@ -277,8 +374,24 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         if (streaming !== "active") native.streamUnprepare().catch(() => {});
     };
 
+    const openRecordDialog = () => {
+        if (busy(recording)) return;
+        refreshCaptureSources();
+        setRecordDialogOpen(true);
+    };
+    const confirmRecord = async () => {
+        if (busy(recording)) return;
+        if (saveTimer.current !== null) {
+            window.clearTimeout(saveTimer.current);
+            saveTimer.current = null;
+            await native.setConfig(configRef.current!).catch(() => {});
+        }
+        setRecordDialogOpen(false);
+        await startRecording();
+    };
+
     const screenshot = async () => {
-        const track = trackRef.current;
+        const track = (feedbackRef.current && opened.current[feedbackRef.current]?.track) || trackRef.current;
         if (!track) {
             alert(alerts.warning(t("native.nothingToCapture")));
             return;
@@ -332,6 +445,15 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 confirmGoLive,
                 cancelGoLive,
                 mustReconfigure,
+                recordDialogOpen,
+                openRecordDialog,
+                closeRecordDialog: () => setRecordDialogOpen(false),
+                confirmRecord,
+                captureSources,
+                refreshCaptureSources,
+                outputs,
+                feedback,
+                setFeedback,
                 stopStreaming,
                 screenshot,
                 settingsTab,

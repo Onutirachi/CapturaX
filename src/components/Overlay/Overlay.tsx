@@ -6,6 +6,7 @@ import StatusBar from "./StatusBar";
 import Settings from "../Settings/Settings";
 import GoLiveDialog from "../Settings/GoLiveDialog";
 import { NativeContext } from "../../context/NativeContext";
+import RecordDialog from "../Settings/RecordDialog";
 
 const HIDETIME = 2000;
 
@@ -62,6 +63,7 @@ export default function Overlay() {
             <StatusBar active={active} />
             <Settings />
             <GoLiveDialog />
+            <RecordDialog />
         </>
     );
 }

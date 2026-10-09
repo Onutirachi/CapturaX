@@ -13,6 +13,8 @@ type DropDownProps = {
     value?: string | null;
     /** Chamado ao abrir o menu (ex.: atualizar a lista de janelas). */
     onOpen?: () => void;
+    /** Travado (mostra o valor, mas não abre). */
+    disabled?: boolean;
     /** Ocupa a largura toda do pai (ex.: janelas); sem isso, cresce até um limite e o texto rola. */
     fullWidth?: boolean;
 };
@@ -76,7 +78,7 @@ function tagColumns(children: ComponentChildren) {
     return Math.max(0, ...optionsOf(children).map((child) => Children.toArray(child?.props?.children).filter((part) => !isText(part)).length));
 }
 
-export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue, fullWidth = false, onOpen }: DropDownProps) {
+export function DropDown({ children, title, onChoose = (_) => {}, storageKey = title, value: controlledValue, fullWidth = false, onOpen, disabled = false }: DropDownProps) {
     const controlled = controlledValue !== undefined;
     const dropDownRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState<boolean>(false);
@@ -87,6 +89,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     const toggleOpen = () => {
+        if (disabled) return;
         if (!open) onOpen?.();
         setOpen(!open);
     };
@@ -168,6 +171,10 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     }, [open]);
 
     useEffect(() => {
+        if (disabled) setOpen(false);
+    }, [disabled]);
+
+    useEffect(() => {
         const close = () => setOpen(false);
         window.addEventListener(CLOSE_DROPDOWNS_EVENT, close);
         return () => window.removeEventListener(CLOSE_DROPDOWNS_EVENT, close);
@@ -187,10 +194,10 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     }, [dropDownRef]);
 
     return (
-        <div data-value={controlled ? controlledValue : value} className={`h-11 relative ${fullWidth ? "w-full" : "w-auto min-w-48 max-w-64"}`} ref={dropDownRef}>
+        <div data-value={controlled ? controlledValue : value} className={`h-11 relative ${fullWidth ? "w-full" : "w-auto min-w-48 max-w-64"} ${disabled ? "opacity-50" : ""}`} ref={dropDownRef}>
             <div className="absolute bg-normal -translate-y-[50%] translate-x-[20%] px-1 rounded-sm text-sm z-1">{title}</div>
             <div
-                className="w-full h-full bg-dark [border:var(--border)] rounded-xl cursor-pointer overflow-hidden flex items-center gap-3 px-3 relative"
+                className={`w-full h-full bg-dark [border:var(--border)] rounded-xl overflow-hidden ${disabled ? "cursor-not-allowed" : "cursor-pointer"} flex items-center gap-3 px-3 relative`}
                 onClick={toggleOpen}>
                 {/* Todas as opções empilhadas na mesma célula (só a escolhida visível): a largura do
                     dropdown é sempre a da maior opção, sem quebrar linha nem pular ao trocar. */}

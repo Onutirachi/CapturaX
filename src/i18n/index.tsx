@@ -36,10 +36,10 @@ const listeners = new Set<(code: string) => void>();
 
 export function setLanguage(code: string) {
     const language = LANGUAGES.find((l) => l.code === code) ?? LANGUAGES[0];
+    document.documentElement.lang = language.code;
     if (language.code === currentCode) return;
     current = language.messages;
     currentCode = language.code;
-    document.documentElement.lang = language.code;
     listeners.forEach((listener) => listener(language.code));
 }
 

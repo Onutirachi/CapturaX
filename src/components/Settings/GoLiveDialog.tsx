@@ -6,6 +6,7 @@ import Icon from "../Overlay/Icon";
 import { Button, CopyField, Note } from "./controls";
 import { BitrateControl, StreamQualityPicker, UploadNote } from "./StreamQuality";
 import { errorText, useT } from "../../i18n";
+import { AudioSummary, OutputSourcePicker } from "./OutputSource";
 
 export default function GoLiveDialog() {
     const t = useT();
@@ -32,7 +33,7 @@ export default function GoLiveDialog() {
 
     return (
         <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-black/60 backdrop-blur-xs" onPointerDown={(e) => e.target === e.currentTarget && nctx.cancelGoLive()}>
-            <div className="flex flex-col gap-5 w-[min(460px,100%)] p-6 rounded-2xl bg-darker [border:var(--border)] shadow-2xl">
+            <div className="flex flex-col gap-5 w-[min(460px,100%)] max-h-full overflow-y-auto p-6 rounded-2xl bg-darker [border:var(--border)] shadow-2xl">
                 <header className="flex items-center gap-3">
                     <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-accent/20">
                         <Icon src="./assets/Dock/live.svg" color="var(--color-accent)" />
@@ -77,6 +78,11 @@ export default function GoLiveDialog() {
                 </section>
 
                 <section className="flex flex-col gap-2">
+                    <h2 className="text-sm text-(--text-muted)">{t("source.title")}</h2>
+                    <OutputSourcePicker kind="stream" />
+                </section>
+
+                <section className="flex flex-col gap-2">
                     <h2 className="text-sm text-(--text-muted)">{t("recording.quality")}</h2>
                     <StreamQualityPicker fullWidth />
                 </section>
@@ -84,6 +90,11 @@ export default function GoLiveDialog() {
                 <section className="flex flex-col gap-2">
                     <h2 className="text-sm text-(--text-muted)">{t("golive.bitrate")}</h2>
                     <BitrateControl />
+                </section>
+
+                <section className="flex flex-col gap-2">
+                    <h2 className="text-sm text-(--text-muted)">{t("record.audio")}</h2>
+                    <AudioSummary close={() => nctx.cancelGoLive()} />
                 </section>
 
                 <Note>
