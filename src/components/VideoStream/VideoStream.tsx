@@ -26,6 +26,11 @@ export default function VideoStream() {
     // Com o preview nativo, quem toca o áudio é o Rust (WASAPI); o <video> fica mudo.
     const nativeAudio = useContext(NativeContext)?.config?.audio.nativePreview ?? true;
 
+    // srcObject vai pelo efeito: como prop, o Preact não consegue zerar (tentaria "" e falharia).
+    useEffect(() => {
+        if (videoRef.current && videoRef.current.srcObject !== videoStream) videoRef.current.srcObject = videoStream;
+    }, [videoStream]);
+
     useEffect(() => {
         if (!videoRef.current) return;
         videoRef.current.volume = volume;
@@ -96,7 +101,7 @@ export default function VideoStream() {
                 </div>
             )}
             {ctx.ambientLight && !hidden && <AmbientLight videoRef={videoRef} />}
-            <video className={`h-full w-full object-contain transition relative`} autoPlay playsInline srcObject={videoStream} ref={videoRef} />
+            <video className={`h-full w-full object-contain transition relative`} autoPlay playsInline ref={videoRef} />
         </div>
     );
 }

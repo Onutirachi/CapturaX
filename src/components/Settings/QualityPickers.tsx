@@ -14,7 +14,7 @@ export type Size = { width: number; height: number };
 const key = (size: Size) => `${size.width}x${size.height}`;
 
 /** `value = null` = nativo. Só oferece resoluções até a da fonte (nunca aumenta a imagem). */
-export function ResolutionPicker({ value, source, onChange }: { value: Size | null; source: SourceInfo; onChange: (value: Size | null) => void }) {
+export function ResolutionPicker({ value, source, onChange, fullWidth }: { value: Size | null; source: SourceInfo; onChange: (value: Size | null) => void; fullWidth?: boolean }) {
     const nativeTag = Resolution.getTag(source);
     const options = RESOLUTION_LIST.filter((r) => r.width <= source.width && r.height <= source.height);
     const selected = value ? key(value) : NATIVE;
@@ -23,6 +23,7 @@ export function ResolutionPicker({ value, source, onChange }: { value: Size | nu
     return (
         <DropDown
             title="Resolution"
+            fullWidth={fullWidth}
             value={selected}
             onChoose={(v) => {
                 if (v === NATIVE) return onChange(null);
@@ -49,11 +50,11 @@ export function ResolutionPicker({ value, source, onChange }: { value: Size | nu
 }
 
 /** `value = null` = nativo. */
-export function FpsPicker({ value, source, onChange }: { value: number | null; source: SourceInfo; onChange: (value: number | null) => void }) {
+export function FpsPicker({ value, source, onChange, fullWidth }: { value: number | null; source: SourceInfo; onChange: (value: number | null) => void; fullWidth?: boolean }) {
     const sourceFps = Math.round(source.fps);
     const options = FRAMERATE_LIST.filter((f) => f <= sourceFps || f === value);
     return (
-        <DropDown title="Framerate" value={value ? String(value) : NATIVE} onChoose={(v) => onChange(v === NATIVE ? null : Number(v))}>
+        <DropDown title="Framerate" fullWidth={fullWidth} value={value ? String(value) : NATIVE} onChoose={(v) => onChange(v === NATIVE ? null : Number(v))}>
             <DropOption value={NATIVE} className="flex gap-3">
                 Native
                 <Tag text={`${formatFps(sourceFps)} FPS`} color={fpsColor(sourceFps)} />

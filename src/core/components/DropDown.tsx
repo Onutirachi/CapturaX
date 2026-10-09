@@ -115,7 +115,7 @@ export function DropDown({ children, title, onChoose = (_) => {}, storageKey = t
     }, [dropDownRef]);
 
     return (
-        <div data-value={controlled ? controlledValue : value} className={`h-11 relative ${fullWidth ? "w-full" : "w-auto min-w-3xs max-w-80"}`} ref={dropDownRef}>
+        <div data-value={controlled ? controlledValue : value} className={`h-11 relative ${fullWidth ? "w-full" : "w-auto min-w-48 max-w-64"}`} ref={dropDownRef}>
             <div className="absolute bg-normal -translate-y-[50%] translate-x-[20%] px-1 rounded-sm text-sm z-1">{title}</div>
             <div
                 className="w-full h-full bg-dark [border:var(--border)] rounded-xl cursor-pointer overflow-hidden flex items-center gap-3 px-3 relative"

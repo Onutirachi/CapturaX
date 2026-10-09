@@ -28,6 +28,8 @@ export type NativeContextType = {
     /** Parado: começa. Ao vivo: aplica a qualidade nova (reinicia a transmissão). */
     confirmGoLive: () => Promise<void>;
     cancelGoLive: () => void;
+    /** A fonte mudou ao vivo: a janela só sai aplicando uma qualidade nova ou parando. */
+    mustReconfigure: boolean;
     stopStreaming: () => Promise<void>;
     screenshot: () => Promise<void>;
     settingsTab: SettingsTab | null;
@@ -56,6 +58,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
     const [server, setServer] = useState<ServerStatus | null>(null);
     const [goLiveOpen, setGoLiveOpen] = useState(false);
+    const [mustReconfigure, setMustReconfigure] = useState(false);
 
     const configRef = useRef<Config | null>(null);
     const saveTimer = useRef<number | null>(null);
@@ -140,7 +143,10 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         if (!videoTrack) return;
         recorder.current?.setTrack(videoTrack);
         streamer.current?.setTrack(videoTrack);
-        if (streamer.current && streamTrackId.current !== videoTrack.id) setGoLiveOpen(true);
+        if (streamer.current && streamTrackId.current !== videoTrack.id) {
+            setMustReconfigure(true);
+            setGoLiveOpen(true);
+        }
     }, [videoTrack]);
 
     const startRecording = async () => {
@@ -192,16 +198,19 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             const id = await native.streamStart();
             streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(`Stream error: ${message}`)));
             streamTrackId.current = track.id;
+            setMustReconfigure(false);
             setStreaming("active");
             alert(alerts.info(restarting ? `Stream updated: ${settings.width}x${settings.height} @ ${settings.fps} fps` : "You are live"));
         } catch (error) {
             setStreaming("idle");
+            setMustReconfigure(false);
             alert(alerts.error(`Could not start the stream (${errorText(error)})`));
         }
     };
 
     const stopStreaming = async () => {
         setGoLiveOpen(false);
+        setMustReconfigure(false);
         setStreaming("stopping");
         try {
             await streamer.current?.stop();
@@ -254,6 +263,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         await (streaming === "active" ? restartStreaming() : startStreaming());
     };
     const cancelGoLive = () => {
+        if (mustReconfigure) return;
         setGoLiveOpen(false);
         // Ao vivo, fechar a janela só mantém como está.
         if (streaming !== "active") native.streamUnprepare().catch(() => {});
@@ -313,6 +323,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 goLiveOpen,
                 confirmGoLive,
                 cancelGoLive,
+                mustReconfigure,
                 stopStreaming,
                 screenshot,
                 settingsTab,

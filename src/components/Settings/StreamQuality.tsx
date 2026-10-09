@@ -33,10 +33,11 @@ export function usePerViewerMbps() {
     return (streamBitrateKbps(stream, useSource()) + stream.audioBitrateKbps) / 1000;
 }
 
-export function ResolutionSelect() {
+export function ResolutionSelect({ fullWidth }: { fullWidth?: boolean }) {
     const { stream, set } = useStreamConfig();
     return (
         <ResolutionPicker
+            fullWidth={fullWidth}
             value={stream.height ? { width: stream.width, height: stream.height } : null}
             source={useSource()}
             onChange={(size) => set(size ?? { width: 0, height: 0 })}
@@ -44,9 +45,9 @@ export function ResolutionSelect() {
     );
 }
 
-export function FpsSelect() {
+export function FpsSelect({ fullWidth }: { fullWidth?: boolean }) {
     const { stream, set } = useStreamConfig();
-    return <FpsPicker value={stream.fps || null} source={useSource()} onChange={(fps) => set({ fps: fps ?? 0 })} />;
+    return <FpsPicker fullWidth={fullWidth} value={stream.fps || null} source={useSource()} onChange={(fps) => set({ fps: fps ?? 0 })} />;
 }
 
 /**
@@ -60,7 +61,12 @@ export function StreamQualityPicker({ fullWidth = false }: { fullWidth?: boolean
     const modes = useContext(VideoStreamContext)?.deviceModes ?? null;
 
     if (!modes) {
-        return (
+        return fullWidth ? (
+            <div className="flex flex-col gap-5 pt-2 w-full">
+                <ResolutionSelect fullWidth />
+                <FpsSelect fullWidth />
+            </div>
+        ) : (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-5 pt-2">
                 <ResolutionSelect />
                 <FpsSelect />

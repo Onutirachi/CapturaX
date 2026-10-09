@@ -26,6 +26,7 @@ export default function GoLiveDialog() {
     const upnp = server?.upnp;
     const starting = nctx.streaming === "starting";
     const live = nctx.streaming === "active";
+    const locked = nctx.mustReconfigure;
 
     return (
         <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-black/60 backdrop-blur-xs" onPointerDown={(e) => e.target === e.currentTarget && nctx.cancelGoLive()}>
@@ -35,10 +36,14 @@ export default function GoLiveDialog() {
                         <Icon src="./assets/Dock/live.svg" color="var(--color-accent)" />
                     </div>
                     <h1 className="text-xl font-semibold flex-1">{live ? "Stream settings" : "Go live"}</h1>
-                    <button title="Close (Esc)" onClick={() => nctx.cancelGoLive()} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
-                        <Icon src="./assets/Settings/close.svg" />
-                    </button>
+                    {!locked && (
+                        <button title="Close (Esc)" onClick={() => nctx.cancelGoLive()} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-normal cursor-pointer">
+                            <Icon src="./assets/Settings/close.svg" />
+                        </button>
+                    )}
                 </header>
+
+                {locked && <Note tone="warning">The video source changed. Choose the stream quality for the new source to keep streaming, or stop the stream.</Note>}
 
                 <section className="flex flex-col gap-2">
                     <h2 className="text-sm text-(--text-muted)">Link to share</h2>
@@ -91,7 +96,7 @@ export default function GoLiveDialog() {
                         </Button>
                     )}
                     <div className="flex-1" />
-                    <Button onClick={() => nctx.cancelGoLive()}>{live ? "Close" : "Cancel"}</Button>
+                    {!locked && <Button onClick={() => nctx.cancelGoLive()}>{live ? "Close" : "Cancel"}</Button>}
                     <Button variant="accent" onClick={() => nctx.confirmGoLive()} disabled={starting}>
                         {starting ? "Starting…" : live ? "Apply" : "Go live"}
                     </Button>

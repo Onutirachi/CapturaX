@@ -2,7 +2,7 @@ import { type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 /** Velocidade da rolagem (px/s); textos maiores levam mais tempo. */
-const SPEED = 30;
+const SPEED = 70;
 
 /**
  * Texto numa linha só que, se não couber, rola de um lado para o outro (e volta) em vez de
@@ -30,7 +30,7 @@ export default function ScrollText({ children }: { children: ComponentChildren }
             <span
                 ref={inner}
                 className={`inline-block whitespace-nowrap ${overflow > 0 ? "scroll-text" : ""}`}
-                style={overflow > 0 ? { "--scroll-distance": `-${overflow}px`, "--scroll-duration": `${Math.max(4, (overflow / SPEED) * 2 + 3)}s` } : undefined}>
+                style={overflow > 0 ? { "--scroll-distance": `-${overflow}px`, "--scroll-duration": `${Math.max(2.5, (overflow / SPEED) * 1.6 + 1.5)}s` } : undefined}>
                 {children}
             </span>
         </span>
