@@ -239,7 +239,7 @@ export const en = {
     "golive.searching": "Opening the port on your router…",
     "golive.needsPort": "The IPv4 link needs port {port} open on your router (see Settings → Streaming).",
     "golive.starting": "Starting the link…",
-    "golive.applyNote": "Applying restarts the stream; viewers reconnect by themselves in a second or two.",
+    "golive.applyNote": "Applying restarts the stream with the new choices; viewers reconnect by themselves in a second or two.",
 
     "common.close": "Close",
     "common.cancel": "Cancel",
@@ -284,22 +284,20 @@ export const en = {
     "toolbar.viewOutput": "View output",
 
     "output.title": "Record / Stream",
-    "output.sourceLocked": "Stop recording and streaming to change the source.",
+    "output.sourceLocked": "Stop the recording to change the source or the audio devices.",
     "output.device": "Device audio",
     "output.pcSound": "PC sound",
     "output.pcSoundAll": "Every app playing sound on this PC.",
     "output.pcSoundExcept": "Every app playing sound on this PC, except {apps}.",
     "output.pcSoundOff": "Off: no sound from PC apps.",
     "output.chooseApps": "Choose apps",
-    "output.lockedHint": "Devices change on the next start; volumes apply right away.",
-    "output.applyQuality": "Apply quality",
+    "output.lockedHint": "The audio devices can't change while recording; volumes apply right away.",
 
     "source.device": "Device",
     "source.devices": "Devices",
 
     "output.volume": "Volume",
     "output.done": "Done",
-    "output.stop": "Stop",
     "output.start": "Start",
     "output.sourceAndAudio": "Source and audio",
     "output.sharedHint": "Used by both the recording and the stream.",
@@ -311,6 +309,11 @@ export const en = {
 
     "streaming.internetLinkV6": "Internet link (IPv6)",
     "streaming.noIpv6": "This connection has no public IPv6 right now (the provider or the router isn't offering it).",
+
+    "output.apply": "Apply",
+    "output.stopAll": "Stop both",
+    "output.stopRecording": "Stop recording",
+    "output.stopStreaming": "Stop streaming",
 } as const;
 
 export type MessageKey = keyof typeof en;

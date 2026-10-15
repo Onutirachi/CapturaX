@@ -71,8 +71,7 @@ function Column({ title, header, children }: { title?: string; header?: Componen
     );
 }
 
-function OutputHeader({ label, running, badge, badgeColor, onStop }: { label: string; running: boolean; badge: string; badgeColor: string; onStop: () => void }) {
-    const t = useT();
+function OutputHeader({ label, running, badge, badgeColor }: { label: string; running: boolean; badge: string; badgeColor: string }) {
     return (
         <>
             {running && (
@@ -81,20 +80,15 @@ function OutputHeader({ label, running, badge, badgeColor, onStop }: { label: st
                 </span>
             )}
             <h2 className="flex-1 font-semibold">{label}</h2>
-            {running && (
-                <Button variant="danger" onClick={onStop}>
-                    {t("output.stop")}
-                </Button>
-            )}
         </>
     );
 }
 
-/** Liga/desliga gravação ou transmissão no rodapé (rodando, fica ligado até parar). */
-function OutputSwitch({ label, checked, running, onChange }: { label: string; checked: boolean; running: boolean; onChange: (value: boolean) => void }) {
+/** Liga/desliga gravação ou transmissão no rodapé; o botão ao lado faz o que os switches mostram. */
+function OutputSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
     return (
-        <label className={`flex items-center gap-2.5 select-none ${running ? "" : "cursor-pointer"}`}>
-            <Toggle checked={checked || running} disabled={running} onChange={onChange} />
+        <label className="flex items-center gap-2.5 select-none cursor-pointer">
+            <Toggle checked={checked} onChange={onChange} />
             {label}
         </label>
     );
@@ -132,9 +126,32 @@ export default function OutputDialog() {
     const busy = [recording, streaming].some((a) => a === "starting" || a === "stopping");
     const recordingOn = recording !== "idle";
     const live = streaming !== "idle";
-    // Fonte e dispositivos de áudio só mudam com tudo parado.
-    const running = recordingOn || live;
-    const toStart = { record: choice.record && !recordingOn, stream: choice.stream && !live };
+    // Gravando, fonte e dispositivos de áudio ficam fixos (o arquivo não aceita trocar no meio).
+    // Só transmitindo, podem mudar: "Aplicar" reinicia a transmissão.
+    const locked = recordingOn;
+
+    // O botão do rodapé faz o que os switches mostram.
+    const plan = {
+        startRecord: choice.record && !recordingOn,
+        startStream: choice.stream && !live,
+        stopRecord: !choice.record && recordingOn,
+        stopStream: !choice.stream && live,
+        applyStream: choice.stream && live && nctx.streamDirty,
+    };
+    const starts = plan.startRecord || plan.startStream;
+    const stops = plan.stopRecord || plan.stopStream;
+    const action = starts || plan.applyStream
+        ? { label: t(starts && !stops && !plan.applyStream ? "output.start" : "output.apply"), variant: "accent" as const }
+        : stops
+          ? { label: t(plan.stopRecord && plan.stopStream ? "output.stopAll" : plan.stopRecord ? "output.stopRecording" : "output.stopStreaming"), variant: "danger" as const }
+          : { label: t("output.start"), variant: "accent" as const };
+    const run = async () => {
+        if (plan.stopRecord) await nctx.stopRecording();
+        if (plan.stopStream) await nctx.stopStreaming();
+        if (plan.applyStream) await nctx.applyStreamQuality();
+        if (starts) await nctx.startOutputs({ record: plan.startRecord, stream: plan.startStream });
+        else close();
+    };
     // Só aparecem as colunas ligadas (ou rodando); a janela cresce com elas.
     const showRecord = choice.record || recordingOn;
     const showStream = choice.stream || live;
@@ -159,21 +176,21 @@ export default function OutputDialog() {
                 <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden grid ${grid} divide-y lg:divide-y-0 lg:divide-x divide-(--background-color-normal)`}>
                     <Column title={t("output.sourceAndAudio")}>
                         <p className="text-sm text-(--text-muted) -mt-2">{t("output.sharedHint")}</p>
-                        <OutputSourcePicker disabled={running} />
-                        {running && <p className="text-sm text-(--text-muted)">{t("output.sourceLocked")}</p>}
-                        <OutputAudio locked={running} />
+                        <OutputSourcePicker disabled={locked} />
+                        {locked && <p className="text-sm text-(--text-muted)">{t("output.sourceLocked")}</p>}
+                        <OutputAudio locked={locked} />
                     </Column>
 
                     {showRecord && (
                         <Column
-                            header={<OutputHeader label={t("settings.recording")} running={recordingOn} badge="REC" badgeColor="var(--color-bad)" onStop={() => nctx.stopRecording()} />}>
+                            header={<OutputHeader label={t("settings.recording")} running={recordingOn} badge="REC" badgeColor="var(--color-bad)" />}>
                             {recordingOn ? <p className="text-sm text-(--text-muted)">{t("output.recordingNow")}</p> : <RecordingQuality />}
                         </Column>
                     )}
 
                     {showStream && (
                         <Column
-                            header={<OutputHeader label={t("settings.streaming")} running={live} badge={t("status.live")} badgeColor="var(--color-accent)" onStop={() => nctx.stopStreaming()} />}>
+                            header={<OutputHeader label={t("settings.streaming")} running={live} badge={t("status.live")} badgeColor="var(--color-accent)" />}>
                             <>
                                 <StreamLink />
                                 <div className="pt-2">
@@ -183,26 +200,19 @@ export default function OutputDialog() {
                                 <p className="text-sm text-(--text-muted)">
                                     <UploadNote />
                                 </p>
-                                {live && (
-                                    <div className="flex items-center gap-3">
-                                        <p className="flex-1 text-sm text-(--text-muted)">{t("golive.applyNote")}</p>
-                                        <Button variant="accent" disabled={busy} onClick={() => nctx.applyStreamQuality()}>
-                                            {t("output.applyQuality")}
-                                        </Button>
-                                    </div>
-                                )}
+                                {plan.applyStream && <p className="text-sm text-[goldenrod]">{t("golive.applyNote")}</p>}
                             </>
                         </Column>
                     )}
                 </div>
 
                 <footer className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 [border-top:var(--border)]">
-                    <OutputSwitch label={t("settings.recording")} checked={choice.record} running={recordingOn} onChange={(record) => choose({ record })} />
-                    <OutputSwitch label={t("settings.streaming")} checked={choice.stream} running={live} onChange={(stream) => choose({ stream })} />
+                    <OutputSwitch label={t("settings.recording")} checked={choice.record} onChange={(record) => choose({ record })} />
+                    <OutputSwitch label={t("settings.streaming")} checked={choice.stream} onChange={(stream) => choose({ stream })} />
                     <div className="flex-1" />
                     <Button onClick={close}>{t("common.close")}</Button>
-                    <Button variant="accent" disabled={busy || (!toStart.record && !toStart.stream)} onClick={() => nctx.startOutputs(toStart)}>
-                        {t("output.start")}
+                    <Button variant={action.variant} disabled={busy || (!starts && !stops && !plan.applyStream)} onClick={run}>
+                        {action.label}
                     </Button>
                 </footer>
             </div>

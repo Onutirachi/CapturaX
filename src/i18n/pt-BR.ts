@@ -239,7 +239,7 @@ export const ptBR: Messages = {
     "golive.searching": "Abrindo a porta no roteador…",
     "golive.needsPort": "O link IPv4 precisa da porta {port} aberta no roteador (veja Configurações → Transmissão).",
     "golive.starting": "Iniciando o link…",
-    "golive.applyNote": "Aplicar reinicia a transmissão; quem assiste reconecta sozinho em um ou dois segundos.",
+    "golive.applyNote": "Aplicar reinicia a transmissão com as novas escolhas; quem assiste reconecta sozinho em um ou dois segundos.",
 
     "common.close": "Fechar",
     "common.cancel": "Cancelar",
@@ -284,22 +284,20 @@ export const ptBR: Messages = {
     "toolbar.viewOutput": "Ver saída",
 
     "output.title": "Gravar / Transmitir",
-    "output.sourceLocked": "Pare a gravação e a transmissão para trocar a fonte.",
+    "output.sourceLocked": "Pare a gravação para trocar a fonte ou os dispositivos de áudio.",
     "output.device": "Áudio do dispositivo",
     "output.pcSound": "Som do PC",
     "output.pcSoundAll": "Todos os apps tocando som neste PC.",
     "output.pcSoundExcept": "Todos os apps tocando som neste PC, menos {apps}.",
     "output.pcSoundOff": "Desligado: nenhum som dos apps do PC.",
     "output.chooseApps": "Escolher apps",
-    "output.lockedHint": "Os dispositivos mudam na próxima vez que começar; os volumes valem na hora.",
-    "output.applyQuality": "Aplicar qualidade",
+    "output.lockedHint": "Os dispositivos de áudio não mudam durante a gravação; os volumes valem na hora.",
 
     "source.device": "Dispositivo",
     "source.devices": "Dispositivos",
 
     "output.volume": "Volume",
     "output.done": "Concluir",
-    "output.stop": "Parar",
     "output.start": "Começar",
     "output.sourceAndAudio": "Fonte e áudio",
     "output.sharedHint": "Valem para a gravação e para a transmissão.",
@@ -311,4 +309,9 @@ export const ptBR: Messages = {
 
     "streaming.internetLinkV6": "Link da internet (IPv6)",
     "streaming.noIpv6": "Esta conexão não tem IPv6 público agora (a operadora ou o roteador não está oferecendo).",
+
+    "output.apply": "Aplicar",
+    "output.stopAll": "Parar as duas",
+    "output.stopRecording": "Parar gravação",
+    "output.stopStreaming": "Parar transmissão",
 };

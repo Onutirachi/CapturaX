@@ -46,6 +46,8 @@ export type NativeContextType = {
     /** Ao vivo: aplica a qualidade nova (reinicia a transmissão). */
     applyStreamQuality: () => Promise<void>;
     stopRecording: () => Promise<void>;
+    /** Ao vivo, mudou fonte, áudio ou qualidade desde que a transmissão começou ("Aplicar" reinicia). */
+    streamDirty: boolean;
     /** Fonte da saída: a escolhida, ou o dispositivo do preview quando nada foi escolhido ainda. */
     outputSource: OutputSourceId;
     /** Entrada de áudio que o "Auto" do áudio gravado usa agora (null = nenhuma). */
@@ -65,6 +67,13 @@ export type NativeContextType = {
     settingsTab: SettingsTab | null;
     openSettings: (tab?: SettingsTab | null) => void;
 };
+
+/** O que, se mudar ao vivo, só vale reiniciando a transmissão: fonte, dispositivos de áudio e qualidade. */
+function streamKey(config: Config, source: OutputSourceId) {
+    const { recordInput, recordInputEnabled, recordMic, recordSystem } = config.audio;
+    const { width, height, fps, bitrateAuto, bitrateKbps } = config.stream;
+    return JSON.stringify([source, recordInput, recordInputEnabled, recordMic, recordSystem, width, height, fps, bitrateAuto, bitrateKbps]);
+}
 
 export const NativeContext = createContext<NativeContextType | null>(null);
 
@@ -91,6 +100,8 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const [captureSources, setCaptureSources] = useState<CaptureSources>({ screens: [], windows: [] });
     const [outputs, setOutputs] = useState<Record<OutputKind, OutputInfo | null>>({ record: null, stream: null });
     const [feedback, setFeedbackState] = useState(false);
+    /** O que a transmissão em andamento usa (para saber se algo mudou e precisa "Aplicar"). */
+    const [streamSnapshot, setStreamSnapshot] = useState<string | null>(null);
     const opened = useRef<Record<OutputKind, OpenOutput | null>>({ record: null, stream: null });
     const sourcesRef = useRef(captureSources);
     sourcesRef.current = captureSources;
@@ -318,6 +329,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             const id = await native.streamStart();
             streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(t("native.streamError", { detail: message }))));
             describeOutput("stream", out, settings);
+            setStreamSnapshot(streamKey(current, outputSourceRef.current));
             setStreaming("active");
             alert(alerts.info(restarting ? t("native.streamUpdated", { size: `${settings.width}x${settings.height}`, fps: settings.fps }) : t("native.live")));
         } catch (error) {
@@ -456,6 +468,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 startOutputs,
                 applyStreamQuality,
                 stopRecording,
+                streamDirty: streaming === "active" && !!config && streamSnapshot !== null && streamKey(config, outputSource) !== streamSnapshot,
                 outputSource,
                 outputAutoAudioId: outputPaired === null ? (vsctx?.pairedAudioId ?? null) : outputPaired || null,
                 captureSources,

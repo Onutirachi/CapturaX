@@ -86,8 +86,10 @@ owner, so whoever opens a device registers its track in `core/native/deviceShare
 side (preview or output) uses a `clone()` instead of opening it again. The audio mix (device audio,
 microphone, PC sound, volume under each; "Choose apps" opens a small picker over the window) is the
 same for both; its "Auto" device is the audio of the source device (`audio_set_output_paired_input`;
-for a screen/window, the preview device's). Source and audio devices are locked while anything
-runs. With a source other than the preview device, the top bar shows "View output". F10 records
+for a screen/window, the preview device's). The footer button does what the switches show
+(Start / Stop … / Apply). Source and audio devices are locked only while recording; while only
+streaming they can change and "Apply" restarts the stream (`streamDirty` compares against what the
+stream started with). With a source other than the preview device, the top bar shows "View output". F10 records
 with the last choices. Settings → Audio keeps only what rarely changes.
 
 ### Screen/window capture (`src-tauri/src/capture/`)
