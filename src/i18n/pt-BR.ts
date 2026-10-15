@@ -304,6 +304,4 @@ export const ptBR: Messages = {
     "output.sourceAndAudio": "Fonte e áudio",
     "output.sharedHint": "Valem para a gravação e para a transmissão.",
     "output.recordingNow": "Gravando. O arquivo é salvo quando você parar.",
-    "output.recordOff": "Marque para gravar.",
-    "output.streamOff": "Marque para transmitir pelo link.",
 };

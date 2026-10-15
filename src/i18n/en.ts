@@ -304,8 +304,6 @@ export const en = {
     "output.sourceAndAudio": "Source and audio",
     "output.sharedHint": "Used by both the recording and the stream.",
     "output.recordingNow": "Recording. The file is saved when you stop.",
-    "output.recordOff": "Check to record.",
-    "output.streamOff": "Check to stream by link.",
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -78,9 +78,9 @@ src-tauri/src/
 
 ### Outputs (record / stream)
 The top bar only picks the preview device: that is what you see and hear. Recording and streaming
-share one **Record / Stream** window (`OutputDialog.tsx`, opened by both Dock buttons), in three
-columns: source + audio (shared), Recording and Streaming, each with a checkbox (saved in
-localStorage), and only Close / Start below. The **source** (`config.outputSource`) is any device
+share one **Record / Stream** window (`OutputDialog.tsx`, opened by both Dock buttons), in columns:
+source + audio (shared), then Recording and/or Streaming, shown only when their switch in the
+footer is on (saved in localStorage), next to Close / Start. The **source** (`config.outputSource`) is any device
 (`device:<id>`), screen or window; `null` means the preview device. Capture cards allow a single
 owner, so whoever opens a device registers its track in `core/native/deviceShare.ts` and the other
 side (preview or output) uses a `clone()` instead of opening it again. The audio mix (device audio,

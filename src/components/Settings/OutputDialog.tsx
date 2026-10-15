@@ -6,7 +6,7 @@ import { useContext, useEffect, useState } from "preact/hooks";
 import { NativeContext } from "../../context/NativeContext";
 import Icon from "../Overlay/Icon";
 import { errorText, useT } from "../../i18n";
-import { Button, CopyField } from "./controls";
+import { Button, CopyField, Toggle } from "./controls";
 import { OutputAudio, OutputSourcePicker } from "./OutputSource";
 import { RecordingQuality } from "./RecordingTab";
 import { BitrateControl, StreamQualityPicker, UploadNote } from "./StreamQuality";
@@ -64,33 +64,31 @@ function Column({ title, header, children }: { title?: string; header?: Componen
     );
 }
 
-function OutputHeader({ label, checked, onCheck, running, badge, badgeColor, onStop }: {
-    label: string;
-    checked: boolean;
-    onCheck: (value: boolean) => void;
-    running: boolean;
-    badge: string;
-    badgeColor: string;
-    onStop: () => void;
-}) {
+function OutputHeader({ label, running, badge, badgeColor, onStop }: { label: string; running: boolean; badge: string; badgeColor: string; onStop: () => void }) {
     const t = useT();
-    if (running) {
-        return (
-            <>
+    return (
+        <>
+            {running && (
                 <span className="px-2 py-0.5 rounded-md text-xs font-semibold" style={{ background: badgeColor }}>
                     {badge}
                 </span>
-                <h2 className="flex-1 font-semibold">{label}</h2>
+            )}
+            <h2 className="flex-1 font-semibold">{label}</h2>
+            {running && (
                 <Button variant="danger" onClick={onStop}>
                     {t("output.stop")}
                 </Button>
-            </>
-        );
-    }
+            )}
+        </>
+    );
+}
+
+/** Liga/desliga gravação ou transmissão no rodapé (rodando, fica ligado até parar). */
+function OutputSwitch({ label, checked, running, onChange }: { label: string; checked: boolean; running: boolean; onChange: (value: boolean) => void }) {
     return (
-        <label className="flex items-center gap-3 cursor-pointer select-none">
-            <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.currentTarget.checked)} className="w-5 h-5 accent-accent cursor-pointer" />
-            <h2 className="font-semibold">{label}</h2>
+        <label className={`flex items-center gap-2.5 select-none ${running ? "" : "cursor-pointer"}`}>
+            <Toggle checked={checked || running} disabled={running} onChange={onChange} />
+            {label}
         </label>
     );
 }
@@ -130,11 +128,17 @@ export default function OutputDialog() {
     // Fonte e dispositivos de áudio só mudam com tudo parado.
     const running = recordingOn || live;
     const toStart = { record: choice.record && !recordingOn, stream: choice.stream && !live };
+    // Só aparecem as colunas ligadas (ou rodando); a janela cresce com elas.
+    const showRecord = choice.record || recordingOn;
+    const showStream = choice.stream || live;
+    const columns = 1 + Number(showRecord) + Number(showStream);
+    const width = ["w-[min(440px,100%)]", "w-[min(820px,100%)]", "w-[min(1180px,100%)]"][columns - 1];
+    const grid = ["", "lg:grid-cols-2", "lg:grid-cols-3"][columns - 1];
     const close = () => nctx.closeOutputDialog();
 
     return (
         <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-black/60 backdrop-blur-xs" onPointerDown={(e) => e.target === e.currentTarget && close()}>
-            <div className="flex flex-col w-[min(1180px,100%)] max-h-full rounded-2xl bg-darker [border:var(--border)] shadow-2xl overflow-hidden">
+            <div className={`flex flex-col ${width} max-h-full rounded-2xl bg-darker [border:var(--border)] shadow-2xl overflow-hidden`}>
                 <header className="flex items-center gap-3 px-6 py-4 [border-bottom:var(--border)]">
                     <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-accent/20">
                         <Icon src="./assets/Dock/live.svg" color="var(--color-accent)" />
@@ -145,7 +149,7 @@ export default function OutputDialog() {
                     </button>
                 </header>
 
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden grid lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-(--background-color-normal)">
+                <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden grid ${grid} divide-y lg:divide-y-0 lg:divide-x divide-(--background-color-normal)`}>
                     <Column title={t("output.sourceAndAudio")}>
                         <p className="text-sm text-(--text-muted) -mt-2">{t("output.sharedHint")}</p>
                         <OutputSourcePicker disabled={running} />
@@ -153,40 +157,16 @@ export default function OutputDialog() {
                         <OutputAudio locked={running} />
                     </Column>
 
-                    <Column
-                        header={
-                            <OutputHeader
-                                label={t("settings.recording")}
-                                checked={choice.record}
-                                onCheck={(record) => choose({ record })}
-                                running={recordingOn}
-                                badge="REC"
-                                badgeColor="var(--color-bad)"
-                                onStop={() => nctx.stopRecording()}
-                            />
-                        }>
-                        {recordingOn ? (
-                            <p className="text-sm text-(--text-muted)">{t("output.recordingNow")}</p>
-                        ) : choice.record ? (
-                            <RecordingQuality />
-                        ) : (
-                            <p className="text-sm text-(--text-muted)">{t("output.recordOff")}</p>
-                        )}
-                    </Column>
+                    {showRecord && (
+                        <Column
+                            header={<OutputHeader label={t("settings.recording")} running={recordingOn} badge="REC" badgeColor="var(--color-bad)" onStop={() => nctx.stopRecording()} />}>
+                            {recordingOn ? <p className="text-sm text-(--text-muted)">{t("output.recordingNow")}</p> : <RecordingQuality />}
+                        </Column>
+                    )}
 
-                    <Column
-                        header={
-                            <OutputHeader
-                                label={t("settings.streaming")}
-                                checked={choice.stream}
-                                onCheck={(stream) => choose({ stream })}
-                                running={live}
-                                badge={t("status.live")}
-                                badgeColor="var(--color-accent)"
-                                onStop={() => nctx.stopStreaming()}
-                            />
-                        }>
-                        {live || choice.stream ? (
+                    {showStream && (
+                        <Column
+                            header={<OutputHeader label={t("settings.streaming")} running={live} badge={t("status.live")} badgeColor="var(--color-accent)" onStop={() => nctx.stopStreaming()} />}>
                             <>
                                 <StreamLink />
                                 <div className="pt-2">
@@ -205,13 +185,14 @@ export default function OutputDialog() {
                                     </div>
                                 )}
                             </>
-                        ) : (
-                            <p className="text-sm text-(--text-muted)">{t("output.streamOff")}</p>
-                        )}
-                    </Column>
+                        </Column>
+                    )}
                 </div>
 
-                <footer className="flex items-center justify-end gap-3 px-6 py-4 [border-top:var(--border)]">
+                <footer className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 [border-top:var(--border)]">
+                    <OutputSwitch label={t("settings.recording")} checked={choice.record} running={recordingOn} onChange={(record) => choose({ record })} />
+                    <OutputSwitch label={t("settings.streaming")} checked={choice.stream} running={live} onChange={(stream) => choose({ stream })} />
+                    <div className="flex-1" />
                     <Button onClick={close}>{t("common.close")}</Button>
                     <Button variant="accent" disabled={busy || (!toStart.record && !toStart.stream)} onClick={() => nctx.startOutputs(toStart)}>
                         {t("output.start")}
