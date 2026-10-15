@@ -33,17 +33,24 @@ function StreamLink() {
         <div className="flex flex-col gap-2">
             {server.publicUrl && (
                 <div className="flex items-center gap-3">
-                    <span className="w-20 shrink-0 text-sm">{t("golive.internet")}</span>
+                    <span className="w-24 shrink-0 text-sm">{t("golive.internet")}</span>
                     <CopyField value={server.publicUrl} fullWidth />
                 </div>
             )}
+            {server.publicUrlV6 && (
+                <div className="flex items-center gap-3">
+                    <span className="w-24 shrink-0 text-sm">{t("golive.internetV6")}</span>
+                    <CopyField value={server.publicUrlV6} fullWidth />
+                </div>
+            )}
             <div className="flex items-center gap-3">
-                <span className="w-20 shrink-0 text-sm">{t("golive.localNetwork")}</span>
+                <span className="w-24 shrink-0 text-sm">{t("golive.localNetwork")}</span>
                 <CopyField value={server.localUrl} fullWidth />
             </div>
+            {server.publicUrlV6 && <p className="text-sm text-(--text-muted)">{t("golive.ipv6Hint")}</p>}
             <p className="text-sm text-(--text-muted)">
                 {server.cgnat
-                    ? t("golive.cgnat")
+                    ? t(server.publicUrlV6 ? "golive.cgnatUseV6" : "golive.cgnat")
                     : upnp?.state === "mapped"
                       ? t("golive.mapped")
                       : upnp?.state === "searching"

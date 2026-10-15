@@ -86,6 +86,8 @@ export type ServerStatus = {
     port: number;
     localUrl: string | null;
     publicUrl: string | null;
+    /** Link pelo IPv6 público do PC (dispensa abrir porta; quem assiste precisa de IPv6). */
+    publicUrlV6: string | null;
     upnp: UpnpStatus;
     /** IP público desta conexão (consulta DNS). */
     publicIp: string | null;

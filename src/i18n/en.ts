@@ -206,7 +206,7 @@ export const en = {
     "streaming.changeQuality": "Change quality",
     "streaming.stop": "Stop",
     "streaming.goLive": "Go live",
-    "streaming.internetLink": "Internet link",
+    "streaming.internetLink": "Internet link (IPv4)",
     "streaming.internetLinkHint": "Send this to whoever is watching.",
     "streaming.localLink": "Local network link",
     "streaming.localLinkHint": "Same Wi-Fi/network as this PC.",
@@ -232,12 +232,12 @@ export const en = {
     "streaming.tunnelTitle": "Behind CGNAT or can't open ports?",
     "streaming.tunnel": "{title} Ask your provider for a public IP, or use a tunnel such as Cloudflare Tunnel or Tailscale Funnel pointing to {address} (they also add HTTPS).",
 
-    "golive.internet": "Internet",
+    "golive.internet": "Internet (IPv4)",
     "golive.localNetwork": "Local network",
     "golive.cgnat": "Your provider uses CGNAT: the internet link won't reach this PC (see Settings → Streaming).",
-    "golive.mapped": "Port opened on your router: the internet link works from anywhere.",
+    "golive.mapped": "Port opened on your router: the IPv4 link works from anywhere.",
     "golive.searching": "Opening the port on your router…",
-    "golive.needsPort": "The internet link needs port {port} open on your router (see Settings → Streaming).",
+    "golive.needsPort": "The IPv4 link needs port {port} open on your router (see Settings → Streaming).",
     "golive.starting": "Starting the link…",
     "golive.applyNote": "Applying restarts the stream; viewers reconnect by themselves in a second or two.",
 
@@ -304,6 +304,13 @@ export const en = {
     "output.sourceAndAudio": "Source and audio",
     "output.sharedHint": "Used by both the recording and the stream.",
     "output.recordingNow": "Recording. The file is saved when you stop.",
+
+    "golive.internetV6": "Internet (IPv6)",
+    "golive.ipv6Hint": "The IPv6 link works without opening ports and behind CGNAT, as long as the viewer also has IPv6 (phones almost always do). If it doesn't open, allow incoming IPv6 in your router's firewall.",
+    "golive.cgnatUseV6": "Your provider uses CGNAT: the IPv4 internet link won't reach this PC; share the IPv6 link.",
+
+    "streaming.internetLinkV6": "Internet link (IPv6)",
+    "streaming.noIpv6": "This connection has no public IPv6 right now (the provider or the router isn't offering it).",
 } as const;
 
 export type MessageKey = keyof typeof en;

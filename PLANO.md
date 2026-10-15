@@ -228,7 +228,10 @@ configurações. Barra de baixo mostra fonte, resolução e FPS de cada saída.
 ### Fase 10 — Assistir sem abrir porta (só estudo, não implementar ainda)
 Hoje quem assiste pela internet precisa da porta aberta no roteador (UPnP ou manual) e não
 funciona atrás de CGNAT. Opções gratuitas levantadas em 2026-10-09, para entender antes de decidir:
-- **IPv6:** sem NAT, não precisa abrir porta no roteador (só o firewall). Quem assiste também
+- **IPv6** — **feito como complemento** (2026-10-15): terceiro link "Internet (IPv6)" quando o PC
+  tem IPv6 público (`stream/ipv6.rs`, endereço fixo, não o temporário). Falta pedir ao roteador
+  para liberar a entrada IPv6 (pinhole UPnP: o igd-next não tem; seria SOAP manual).
+  Sem NAT, não precisa abrir porta no roteador (só o firewall). Quem assiste também
   precisa de IPv6 (celular quase sempre tem; alguns Wi-Fi não). Alguns roteadores bloqueiam
   entrada em IPv6. Barato: mostrar um link IPv6 quando houver.
 - **WebRTC P2P:** o vídeo vai direto do PC para quem assiste, furando o NAT sozinho (STUN gratuito).

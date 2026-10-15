@@ -4,6 +4,7 @@
 //! disco a partir da URL), nenhuma rota controla o app, e há limites de conexões, de tamanho de
 //! cabeçalho e de tempo. O vídeo é público para quem tiver o link; o PC não fica exposto.
 
+mod ipv6;
 pub mod firewall;
 mod public_ip;
 mod hub;
@@ -89,6 +90,8 @@ pub struct ServerStatus {
     pub port: u16,
     pub local_url: Option<String>,
     pub public_url: Option<String>,
+    /// Link pelo IPv6 público do PC (sem NAT: dispensa abrir porta; quem assiste precisa de IPv6).
+    pub public_url_v6: Option<String>,
     pub upnp: UpnpStatus,
     /// IP público desta conexão (consulta DNS), mesmo sem UPnP.
     pub public_ip: Option<String>,
@@ -113,6 +116,8 @@ pub struct StreamServer {
     upnp_status: Arc<Mutex<UpnpStatus>>,
     firewall_ok: AtomicBool,
     error: Mutex<Option<String>>,
+    /// O servidor também escuta em IPv6 (para o link IPv6).
+    listening_v6: AtomicBool,
     /// Último IP público consultado e quando.
     public_ip: Arc<Mutex<Option<(IpAddr, std::time::Instant)>>>,
     public_ip_pending: Arc<AtomicBool>,
@@ -128,6 +133,7 @@ impl StreamServer {
             upnp_status: Arc::new(Mutex::new(UpnpStatus::Disabled)),
             firewall_ok: AtomicBool::new(false),
             error: Mutex::new(None),
+            listening_v6: AtomicBool::new(false),
             public_ip: Arc::default(),
             public_ip_pending: Arc::default(),
         }
@@ -164,6 +170,7 @@ impl StreamServer {
         };
         // IPv6 ajuda quem está atrás de CGNAT no IPv4; se não der, segue só com IPv4.
         let listener_v6 = TcpListener::bind(SocketAddr::from(([0u16; 8], port))).await.ok();
+        self.listening_v6.store(listener_v6.is_some(), Ordering::Relaxed);
         self.refresh_firewall();
 
         let (shutdown, shutdown_rx) = watch::channel(false);
@@ -228,6 +235,11 @@ impl StreamServer {
             port,
             local_url: running.as_ref().and_then(|_| lan_ip()).map(|ip| format!("http://{ip}:{port}/")),
             public_url,
+            public_url_v6: running
+                .as_ref()
+                .filter(|_| self.listening_v6.load(Ordering::Relaxed))
+                .and_then(|_| ipv6::public_ipv6())
+                .map(|ip| format!("http://[{ip}]:{port}/")),
             upnp,
             public_ip: public_ip.map(|ip| ip.to_string()),
             cgnat,

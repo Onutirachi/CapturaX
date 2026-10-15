@@ -206,7 +206,7 @@ export const ptBR: Messages = {
     "streaming.changeQuality": "Mudar qualidade",
     "streaming.stop": "Parar",
     "streaming.goLive": "Entrar ao vivo",
-    "streaming.internetLink": "Link da internet",
+    "streaming.internetLink": "Link da internet (IPv4)",
     "streaming.internetLinkHint": "Mande para quem vai assistir.",
     "streaming.localLink": "Link da rede local",
     "streaming.localLinkHint": "Mesmo Wi-Fi/rede deste PC.",
@@ -232,12 +232,12 @@ export const ptBR: Messages = {
     "streaming.tunnelTitle": "Atrás de CGNAT ou não consegue abrir portas?",
     "streaming.tunnel": "{title} Peça um IP público à operadora ou use um túnel como Cloudflare Tunnel ou Tailscale Funnel apontando para {address} (eles também adicionam HTTPS).",
 
-    "golive.internet": "Internet",
+    "golive.internet": "Internet (IPv4)",
     "golive.localNetwork": "Rede local",
     "golive.cgnat": "Sua operadora usa CGNAT: o link da internet não chega a este PC (veja Configurações → Transmissão).",
-    "golive.mapped": "Porta aberta no roteador: o link da internet funciona de qualquer lugar.",
+    "golive.mapped": "Porta aberta no roteador: o link IPv4 funciona de qualquer lugar.",
     "golive.searching": "Abrindo a porta no roteador…",
-    "golive.needsPort": "O link da internet precisa da porta {port} aberta no roteador (veja Configurações → Transmissão).",
+    "golive.needsPort": "O link IPv4 precisa da porta {port} aberta no roteador (veja Configurações → Transmissão).",
     "golive.starting": "Iniciando o link…",
     "golive.applyNote": "Aplicar reinicia a transmissão; quem assiste reconecta sozinho em um ou dois segundos.",
 
@@ -304,4 +304,11 @@ export const ptBR: Messages = {
     "output.sourceAndAudio": "Fonte e áudio",
     "output.sharedHint": "Valem para a gravação e para a transmissão.",
     "output.recordingNow": "Gravando. O arquivo é salvo quando você parar.",
+
+    "golive.internetV6": "Internet (IPv6)",
+    "golive.ipv6Hint": "O link IPv6 funciona sem abrir porta e mesmo com CGNAT, desde que quem assiste também tenha IPv6 (celular quase sempre tem). Se não abrir, libere a entrada IPv6 no firewall do roteador.",
+    "golive.cgnatUseV6": "Sua operadora usa CGNAT: o link de internet IPv4 não chega a este PC; compartilhe o link IPv6.",
+
+    "streaming.internetLinkV6": "Link da internet (IPv6)",
+    "streaming.noIpv6": "Esta conexão não tem IPv6 público agora (a operadora ou o roteador não está oferecendo).",
 };

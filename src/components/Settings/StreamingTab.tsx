@@ -64,6 +64,12 @@ export default function StreamingTab() {
                         <CopyField value={server.publicUrl} />
                     </Row>
                 )}
+                {server?.publicUrlV6 && (
+                    <Row label={t("streaming.internetLinkV6")} hint={t("golive.ipv6Hint")}>
+                        <CopyField value={server.publicUrlV6} />
+                    </Row>
+                )}
+                {server?.running && !server.publicUrlV6 && <Row label={t("streaming.internetLinkV6")} hint={t("streaming.noIpv6")} />}
                 {server?.localUrl && (
                     <Row label={t("streaming.localLink")} hint={t("streaming.localLinkHint")}>
                         <CopyField value={server.localUrl} />
