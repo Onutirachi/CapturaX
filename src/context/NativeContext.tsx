@@ -4,7 +4,9 @@ import { useCallback, useContext, useEffect, useRef, useState } from "preact/hoo
 import { native, errorText, type AudioDevices, type CaptureSources, type Config, type MediaStatus, type OutputSourceId, type ServerStatus } from "../core/native/api";
 import { acquireCapture } from "../core/native/captureHub";
 import { nativeCaptureAvailable } from "../core/native/screenCapture";
-import { sourceLabel, sourceRefreshRate, validSource } from "../core/utils/outputSources";
+import { deviceSource, openDeviceTrack, sourceDeviceId, sourceExists, sourceLabel, sourceRefreshRate } from "../core/utils/outputSources";
+import { holdDevice, releaseDevice, trackDeviceId } from "../core/native/deviceShare";
+import { findDevice, pairedAudio } from "../core/utils/videoModes";
 import { calibrateClock } from "../core/native/clock";
 import EncoderSession from "../core/media/EncoderSession";
 import { recordingSettings, resolveSupported, streamSettings, type SourceInfo } from "../core/media/presets";
@@ -44,8 +46,10 @@ export type NativeContextType = {
     /** Ao vivo: aplica a qualidade nova (reinicia a transmissão). */
     applyStreamQuality: () => Promise<void>;
     stopRecording: () => Promise<void>;
-    /** A fonte mudou ao vivo: a janela só sai aplicando uma qualidade nova ou parando. */
-    mustReconfigure: boolean;
+    /** Fonte da saída: a escolhida, ou o dispositivo do preview quando nada foi escolhido ainda. */
+    outputSource: OutputSourceId;
+    /** Entrada de áudio que o "Auto" do áudio gravado usa agora (null = nenhuma). */
+    outputAutoAudioId: string | null;
     /** Telas e janelas disponíveis como fonte da gravação/transmissão. */
     captureSources: CaptureSources;
     refreshCaptureSources: () => void;
@@ -84,7 +88,6 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
     const [server, setServer] = useState<ServerStatus | null>(null);
     const [outputDialogOpen, setOutputDialogOpen] = useState(false);
-    const [mustReconfigure, setMustReconfigure] = useState(false);
     const [captureSources, setCaptureSources] = useState<CaptureSources>({ screens: [], windows: [] });
     const [outputs, setOutputs] = useState<Record<OutputKind, OutputInfo | null>>({ record: null, stream: null });
     const [feedback, setFeedbackState] = useState(false);
@@ -99,8 +102,6 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const recorder = useRef<EncoderSession | null>(null);
     const streamer = useRef<EncoderSession | null>(null);
     const trackRef = useRef<MediaStreamTrack | null>(null);
-    /** Trilha com que a transmissão foi configurada (outra fonte → perguntar a qualidade de novo). */
-    const streamTrackId = useRef<string | null>(null);
     trackRef.current = videoTrack;
 
     const alert = useCallback((value: Parameters<NonNullable<typeof setAlert>>[0]) => setAlert?.(value), [setAlert]);
@@ -133,20 +134,55 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     }, []);
     useEffect(refreshCaptureSources, []);
 
-    /** Abre a fonte de uma saída: a trilha do preview ou a tela/janela (as duas saídas compartilham). */
-    const openOutput = async (kind: OutputKind, wanted: OutputSourceId, fps: number | null, onEnded: () => void): Promise<OpenOutput | null> => {
-        // A lista pode estar velha (janela aberta agora): atualiza antes de validar.
-        const sources = wanted ? await native.captureSources().catch(() => sourcesRef.current) : sourcesRef.current;
-        if (wanted) setCaptureSources(sources);
-        const source = validSource(wanted, sources);
-        if (source === null) {
-            const track = trackRef.current;
-            return track ? { source: null, track, release: () => {} } : null;
+    // Fonte: a escolhida; sem escolha (ou se sumiu), o dispositivo que está no preview.
+    const previewDeviceId = trackDeviceId(videoTrack);
+    const videoDevices = vsctx?.videoDevices ?? [];
+    const devicesRef = useRef(videoDevices);
+    devicesRef.current = videoDevices;
+    const sourcesLoaded = captureSources.screens.length > 0 && videoDevices.length > 0;
+    const savedSource = config?.outputSource ?? null;
+    const outputSource: OutputSourceId =
+        savedSource && (!sourcesLoaded || sourceExists(savedSource, captureSources, videoDevices)) ? savedSource : previewDeviceId ? deviceSource(previewDeviceId) : null;
+    const outputSourceRef = useRef(outputSource);
+    outputSourceRef.current = outputSource;
+
+    /** Abre a fonte de uma saída (dispositivo, tela ou janela). Gravação e transmissão usam a mesma. */
+    const openOutput = async (kind: OutputKind, fps: number | null, onEnded: () => void): Promise<OpenOutput | null> => {
+        const source = outputSourceRef.current;
+        if (!source) return null;
+        const deviceId = sourceDeviceId(source);
+        if (deviceId !== null) {
+            const modes = findDevice(vsctx?.allDeviceModes ?? [], devicesRef.current.find((d) => d.deviceId === deviceId)?.label ?? "")?.modes ?? null;
+            const track = await openDeviceTrack(deviceId, modes);
+            holdDevice(deviceId, track);
+            track.addEventListener("ended", onEnded);
+            const release = () => {
+                releaseDevice(deviceId, track);
+                track.removeEventListener("ended", onEnded);
+                track.stop();
+            };
+            opened.current[kind] = { source, track, release };
+            return opened.current[kind];
         }
+        // A lista pode estar velha (janela aberta agora): atualiza antes de abrir.
+        const sources = await native.captureSources().catch(() => sourcesRef.current);
+        setCaptureSources(sources);
         const { track, release } = await acquireCapture(source, fps ?? sourceRefreshRate(source, sources), onEnded);
         opened.current[kind] = { source, track, release };
-        return { source, track, release };
+        return opened.current[kind];
     };
+
+    // "Auto" do áudio gravado: o do aparelho da fonte (tela/janela: o do preview, que o Rust usa
+    // quando isto é `null`).
+    const outputDeviceId = sourceDeviceId(outputSource);
+    const outputPaired =
+        outputDeviceId !== null
+            ? pairedAudio(findDevice(vsctx?.allDeviceModes ?? [], videoDevices.find((d) => d.deviceId === outputDeviceId)?.label ?? ""), devices.inputs)?.id ?? ""
+            : null;
+    useEffect(() => {
+        // "" = dispositivo sem áudio (o Rust não deve cair no do preview).
+        native.audioSetOutputPairedInput(outputPaired === "" ? "none" : outputPaired).catch(() => {});
+    }, [outputPaired]);
 
     const closeOutput = (kind: OutputKind) => {
         opened.current[kind]?.release();
@@ -158,7 +194,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
     const describeOutput = (kind: OutputKind, out: OpenOutput, settings: { width: number; height: number; fps: number }) =>
         setOutputs((current) => ({
             ...current,
-            [kind]: { source: out.source, track: out.track, label: sourceLabel(out.source, sourcesRef.current, trackRef.current), ...settings },
+            [kind]: { source: out.source, track: out.track, label: sourceLabel(out.source, sourcesRef.current, devicesRef.current), ...settings },
         }));
 
     const outputTrack = opened.current.stream?.track ?? opened.current.record?.track ?? null;
@@ -213,20 +249,6 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         native.setPreviewVolume(volume, muted).catch(() => {});
     }, [volume, muted]);
 
-    // Dispositivo reaberto (troca de fonte/modo, reconexão): os encoders seguem com a trilha nova.
-    // Ao vivo, a qualidade escolhida pode não servir mais: reabre a janela para escolher de novo.
-    useEffect(() => {
-        if (!videoTrack) return;
-        if (!opened.current.record) recorder.current?.setTrack(videoTrack);
-        if (!opened.current.stream) streamer.current?.setTrack(videoTrack);
-        for (const kind of ["record", "stream"] as const) {
-            setOutputs((current) => (current[kind] && current[kind]!.source === null ? { ...current, [kind]: { ...current[kind]!, track: videoTrack, label: sourceLabel(null, sourcesRef.current, videoTrack) } } : current));
-        }
-        if (streamer.current && !opened.current.stream && streamTrackId.current !== videoTrack.id) {
-            setMustReconfigure(true);
-            setOutputDialogOpen(true);
-        }
-    }, [videoTrack]);
 
     const startRecording = async () => {
         const current = configRef.current;
@@ -235,7 +257,7 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         let out: OpenOutput | null = null;
         try {
             const fps = current.recording.preset === "custom" ? current.recording.fps : null;
-            out = await openOutput("record", current.outputSource, fps, () => {
+            out = await openOutput("record", fps, () => {
                 alert(alerts.warning(t("native.recordSourceEnded")));
                 stopRecordingRef.current();
             });
@@ -281,13 +303,12 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         if (!current) return;
         setStreaming("starting");
         try {
-            const out = await openOutput("stream", current.outputSource, current.stream.fps || null, () => {
+            const out = await openOutput("stream", current.stream.fps || null, () => {
                 alert(alerts.warning(t("native.streamSourceEnded")));
                 stopStreamingRef.current();
             });
             if (!out) {
                 setStreaming("idle");
-                setMustReconfigure(false);
                 alert(alerts.warning(t("native.nothingToStream")));
                 return;
             }
@@ -297,25 +318,20 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
             const id = await native.streamStart();
             streamer.current = new EncoderSession(id, settings, track, (message) => alert(alerts.error(t("native.streamError", { detail: message }))));
             describeOutput("stream", out, settings);
-            streamTrackId.current = track.id;
-            setMustReconfigure(false);
             setStreaming("active");
             alert(alerts.info(restarting ? t("native.streamUpdated", { size: `${settings.width}x${settings.height}`, fps: settings.fps }) : t("native.live")));
         } catch (error) {
             setStreaming("idle");
-            setMustReconfigure(false);
             closeOutput("stream");
             alert(alerts.error(t("native.streamStartFailed", { detail: errorText(error) })));
         }
     };
 
     const stopStreaming = async () => {
-        setMustReconfigure(false);
         setStreaming("stopping");
         try {
             await streamer.current?.stop();
             streamer.current = null;
-            streamTrackId.current = null;
             await native.streamStop();
             alert(alerts.info(t("native.streamEnded")));
         } catch (error) {
@@ -349,7 +365,6 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
         if (streaming !== "active") native.streamPrepare().catch(() => {});
     };
     const closeOutputDialog = () => {
-        if (mustReconfigure) return;
         setOutputDialogOpen(false);
         if (streaming === "idle") native.streamUnprepare().catch(() => {});
     };
@@ -441,7 +456,8 @@ export function NativeProvider({ children }: { children: ComponentChildren }) {
                 startOutputs,
                 applyStreamQuality,
                 stopRecording,
-                mustReconfigure,
+                outputSource,
+                outputAutoAudioId: outputPaired === null ? (vsctx?.pairedAudioId ?? null) : outputPaired || null,
                 captureSources,
                 refreshCaptureSources,
                 outputs,

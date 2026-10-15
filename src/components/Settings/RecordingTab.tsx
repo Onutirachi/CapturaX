@@ -7,6 +7,7 @@ import type { RecordingConfig, RecordingPreset, VideoCodecName } from "../../cor
 import { isHevcSupported, recordingSettings } from "../../core/media/presets";
 import { FpsPicker, ResolutionPicker } from "./QualityPickers";
 import { Button, NumberInput, Row, Section, Segmented, Select } from "./controls";
+import { DropDown, DropOption } from "../../core/components/DropDown";
 import { useOutputSourceInfo } from "./OutputSource";
 import { useT, type MessageKey } from "../../i18n";
 
@@ -32,44 +33,43 @@ export function RecordingQuality() {
     const source = useOutputSourceInfo().info;
     const result = recordingSettings(recording, source);
     const gbPerHour = ((result.bitrate + recording.audioBitrateKbps * 1000) * 3600) / 8 / 1e9;
+    const presets: RecordingPreset[] = ["original", "high", "medium", "light", "custom"];
 
     return (
-        <>
-            <Row label={t("recording.preset")} hint={t(PRESET_HINTS[recording.preset])}>
-                <Segmented<RecordingPreset>
-                    value={recording.preset}
-                    onChange={(preset) => set({ preset })}
-                    options={[
-                        { value: "original", label: t("recording.preset.original") },
-                        { value: "high", label: t("recording.preset.high") },
-                        { value: "medium", label: t("recording.preset.medium") },
-                        { value: "light", label: t("recording.preset.light") },
-                        { value: "custom", label: t("recording.preset.custom") },
-                    ]}
-                />
-            </Row>
+        <div className="flex flex-col gap-4">
+            <div className="pt-2">
+                <DropDown title={t("recording.preset")} fullWidth value={recording.preset} onChoose={(preset) => set({ preset: preset as RecordingPreset })}>
+                    {presets.map((preset) => (
+                        <DropOption key={preset} value={preset}>
+                            {t(`recording.preset.${preset}` as MessageKey)}
+                        </DropOption>
+                    ))}
+                </DropDown>
+                <p className="text-sm text-(--text-muted) mt-1.5">{t(PRESET_HINTS[recording.preset])}</p>
+            </div>
             {recording.preset === "custom" && (
                 <>
-                    <Row label={t("toolbar.resolution")} hint={t("recording.resolutionHint")}>
+                    <div className="pt-2">
                         <ResolutionPicker
+                            fullWidth
                             value={recording.width && recording.height ? { width: recording.width, height: recording.height } : null}
                             source={source}
                             onChange={(size) => set({ width: size?.width ?? null, height: size?.height ?? null })}
                         />
-                    </Row>
-                    <Row label={t("recording.frameRate")}>
-                        <FpsPicker value={recording.fps} source={source} onChange={(fps) => set({ fps })} />
-                    </Row>
-                    <Row label={t("recording.videoBitrate")} hint={t("recording.videoBitrateHint")}>
+                    </div>
+                    <div className="pt-2">
+                        <FpsPicker fullWidth value={recording.fps} source={source} onChange={(fps) => set({ fps })} />
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm flex-1">{t("recording.videoBitrate")}</span>
                         <NumberInput value={recording.bitrateKbps / 1000} min={1} max={150} step={0.5} suffix="Mbps" onChange={(mbps) => set({ bitrateKbps: Math.round(mbps * 1000) })} />
-                    </Row>
+                    </div>
                 </>
             )}
-            <Row
-                label={t("recording.currentSource")}
-                hint={t("recording.currentSourceHint", { size: `${result.width}x${result.height}`, fps: result.fps, mbps: (result.bitrate / 1e6).toFixed(1), gb: gbPerHour.toFixed(1) })}
-            />
-        </>
+            <p className="text-sm text-(--text-muted)">
+                {t("recording.currentSourceHint", { size: `${result.width}x${result.height}`, fps: result.fps, mbps: (result.bitrate / 1e6).toFixed(1), gb: gbPerHour.toFixed(1) })}
+            </p>
+        </div>
     );
 }
 

@@ -111,6 +111,7 @@ export const native = {
     audioApps: () => invoke<AppListEntry[]>("audio_apps"),
     systemLanguages: () => invoke<string[]>("system_languages"),
     audioSetPairedInput: (id: string | null) => invoke<void>("audio_set_paired_input", { id }),
+    audioSetOutputPairedInput: (id: string | null) => invoke<void>("audio_set_output_paired_input", { id }),
     videoModes: () => invoke<VideoDeviceModes[]>("video_modes"),
     captureSources: () => invoke<CaptureSources>("capture_sources"),
     captureStart: (id: string, fps: number, cursor: boolean) => invoke<{ width: number; height: number }>("capture_start", { id, fps, cursor }),

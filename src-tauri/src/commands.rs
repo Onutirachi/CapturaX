@@ -26,8 +26,10 @@ pub struct AppState {
     streaming: Mutex<Option<u32>>,
     /// Janela de "Go live" aberta: o servidor fica no ar mesmo sem "Accept viewers".
     preparing: AtomicBool,
-    /// Áudio do mesmo aparelho do vídeo atual (o WebView informa), para o modo automático.
+    /// Áudio do mesmo aparelho do vídeo do preview (o WebView informa), para o modo automático.
     paired_input: Mutex<Option<String>>,
+    /// Áudio do mesmo aparelho da fonte da gravação/transmissão (`None` = usa o do preview).
+    output_paired_input: Mutex<Option<String>>,
 }
 
 impl AppState {
@@ -42,6 +44,7 @@ impl AppState {
             streaming: Mutex::new(None),
             preparing: AtomicBool::new(false),
             paired_input: Mutex::new(None),
+            output_paired_input: Mutex::new(None),
         }
     }
 
@@ -61,10 +64,15 @@ impl AppState {
         if config.audio.preview_input_auto {
             config.audio.preview_input = paired.clone();
         }
-        // Gravação/transmissão no automático: o áudio do aparelho do preview, mesmo que se esteja
-        // ouvindo outra coisa (ou que a fonte seja uma tela: o som do console vai junto).
+        // Gravação/transmissão no automático: o áudio do aparelho da fonte; com tela/janela como
+        // fonte, o do aparelho do preview (o som do console vai junto).
+        // `"none"`: a fonte é um dispositivo sem áudio.
         if config.audio.record_input.is_none() {
-            config.audio.record_input = paired;
+            config.audio.record_input = match self.output_paired_input.lock().unwrap().clone() {
+                Some(id) if id == "none" => None,
+                Some(id) => Some(id),
+                None => paired,
+            };
         }
         config
     }
@@ -274,6 +282,21 @@ pub fn system_languages() -> Vec<String> {
         // Lista de strings separadas por \0, terminada em \0\0.
         buffer.split(|&c| c == 0).filter(|s| !s.is_empty()).map(String::from_utf16_lossy).collect()
     }
+}
+
+/// O WebView informa o áudio do aparelho da fonte da gravação/transmissão (`None` = tela/janela,
+/// usa o do preview; `"none"` = o aparelho não tem áudio).
+#[tauri::command]
+pub async fn audio_set_output_paired_input(state: State<'_, AppState>, id: Option<String>) -> Result<(), String> {
+    if *state.output_paired_input.lock().unwrap() == id {
+        return Ok(());
+    }
+    *state.output_paired_input.lock().unwrap() = id;
+    let config = state.config.lock().unwrap().current.clone();
+    if config.audio.record_input.is_none() {
+        state.apply(&config).await;
+    }
+    Ok(())
 }
 
 // ---- Captura de tela/janela ---------------------------------------------------------------

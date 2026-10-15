@@ -232,7 +232,6 @@ export const en = {
     "streaming.tunnelTitle": "Behind CGNAT or can't open ports?",
     "streaming.tunnel": "{title} Ask your provider for a public IP, or use a tunnel such as Cloudflare Tunnel or Tailscale Funnel pointing to {address} (they also add HTTPS).",
 
-    "golive.sourceChanged": "The video source changed. Choose the stream quality for the new source to keep streaming, or stop the stream.",
     "golive.internet": "Internet",
     "golive.localNetwork": "Local network",
     "golive.cgnat": "Your provider uses CGNAT: the internet link won't reach this PC (see Settings → Streaming).",
@@ -241,7 +240,6 @@ export const en = {
     "golive.needsPort": "The internet link needs port {port} open on your router (see Settings → Streaming).",
     "golive.starting": "Starting the link…",
     "golive.applyNote": "Applying restarts the stream; viewers reconnect by themselves in a second or two.",
-    "golive.stop": "Stop streaming",
 
     "common.close": "Close",
     "common.cancel": "Cancel",
@@ -294,13 +292,20 @@ export const en = {
     "output.pcSoundOff": "Off: no sound from PC apps.",
     "output.chooseApps": "Choose apps",
     "output.lockedHint": "Devices change on the next start; volumes apply right away.",
-    "output.stopRecording": "Stop recording",
     "output.applyQuality": "Apply quality",
-    "output.record": "Record",
-    "output.recordAndStream": "Record and stream",
-    "output.stream": "Stream",
-    "output.recordToo": "Record too",
-    "output.streamToo": "Stream too",
+
+    "source.device": "Device",
+    "source.devices": "Devices",
+
+    "output.volume": "Volume",
+    "output.done": "Done",
+    "output.stop": "Stop",
+    "output.start": "Start",
+    "output.sourceAndAudio": "Source and audio",
+    "output.sharedHint": "Used by both the recording and the stream.",
+    "output.recordingNow": "Recording. The file is saved when you stop.",
+    "output.recordOff": "Check to record.",
+    "output.streamOff": "Check to stream by link.",
 } as const;
 
 export type MessageKey = keyof typeof en;

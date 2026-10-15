@@ -232,7 +232,6 @@ export const ptBR: Messages = {
     "streaming.tunnelTitle": "Atrás de CGNAT ou não consegue abrir portas?",
     "streaming.tunnel": "{title} Peça um IP público à operadora ou use um túnel como Cloudflare Tunnel ou Tailscale Funnel apontando para {address} (eles também adicionam HTTPS).",
 
-    "golive.sourceChanged": "A fonte de vídeo mudou. Escolha a qualidade da transmissão para a fonte nova para continuar transmitindo, ou pare a transmissão.",
     "golive.internet": "Internet",
     "golive.localNetwork": "Rede local",
     "golive.cgnat": "Sua operadora usa CGNAT: o link da internet não chega a este PC (veja Configurações → Transmissão).",
@@ -241,7 +240,6 @@ export const ptBR: Messages = {
     "golive.needsPort": "O link da internet precisa da porta {port} aberta no roteador (veja Configurações → Transmissão).",
     "golive.starting": "Iniciando o link…",
     "golive.applyNote": "Aplicar reinicia a transmissão; quem assiste reconecta sozinho em um ou dois segundos.",
-    "golive.stop": "Parar transmissão",
 
     "common.close": "Fechar",
     "common.cancel": "Cancelar",
@@ -294,11 +292,18 @@ export const ptBR: Messages = {
     "output.pcSoundOff": "Desligado: nenhum som dos apps do PC.",
     "output.chooseApps": "Escolher apps",
     "output.lockedHint": "Os dispositivos mudam na próxima vez que começar; os volumes valem na hora.",
-    "output.stopRecording": "Parar gravação",
     "output.applyQuality": "Aplicar qualidade",
-    "output.record": "Gravar",
-    "output.recordAndStream": "Gravar e transmitir",
-    "output.stream": "Transmitir",
-    "output.recordToo": "Gravar também",
-    "output.streamToo": "Transmitir também",
+
+    "source.device": "Dispositivo",
+    "source.devices": "Dispositivos",
+
+    "output.volume": "Volume",
+    "output.done": "Concluir",
+    "output.stop": "Parar",
+    "output.start": "Começar",
+    "output.sourceAndAudio": "Fonte e áudio",
+    "output.sharedHint": "Valem para a gravação e para a transmissão.",
+    "output.recordingNow": "Gravando. O arquivo é salvo quando você parar.",
+    "output.recordOff": "Marque para gravar.",
+    "output.streamOff": "Marque para transmitir pelo link.",
 };

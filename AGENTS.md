@@ -77,17 +77,18 @@ src-tauri/src/
   as Annex B without a description; above 1080p, >30 fps is only accepted without `framerate`.
 
 ### Outputs (record / stream)
-The top bar only picks devices: that is the preview and what you hear. Recording and streaming
-share one **Record / Stream** window (`OutputDialog.tsx`, opened by both Dock buttons) with one
-**source** (`config.outputSource`: `null` = same as the preview, or a screen / window), one audio
-mix (device audio, microphone, PC sound, with volumes) and the quality of each. Its buttons are
-Record / Record and stream / Stream (and "… too" while the other one runs). Everything chosen there
-is saved right away, even if the window is closed without starting. Source and audio devices are
-locked while anything runs. Capture cards usually allow a single owner, so outputs never open a
-different device than the preview. With a screen/window source, the top bar shows "View output":
-the preview shows it and the dropdowns lock until you switch back (greyed out when the source is
-the preview). F10 records with the last choices. Settings → Audio keeps only what rarely changes
-(output device, delay, A/V sync, separate mic tracks, the app list).
+The top bar only picks the preview device: that is what you see and hear. Recording and streaming
+share one **Record / Stream** window (`OutputDialog.tsx`, opened by both Dock buttons), in three
+columns: source + audio (shared), Recording and Streaming, each with a checkbox (saved in
+localStorage), and only Close / Start below. The **source** (`config.outputSource`) is any device
+(`device:<id>`), screen or window; `null` means the preview device. Capture cards allow a single
+owner, so whoever opens a device registers its track in `core/native/deviceShare.ts` and the other
+side (preview or output) uses a `clone()` instead of opening it again. The audio mix (device audio,
+microphone, PC sound, volume under each; "Choose apps" opens a small picker over the window) is the
+same for both; its "Auto" device is the audio of the source device (`audio_set_output_paired_input`;
+for a screen/window, the preview device's). Source and audio devices are locked while anything
+runs. With a source other than the preview device, the top bar shows "View output". F10 records
+with the last choices. Settings → Audio keeps only what rarely changes.
 
 ### Screen/window capture (`src-tauri/src/capture/`)
 Screens are named "Screen 2 - 27G2G4" from `\\.\DISPLAYn` + the DisplayConfig monitor name. Windows Graphics

@@ -13,6 +13,8 @@ import Resolution from "../../core/utils/Resolution";
 import { monitorRefreshRate } from "../../core/utils/refreshRate";
 import { chooseMode, chooseSmoothest, choicesOf, deviceName, findDevice, pairedAudio, formatFps, fpsColor, modeKey, parseModeKey, parseSizeKey, sizeKey, type Size, type VideoDeviceModes } from "../../core/utils/videoModes";
 import { useT } from "../../i18n";
+import { sourceDeviceId } from "../../core/utils/outputSources";
+import { trackDeviceId } from "../../core/native/deviceShare";
 
 const NO_AUDIO = "none";
 const AUTO_AUDIO = "auto";
@@ -56,8 +58,11 @@ export default function ToolbarContent() {
             const videoDevices = await Stream.getVideoDevices();
             const audioDevices = await Stream.getAudioDevices();
             // Modos antes de abrir o dispositivo: a escolha automática depende deles.
-            setDeviceModes(await native.videoModes().catch(() => []));
+            const modes = await native.videoModes().catch(() => []);
+            setDeviceModes(modes);
             setVideoDevicesList(videoDevices);
+            vsctx?.setAllDeviceModes(modes);
+            vsctx?.setVideoDevices(videoDevices);
             setaudioDevicesList(audioDevices);
             stream.handleDeviceChange([...videoDevices, ...audioDevices]);
         };
@@ -260,9 +265,11 @@ export default function ToolbarContent() {
 function FeedbackButton() {
     const t = useT();
     const nctx = useContext(NativeContext);
+    const previewTrack = useContext(VideoStreamContext)?.videoTrack ?? null;
     const output = nctx?.outputs.stream ?? nctx?.outputs.record;
     if (!nctx || !output) return null;
-    const samePreview = output.source === null;
+    // Saída do mesmo dispositivo do preview: já é o que se vê.
+    const samePreview = sourceDeviceId(output.source) === trackDeviceId(previewTrack);
     const active = nctx.feedback;
     return (
         <button

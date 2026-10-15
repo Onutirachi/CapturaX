@@ -1,6 +1,6 @@
 import { ComponentChildren, createContext } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import type { VideoMode } from "../core/utils/videoModes";
+import type { VideoDeviceModes, VideoMode } from "../core/utils/videoModes";
 
 export type VideoStreamType = MediaStream | null;
 export type SetVideoStreamType = (v: VideoStreamType | null) => void;
@@ -28,6 +28,11 @@ export type VideoStreamContextType = {
     /** Entrada de áudio do mesmo aparelho do vídeo do preview (o "Auto" do áudio). */
     pairedAudioId: string | null;
     setPairedAudioId: (v: string | null) => void;
+    /** Câmeras/placas do WebView e os modos reais de cada uma (para a fonte da gravação/transmissão). */
+    videoDevices: MediaDeviceInfo[];
+    setVideoDevices: (v: MediaDeviceInfo[]) => void;
+    allDeviceModes: VideoDeviceModes[];
+    setAllDeviceModes: (v: VideoDeviceModes[]) => void;
 };
 
 export const VideoStreamContext = createContext<VideoStreamContextType | null>(null);
@@ -51,6 +56,8 @@ export function VideoStreamProvider({ children }: { children: ComponentChildren 
     const [previewHidden, setPreviewHidden] = useState<boolean>(() => loadStored("previewHidden", false));
     const [deviceModes, setDeviceModes] = useState<VideoMode[] | null>(null);
     const [pairedAudioId, setPairedAudioId] = useState<string | null>(null);
+    const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+    const [allDeviceModes, setAllDeviceModes] = useState<VideoDeviceModes[]>([]);
 
     useEffect(() => localStorage.setItem("volume", JSON.stringify(volume)), [volume]);
     useEffect(() => localStorage.setItem("muted", JSON.stringify(muted)), [muted]);
@@ -58,7 +65,7 @@ export function VideoStreamProvider({ children }: { children: ComponentChildren 
     useEffect(() => localStorage.setItem("previewHidden", JSON.stringify(previewHidden)), [previewHidden]);
 
     return (
-        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, ambientLight, setAmbientLight, previewHidden, setPreviewHidden, deviceModes, setDeviceModes, pairedAudioId, setPairedAudioId }}>
+        <VideoStreamContext.Provider value={{ videoStream, setVideoStream, videoTrack, setVideoTrack, volume, setVolume, muted, setMuted, ambientLight, setAmbientLight, previewHidden, setPreviewHidden, deviceModes, setDeviceModes, pairedAudioId, setPairedAudioId, videoDevices, setVideoDevices, allDeviceModes, setAllDeviceModes }}>
             {children}
         </VideoStreamContext.Provider>
     );

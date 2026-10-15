@@ -5,6 +5,7 @@ import { SetAlertType } from "../../context/AlertsContext";
 import { SetVideoStreamType } from "../../context/VideoStreamContext";
 import { SetVideoTrackType } from "../../context/VideoStreamContext";
 import { t } from "../../i18n";
+import { holdDevice, releaseDevice, sharedDeviceTrack } from "../native/deviceShare";
 
 // `resizeMode` ainda não está nos tipos do TypeScript.
 type VideoConstraints = MediaTrackConstraints & { resizeMode?: "none" | "crop-and-scale" };
@@ -103,6 +104,7 @@ export default class Stream {
 
     private closeVideoTrack() {
         if (!this.videoTrack) return;
+        if (this.videoId) releaseDevice(this.videoId, this.videoTrack);
         this.mediaStream.removeTrack(this.videoTrack);
         this.videoTrack.stop();
         this.videoTrack = null;
@@ -186,16 +188,20 @@ export default class Stream {
         // e é a reabertura que faz o driver trocar de modo.
         this.closeVideoTrack();
 
+        // Gravação/transmissão já tem este dispositivo aberto: usa uma cópia (abrir de novo falharia
+        // na maioria das placas). O modo fica o que a saída escolheu.
+        const shared = sharedDeviceTrack(this.videoId);
+        if (shared) {
+            this.useVideoTrack(shared.clone());
+            return;
+        }
+
         for (const { constraints, scaled } of this.buildAttempts()) {
             try {
                 const tempStream = await navigator.mediaDevices.getUserMedia({ video: constraints });
-                const track = tempStream.getVideoTracks()[0];
-                track.addEventListener("ended", () => this.handleVideoEnded(track));
-                this.videoTrack = track;
-                this.mediaStream.addTrack(this.videoTrack);
-                this.setVideoTrack(this.videoTrack);
+                this.useVideoTrack(tempStream.getVideoTracks()[0]);
 
-                const { width, height, frameRate } = this.videoTrack.getSettings();
+                const { width, height, frameRate } = this.videoTrack!.getSettings();
                 console.debug(`Video opened at ${width}x${height} @ ${frameRate} fps`, constraints);
                 if (scaled) this.handleWarning(t("stream.scaled", { size: `${width}x${height}` }));
                 else this.setAlert(null);
@@ -210,8 +216,17 @@ export default class Stream {
         this.handleError(t("stream.unsupportedMode"));
     }
 
+    private useVideoTrack(track: MediaStreamTrack) {
+        track.addEventListener("ended", () => this.handleVideoEnded(track));
+        if (this.videoId) holdDevice(this.videoId, track);
+        this.videoTrack = track;
+        this.mediaStream.addTrack(track);
+        this.setVideoTrack(track);
+    }
+
     private handleVideoEnded(track: MediaStreamTrack) {
         if (this.videoTrack !== track) return; // fechada por nós numa reabertura
+        if (this.videoId) releaseDevice(this.videoId, track);
         this.mediaStream.removeTrack(track);
         this.videoTrack = null;
         this.setVideoTrack(null);
