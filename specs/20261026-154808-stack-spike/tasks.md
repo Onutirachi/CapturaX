@@ -32,9 +32,9 @@ agent updates handoff.md (constitution, Development Workflow).
 
 - [x] T001 (maintainer) Install GStreamer 1.28.8 `gstreamer-1.0-msvc-x86_64-1.28.8.exe` with the development components; the agent then checks `GSTREAMER_1_0_ROOT_MSVC_X86_64`, the `bin` folder on `PATH`, `pkg-config` and `PKG_CONFIG_PATH`, and fixes what is missing (research R1)
 - [x] T002 List the card's video and audio modes with `gst-device-monitor-1.0 Video/Source Audio/Source` and record them, with the Windows environment fields from data-model.md, in specs/20261026-154808-stack-spike/measurements/environment.md
-- [ ] T003 Create the Cargo workspace spike/Cargo.toml with members `capture`, `native-preview`, `slint-preview`, `audio-preview` (gstreamer-rs 0.25, Slint 1.18)
-- [ ] T004 [P] Create the crate skeletons spike/capture/, spike/native-preview/, spike/slint-preview/, spike/audio-preview/ (Cargo.toml and src/main.rs or src/lib.rs each)
-- [ ] T005 [P] Create spike/tools/analyze.py with uv inline dependencies (opencv-python, numpy, imageio-ffmpeg) and the `video`, `audio`, `summary` subcommands as stubs (contracts/cli.md)
+- [x] T003 Create the Cargo workspace spike/Cargo.toml with members `capture`, `native-preview`, `slint-preview`, `audio-preview` (gstreamer-rs 0.25, Slint 1.18)
+- [x] T004 [P] Create the crate skeletons spike/capture/, spike/native-preview/, spike/slint-preview/, spike/audio-preview/ (Cargo.toml and src/main.rs or src/lib.rs each)
+- [x] T005 [P] Create spike/tools/analyze.py with uv inline dependencies (opencv-python, numpy, imageio-ffmpeg) and the `video`, `audio`, `summary` subcommands as stubs (contracts/cli.md)
 
 **Checkpoint**: `cargo build` succeeds in spike/; maintainer validates; commit.
 
