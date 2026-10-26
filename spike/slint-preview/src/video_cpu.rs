@@ -1,6 +1,8 @@
 //! Frames reach Slint through CPU memory (research R5, variant 1), as in Slint's gstreamer-player
 //! example: GPU color conversion when available, then `appsink` → RGBA buffer → `slint::Image`.
 
+use std::time::Instant;
+
 use gst::prelude::*;
 use gst_video::video_frame::VideoFrameExt;
 
@@ -23,10 +25,20 @@ pub fn converter() -> anyhow::Result<gst::Bin> {
     Ok(bin)
 }
 
+/// Where a frame spent its time before reaching the UI thread (T046).
+pub struct FrameTiming {
+    /// From capture (buffer timestamp) to the appsink, in ms; `None` if the clock is unknown.
+    pub capture_to_sink_ms: Option<f64>,
+    /// Copying the frame into the Slint pixel buffer, in ms.
+    pub copy_ms: f64,
+    /// When the copy finished.
+    pub ready: Instant,
+}
+
 /// An appsink that keeps only the newest frame and never waits for timestamps.
 /// `on_frame` runs on a GStreamer thread with each frame as an RGBA pixel buffer.
 pub fn appsink(
-    on_frame: impl Fn(slint::SharedPixelBuffer<slint::Rgba8Pixel>) + Send + Sync + 'static,
+    on_frame: impl Fn(slint::SharedPixelBuffer<slint::Rgba8Pixel>, FrameTiming) + Send + Sync + 'static,
 ) -> gst_app::AppSink {
     let caps = gst_video::VideoCapsBuilder::new().format(gst_video::VideoFormat::Rgba).build();
     let sink = gst_app::AppSink::builder().caps(&caps).sync(false).max_buffers(1).drop(true).build();
@@ -35,13 +47,21 @@ pub fn appsink(
             .new_sample(move |sink| {
                 let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
                 let buffer = sample.buffer_owned().ok_or(gst::FlowError::Error)?;
+                let capture_to_sink_ms = match (sink.current_running_time(), buffer.pts()) {
+                    (Some(now), Some(pts)) if now >= pts => Some((now - pts).nseconds() as f64 / 1e6),
+                    _ => None,
+                };
                 let info = sample
                     .caps()
                     .and_then(|c| gst_video::VideoInfo::from_caps(c).ok())
                     .ok_or(gst::FlowError::NotNegotiated)?;
                 let frame = gst_video::VideoFrame::from_buffer_readable(buffer, &info)
                     .map_err(|_| gst::FlowError::Error)?;
-                on_frame(to_pixels(&frame));
+                let copy_start = Instant::now();
+                let pixels = to_pixels(&frame);
+                let ready = Instant::now();
+                let copy_ms = (ready - copy_start).as_secs_f64() * 1e3;
+                on_frame(pixels, FrameTiming { capture_to_sink_ms, copy_ms, ready });
                 Ok(gst::FlowSuccess::Ok)
             })
             .build(),

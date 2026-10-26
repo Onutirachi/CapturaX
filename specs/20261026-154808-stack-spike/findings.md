@@ -44,6 +44,23 @@ mode with median and 95th percentile (FR-002).
 - 60 and 120 fps capture give the same delay because the source runs at 60 Hz; the mode only
   matters with a 120 Hz source (a PS5 game with 120 Hz output).
 
+### Where slint-cpu spends its time (T046)
+
+Median per frame, 1080p60, measured inside the app:
+
+| Stage | ms |
+|---|---|
+| capture → appsink (GPU color conversion and download) | 1.1 |
+| copy into the Slint image | 1.9 |
+| wait for the UI thread | 0.0 |
+| UI update → render done | 8.3 |
+| **total inside the app** | **≈ 11.4** |
+
+The copies cost only ≈ 3 ms, so moving frames through the GPU alone cannot close a ≈ 25 ms gap.
+Inferred, not measured directly: ≈ 8 ms is the frame waiting for Slint's next render (it renders
+about 120 times per second for 60 frames), and ≈ 15 ms comes after rendering, in the presentation
+queue (one or two refreshes at 144 Hz). T014 was redirected to these two stages.
+
 ## Observations
 
 - In the 1080p120 mode with a 60 Hz source, the card delivers about 111 fps on every path; the

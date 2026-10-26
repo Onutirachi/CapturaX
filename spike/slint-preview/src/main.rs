@@ -4,14 +4,39 @@
 
 mod video_cpu;
 
+use std::cell::RefCell;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 use capture::{cli::CommonArgs, devices, stats, video};
 use clap::{Parser, ValueEnum};
 use gst::prelude::*;
 
 slint::include_modules!();
+
+/// Timing of the frame waiting to be drawn, and the samples of drawn frames (T046).
+/// Both live on the UI thread only.
+struct Pending {
+    capture_to_sink_ms: Option<f64>,
+    copy_ms: f64,
+    wait_ms: f64,
+    set_at: Instant,
+}
+
+thread_local! {
+    static PENDING: RefCell<Option<Pending>> = const { RefCell::new(None) };
+    /// capture→appsink, copy, wait for UI thread, UI update→render done (ms).
+    static SAMPLES: RefCell<Vec<[f64; 4]>> = const { RefCell::new(Vec::new()) };
+}
+
+fn median(mut values: Vec<f64>) -> f64 {
+    if values.is_empty() {
+        return f64::NAN;
+    }
+    values.sort_by(f64::total_cmp);
+    values[values.len() / 2]
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, ValueEnum)]
 enum Transfer {
@@ -79,9 +104,20 @@ fn main() -> anyhow::Result<()> {
     let sink = video_cpu::appsink({
         let app = app.as_weak();
         let delivered = delivered.clone();
-        move |pixels| {
+        move |pixels, timing: video_cpu::FrameTiming| {
             delivered.fetch_add(1, Ordering::Relaxed);
-            let _ = app.upgrade_in_event_loop(move |app| app.set_video_frame(slint::Image::from_rgba8(pixels)));
+            let _ = app.upgrade_in_event_loop(move |app| {
+                let now = Instant::now();
+                app.set_video_frame(slint::Image::from_rgba8(pixels));
+                PENDING.with_borrow_mut(|p| {
+                    *p = Some(Pending {
+                        capture_to_sink_ms: timing.capture_to_sink_ms,
+                        copy_ms: timing.copy_ms,
+                        wait_ms: (now - timing.ready).as_secs_f64() * 1e3,
+                        set_at: now,
+                    })
+                });
+            });
         }
     });
 
@@ -98,6 +134,11 @@ fn main() -> anyhow::Result<()> {
         move |state, _| {
             if let slint::RenderingState::AfterRendering = state {
                 drawn.fetch_add(1, Ordering::Relaxed);
+                if let Some(p) = PENDING.with_borrow_mut(Option::take) {
+                    let render_ms = p.set_at.elapsed().as_secs_f64() * 1e3;
+                    let sample = [p.capture_to_sink_ms.unwrap_or(f64::NAN), p.copy_ms, p.wait_ms, render_ms];
+                    SAMPLES.with_borrow_mut(|s| s.push(sample));
+                }
             }
         }
     })?;
@@ -116,6 +157,12 @@ fn main() -> anyhow::Result<()> {
             let (d, r) = (delivered.load(Ordering::Relaxed), drawn.load(Ordering::Relaxed));
             println!("[ui]    {:>4} fps delivered to the UI | {:>4} fps drawn", d - last_delivered, r - last_drawn);
             (last_delivered, last_drawn) = (d, r);
+            let samples = SAMPLES.with_borrow_mut(std::mem::take);
+            let col = |i: usize| median(samples.iter().map(|s| s[i]).filter(|v| v.is_finite()).collect());
+            println!(
+                "[time]  median ms: capture->appsink {:5.1} | copy {:4.1} | wait UI {:4.1} | UI->drawn {:4.1} | sum {:5.1}",
+                col(0), col(1), col(2), col(3), col(0) + col(1) + col(2) + col(3)
+            );
         });
     }
 
