@@ -61,6 +61,22 @@ Inferred, not measured directly: ≈ 8 ms is the frame waiting for Slint's next 
 about 120 times per second for 60 frames), and ≈ 15 ms comes after rendering, in the presentation
 queue (one or two refreshes at 144 Hz). T014 was redirected to these two stages.
 
+### T014 step 1 — Slint renderers (1080p60, counted by hand, 240 fps camera)
+
+| Renderer | Presents through | Camera frames | ≈ ms | In-app pacing (UI → drawn) |
+|---|---|---|---|---|
+| femtovg (default) | OpenGL | 12 | 50 | 8.4 ms, 120 draws for 60 frames |
+| femtovg-wgpu | Direct3D 12 (wgpu) | 11 | 46 | 8.6 ms, 120 draws |
+| skia | Direct3D | 12 | 50 | not reported (no draw notifications) |
+| skia-opengl | OpenGL | not filmed (same path as femtovg) | — | 8.7 ms, 120 draws |
+| skia-wgpu | — | fails: "Unsupported WGPU backend for use with Skia: vulkan" | — | — |
+| software | CPU drawing, copied to the window | 10 | 42 | not available (no rendering notifier) |
+
+The renderer changes at most ≈ 8 ms; ≈ 17 ms remain versus native. The in-app pacing is the same
+for every GPU renderer, so it comes from Slint's core and not from the renderer. The software
+renderer, which does not go through the GPU's vsync queue, is the fastest, which supports the
+inference that much of the gap is in presentation.
+
 ## Observations
 
 - In the 1080p120 mode with a 60 Hz source, the card delivers about 111 fps on every path; the
