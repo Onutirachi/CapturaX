@@ -57,6 +57,10 @@ struct Args {
     /// How frames reach Slint
     #[arg(long, value_enum, default_value = "cpu")]
     transfer: Transfer,
+
+    /// Slint renderer: femtovg, femtovg-wgpu, skia, skia-opengl, skia-wgpu, software (default: femtovg)
+    #[arg(long)]
+    renderer: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -74,6 +78,14 @@ fn main() -> anyhow::Result<()> {
     if !args.bare {
         anyhow::bail!("only --bare exists so far; the visual directions come in T027–T032");
     }
+
+    let renderer = args.renderer.as_deref().unwrap_or("femtovg");
+    slint::BackendSelector::new()
+        .backend_name("winit".into())
+        .renderer_name(renderer.into())
+        .select()
+        .map_err(|e| anyhow::anyhow!("renderer {renderer:?} is not available: {e}"))?;
+    println!("Slint renderer: {renderer}");
 
     let app = App::new()?;
     let window = app.as_weak();
@@ -129,7 +141,7 @@ fn main() -> anyhow::Result<()> {
 
     // Frames Slint actually drew: fewer than delivered means the UI fell behind and skipped some.
     let drawn = Arc::new(AtomicU64::new(0));
-    app.window().set_rendering_notifier({
+    let notifier = app.window().set_rendering_notifier({
         let drawn = drawn.clone();
         move |state, _| {
             if let slint::RenderingState::AfterRendering = state {
@@ -141,7 +153,11 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-    })?;
+    });
+    if let Err(err) = notifier {
+        // The software renderer has no rendering notifier: no draw counts or render timing then.
+        println!("Note: {err}; draws and render timing are not measured with this renderer.");
+    }
 
     let _stats = if args.common.stats || args.common.record {
         let info = stats::RunInfo { path: "slint-cpu".into(), variant: "bare".into(), mode: mode.to_string() };

@@ -10,7 +10,7 @@ capture.workspace = true
 gst.workspace = true
 gst-app.workspace = true
 gst-video.workspace = true
-slint.workspace = true
+slint = { workspace = true, features = ["renderer-skia", "renderer-femtovg-wgpu"] }
 clap.workspace = true
 anyhow.workspace = true
 
