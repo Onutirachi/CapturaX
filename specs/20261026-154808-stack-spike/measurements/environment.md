@@ -13,7 +13,7 @@
 | Rust | 1.99.0, stable-x86_64-pc-windows-msvc |
 | OBS | installed (version to fill) |
 | Camera | Galaxy S23 FE, 240 fps slow motion |
-| Source | PlayStation 5 |
+| Source | PlayStation 5, video output locked to 1080p (the 27G2G4 shows no passthrough above 1080p), HDR off, HDCP off |
 
 ### Capture card
 

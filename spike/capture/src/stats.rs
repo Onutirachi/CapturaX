@@ -35,19 +35,26 @@ fn platform() -> &'static str {
 
 impl StatsReporter {
     /// Starts reporting for `sink` (any base sink) inside `pipeline`.
-    pub fn start(pipeline: &gst::Pipeline, sink: &gst::Element, info: RunInfo) -> anyhow::Result<Self> {
-        let path = csv_path();
-        let new_file = !path.exists();
-        let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
-        if new_file {
-            writeln!(file, "{HEADER}")?;
-        }
+    /// With `record`, rows are also appended to measurements/pipeline-stats.csv.
+    pub fn start(pipeline: &gst::Pipeline, sink: &gst::Element, info: RunInfo, record: bool) -> anyhow::Result<Self> {
+        let mut file = if record {
+            let path = csv_path();
+            let new_file = !path.exists();
+            let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
+            if new_file {
+                writeln!(file, "{HEADER}")?;
+            }
+            Some(file)
+        } else {
+            None
+        };
         let run = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let stop = Arc::new(AtomicBool::new(false));
         let (pipeline, sink, flag) = (pipeline.clone(), sink.clone(), stop.clone());
 
         let thread = std::thread::spawn(move || {
             let mut second = 0u64;
+            let mut last_rendered = 0u64;
             while !flag.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_secs(1));
                 second += 1;
@@ -60,7 +67,10 @@ impl StatsReporter {
                 } else {
                     String::new()
                 };
-                println!("[stats] {second:>4}s rendered {rendered:>7} dropped {dropped:>5} pipeline latency {latency_ms} ms");
+                let fps = rendered.saturating_sub(last_rendered);
+                last_rendered = rendered;
+                println!("[stats] {second:>4}s {fps:>4} fps | rendered {rendered:>7} dropped {dropped:>5}");
+                let Some(file) = file.as_mut() else { continue };
                 let _ = writeln!(
                     file,
                     "{run},{},{},{},{},{second},{rendered},{dropped},{latency_ms}",

@@ -17,7 +17,8 @@ clip,platform,output,minute,beep_index,delay_ms
 
 ## pipeline-stats.csv
 
-Written by the prototypes with `--stats` (one row per second of a run).
+Written by the prototypes with `--record` (one row per second of a run). `--stats` only prints, so
+test runs never mix with measurements.
 
 ```csv
 run,path,variant,mode,platform,second,rendered,dropped,pipeline_latency_ms

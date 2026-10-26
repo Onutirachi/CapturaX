@@ -16,7 +16,11 @@ pub struct CommonArgs {
     #[arg(long, value_parser = mode::parse)]
     pub mode: Option<Mode>,
 
-    /// Print rendered/dropped frames and pipeline latency every second, and log them to CSV
+    /// Print frames per second and dropped frames every second (nothing is written)
     #[arg(long)]
     pub stats: bool,
+
+    /// Like --stats, and append the rows to measurements/pipeline-stats.csv (official runs only)
+    #[arg(long)]
+    pub record: bool,
 }

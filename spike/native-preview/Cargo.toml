@@ -8,5 +8,6 @@ publish.workspace = true
 [dependencies]
 capture.workspace = true
 gst.workspace = true
+gst-video.workspace = true
 clap.workspace = true
 anyhow.workspace = true

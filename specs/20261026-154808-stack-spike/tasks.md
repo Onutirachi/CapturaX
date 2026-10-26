@@ -47,7 +47,7 @@ agent updates handoff.md (constitution, Development Workflow).
 - [x] T006 Implement device and mode listing (`--list`) in spike/capture/src/devices.rs
 - [x] T007 Implement `--mode WxH@FPS[:FORMAT]` parsing and Auto selection ("largest resolution with ≥ 59 fps") in spike/capture/src/mode.rs
 - [x] T008 Implement the video source builder: `mfvideosrc` on Windows, `v4l2src` on Linux, native caps, GPU MJPEG decode when the mode is MJPEG only (research R6) in spike/capture/src/video.rs
-- [x] T009 [P] Implement `--stats`: rendered and dropped frames from the sink and in-pipeline latency, printed every second and appended to specs/20261026-154808-stack-spike/measurements/pipeline-stats.csv (`run,path,variant,mode,platform,second,rendered,dropped,pipeline_latency_ms`), in spike/capture/src/stats.rs
+- [x] T009 [P] Implement `--stats` (print only) and `--record` (print and append; official runs only): rendered and dropped frames from the sink and in-pipeline latency, printed every second and, with `--record`, appended to specs/20261026-154808-stack-spike/measurements/pipeline-stats.csv (`run,path,variant,mode,platform,second,rendered,dropped,pipeline_latency_ms`), in spike/capture/src/stats.rs
 - [x] T010 [P] Implement the shared options (`--list`, `--device`, `--mode`, `--stats`) in spike/capture/src/cli.rs
 
 **Checkpoint**: `native-preview --list` shows the card with 1080p60 and its highest frame-rate mode; maintainer validates; commit.
@@ -60,7 +60,7 @@ agent updates handoff.md (constitution, Development Workflow).
 
 **Independent Test**: every path and mode has ≥ 20 samples with median and p95 in measurements/summary.md.
 
-- [ ] T011 [US1] Implement native-preview: sinks `d3d12` (default on Windows), `d3d11`, `gl` (default on Linux), `wayland`, `vulkan`, all with `sync=false`, and `--fullscreen` in spike/native-preview/src/main.rs
+- [x] T011 [US1] Implement native-preview: sinks `d3d12` (default on Windows), `d3d11`, `gl` (default on Linux), `wayland`, `vulkan`, all with `sync=false`, and `--fullscreen` in spike/native-preview/src/main.rs
 - [ ] T012 [US1] Implement slint-preview `--bare` with `--transfer cpu`: `appsink` (`sync=false`, `max-buffers=1`, `drop=true`) → RGBA → `slint::Image`, following Slint's gstreamer-player example, in spike/slint-preview/src/video_cpu.rs, spike/slint-preview/ui/bare.slint and spike/slint-preview/src/main.rs
 - [ ] T013 [US1] Implement `--encoder`: a `tee` branch with the NVIDIA hardware H.264 encoder at 1080p60, about 12 Mbps, into a discarding sink; if that encoder is not available, fall back to another hardware encoder or a software one and print which encoder was used; in spike/capture/src/encoder.rs
 - [ ] T014 [US1] **Timebox: one working session.** Implement `--transfer gpu`: Linux via EGL as in the gstreamer-player example; Windows via Slint's wgpu texture import or the OpenGL underlay; if it does not work in the timebox, stop and record what failed and why in specs/20261026-154808-stack-spike/findings.md, in spike/slint-preview/src/video_gpu.rs
