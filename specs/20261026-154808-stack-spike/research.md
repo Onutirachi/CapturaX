@@ -37,6 +37,10 @@ alternatives considered.
   captures a black image. Some PS5 video apps refuse to play with HDCP off; if the YouTube app is one
   of them, the sync test video is played from a USB drive in the PS5 media gallery instead. CapturaX
   never tries to bypass HDCP.
+- **Source used in practice**: the PS5 media gallery did not list MP4 files from the maintainer's USB
+  drive, so the video test runs from a page (spike/tools/flash.html) opened in the PS5 browser,
+  flashing white for 50 ms once per second, without sound. Source timing jitter does not affect the
+  result, since both displays show the same console frame. Audio uses the menu clicks below.
 - **Fallback source**: if no test video can be played, the maintainer moves back and forth between
   PS5 menu screens; each screen change is a visual event and each move plays a UI click. The
   analyzer therefore detects sudden image changes (frame-difference spikes) in each region, not

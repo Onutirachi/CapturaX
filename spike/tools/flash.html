@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Video sync test page for the PS5 browser (research R2, T045): the whole page flashes white for
+     50 ms once per second, starting as soon as it loads. No sound and no fullscreen request: the PS5
+     browser supports neither without a click. The source's own timing does not matter, because each
+     flash reaches the reference display and the preview from the same console frame. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sync test</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  body.flash { background: #fff; }
+</style>
+</head>
+<body>
+<script>
+  const FLASH_MS = 50;
+  const t0 = performance.now();
+  function frame(now) {
+    document.body.classList.toggle("flash", (now - t0) % 1000 < FLASH_MS);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
