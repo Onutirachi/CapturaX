@@ -12,7 +12,9 @@ Early rewrite. There is no application code yet. The previous version lives in t
 
 ## Starting a session
 
-1. Read the constitution.
+1. Read the constitution. Features are listed with IDs in [docs/product.md](docs/product.md)
+   and the order of specs is in [docs/roadmap.md](docs/roadmap.md); open them when the task
+   needs them.
 2. Find the spec you are working on in `specs/<timestamp>-<slug>/` (the branch name
    `feat/<timestamp>-<slug>` points to it).
 3. Read its `handoff.md` first, then `spec.md`, `plan.md` and `tasks.md` as needed. Do not read
