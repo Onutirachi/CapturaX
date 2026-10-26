@@ -20,7 +20,8 @@ alternatives considered.
 ## R2. Glass-to-glass video latency method
 
 - **Decision**: the PS5 plays an A/V sync test video (a white flash with a beep, once per second)
-  through the YouTube app. The TV (HDMI passthrough, game mode) and the PC monitor (preview) are
+  through the YouTube app. The reference display ("TV" below: the 27G2G4 monitor on the card's HDMI
+  passthrough) and the PC monitor (preview, C24FG7x, never the monitor on the integrated GPU) are
   filmed side by side with the Galaxy S23 FE at 240 fps. A script finds each flash in the TV region
   and in the preview region of the clip and reports the time difference per flash.
 - **Rationale**: one 25-second clip yields over 20 samples; at 240 fps the resolution is about 4 ms,
@@ -31,6 +32,15 @@ alternatives considered.
   into the card with an on-screen timer — needs a second output and measures a desktop loop, not
   the console case; in-pipeline timestamps only (GStreamer latency tracer, driver timestamps) —
   kept as a secondary measurement because it excludes display and capture-card delay.
+
+- **HDCP**: the PS5's HDCP setting must be off (Settings > System > HDMI), otherwise the card
+  captures a black image. Some PS5 video apps refuse to play with HDCP off; if the YouTube app is one
+  of them, the sync test video is played from a USB drive in the PS5 media gallery instead. CapturaX
+  never tries to bypass HDCP.
+- **Fallback source**: if no test video can be played, the maintainer moves back and forth between
+  PS5 menu screens; each screen change is a visual event and each move plays a UI click. The
+  analyzer therefore detects sudden image changes (frame-difference spikes) in each region, not
+  only white flashes, and sudden sound onsets, not only beeps.
 
 ## R3. Audio latency and A/V offset method
 

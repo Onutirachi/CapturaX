@@ -15,6 +15,14 @@ clip,path,variant,mode,platform,flash_index,delay_ms
 clip,platform,output,minute,beep_index,delay_ms
 ```
 
+## pipeline-stats.csv
+
+Written by the prototypes with `--stats` (one row per second of a run).
+
+```csv
+run,path,variant,mode,platform,second,rendered,dropped,pipeline_latency_ms
+```
+
 ## summary.md
 
 Markdown tables generated from the CSV files: one video table per platform (rows: path and

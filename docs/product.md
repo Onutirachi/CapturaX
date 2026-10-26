@@ -47,7 +47,7 @@ streaming), and a **View output** action shows the output in the preview.
 | F8 | Frameless window with its own title bar; fullscreen with F11, leave with Esc. | |
 | F9 | Optional ambient light: the area around the video glows with the video's colors. | |
 | F10 | Hide the preview to save resources; recording and streaming continue. | |
-| F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected. Never an empty list. | |
+| F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected, black image while a signal is present (likely HDCP: suggest turning it off on the console). Never an empty list. | |
 | F42 | Capture info overlay (source, mode, measured FPS and latency, recording/live status) over the video, pinnable; can be detached as a floating window that stays on top. | |
 | F43 | Resolution badges (for example HD, Full HD, QHD, 4K) in device and mode lists. | |
 

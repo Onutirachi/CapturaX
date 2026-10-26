@@ -4,8 +4,8 @@
 
 ## State
 
-Spec committed. Plan and design artifacts written, waiting for the maintainer's review.
-No spike code yet.
+Spec and plan committed; tasks.md written (44 tasks), waiting for the maintainer's approval to
+start implementation. No spike code yet.
 
 ## Done in the last session
 
@@ -27,4 +27,5 @@ No spike code yet.
 
 ## Next step
 
-Maintainer reviews the plan; then `/speckit-tasks`.
+After approval: `/speckit-implement`, starting with T001 (maintainer installs GStreamer 1.28.8
+MSVC with development components; the agent checks the environment).

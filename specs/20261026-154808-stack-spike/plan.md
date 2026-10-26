@@ -38,7 +38,7 @@ dropped frames; audio offset within ITU-R BT.1359 limits, drift under 10 ms in 3
 **Constraints**: same card, mode, monitor and method for every path; at least 20 samples per path
 and mode; Windows GPU-texture variant timeboxed to one working session.
 
-**Scale/Scope**: 4 small binaries, 1 HTML page, 1 analysis script; 3 visual directions × 2 themes.
+**Scale/Scope**: 3 small binaries and 1 shared library, 1 HTML page, 1 analysis script; 3 visual directions × 2 themes.
 
 ## Constitution Check
 

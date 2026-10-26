@@ -45,6 +45,12 @@ flagged as detection errors and excluded.
 | beep_index | order in the clip |
 | delay_ms | PC beep time − TV beep time |
 
+## Pipeline stats
+
+One row per second of a run with `--stats`: run, path, variant, mode, platform, second,
+rendered frames, dropped frames, in-pipeline latency (ms). Source of the dropped-frame percentage
+for SC-004.
+
 ## Summary row
 
 Per (path, variant, mode, platform): sample count, median, 95th percentile, min, max, dropped

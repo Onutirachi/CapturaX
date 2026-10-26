@@ -11,7 +11,9 @@ How to set up, run and measure. Command details are in [contracts/cli.md](contra
   NVIDIA codec support, `uv`.
 - Hardware: ezcap Live Gamer Ultra, PS5 connected through the card's HDMI passthrough to the TV
   (game mode on), Galaxy S23 FE.
-- On the PS5: an A/V sync test video (flash and beep once per second) open in the YouTube app.
+- On the PS5: HDCP off (Settings > System > HDMI) and an A/V sync test video (flash and beep once
+  per second) open in the YouTube app, or played from a USB drive in the media gallery if the app
+  refuses to play with HDCP off.
 
 ## 1. Check the setup
 

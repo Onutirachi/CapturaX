@@ -148,7 +148,8 @@ possible, with the reason.
 ### Functional Requirements
 
 - **FR-001**: The spike MUST measure preview latency on four paths: native window, video inside
-  the Slint interface, browser preview (reference) and OBS (reference).
+  the Slint interface (a CPU-copy variant and, when possible, a GPU variant), browser preview
+  (reference) and OBS (reference).
 - **FR-002**: Every latency measurement MUST use the same method, card, mode and monitor for all
   paths, with at least 20 samples per path and mode, reporting median and 95th percentile.
 - **FR-003**: Measurements MUST cover at least 1080p60 and the card's highest frame-rate mode.
@@ -202,6 +203,9 @@ possible, with the reason.
   through its HDMI passthrough; Windows computer with an NVIDIA RTX 5070 Ti; separate Linux
   computer running CachyOS with an NVIDIA RTX 3050. The capture card is moved to the Linux
   computer for the Linux checks.
+- The reference display is the 27G2G4 monitor (144 Hz) showing the card's HDMI passthrough; the
+  preview runs fullscreen on the C24FG7x monitor (144 Hz, DisplayPort on the RTX 5070 Ti) right
+  next to it. Where these documents say "TV", they mean this reference display.
 - Glass-to-glass latency is measured by filming the passthrough display and the preview side by
   side with a Galaxy S23 FE in 240 fps slow motion (about 4 ms per camera frame, enough to resolve
   differences of one 60 fps frame), or an equivalent method chosen in the plan; the same method
