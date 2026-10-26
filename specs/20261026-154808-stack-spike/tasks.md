@@ -44,11 +44,11 @@ agent updates handoff.md (constitution, Development Workflow).
 
 **Purpose**: capture code shared by every binary.
 
-- [ ] T006 Implement device and mode listing (`--list`) in spike/capture/src/devices.rs
-- [ ] T007 Implement `--mode WxH@FPS[:FORMAT]` parsing and Auto selection ("largest resolution with ≥ 59 fps") in spike/capture/src/mode.rs
-- [ ] T008 Implement the video source builder: `mfvideosrc` on Windows, `v4l2src` on Linux, native caps, GPU MJPEG decode when the mode is MJPEG only (research R6) in spike/capture/src/video.rs
-- [ ] T009 [P] Implement `--stats`: rendered and dropped frames from the sink and in-pipeline latency, printed every second and appended to specs/20261026-154808-stack-spike/measurements/pipeline-stats.csv (`run,path,variant,mode,platform,second,rendered,dropped,pipeline_latency_ms`), in spike/capture/src/stats.rs
-- [ ] T010 [P] Implement the shared options (`--list`, `--device`, `--mode`, `--stats`) in spike/capture/src/cli.rs
+- [x] T006 Implement device and mode listing (`--list`) in spike/capture/src/devices.rs
+- [x] T007 Implement `--mode WxH@FPS[:FORMAT]` parsing and Auto selection ("largest resolution with ≥ 59 fps") in spike/capture/src/mode.rs
+- [x] T008 Implement the video source builder: `mfvideosrc` on Windows, `v4l2src` on Linux, native caps, GPU MJPEG decode when the mode is MJPEG only (research R6) in spike/capture/src/video.rs
+- [x] T009 [P] Implement `--stats`: rendered and dropped frames from the sink and in-pipeline latency, printed every second and appended to specs/20261026-154808-stack-spike/measurements/pipeline-stats.csv (`run,path,variant,mode,platform,second,rendered,dropped,pipeline_latency_ms`), in spike/capture/src/stats.rs
+- [x] T010 [P] Implement the shared options (`--list`, `--device`, `--mode`, `--stats`) in spike/capture/src/cli.rs
 
 **Checkpoint**: `native-preview --list` shows the card with 1080p60 and its highest frame-rate mode; maintainer validates; commit.
 

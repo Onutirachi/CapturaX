@@ -1,5 +1,11 @@
 //! Capture code shared by the spike prototypes: devices, modes, sources and stats.
 
+pub mod cli;
+pub mod devices;
+pub mod mode;
+pub mod stats;
+pub mod video;
+
 /// Initializes GStreamer and returns its version string.
 pub fn init() -> anyhow::Result<String> {
     gst::init()?;
