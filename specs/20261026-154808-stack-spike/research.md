@@ -57,6 +57,12 @@ alternatives considered.
 - **Alternatives**: measuring with the headset — cannot be recorded; loopback cable into the PC —
   measures the PC's own input path, not what the player hears.
 
+- **Method used in practice**: the passthrough monitor's headphone output goes by cable into the PC's
+  line input; Voicemeeter mixes that reference with the preview output (the system default output
+  is a Voicemeeter virtual input) into the headset. Each PS5 menu click is heard twice. The
+  maintainer records the mix and measures the gap between the two clicks in FL Studio. The result
+  is the preview relative to the line-input path, both through Voicemeeter.
+
 ## R4. Native-window path (reference for the fastest possible preview)
 
 - **Decision**: Windows: `mfvideosrc` (Media Foundation) → GPU upload → `d3d12videosink`, with
@@ -122,6 +128,10 @@ alternatives considered.
   CachyOS's audio server.
 - **Alternatives**: PulseAudio elements on Linux — PipeWire native elements avoid the compatibility
   layer.
+- **Revised in practice (T023)**: playing on the pipeline clock (`sync=true`) stays silent: the
+  output keeps correcting a ≈ 170 ms clock skew. The chosen setting free-runs the output
+  (`sync=false`, as the previous app did) with a 20 ms output buffer, after a queue that drops its
+  oldest audio beyond 20 ms, so a delay at start-up cannot stay in the buffers.
 
 ## R8. Encoder load test
 

@@ -147,7 +147,45 @@ platform is for the capture spec.
 The card is UVC only, so delivery before a frame is complete (as some professional cards do) is
 not available.
 
+## Audio — preliminary (Windows, PS5 menu clicks, via Voicemeeter)
+
+Method: research R3, "Method used in practice". Delay of the preview relative to the line-input
+reference, measured by hand in FL Studio over several clicks.
+
+| Path | Delay | Notes |
+|---|---|---|
+| Voicemeeter reading the card directly (WDM) | ≈ 0 | the two clicks are hard to tell apart |
+| audio-preview, pipeline clock (`sync=true`) | silent | continuous clock-skew correction |
+| audio-preview `--free-run` (200 ms output buffer) | 300–350 ms | |
+| `--free-run --buffer 20` | ≈ 120 ms | |
+| `--free-run --buffer 20` with the 20 ms dropping queue | **100–110 ms** | no clicks or dropouts; chosen |
+| same, `--exclusive both` | lower | heavily distorted and crackling; exclusive mode also locks the device |
+| previous CapturaX (raw WASAPI, shared mode, 15 ms output queue) | 160 ms | |
+
+- The card adds almost nothing: what remains is the path from an app into the Voicemeeter virtual
+  input through the Windows mixer, which the previous app paid too. Not measured yet without
+  Voicemeeter (output straight to the headset).
+- **A/V offset**: audio ≈ 105 ms against video ≈ 21–25 ms, so sound is ≈ 80 ms behind the image,
+  within the 125 ms limit of SC-005 (preliminary). Playing with `layered-preview --audio`, the
+  maintainer noticed no offset; the difference is audible only when the passthrough sound plays at
+  the same time.
+- Drift over 30 minutes: not measured yet (T025).
+
+## Image
+
+- The ezcap declares limited range (16–235, colorimetry `2:3:0:1`) but sends full range: on a PS5
+  home screen about 8% of the luma values were below 16. Read as limited, those are clipped to
+  black and the preview looks darker than the passthrough. With `--range full` the maintainer
+  found it matching the passthrough on the same monitor (27G2G4, switching HDMI and DisplayPort
+  inputs). The app needs a color range setting (Auto, Full, Limited); Auto can infer full range
+  from values below 16.
+
 ## Observations
+
+- The previous CapturaX showed video with `getUserMedia` in WebView2 and measured 6 camera frames,
+  on par with native: an indication for the browser reference (T015).
+- Playing with `layered-preview --audio` (Direct3D 12, Mailbox, 1080p60), the maintainer noticed no
+  difference from the passthrough by eye.
 
 - Dragging the slint-layered window stutters the video, sometimes for a long moment, with or
   without the encoder, while the pipeline keeps delivering 60 fps. On Windows the system holds the

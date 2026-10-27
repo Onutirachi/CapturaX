@@ -86,7 +86,7 @@ agent updates handoff.md (constitution, Development Workflow).
 
 **Independent Test**: measurements/summary.md has the audio table and the offset is compared with the ITU-R BT.1359 limits.
 
-- [ ] T023 [US2] Implement audio-preview: `wasapi2src` → `wasapi2sink` with `low-latency=true` on Windows, `pipewiresrc` → `pipewiresink` on Linux, `--input`, `--output`, `--list-audio`, input paired with the video device when detectable, in spike/audio-preview/src/main.rs
+- [x] T023 [US2] Implement audio-preview: `wasapi2src` → `wasapi2sink` with `low-latency=true` on Windows, `pipewiresrc` → `pipewiresink` on Linux, `--input`, `--output`, `--list-audio`, input paired with the video device when detectable, in spike/audio-preview/src/main.rs. Result: free-running output with a 20 ms buffer and a 20 ms dropping queue (research R7, findings.md); also `layered-preview --audio`
 - [ ] T024 [P] [US2] Implement `analyze.py audio`: detect sound onset pairs (beeps or PS5 menu clicks; TV then PC), append rows to measurements/audio-samples.csv, and add the audio table to the summary, in spike/tools/analyze.py
 - [ ] T025 [US2] (maintainer) Record the minute-0 and minute-30 audio clips (quickstart step 3) and play with the headset, noting whether any offset is noticeable and any audible glitches (clicks, dropouts)
 - [ ] T026 [US2] Write the audio results and the SC-005 evaluation in specs/20261026-154808-stack-spike/findings.md
