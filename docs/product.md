@@ -30,7 +30,7 @@ The **Spec** column is filled in when a spec covers the feature.
 | ID | Feature | Spec |
 |---|---|---|
 | F1 | List capture cards and webcams; the list updates when a device is plugged in or removed. | |
-| F2 | Open a device in a native mode (resolution × frame rate × format reported by the driver), with no software scaling. One **Mode** list shows only the modes the device really supports. | |
+| F2 | Open a device in a native mode (resolution × frame rate × format reported by the driver), with no software scaling. One **Mode** list shows only the modes the device really supports. A **color range** setting (Auto, Full, Limited) corrects devices that declare the wrong range; Auto infers it from the video levels. | |
 | F3 | Automatic modes next to the manual ones: **Auto source** follows the signal the device is receiving (resolution and frame rate), shown only when the device reports it; **Auto max resolution**: the largest resolution at about 60 fps; **Auto max FPS**: the highest frame rate at 1080p (or the largest resolution below it). An automatic mode that resolves to the same mode as another is not shown. Default: Auto source when available, otherwise Auto max resolution. | |
 | F4 | When a device disconnects, show it; when it comes back, reopen it automatically. | |
 | F5 | Screens and windows as a source for recording and streaming, with the cursor and without a capture border. On Windows the app lists them (screens named like "Screen 2 - 27G2G4"); on Linux Wayland the system picker chooses them. | |
@@ -140,6 +140,8 @@ streaming), and a **View output** action shows the output in the preview.
 Not planned; listed so they are not lost.
 
 - Replay buffer: save the last N seconds.
+- For Voicemeeter users, suggest letting Voicemeeter read the capture card directly: the lowest
+  possible audio delay (measured ≈ 0, against ≈ 100 ms through its virtual input).
 - Server mode where the server distributes the stream (upload once, any number of viewers).
 - macOS.
 - Contributor License Agreement, when the first external contributor appears.
