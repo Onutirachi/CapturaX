@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use capture::{cli::CommonArgs, devices, encoder, stats, video};
+use capture::{audio, cli::CommonArgs, devices, encoder, stats, video};
 use clap::Parser;
 use gst::prelude::*;
 use gst_video::video_frame::VideoFrameExt;
@@ -38,6 +38,10 @@ struct Args {
     /// Also encode the video with a hardware H.264 encoder, discarding the output (load test)
     #[arg(long)]
     encoder: bool,
+
+    /// Also play the audio input paired with the video device on the system default output
+    #[arg(long)]
+    audio: bool,
 }
 
 /// One RGBA frame, rows packed without padding.
@@ -576,6 +580,16 @@ fn main() -> anyhow::Result<()> {
     let proxy = event_loop.create_proxy();
     let slot = Arc::new(Mutex::new(None));
 
+    // Built before the video source takes the device.
+    let sound = if args.audio {
+        let input = audio::paired_input(audio::audio_devices("Audio/Source")?, &device.name)
+            .ok_or_else(|| anyhow::anyhow!("no audio input paired with {} (see audio-preview --list-audio)", device.name))?;
+        println!("audio: {} -> system default", input.name);
+        Some(audio::build_preview(&input, None, &audio::PreviewOptions::chosen())?)
+    } else {
+        None
+    };
+
     let source = video::build(&device, mode.clone())?;
     let convert = gst::parse::bin_from_description(
         if cfg!(windows) { "d3d12upload ! d3d12convert ! d3d12download" } else { "videoconvert" },
@@ -647,7 +661,22 @@ fn main() -> anyhow::Result<()> {
         last_present: Instant::now(),
         refresh: Duration::from_millis(16),
     };
+    if let Some(sound) = &sound {
+        let bus = sound.pipeline.bus().expect("pipeline has a bus");
+        std::thread::spawn(move || {
+            for msg in bus.iter_timed(gst::ClockTime::NONE) {
+                if let gst::MessageView::Error(err) = msg.view() {
+                    eprintln!("audio stopped: {} ({:?})", err.error(), err.debug());
+                    break;
+                }
+            }
+        });
+        sound.pipeline.set_state(gst::State::Playing)?;
+    }
     event_loop.run_app(&mut app)?;
     pipeline.set_state(gst::State::Null)?;
+    if let Some(sound) = &sound {
+        sound.pipeline.set_state(gst::State::Null)?;
+    }
     Ok(())
 }

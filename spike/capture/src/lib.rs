@@ -1,5 +1,6 @@
 //! Capture code shared by the spike prototypes: devices, modes, sources and stats.
 
+pub mod audio;
 pub mod cli;
 pub mod devices;
 pub mod encoder;

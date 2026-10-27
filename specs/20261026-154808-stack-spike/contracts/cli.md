@@ -39,6 +39,7 @@ Own render loop (research R13). Shared options, plus:
 | `--present <mode>` | `immediate`, `mailbox` or `fifo` (default: the first one the GPU supports, in that order) |
 | `--backend <api>` | graphics API: `vulkan`, `dx12` or `gl` (default: wgpu's choice; on the maintainer's NVIDIA it picks Vulkan) |
 | `--encoder` | add the hardware H.264 encoder branch (load test, T013); prints the encoder used, and with `--stats` the encoded frames per second |
+| `--audio` | also play the audio input paired with the video device on the system default output, as `audio-preview --free-run --buffer 20` does |
 
 ## audio-preview
 
@@ -47,6 +48,10 @@ Own render loop (research R13). Shared options, plus:
 | `--input <name>` | audio input (default: paired with the video device when detectable) |
 | `--output <name>` | audio output (default: system default) |
 | `--list-audio` | print audio inputs and outputs, then exit |
+| `--free-run` | play each block as soon as it arrives, without waiting for the pipeline clock (output `sync=false`, as the previous app did), through a queue that drops the oldest audio beyond `--max-queue` |
+| `--max-queue <ms>` | with `--free-run`, the most audio waiting between input and output (default 20 ms) |
+| `--buffer <ms>` | output buffer size (GStreamer's default is 200 ms); the output writes in blocks of half of it, at most 10 ms |
+| `--exclusive <input, output or both>` | open that side in WASAPI exclusive mode (Windows; shorter device period, other apps cannot use the device meanwhile) |
 
 ## browser/index.html
 
