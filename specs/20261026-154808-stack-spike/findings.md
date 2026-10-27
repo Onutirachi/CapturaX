@@ -109,6 +109,20 @@ the software renderer into a transparent layer and composited over the video on 
 - On Linux there is no Direct3D: wgpu uses Vulkan and the result depends on the compositor
   (direct scanout and tearing control on Wayland). To be measured (T021, T038).
 
+### T013 — encoder load (slint-layered, Direct3D 12, Mailbox, 1080p60)
+
+A `tee` branch encodes the video with `nvh264enc` at 12 Mbps into a discarding sink, as a
+recording would; its queue does not drop frames. The preview goes through the same `tee` with and
+without the encoder.
+
+| Run | Camera frames | Encoded | Preview dropped | Frame ready → presented (median) |
+|---|---|---|---|---|
+| without encoder | 5–6 | — | 0 | ≈ 1.1 ms |
+| with encoder | 5–6 | 60 fps | 0 | ≈ 1.1 ms |
+
+**SC-004 passes** (preliminary, counted by hand): no measurable added latency and no dropped
+frames.
+
 ### Remaining latency levers (not yet tested)
 
 At 60 Hz the card delivers a frame only after receiving all of it (≈ 16.7 ms), so 21–25 ms is
@@ -134,6 +148,11 @@ The card is UVC only, so delivery before a frame is complete (as some profession
 not available.
 
 ## Observations
+
+- Dragging the slint-layered window stutters the video, sometimes for a long moment, with or
+  without the encoder, while the pipeline keeps delivering 60 fps. On Windows the system holds the
+  app's event loop during a window move, and this prototype presents from that loop. The real app
+  must present video on a thread of its own. Fullscreen is not affected.
 
 - In the 1080p120 mode with a 60 Hz source, the card delivers about 111 fps on every path; the
   limit is the source, not the path.
