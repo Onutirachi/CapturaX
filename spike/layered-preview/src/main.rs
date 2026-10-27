@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use capture::{cli::CommonArgs, devices, stats, video};
+use capture::{cli::CommonArgs, devices, encoder, stats, video};
 use clap::Parser;
 use gst::prelude::*;
 use gst_video::video_frame::VideoFrameExt;
@@ -34,6 +34,10 @@ struct Args {
     /// Graphics API: vulkan, dx12 or gl (default: wgpu's choice)
     #[arg(long)]
     backend: Option<String>,
+
+    /// Also encode the video with a hardware H.264 encoder, discarding the output (load test)
+    #[arg(long)]
+    encoder: bool,
 }
 
 /// One RGBA frame, rows packed without padding.
@@ -579,11 +583,33 @@ fn main() -> anyhow::Result<()> {
     )?;
     let sink = appsink(slot.clone(), proxy.clone());
     let pipeline = gst::Pipeline::with_name("layered-preview");
-    pipeline.add_many([source.bin.upcast_ref::<gst::Element>(), convert.upcast_ref(), sink.upcast_ref()])?;
-    gst::Element::link_many([source.bin.upcast_ref::<gst::Element>(), convert.upcast_ref(), sink.upcast_ref()])?;
+    // The preview always goes through a tee and its own queue, so a run with --encoder differs from
+    // a run without it only by the encoder branch.
+    let tee = gst::ElementFactory::make("tee").build()?;
+    let preview_queue = gst::ElementFactory::make("queue")
+        .property("max-size-buffers", 1u32)
+        .property("max-size-bytes", 0u32)
+        .property("max-size-time", 0u64)
+        .property_from_str("leaky", "downstream")
+        .build()?;
+    pipeline.add_many([source.bin.upcast_ref::<gst::Element>(), &tee, &preview_queue, convert.upcast_ref(), sink.upcast_ref()])?;
+    gst::Element::link_many([source.bin.upcast_ref::<gst::Element>(), &tee, &preview_queue, convert.upcast_ref(), sink.upcast_ref()])?;
+    let encoder = if args.encoder {
+        let branch = encoder::build()?;
+        println!("encoder: {}", branch.name);
+        pipeline.add(&branch.bin)?;
+        tee.link(&branch.bin)?;
+        if args.common.stats || args.common.record {
+            branch.report();
+        }
+        Some(branch)
+    } else {
+        None
+    };
 
     let _stats = if args.common.stats || args.common.record {
-        let info = stats::RunInfo { path: "slint-layered".into(), variant: "software-ui".into(), mode: mode.to_string() };
+        let variant = if encoder.is_some() { "encoder-on" } else { "software-ui" };
+        let info = stats::RunInfo { path: "slint-layered".into(), variant: variant.into(), mode: mode.to_string() };
         Some(stats::StatsReporter::start(&pipeline, sink.upcast_ref(), info, args.common.record)?)
     } else {
         None

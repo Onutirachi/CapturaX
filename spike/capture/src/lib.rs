@@ -2,6 +2,7 @@
 
 pub mod cli;
 pub mod devices;
+pub mod encoder;
 pub mod mode;
 pub mod stats;
 pub mod video;

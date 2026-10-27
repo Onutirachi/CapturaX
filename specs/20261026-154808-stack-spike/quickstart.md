@@ -35,7 +35,7 @@ For each path (native, slint-cpu, slint-gpu, browser, obs) and each mode (1080p6
 
 Expected: at least 20 samples per run; no delay negative or above 500 ms.
 
-Encoder load: repeat the slint-cpu run with `--encoder` and compare (variant `encoder-on`).
+Encoder load: repeat the slint-layered run with `--encoder` and compare (variant `encoder-on`).
 
 ## 3. Audio
 
