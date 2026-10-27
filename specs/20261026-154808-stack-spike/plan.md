@@ -86,6 +86,7 @@ spike/
 ├── native-preview/          # binary: capture → native video sink (path A)
 ├── slint-preview/           # binary: Slint app — bare video (path B) and the 3 visual directions
 │   └── ui/                  # .slint files: directions, themes, components
+├── layered-preview/         # binary: own wgpu render loop, video + Slint software-rendered UI layer (R13)
 ├── audio-preview/           # binary: low-latency audio passthrough (WASAPI / PipeWire)
 ├── browser/index.html       # path C reference page
 └── tools/analyze.py         # clip analysis (uv run)

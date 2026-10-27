@@ -85,6 +85,26 @@ alternatives considered.
 - **Alternatives**: overlay UI in a separate transparent window above a native video window —
   measured only if both Slint variants fail SC-002, because it complicates windowing.
 
+## R13. Own render loop with Slint as a layer (decided 2026-10-27)
+
+- **Context**: native ≈ 25 ms, slint-cpu 42–50 ms whatever the renderer, OBS ≈ 50 ms (findings.md).
+  The extra time is in Slint's render pacing and presentation, not in copies.
+- **Decision**: try an own render loop. The app owns the window (winit) and the swap chain (wgpu,
+  present mode Immediate, else Mailbox, else Fifo) and presents as soon as a video frame arrives.
+  Slint keeps drawing the whole UI with the same `.slint` files, through its public software
+  renderer into a premultiplied RGBA layer that is redrawn only when the UI changes; the loop
+  composites video + UI layer on the GPU in one frame. Window, mouse and keyboard events are
+  forwarded to Slint through its platform API.
+- **Rationale**: overlays are real (one image), one window only (works on Wayland), Slint's
+  customization is kept, and presentation is under our control.
+- **Alternatives**: B, native video child window with overlays in extra transparent windows —
+  kept as fallback; rejected first because Wayland does not let apps position windows, so the
+  overlay windows would not work on Linux. egui instead of Slint — less suited to the visual goals.
+  Finishing T014 steps 2 and 3 — expected to stay at ≈ 35–40 ms because presentation stays in Slint.
+- **Floor**: frame-based capture costs about one source frame (16.7 ms at 60 Hz); native is close
+  to the realistic floor (≈ 18–20 ms at 60 Hz). Further gains come from a 120 Hz source and
+  tearing presentation, which apply to any option.
+
 ## R6. Capture modes
 
 - **Decision**: list the card's modes with `gst-device-monitor-1.0` first, then test 1080p60 and the

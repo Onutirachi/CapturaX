@@ -31,6 +31,14 @@ All binaries run from `spike/` with `cargo run --release -p <name> -- <options>`
 | `--theme <dark or light>` | starting theme (switchable at runtime) |
 | `--test-video <file>` | use a video file instead of a device (visual review only) |
 
+## layered-preview
+
+Own render loop (research R13). Shared options, plus:
+
+| Option | Meaning |
+|---|---|
+| `--present <mode>` | `immediate`, `mailbox` or `fifo` (default: the first one the GPU supports, in that order) |
+
 ## audio-preview
 
 | Option | Meaning |

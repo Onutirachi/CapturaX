@@ -24,7 +24,7 @@ One row per flash detected in a clip.
 | Field | Rule |
 |---|---|
 | clip | file name of the slow-motion clip |
-| path | `native`, `slint-cpu`, `slint-gpu`, `browser`, `obs` |
+| path | `native`, `slint-cpu`, `slint-gpu`, `slint-layered`, `browser`, `obs` |
 | variant | sink or renderer used (e.g. `d3d12videosink`, `encoder-on`) |
 | mode | e.g. `1920x1080@60 NV12` |
 | platform | `windows` or `linux` |
