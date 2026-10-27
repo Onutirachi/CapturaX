@@ -590,7 +590,7 @@ fn main() -> anyhow::Result<()> {
         None
     };
 
-    let source = video::build(&device, mode.clone())?;
+    let source = video::build(&device, mode.clone(), args.common.range)?;
     let convert = gst::parse::bin_from_description(
         if cfg!(windows) { "d3d12upload ! d3d12convert ! d3d12download" } else { "videoconvert" },
         true,

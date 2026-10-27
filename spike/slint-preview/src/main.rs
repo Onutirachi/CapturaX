@@ -133,7 +133,7 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    let source = video::build(&device, mode.clone())?;
+    let source = video::build(&device, mode.clone(), args.common.range)?;
     let convert = video_cpu::converter()?;
     let pipeline = gst::Pipeline::with_name("slint-preview");
     pipeline.add_many([source.bin.upcast_ref::<gst::Element>(), convert.upcast_ref(), sink.upcast_ref()])?;

@@ -16,6 +16,10 @@ pub struct CommonArgs {
     #[arg(long, value_parser = mode::parse)]
     pub mode: Option<Mode>,
 
+    /// Override the color range the device declares: full (0-255) or limited (16-235)
+    #[arg(long)]
+    pub range: Option<crate::video::Range>,
+
     /// Print frames per second and dropped frames every second (nothing is written)
     #[arg(long)]
     pub stats: bool,

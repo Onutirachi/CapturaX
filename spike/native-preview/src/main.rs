@@ -85,7 +85,7 @@ fn main() -> anyhow::Result<()> {
     let kind = args.sink.unwrap_or(if cfg!(windows) { Sink::D3d12 } else { Sink::Gl });
     println!("{}: {mode} -> {kind:?}", device.name);
 
-    let source = video::build(&device, mode.clone())?;
+    let source = video::build(&device, mode.clone(), args.common.range)?;
     let (display, sink) = sink_bin(kind)?;
     let pipeline = gst::Pipeline::with_name("native-preview");
     pipeline.add_many([source.bin.upcast_ref::<gst::Element>(), display.upcast_ref()])?;

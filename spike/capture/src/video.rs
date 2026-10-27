@@ -19,8 +19,18 @@ pub fn choose_mode(device: &VideoDevice, requested: Option<&Mode>) -> anyhow::Re
     }
 }
 
-/// Builds `device ! capsfilter [! jpeg decoder]` with a ghost src pad.
-pub fn build(device: &VideoDevice, mode: Mode) -> anyhow::Result<Source> {
+/// Color range of the video levels.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+pub enum Range {
+    /// 0-255
+    Full,
+    /// 16-235
+    Limited,
+}
+
+/// Builds `device ! capsfilter [! jpeg decoder] [! capssetter]` with a ghost src pad; `range`
+/// replaces the color range the device declares.
+pub fn build(device: &VideoDevice, mode: Mode, range: Option<Range>) -> anyhow::Result<Source> {
     let bin = gst::Bin::with_name("capture");
     let src = device.device.create_element(Some("source"))?;
     let filter = gst::ElementFactory::make("capsfilter").property("caps", mode.caps()).build()?;
@@ -37,6 +47,19 @@ pub fn build(device: &VideoDevice, mode: Mode) -> anyhow::Result<Source> {
         bin.add(&decoder)?;
         last.link(&decoder)?;
         last = decoder;
+    }
+
+    if let Some(range) = range {
+        // GStreamer colorimetry "range:matrix:transfer:primaries": BT.709 with the chosen range.
+        let colorimetry = match range {
+            Range::Full => "1:3:5:1",
+            Range::Limited => "2:3:5:1",
+        };
+        let caps = gst::Caps::builder("video/x-raw").field("colorimetry", colorimetry).build();
+        let setter = gst::ElementFactory::make("capssetter").property("caps", caps).build()?;
+        bin.add(&setter)?;
+        last.link(&setter)?;
+        last = setter;
     }
 
     let pad = last.static_pad("src").expect("last element has a src pad");

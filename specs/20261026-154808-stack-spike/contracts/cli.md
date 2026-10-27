@@ -9,6 +9,7 @@ All binaries run from `spike/` with `cargo run --release -p <name> -- <options>`
 | `--list` | print devices and their modes, then exit |
 | `--device <name or index>` | video device (default: first capture device) |
 | `--mode <WxH@FPS[:FORMAT]>` | e.g. `1920x1080@60:NV12`; default: Auto (largest resolution with ≥ 59 fps) |
+| `--range <full or limited>` | override the color range the device declares (the ezcap declares limited, 16–235, but sends values below 16) |
 | `--stats` | print frames per second and dropped frames every second (nothing is written) |
 | `--record` | like `--stats`, and also append the rows to `measurements/pipeline-stats.csv`; use only for official measurement runs |
 
