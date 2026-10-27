@@ -2809,6 +2809,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "layered-preview"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "capture",
+ "clap",
+ "gstreamer",
+ "gstreamer-app",
+ "gstreamer-video",
+ "pollster",
+ "slint",
+ "slint-build",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3840,6 +3858,12 @@ dependencies = [
  "rustix 1.1.5",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "pollster"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc6355899e1c9462875b6757c79f3caa011a1fdae12bbb1a2e72dd1f234f8336"
 
 [[package]]
 name = "polycool"

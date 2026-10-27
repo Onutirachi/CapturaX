@@ -38,6 +38,7 @@ Own render loop (research R13). Shared options, plus:
 | Option | Meaning |
 |---|---|
 | `--present <mode>` | `immediate`, `mailbox` or `fifo` (default: the first one the GPU supports, in that order) |
+| `--backend <api>` | graphics API: `vulkan`, `dx12` or `gl` (default: wgpu's choice; on the maintainer's NVIDIA it picks Vulkan) |
 
 ## audio-preview
 

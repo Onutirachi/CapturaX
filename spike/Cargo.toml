@@ -2,7 +2,7 @@
 # Deleted before merge; kept reachable through the tag spike/stack-20261026.
 [workspace]
 resolver = "3"
-members = ["capture", "native-preview", "slint-preview", "audio-preview"]
+members = ["capture", "native-preview", "slint-preview", "layered-preview", "audio-preview"]
 
 [workspace.package]
 edition = "2024"
