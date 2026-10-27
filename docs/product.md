@@ -31,7 +31,7 @@ The **Spec** column is filled in when a spec covers the feature.
 |---|---|---|
 | F1 | List capture cards and webcams; the list updates when a device is plugged in or removed. | |
 | F2 | Open a device in a native mode (resolution × frame rate × format reported by the driver), with no software scaling. One **Mode** list shows only the modes the device really supports. | |
-| F3 | **Auto** mode (default): the largest resolution that keeps about 60 fps, at its highest frame rate. **Smoothest** mode: the highest frame rate from 720p up, shown only when it differs from Auto. | |
+| F3 | Automatic modes next to the manual ones: **Auto source** follows the signal the device is receiving (resolution and frame rate), shown only when the device reports it; **Auto max resolution**: the largest resolution at about 60 fps; **Auto max FPS**: the highest frame rate at 1080p (or the largest resolution below it). An automatic mode that resolves to the same mode as another is not shown. Default: Auto source when available, otherwise Auto max resolution. | |
 | F4 | When a device disconnects, show it; when it comes back, reopen it automatically. | |
 | F5 | Screens and windows as a source for recording and streaming, with the cursor and without a capture border. On Windows the app lists them (screens named like "Screen 2 - 27G2G4"); on Linux Wayland the system picker chooses them. | |
 

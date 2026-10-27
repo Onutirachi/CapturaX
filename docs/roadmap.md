@@ -59,7 +59,7 @@ the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
 
 ```text
 /speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11 and F43
-from docs/product.md. Device list with hot plug, native modes, Auto and Smoothest, reconnect,
+from docs/product.md. Device list with hot plug, native modes, the automatic modes (source, max resolution, max FPS), reconnect,
 latency and FPS measurement, explicit empty and error states (including a hint to turn off
 HDCP on the console when the image is black while a signal is present). Must state a latency budget and
 how it is measured (constitution principle I).
