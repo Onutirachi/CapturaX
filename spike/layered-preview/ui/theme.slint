@@ -1,0 +1,104 @@
+// Theme tokens (T027): one cool neutral hue in tone steps, orange accent, depth by tone and
+// nine-slice shadows (research R14), no outlines, no gradients, no blur.
+import "assets/fonts/Inter.ttf";
+
+export struct Palette {
+    // Tone steps, from the deepest (sunken wells, window background) to the top (raised controls).
+    deep: color,
+    base: color,
+    raised: color,
+    top: color,
+    // Hover and press tints laid over a surface.
+    hover: color,
+    press: color,
+    text: color,
+    text-muted: color,
+    text-faint: color,
+    accent: color,
+    accent-hover: color,
+    // Accent as text and as the focus ring (the light theme needs a deeper orange to read).
+    accent-text: color,
+    on-accent: color,
+    ok: color,
+    warn: color,
+    bad: color,
+    // Semi-transparent panels over the video (title bar, dock); only panels are transparent.
+    panel: color,
+    // Shadow images are drawn at this opacity: light surfaces need softer shadows.
+    shadow: float,
+}
+
+export global Palettes {
+    out property <Palette> dark: {
+        deep: #0e0f13,
+        base: #16171c,
+        raised: #1e1f25,
+        top: #282a31,
+        hover: #ffffff12,
+        press: #ffffff1f,
+        text: #f2f3f6,
+        text-muted: #a8abb5,
+        text-faint: #90939f,
+        accent: #ff7304,
+        accent-hover: #ff8a2e,
+        accent-text: #ff7304,
+        on-accent: #16171c,
+        ok: #3fcf7c,
+        warn: #f2c14e,
+        bad: #f46a62,
+        panel: #0e0f13b8,
+        shadow: 1,
+    };
+    out property <Palette> light: {
+        deep: #dfe1e7,
+        base: #eceef2,
+        raised: #f7f8fa,
+        top: #ffffff,
+        hover: #0000000d,
+        press: #00000017,
+        text: #1c1e25,
+        text-muted: #474b57,
+        text-faint: #60646f,
+        accent: #f26a00,
+        accent-hover: #ff7304,
+        accent-text: #9e4500,
+        on-accent: #16171c,
+        ok: #0f7038,
+        warn: #7d5a00,
+        bad: #b42a23,
+        panel: #f7f8fac4,
+        shadow: 0.35,
+    };
+}
+
+export global Theme {
+    in-out property <bool> dark: true;
+    out property <Palette> c: dark ? Palettes.dark : Palettes.light;
+
+    // Info bubbles over the video in both themes: black at 55%, the least that keeps white text
+    // at 4.5:1 over a white frame; text, icons and badges opaque.
+    out property <color> info-bubble: #0000008c;
+    out property <color> info-text: #ffffff;
+
+    // Resolution badges: one color per tier, white text.
+    out property <color> badge-hd: #5f6b7d;
+    out property <color> badge-full-hd: #4974ab;
+    out property <color> badge-qhd: #845a87;
+    out property <color> badge-4k: #237323;
+    out property <color> badge-other: #606060;
+
+    out property <string> font: "Inter";
+    out property <length> text-s: 12px;
+    out property <length> text-m: 14px;
+    out property <length> text-l: 18px;
+    out property <length> text-xl: 26px;
+
+    out property <length> radius-s: 10px;
+    out property <length> radius-m: 16px;
+    out property <length> radius-l: 22px;
+    out property <length> gap-s: 6px;
+    out property <length> gap-m: 12px;
+    out property <length> gap-l: 20px;
+
+    out property <duration> quick: 160ms;
+}

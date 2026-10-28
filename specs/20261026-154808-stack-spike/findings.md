@@ -248,7 +248,14 @@ UI image; in this prototype a video frame that arrives while the UI changes wait
 
 ## Visual directions
 
-Not started (T027–T033).
+Not started (T028–T033).
+
+Theme (T027): one cool neutral in four tone steps, orange accent, Inter, depth by tone and
+nine-slice shadows; approved by the maintainer, then adjusted so every text pair reaches 4.5:1 in
+both themes: dark ink on the orange instead of white, a deeper orange (`accent-text`) for orange
+text in light, info bubbles black at 55% (30% left white text at 2.1:1 over a white frame), a
+2px focus ring as the only outline. The same identity is kept outside the repository as a design
+system artifact (tokens, rules, component previews) for other projects.
 
 ## Decisions
 

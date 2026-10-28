@@ -43,7 +43,8 @@ struct Args {
     #[arg(long)]
     audio: bool,
 
-    /// UI drawn over the video: overlay, or render-test (what the software renderer draws, T048)
+    /// UI drawn over the video: overlay, render-test (what the software renderer draws, T048) or
+    /// theme-test (the dark and light palettes, T027)
     #[arg(long, default_value = "overlay")]
     ui: String,
 }
@@ -603,7 +604,13 @@ fn main() -> anyhow::Result<()> {
             test.show()?;
             Box::new(test)
         }
-        other => anyhow::bail!("unknown UI {other:?} (overlay, render-test)"),
+        "theme-test" => {
+            let test = ThemeTest::new()?;
+            test.set_info(info.into());
+            test.show()?;
+            Box::new(test)
+        }
+        other => anyhow::bail!("unknown UI {other:?} (overlay, render-test, theme-test)"),
     };
 
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
