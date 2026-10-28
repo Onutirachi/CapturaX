@@ -84,18 +84,19 @@ spike/
 ├── Cargo.toml               # workspace
 ├── capture/                 # shared: list devices and modes, build capture + audio pipelines
 ├── native-preview/          # binary: capture → native video sink (path A)
-├── slint-preview/           # binary: Slint app — bare video (path B) and the 3 visual directions
-│   └── ui/                  # .slint files: directions, themes, components
+├── slint-preview/           # binary: Slint app — bare video (path B)
 ├── layered-preview/         # binary: own wgpu render loop, video + Slint software-rendered UI layer (R13)
+│   └── ui/                  # .slint files: the 3 visual directions, themes, components
 ├── audio-preview/           # binary: low-latency audio passthrough (WASAPI / PipeWire)
 ├── browser/index.html       # path C reference page
 └── tools/analyze.py         # clip analysis (uv run)
 ```
 
 **Structure Decision**: one Cargo workspace so the capture code is written once and shared by the
-native and Slint binaries. The visual directions live in the Slint binary because they must run
-with live video, and its bare mode (no chrome) is the measured path B. The encoder load test is a
-flag of the Slint binary.
+native and Slint binaries. Since R13 the visual directions and the capabilities live in
+layered-preview, the candidate path, because they must run with live video on the loop the real
+app would use; slint-preview stays as the measured path B. The encoder load test is a flag of
+layered-preview.
 
 ## Phases of the spike
 

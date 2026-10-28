@@ -50,7 +50,9 @@ whether any offset is noticeable.
 
 ## 4. Visual directions and capabilities
 
-`cargo run --release -p slint-preview -- --direction float --theme dark`
+`cargo run --release -p layered-preview -- --device ezcap --backend dx12 --present mailbox --direction float --theme dark --stats`
+
+Without the card: add `--test-video`.
 
 Switch directions and themes in the app; check every capability in spec User Story 4 and record
 the outcomes and screenshots in `findings.md`.

@@ -111,6 +111,39 @@ alternatives considered.
   to the realistic floor (≈ 18–20 ms at 60 Hz). Further gains come from a 120 Hz source and
   tearing presentation, which apply to any option.
 
+## R14. What the software renderer draws (2026-10-27)
+
+- **Context**: under R13 the whole UI goes through Slint's software renderer. Its 1.18.1 source
+  (`i-slint-renderer-software`) leaves `draw_box_shadow` empty and ignores the radius when
+  clipping; rectangles with rounded corners, borders, linear, radial and conic gradients, images,
+  paths (SVG), text with bundled fonts and opacity are drawn. T048 confirmed it and found two more
+  limits: gradients ignore the border radius, and a `Path` filled with a gradient is drawn in a
+  solid color.
+- **Decision**: confirm this on a test screen (T048) and try a shadow substitute: pre-blurred
+  shadow images stretched as nine-slice under raised surfaces. If no substitute looks right, drop
+  shadows and give depth with tone steps and gradients only. The video corners are rounded in our
+  shader, not by Slint clipping. Result (T048): the nine-slice shadows look right and are kept.
+  The maintainer dropped gradients and blur (2026-10-27): surfaces are solid tones with rounded
+  corners and nine-slice shadows; only panels (dock, title bar, info overlay) may be
+  semi-transparent over the video, while menus, dropdowns, buttons and icons are opaque. Slint has
+  no blur in any renderer (only the shadow's own blur). Shadows are hollow (the shape is cut out) and carry their
+  offset inside the image, because the renderer applies opacity to each element separately: a
+  filled shadow would show through a semi-transparent surface.
+- **Later option, not in the spike**: surfaces drawn by our shader from geometry reported by the
+  UI (signed distance field), which scales perfectly and could blur the video behind a panel
+  (considered and dropped by the maintainer).
+  Limits: everything it draws sits under the whole Slint layer, so overlapping elements (menus,
+  tooltips) cannot use it; positions must follow the UI's animations; part of the look leaves the
+  `.slint` files.
+- **Rationale**: the Ninjoy prints are a starting point, not a target (maintainer, 2026-10-27);
+  depth that stays inside the `.slint` files without a second renderer is worth more than
+  matching them.
+- **Alternatives**: shadows drawn by our GPU compositor from element geometry — more code, kept in
+  case the images look poor at different sizes; Slint's Skia or FemtoVG renderer into a texture —
+  brings back a GPU context shared with Slint, which R13 avoided.
+- **Cost**: the UI is redrawn only when it changes (partial redraws with a reused buffer), but a
+  full redraw at 1440p is a CPU cost on the video thread; T049 and T051 measure it.
+
 ## R6. Capture modes
 
 - **Decision**: list the card's modes with `gst-device-monitor-1.0` first, then test 1080p60 and the

@@ -101,13 +101,21 @@ agent updates handoff.md (constitution, Development Workflow).
 
 **Independent Test**: switch directions and themes at runtime; every direction shows title bar, video, info overlay, source picker and dock.
 
-- [ ] T027 [US3] Create theme tokens for dark and light (accent `#FF7304`, depth by tone and shadow, no outlines) and load one custom font family bundled in spike/slint-preview/ui/assets/fonts/, in spike/slint-preview/ui/theme.slint
-- [ ] T028 [P] [US3] Copy the logo (old/capturax-react/brand/X.svg and CapturaX.svg) into spike/slint-preview/ui/assets/ and create shared components (title bar with window controls, dock, source picker with groups and resolution badges, info overlay), with visible labels of at most three words and longer text only in tooltips, in spike/slint-preview/ui/components/
-- [ ] T029 [P] [US3] Create the Float direction in spike/slint-preview/ui/directions/float.slint
-- [ ] T030 [P] [US3] Create the Frame direction in spike/slint-preview/ui/directions/frame.slint
-- [ ] T031 [P] [US3] Create the Rail direction in spike/slint-preview/ui/directions/rail.slint
-- [ ] T032 [US3] Add runtime switching of direction and theme, `--direction`, `--theme` and `--test-video`; when no capture device is found, show a clear message with the next action (connect a device or use `--test-video`) instead of an empty video area; in spike/slint-preview/src/main.rs and spike/slint-preview/ui/app.slint
-- [ ] T033 [US3] (maintainer) Review the directions with live video; the agent saves screenshots in specs/20261026-154808-stack-spike/measurements/screens/ and records the choice and reasons in findings.md
+All UI work lives in spike/layered-preview/ (research R13): the loop presents the video and
+composites one UI layer drawn by Slint's software renderer. `build.rs` compiles ui/app.slint
+instead of ui/overlay.slint. slint-preview stays as the measured path B and gets no UI work.
+
+- [x] T048 [US3] Check what Slint's software renderer draws (research R14) with a test screen in spike/layered-preview/ui/: bundled font, SVG logo, rounded rectangles, linear and radial gradients, opacity, a nine-slice image, `drop-shadow-*` (expected not drawn in 1.18) and clipping with a border radius (expected square); try a shadow substitute (pre-blurred nine-slice PNG made by spike/tools/make_shadow.py); if it does not look right, drop shadows and use tone and gradients only (research R14); record the result in findings.md. Result: nine-slice shadows kept; gradients lose rounded corners, so rounded surfaces use solid tones (findings.md)
+- [ ] T049 [US3] Extend `--stats` with the UI cost: per second, the number of UI redraws and the median and maximum software render + upload time, in spike/layered-preview/src/main.rs
+- [ ] T027 [US3] Create theme tokens for dark and light (accent `#FF7304`, depth by tone and shadow, no outlines) and load one custom font family bundled in spike/layered-preview/ui/assets/fonts/, in spike/layered-preview/ui/theme.slint
+- [ ] T028 [P] [US3] Copy the logo (old/capturax-react/brand/X.svg and CapturaX.svg) into spike/layered-preview/ui/assets/ and create shared components (title bar with window controls, dock with screenshot, record, stream, fullscreen and volume, source picker with groups and resolution badges, info overlay, raised and sunken surfaces as decided in T048; the info overlay follows the previous app's bubbles: background black at 30%, radius 16, height 44, text, icons and badges opaque; badge colors from old/capturax-react/src/core/utils/constants.ts), with visible labels of at most three words and longer text only in tooltips, in spike/layered-preview/ui/components/
+- [ ] T050 [US3] Video area from the UI: app.slint exposes the geometry and corner radius of the element where the video goes; after each UI draw the loop reads it and draws the video letterboxed inside it, with the corners rounded in the shader (the UI layer cannot clip the video), in spike/layered-preview/src/main.rs and spike/layered-preview/src/shader.wgsl
+- [ ] T029 [P] [US3] Create the Float direction (chrome hides after a few idle seconds and comes back on mouse move) in spike/layered-preview/ui/directions/float.slint
+- [ ] T030 [P] [US3] Create the Frame direction in spike/layered-preview/ui/directions/frame.slint
+- [ ] T031 [P] [US3] Create the Rail direction in spike/layered-preview/ui/directions/rail.slint
+- [ ] T032 [US3] Add runtime switching of direction and theme, `--direction`, `--theme` and `--test-video` (`videotestsrc` in the same mode instead of the card); fill the source picker with the real capture devices and monitors and a few sample windows; forward the mouse wheel, right button and keyboard to Slint; when no capture device is found, show a clear message with the next action (connect a device or use `--test-video`) instead of an empty video area; in spike/layered-preview/src/main.rs and spike/layered-preview/ui/app.slint
+- [ ] T051 [US3] (maintainer) Run each direction fullscreen at 1080p and 1440p with `--stats` while moving the mouse over the chrome; the agent records the UI cost (T049) and the frame ready → presented median with the UI idle and animating in findings.md. If an animating UI pushes the video back by more than 2 ms, note moving the UI render to its own thread as a decision for the real app
+- [ ] T033 [US3] (maintainer) Review the directions with live video and save screenshots (Snipping Tool) in specs/20261026-154808-stack-spike/measurements/screens/; the agent records the choice and reasons in findings.md
 
 **Checkpoint**: maintainer chooses a direction; commit.
 
@@ -119,11 +127,11 @@ agent updates handoff.md (constitution, Development Workflow).
 
 **Independent Test**: the capability table in findings.md has no empty row.
 
-- [ ] T034 [P] [US4] Ambient light: a small downscaled copy of the video, blurred and stretched behind it, in spike/slint-preview/src/ambient.rs and spike/slint-preview/ui/components/ambient.slint
-- [ ] T035 [P] [US4] Info overlay pinnable over the video, and detachable as a floating always-on-top window, in spike/slint-preview/ui/components/overlay.slint and spike/slint-preview/src/overlay_window.rs
-- [ ] T036 [P] [US4] Language switching without restart (English and Portuguese, a few strings with `@tr`) in spike/slint-preview/ui/ and spike/slint-preview/lang/
-- [ ] T037 [US4] Frameless window with own title bar: move, resize, maximize, fullscreen, following Slint's custom-titlebar example, in spike/slint-preview/src/window.rs
-- [ ] T038 [US4] (maintainer) Linux: run the chosen direction on CachyOS and check every capability there
+- [ ] T034 [P] [US4] Ambient light as a GPU effect: each video frame is downscaled into a small texture, blurred (two passes) and drawn stretched behind the video area with adjustable strength, with an on/off toggle in the dock; `--stats` shows whether frame ready → presented changes; in spike/layered-preview/src/ambient.rs and spike/layered-preview/src/ambient.wgsl
+- [ ] T035 [P] [US4] Info overlay pinnable over the video (UI layer), and detachable as a second winit window, borderless and always on top, with its own Slint software window (the platform hands out one window adapter per component), in spike/layered-preview/ui/components/overlay.slint and spike/layered-preview/src/overlay_window.rs; on Wayland, note whether always on top is honoured
+- [ ] T036 [P] [US4] Language switching without restart (English and Portuguese, a few strings with `@tr`, bundled translations selected at runtime) in spike/layered-preview/ui/, spike/layered-preview/lang/ and spike/layered-preview/build.rs
+- [ ] T037 [US4] Frameless winit window with the title bar from T028: move by dragging the bar, double-click to maximize, resize from the edges and corners (`drag_resize_window`), minimize, maximize, close, fullscreen; check Windows snapping (drag to an edge, Win+arrows, the snap layouts on the maximize button), in spike/layered-preview/src/window.rs
+- [ ] T038 [US4] (maintainer) Linux: run the chosen direction on CachyOS (Wayland) and check every capability there
 - [ ] T039 [US4] Fill the capability table (working, limited, not possible; platform; notes) in specs/20261026-154808-stack-spike/findings.md
 
 **Checkpoint**: maintainer reviews; commit.
@@ -144,7 +152,8 @@ agent updates handoff.md (constitution, Development Workflow).
 
 - Phase 1 → Phase 2 → Phase 3 (US1).
 - US2 (Phase 4) needs only Phase 2; it can run before or after US1.
-- US3 (Phase 5) needs T012 (video inside Slint); US4 (Phase 6) needs Phase 5's components.
+- US3 (Phase 5) needs T047 (own render loop); T048 comes first because its result decides how the
+  components draw depth; T050 is needed by Frame and Rail. US4 (Phase 6) needs Phase 5's components.
 - Phase 7 needs all stories.
 - If US1 rejects Slint (SC-002), stop before Phase 5 and decide with the maintainer how to continue.
 
@@ -152,7 +161,7 @@ agent updates handoff.md (constitution, Development Workflow).
 
 - T004 and T005; T009 and T010.
 - In US1: T015 (browser page) and T016 (analyzer) while T011–T014 are built.
-- In US3: T029, T030 and T031 once T027 and T028 exist.
+- In US3: T029, T030 and T031 once T027, T028 and T050 exist.
 - In US4: T034, T035 and T036.
 
 ## Implementation Strategy
