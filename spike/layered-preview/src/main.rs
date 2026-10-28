@@ -42,6 +42,10 @@ struct Args {
     /// Also play the audio input paired with the video device on the system default output
     #[arg(long)]
     audio: bool,
+
+    /// UI drawn over the video: overlay, or render-test (what the software renderer draws, T048)
+    #[arg(long, default_value = "overlay")]
+    ui: String,
 }
 
 /// One RGBA frame, rows packed without padding.
@@ -351,7 +355,8 @@ struct App {
     window: Option<Arc<Window>>,
     gpu: Option<Gpu>,
     slint_window: Rc<MinimalSoftwareWindow>,
-    _overlay: Overlay,
+    /// The Slint component shown; kept alive for the whole run.
+    _ui: Box<dyn std::any::Any>,
     ui_pixels: Vec<PremultipliedRgbaColor>,
     slot: Arc<Mutex<Option<Frame>>>,
     pipeline: gst::Pipeline,
@@ -572,9 +577,22 @@ fn main() -> anyhow::Result<()> {
     let slint_window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
     slint::platform::set_platform(Box::new(SpikePlatform { window: slint_window.clone(), start: Instant::now() }))
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-    let overlay = Overlay::new()?;
-    overlay.set_info(format!("{} · {mode}", device.name).into());
-    overlay.show()?;
+    let info = format!("{} · {mode}", device.name);
+    let ui: Box<dyn std::any::Any> = match args.ui.as_str() {
+        "overlay" => {
+            let overlay = Overlay::new()?;
+            overlay.set_info(info.into());
+            overlay.show()?;
+            Box::new(overlay)
+        }
+        "render-test" => {
+            let test = RenderTest::new()?;
+            test.set_info(info.into());
+            test.show()?;
+            Box::new(test)
+        }
+        other => anyhow::bail!("unknown UI {other:?} (overlay, render-test)"),
+    };
 
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     let proxy = event_loop.create_proxy();
@@ -648,7 +666,7 @@ fn main() -> anyhow::Result<()> {
         window: None,
         gpu: None,
         slint_window,
-        _overlay: overlay,
+        _ui: ui,
         ui_pixels: Vec::new(),
         slot,
         pipeline: pipeline.clone(),

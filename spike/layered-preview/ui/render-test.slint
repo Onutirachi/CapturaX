@@ -1,0 +1,226 @@
+// Test screen for what Slint's software renderer draws (research R14, T048).
+// Each cell shows one feature with a short note of what should be seen.
+import "assets/fonts/Inter.ttf";
+import { Button } from "std-widgets.slint";
+
+component Cell inherits VerticalLayout {
+    in property <string> title;
+    in property <string> expect;
+    spacing: 6px;
+    width: 230px;
+
+    Text {
+        text: root.title;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    Text {
+        text: root.expect;
+        color: #a0a0aa;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+
+    Rectangle {
+        height: 100px;
+        @children
+    }
+}
+
+// Raised surface with the two pre-blurred nine-slice shadows under it (tools/make_shadow.py).
+// Margins, offsets and borders match the ones the script prints: soft 36 + 10, tight 9 + 2.
+// The shadows are hollow, so the fill can be semi-transparent.
+component Raised inherits Rectangle {
+    in property <brush> fill: #2a2a32;
+    Image {
+        x: -36px;
+        y: -36px;
+        width: parent.width + 72px;
+        height: parent.height + 72px + 10px;
+        source: @image-url("assets/shadows/soft.png", nine-slice(52 52 62 52));
+    }
+
+    Image {
+        x: -9px;
+        y: -9px;
+        width: parent.width + 18px;
+        height: parent.height + 18px + 2px;
+        source: @image-url("assets/shadows/tight.png", nine-slice(25 25 27 25));
+    }
+
+    Rectangle {
+        border-radius: 16px;
+        background: root.fill;
+        @children
+    }
+}
+
+export component RenderTest inherits Window {
+    in property <string> info;
+    property <bool> menu-open;
+    background: transparent;
+    default-font-family: "Inter";
+
+    Rectangle {
+        y: 16px;
+        width: grid.preferred-width + 48px;
+        height: grid.preferred-height + 48px;
+        border-radius: 20px;
+        background: #1c1c22;
+
+        grid := GridLayout {
+            x: 24px;
+            y: 24px;
+            spacing: 24px;
+
+            Row {
+                Cell {
+                    title: "Bundled font";
+                    expect: "Inter at 400, 600 and 800; a different shape from Segoe UI below";
+                    VerticalLayout {
+                        spacing: 4px;
+                        Text { text: "Inter 400 · 1080p60"; color: #ffffff; font-size: 16px; font-weight: 400; }
+                        Text { text: "Inter 600 · 1080p60"; color: #ffffff; font-size: 16px; font-weight: 600; }
+                        Text { text: "Inter 800 · 1080p60"; color: #ffffff; font-size: 16px; font-weight: 800; }
+                        Text { text: "Segoe UI · 1080p60"; color: #ffffff; font-size: 16px; font-family: "Segoe UI"; }
+                    }
+                }
+
+                Cell {
+                    title: "SVG logo";
+                    expect: "Both logos sharp, with their own colors";
+                    HorizontalLayout {
+                        spacing: 16px;
+                        Image { source: @image-url("assets/X.svg"); height: 90px; }
+                        Image { source: @image-url("assets/CapturaX-dark.svg"); width: 140px; }
+                    }
+                }
+
+                Cell {
+                    title: "Rounded rectangle";
+                    expect: "Smooth corners, radius 24";
+                    Rectangle { width: 200px; height: 90px; border-radius: 24px; background: #FF7304; }
+                }
+
+                Cell {
+                    title: "Gradient path";
+                    expect: "Rounded shape filled with a gradient (workaround for gradient corners)";
+                    Path {
+                        width: 200px;
+                        height: 90px;
+                        viewbox-width: 200;
+                        viewbox-height: 90;
+                        commands: "M 24 0 L 176 0 A 24 24 0 0 1 200 24 L 200 66 A 24 24 0 0 1 176 90 L 24 90 A 24 24 0 0 1 0 66 L 0 24 A 24 24 0 0 1 24 0 Z";
+                        fill: @linear-gradient(135deg, #FF7304 0%, #3a1a00 100%);
+                    }
+                }
+            }
+
+            Row {
+                Cell {
+                    title: "Gradients";
+                    expect: "Linear (left), radial (right), both smooth";
+                    HorizontalLayout {
+                        spacing: 16px;
+                        Rectangle { width: 90px; height: 90px; border-radius: 16px; background: @linear-gradient(135deg, #FF7304 0%, #3a1a00 100%); }
+                        Rectangle { width: 90px; height: 90px; border-radius: 16px; background: @radial-gradient(circle, #FF7304 0%, #1c1c22 100%); }
+                    }
+                }
+
+                Cell {
+                    title: "Opacity";
+                    expect: "Orange square half see-through over the white bar and the video";
+                    Rectangle {
+                        Rectangle { x: 0; y: 45px; width: 200px; height: 20px; background: #ffffff; }
+                        Rectangle { x: 60px; y: 5px; width: 90px; height: 90px; background: #FF7304; opacity: 0.5; }
+                    }
+                }
+
+                Cell {
+                    title: "Nine-slice shadow";
+                    expect: "Soft shadow under the card, stronger at the bottom, no seams";
+                    Raised { x: 20px; y: 10px; width: 190px; height: 70px; }
+                }
+            }
+
+            Row {
+                Cell {
+                    title: "drop-shadow";
+                    expect: "Expected: no shadow drawn (renderer TODO in 1.18)";
+                    Rectangle {
+                        x: 20px; y: 10px; width: 190px; height: 70px;
+                        border-radius: 16px;
+                        background: #2a2a32;
+                        drop-shadow-blur: 24px;
+                        drop-shadow-offset-y: 10px;
+                        drop-shadow-color: #000000cc;
+                    }
+                }
+
+                Cell {
+                    title: "Rounded clip";
+                    expect: "Expected: square corners (radius ignored when clipping)";
+                    Rectangle {
+                        x: 20px; y: 5px; width: 190px; height: 90px;
+                        border-radius: 24px;
+                        clip: true;
+                        Rectangle { width: 300px; height: 300px; background: @linear-gradient(90deg, #FF7304 0%, #6040ff 100%); }
+                    }
+                }
+
+                Cell {
+                    title: "Overlapping menu";
+                    expect: "Opens over the cells above with a fade; opaque, like every menu";
+                    Button {
+                        text: root.menu-open ? "Close menu" : "Open menu";
+                        clicked => { root.menu-open = !root.menu-open; }
+                    }
+                }
+            }
+        }
+    }
+
+    // Drawn last, so it covers the cells; opacity and position animate together.
+    menu := Raised {
+        x: parent.width / 2 - self.width / 2;
+        y: root.menu-open ? 300px : 320px;
+        width: 220px;
+        height: items.preferred-height;
+        fill: #2a2a32;
+        opacity: root.menu-open ? 1 : 0;
+        visible: self.opacity > 0;
+        animate opacity, y { duration: 160ms; easing: ease-out; }
+
+        items := VerticalLayout {
+            padding: 6px;
+            for label in ["Screenshot", "Record", "Stream"]: Rectangle {
+                height: 36px;
+                border-radius: 10px;
+                background: area.has-hover ? #ffffff1f : transparent;
+                area := TouchArea {
+                    clicked => { root.menu-open = false; }
+                }
+                Text {
+                    x: 12px;
+                    text: label;
+                    color: #ffffff;
+                    font-size: 14px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    // Outside the panel, so the video shows through it.
+    Rectangle {
+        x: 24px;
+        y: parent.height - self.height - 24px;
+        width: 360px;
+        height: 56px;
+        border-radius: 14px;
+        background: #10101488;
+        Text { text: root.info; color: #ffffff; font-size: 14px; }
+    }
+}

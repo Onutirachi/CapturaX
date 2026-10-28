@@ -203,7 +203,30 @@ reference, measured by hand in FL Studio over several clicks.
 
 ## Capabilities
 
-Not started (T034–T039).
+Table not started (T034–T039).
+
+### What the software renderer draws (T048, Slint 1.18.1, Windows)
+
+Test screen `layered-preview --ui render-test`, over the video, checked from screenshots.
+
+| Feature | Result |
+|---|---|
+| Bundled font (Inter, variable) | Drawn; weights 400, 600 and 800 distinct; system fonts also available. The maintainer liked Inter: it is the font for the directions |
+| SVG logo | Drawn anti-aliased, **but with 2 px teeth when the element's box does not have the SVG's aspect ratio**: Slint rasterizes the SVG keeping its aspect (90×87 for a 90×90 box) and then stretches the result without filtering, repeating one row in every ~29. Sizing the image by one side only (`height: 90px`) removes them. The CapturaX wordmark has dark letters: the dark theme needs a light variant |
+| Rounded rectangle (solid color) | Drawn, smooth corners |
+| Linear and radial gradients | Drawn, but **the border radius is ignored**: square corners |
+| Gradient fill on a rounded `Path` | **Drawn as a solid color**: not a workaround |
+| Opacity | Drawn, blends with the video |
+| `drop-shadow-*` | **Not drawn** (empty in the renderer source) |
+| Clip with a border radius | **Square**: the radius is ignored |
+| Nine-slice image | Drawn; a pre-blurred shadow (tools/make_shadow.py, two layers: soft and tight) looks soft, with no seams at 3× zoom |
+| Overlapping menu | A menu with shadows opens over other elements with an opacity and position animation (160 ms). Captured mid-fade and open while semi-transparent: the content shows through it without the shadow darkening it (hollow shadows). Menus are now opaque (maintainer's decision); the fade still applies |
+| Blur | Not available in Slint in any renderer. Dropped (maintainer's decision): only panels are semi-transparent, without blur |
+
+Outcome: depth with nine-slice shadows and rounded corners works, overlapping menus included
+(research R14). Gradients and blur are dropped (maintainer's decision); only panels are semi-transparent. Anything round over the video (its
+own corners, a clipped thumbnail) is drawn by our shader. The shadows are images: their corner
+radius and blur are fixed per image, and screens above 100% scale need a @2x set.
 
 ## Visual directions
 
