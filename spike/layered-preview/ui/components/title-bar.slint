@@ -1,0 +1,81 @@
+// Own title bar for the frameless window (T028; wired to the window in T037), as in the previous
+// app: a thin opaque bar with the wordmark and rounded window controls. Hidden in fullscreen.
+import { Theme } from "../theme.slint";
+
+component WindowButton inherits Rectangle {
+    in property <image> icon;
+    in property <bool> danger;
+    callback clicked;
+    width: 44px;
+    border-radius: 6px;
+    background: area.has-hover ? (root.danger ? #c42b1c : Theme.c.hover) : transparent;
+    animate background { duration: Theme.quick; }
+
+    Image {
+        source: root.icon;
+        width: 15px;
+        height: 15px;
+        colorize: root.danger && area.has-hover ? #ffffff : Theme.c.text-muted;
+    }
+
+    area := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+export component TitleBar inherits Rectangle {
+    in property <bool> maximized;
+    // Called on a left press on the empty part of the bar: the window starts a system move.
+    callback drag();
+    callback minimize();
+    callback toggle-maximize();
+    callback close();
+
+    height: 32px;
+    background: Theme.c.deep;
+
+    TouchArea {
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                root.drag();
+            }
+        }
+        double-clicked => { root.toggle-maximize(); }
+    }
+
+    HorizontalLayout {
+        padding: 4px;
+        spacing: 4px;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            padding-left: 8px;
+            Image {
+                source: Theme.dark ? @image-url("../assets/CapturaX-light.svg") : @image-url("../assets/CapturaX-dark.svg");
+                // Both sides in the wordmark's aspect ratio (816 × 199.89): in a layout an image
+                // otherwise asks for its natural width, and a mismatched box stretches it.
+                width: 16px * 816 / 199.89;
+                height: 16px;
+            }
+        }
+
+        Rectangle { horizontal-stretch: 1; }
+
+        WindowButton {
+            icon: @image-url("../assets/icons/minimize.svg");
+            clicked => { root.minimize(); }
+        }
+
+        WindowButton {
+            icon: root.maximized ? @image-url("../assets/icons/unmaximize.svg") : @image-url("../assets/icons/maximize.svg");
+            clicked => { root.toggle-maximize(); }
+        }
+
+        WindowButton {
+            icon: @image-url("../assets/icons/close.svg");
+            danger: true;
+            clicked => { root.close(); }
+        }
+    }
+}

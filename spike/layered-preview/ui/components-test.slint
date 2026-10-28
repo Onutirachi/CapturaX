@@ -1,0 +1,136 @@
+// Component gallery (T028), laid out as the previous app: title bar above, toolbar over the top of
+// the video, a dock on each side, capture info at the bottom right. Toolbar, docks and info hide
+// 2 s after the pointer leaves them and come back when it reaches the top of the video.
+// Window controls do nothing here; T037 wires them to the window.
+import { Theme } from "theme.slint";
+import { Raised } from "components/surface.slint";
+import { Tier } from "components/basics.slint";
+import { TitleBar } from "components/title-bar.slint";
+import { ViewDock, ActionDock } from "components/dock.slint";
+import { DropItem } from "components/dropdown.slint";
+import { Toolbar } from "components/toolbar.slint";
+import { InfoOverlay } from "components/info-overlay.slint";
+
+export component ComponentsTest inherits Window {
+    in property <string> info;
+    // Devices only: screens and windows are sources of recording and streaming, not the preview.
+    in property <[DropItem]> devices: [
+        { name: "ezcap Live Gamer Ultra", detail: "1920 × 1080 · 60 FPS", badge: "Full HD", tier: Tier.full-hd },
+        { name: "Webcam C920", detail: "1280 × 720 · 30 FPS", badge: "HD", tier: Tier.hd },
+        { name: "Elgato Cam Link 4K", detail: "3840 × 2160 · 30 FPS", badge: "4K", tier: Tier.uhd },
+    ];
+    in property <[DropItem]> audio-inputs: [
+        { name: "Auto (ezcap Live Gamer Ultra)" },
+        { name: "None" },
+        { name: "Line In (Realtek Audio)" },
+    ];
+    in property <[DropItem]> modes: [
+        { group: "Automatic", name: "Auto source", detail: "1920 × 1080 · 60 FPS", badge: "Full HD", tier: Tier.full-hd },
+        { group: "Automatic", name: "Auto max resolution", detail: "2560 × 1440 · 60 FPS", badge: "QHD", tier: Tier.qhd },
+        { group: "Automatic", name: "Auto max FPS", detail: "1920 × 1080 · 120 FPS", badge: "Full HD", tier: Tier.full-hd },
+        { group: "Modes", name: "3840 × 2160 · 30 FPS", badge: "4K", tier: Tier.uhd },
+        { group: "Modes", name: "2560 × 1440 · 60 FPS", badge: "QHD", tier: Tier.qhd },
+        { group: "Modes", name: "1920 × 1080 · 120 FPS", badge: "Full HD", tier: Tier.full-hd },
+        { group: "Modes", name: "1920 × 1080 · 60 FPS", badge: "Full HD", tier: Tier.full-hd },
+        { group: "Modes", name: "1280 × 720 · 60 FPS", badge: "HD", tier: Tier.hd },
+    ];
+    background: transparent;
+    default-font-family: Theme.font;
+
+    property <length> bar: 32px;
+    property <bool> active: true;
+    property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
+        || right-area.has-hover || toolbar.menu-open;
+    changed engaged => {
+        if (self.engaged) {
+            self.active = true;
+        }
+    }
+
+    Timer {
+        interval: 2s;
+        running: root.active && !root.engaged;
+        triggered => {
+            root.active = false;
+            toolbar.close-menus();
+        }
+    }
+
+    // Reaching the top of the video brings the chrome back.
+    top-zone := TouchArea {
+        x: 0;
+        y: root.bar;
+        width: root.width;
+        height: 100px;
+    }
+
+    // Closes an open menu on a click anywhere else.
+    if toolbar.menu-open: TouchArea {
+        clicked => { toolbar.close-menus(); }
+    }
+
+    InfoOverlay {
+        x: root.width - self.preferred-width - Theme.gap-xl;
+        y: root.active || self.pinned ? root.height - 44px - Theme.gap-xl : root.height + 40px;
+        height: 44px;
+        latency-ms: 23;
+        animate y { duration: 300ms; easing: ease-out; }
+    }
+
+    left-area := TouchArea {
+        x: root.active ? 12px : -self.width - 40px;
+        y: root.bar + (root.height - root.bar - self.height) / 2;
+        width: left-dock.width;
+        height: left-dock.height;
+        animate x { duration: 300ms; easing: ease-out; }
+        left-dock := ViewDock { }
+    }
+
+    right-area := TouchArea {
+        x: root.active ? root.width - self.width - 12px : root.width + 40px;
+        y: root.bar + (root.height - root.bar - self.height) / 2;
+        width: right-dock.width;
+        height: right-dock.height;
+        animate x { duration: 300ms; easing: ease-out; }
+        right-dock := ActionDock { }
+    }
+
+    toolbar-area := TouchArea {
+        x: 0;
+        y: root.active ? root.bar : root.bar - self.height - 40px;
+        width: root.width;
+        height: toolbar.height;
+        animate y { duration: 300ms; easing: ease-out; }
+
+        toolbar := Toolbar {
+            devices: root.devices;
+            audio-inputs: root.audio-inputs;
+            modes: root.modes;
+        }
+
+        // Theme switch for this gallery, at the toolbar's right end.
+        Raised {
+            x: parent.width - self.width - Theme.gap-l;
+            y: (parent.height - self.height) / 2;
+            width: 132px;
+            height: 48px;
+            fill: Theme.c.top;
+            TouchArea {
+                clicked => { Theme.dark = !Theme.dark; }
+            }
+            Text {
+                text: Theme.dark ? "Light theme" : "Dark theme";
+                color: Theme.c.text;
+                font-size: Theme.text-m;
+                font-weight: 600;
+            }
+        }
+    }
+
+    // Last, so the hidden toolbar slides under it.
+    TitleBar {
+        x: 0;
+        y: 0;
+        width: root.width;
+    }
+}

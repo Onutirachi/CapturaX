@@ -257,6 +257,18 @@ text in light, info bubbles black at 55% (30% left white text at 2.1:1 over a wh
 2px focus ring as the only outline. The same identity is kept outside the repository as a design
 system artifact (tokens, rules, component previews) for other projects.
 
+Components (T028), arranged as the previous app after the maintainer's review: a thin opaque
+title bar with the wordmark and rounded window controls; a toolbar over the top of the video with
+fixed-width dropdowns (video device, audio, mode; devices only, screens and windows belong to the
+output's source); a left dock (fullscreen, ambient light, volume with a slider on hover) and a
+right dock (preview, screenshot, record, stream, settings); capture info at the bottom right with a
+pin; tooltips after 500 ms. Toolbar, docks and info hide 2 s after the pointer leaves and return
+when it reaches the top of the video. Toggled tools sit on a soft orange chip. The ground around
+the video takes the theme's deepest tone (the compositor reads it from the UI each frame). All
+drawn by the software renderer over the video in both themes. Slint notes: an `Image` inside a layout asks for
+the image's natural width even when only its height is set, so logos need both sides (in the
+SVG's aspect ratio); icons are single-ink SVGs tinted with `colorize`.
+
 ## Decisions
 
 Pending (T040).

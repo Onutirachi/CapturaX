@@ -1,0 +1,67 @@
+// The toolbar (T028), as in the previous app: a panel across the top of the video with the
+// preview's device, audio and mode. It slides away with the docks when the pointer is idle.
+import { Theme } from "../theme.slint";
+import { Dropdown, DropItem } from "dropdown.slint";
+
+export component Toolbar inherits Rectangle {
+    in property <[DropItem]> devices;
+    in property <[DropItem]> audio-inputs;
+    in property <[DropItem]> modes;
+    in-out property <int> device;
+    in-out property <int> audio-input;
+    in-out property <int> mode;
+    // True while one of its menus is open: the chrome must not hide then.
+    out property <bool> menu-open: device-list.open || audio-list.open || mode-list.open;
+
+    public function close-menus() {
+        device-list.open = false;
+        audio-list.open = false;
+        mode-list.open = false;
+    }
+
+    height: 88px;
+    background: Theme.c.panel;
+
+    HorizontalLayout {
+        padding: Theme.gap-l;
+        spacing: Theme.gap-l;
+        alignment: start;
+
+        device-list := Dropdown {
+            title: "Video";
+            items: root.devices;
+            current <=> root.device;
+            // One menu at a time.
+            changed open => {
+                if (self.open) {
+                    audio-list.open = false;
+                    mode-list.open = false;
+                }
+            }
+        }
+
+        audio-list := Dropdown {
+            title: "Audio";
+            items: root.audio-inputs;
+            current <=> root.audio-input;
+            changed open => {
+                if (self.open) {
+                    device-list.open = false;
+                    mode-list.open = false;
+                }
+            }
+        }
+
+        mode-list := Dropdown {
+            title: "Mode";
+            items: root.modes;
+            current <=> root.mode;
+            changed open => {
+                if (self.open) {
+                    device-list.open = false;
+                    audio-list.open = false;
+                }
+            }
+        }
+    }
+}

@@ -18,6 +18,9 @@ export struct Palette {
     accent-hover: color,
     // Accent as text and as the focus ring (the light theme needs a deeper orange to read).
     accent-text: color,
+    // Toggled tools (ambient light, preview hidden): a vivid icon on a soft orange chip.
+    accent-icon: color,
+    accent-soft: color,
     on-accent: color,
     ok: color,
     warn: color,
@@ -42,6 +45,8 @@ export global Palettes {
         accent: #ff7304,
         accent-hover: #ff8a2e,
         accent-text: #ff7304,
+        accent-icon: #ff7304,
+        accent-soft: #ff73042e,
         on-accent: #16171c,
         ok: #3fcf7c,
         warn: #f2c14e,
@@ -62,6 +67,8 @@ export global Palettes {
         accent: #f26a00,
         accent-hover: #ff7304,
         accent-text: #9e4500,
+        accent-icon: #d65a00,
+        accent-soft: #f26a0024,
         on-accent: #16171c,
         ok: #0f7038,
         warn: #7d5a00,
@@ -99,6 +106,7 @@ export global Theme {
     out property <length> gap-s: 6px;
     out property <length> gap-m: 12px;
     out property <length> gap-l: 20px;
+    out property <length> gap-xl: 24px;
 
     out property <duration> quick: 160ms;
 }

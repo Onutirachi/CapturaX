@@ -1,0 +1,86 @@
+// Capture info over the video (T028): bubbles in the previous app's shape, black at 55%, opaque
+// text, icons and badges. Pinned, it stays while the rest of the chrome hides.
+import { Theme } from "../theme.slint";
+import { Badge, Tier } from "basics.slint";
+
+export component InfoBubble inherits Rectangle {
+    height: 44px;
+    width: row.preferred-width;
+    border-radius: Theme.radius-m;
+    background: Theme.info-bubble;
+
+    row := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 8px;
+        @children
+    }
+}
+
+component BubbleText inherits Text {
+    color: Theme.info-text;
+    font-size: Theme.text-m;
+    vertical-alignment: center;
+}
+
+export component InfoOverlay inherits HorizontalLayout {
+    in property <bool> capturing: true;
+    in property <string> resolution: "1920 × 1080";
+    in property <string> badge: "Full HD";
+    in property <Tier> tier: Tier.full-hd;
+    in property <int> fps: 60;
+    // Negative when unknown: the bubble is hidden.
+    in property <int> latency-ms: -1;
+    in-out property <bool> pinned;
+
+    spacing: Theme.gap-m;
+    alignment: start;
+
+    InfoBubble {
+        VerticalLayout {
+            alignment: center;
+            Image {
+                source: root.capturing ? @image-url("../assets/icons/play.svg") : @image-url("../assets/icons/pause.svg");
+                width: 18px;
+                height: 18px;
+                colorize: Theme.info-text;
+            }
+        }
+        BubbleText { text: root.capturing ? "Capturing" : "Paused"; }
+    }
+
+    InfoBubble {
+        BubbleText { text: root.resolution; }
+        if root.badge != "": VerticalLayout {
+            alignment: center;
+            Badge { text: root.badge; tier: root.tier; }
+        }
+    }
+
+    InfoBubble {
+        BubbleText { text: root.fps + " FPS"; }
+    }
+
+    if root.latency-ms >= 0: InfoBubble {
+        BubbleText { text: root.latency-ms + " ms"; }
+    }
+
+    // A square bubble: the touch area must sit outside the bubble's row layout.
+    Rectangle {
+        width: 44px;
+        height: 44px;
+        border-radius: Theme.radius-m;
+        background: Theme.info-bubble;
+
+        TouchArea {
+            clicked => { root.pinned = !root.pinned; }
+        }
+
+        Image {
+            source: root.pinned ? @image-url("../assets/icons/pin_enable.svg") : @image-url("../assets/icons/pin_disable.svg");
+            width: 18px;
+            height: 18px;
+            colorize: root.pinned ? Theme.c.accent : Theme.info-text;
+        }
+    }
+}

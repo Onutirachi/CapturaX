@@ -1,0 +1,166 @@
+// Dropdown (T028): a fixed-width opaque control with a small title above the chosen value and its
+// badge; opens an opaque menu, grouped when items carry a group, each item with detail and badge.
+import { Theme } from "../theme.slint";
+import { Raised } from "surface.slint";
+import { Badge, Tier } from "basics.slint";
+
+export struct DropItem {
+    group: string,
+    name: string,
+    detail: string,
+    badge: string,
+    tier: Tier,
+}
+
+export component Dropdown inherits Raised {
+    in property <string> title;
+    in property <[DropItem]> items;
+    in-out property <int> current;
+    // Open state is in-out so the screen can close the menu on a click elsewhere or on hide.
+    in-out property <bool> open;
+    callback picked(int);
+
+    fill: Theme.c.top;
+    width: 240px;
+    height: 48px;
+
+    // Hover and open tint over the fill.
+    Rectangle {
+        border-radius: Theme.radius-m;
+        background: area.has-hover || root.open ? Theme.c.hover : transparent;
+        animate background { duration: Theme.quick; }
+    }
+
+    area := TouchArea {
+        clicked => { root.open = !root.open; }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 10px;
+        spacing: 8px;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 1px;
+
+            Text {
+                text: root.title;
+                color: Theme.c.text-faint;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Text {
+                    text: root.items.length > 0 ? root.items[root.current].name : "None";
+                    color: Theme.c.text;
+                    font-size: Theme.text-m;
+                    font-weight: 600;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+
+                if root.items.length > 0 && root.items[root.current].badge != "": VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Badge {
+                        text: root.items[root.current].badge;
+                        tier: root.items[root.current].tier;
+                    }
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Image {
+                source: @image-url("../assets/icons/chevron.svg");
+                width: 16px;
+                height: 16px;
+                colorize: Theme.c.text-muted;
+                transform-rotation: root.open ? 180deg : 0deg;
+                animate transform-rotation { duration: Theme.quick; }
+            }
+        }
+    }
+
+    menu := Raised {
+        fill: Theme.c.raised;
+        x: 0;
+        y: root.height + (root.open ? 8px : 0);
+        width: max(root.width, 320px);
+        height: list.preferred-height;
+        opacity: root.open ? 1 : 0;
+        visible: self.opacity > 0;
+        animate opacity, y { duration: Theme.quick; easing: ease-out; }
+
+        list := VerticalLayout {
+            padding: 6px;
+            spacing: 2px;
+
+            for item[i] in root.items: VerticalLayout {
+                // Group header, indented like the item names.
+                if item.group != "" && (i == 0 || root.items[i - 1].group != item.group): HorizontalLayout {
+                    padding-left: 12px;
+                    Text {
+                        height: 30px;
+                        text: item.group;
+                        color: Theme.c.text-faint;
+                        font-size: Theme.text-s;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    height: item.detail != "" ? 44px : 36px;
+                    border-radius: Theme.radius-s;
+                    background: i == root.current ? Theme.c.press : item-area.has-hover ? Theme.c.hover : transparent;
+
+                    item-area := TouchArea {
+                        clicked => {
+                            root.current = i;
+                            root.open = false;
+                            root.picked(i);
+                        }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        spacing: 10px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: item.name;
+                                color: Theme.c.text;
+                                font-size: Theme.text-m;
+                                overflow: elide;
+                            }
+                            if item.detail != "": Text {
+                                text: item.detail;
+                                color: Theme.c.text-muted;
+                                font-size: Theme.text-s;
+                                overflow: elide;
+                            }
+                        }
+
+                        if item.badge != "": VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 0;
+                            Badge {
+                                text: item.badge;
+                                tier: item.tier;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

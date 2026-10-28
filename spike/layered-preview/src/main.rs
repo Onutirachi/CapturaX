@@ -44,7 +44,7 @@ struct Args {
     audio: bool,
 
     /// UI drawn over the video: overlay, render-test (what the software renderer draws, T048) or
-    /// theme-test (the dark and light palettes, T027)
+    /// theme-test (the dark and light palettes, T027) or components (the shared components, T028)
     #[arg(long, default_value = "overlay")]
     ui: String,
 }
@@ -260,7 +260,7 @@ impl Gpu {
     }
 
     /// Composites the video (letterboxed) and the UI layer, then presents immediately.
-    fn render(&self) -> bool {
+    fn render(&self, backdrop: wgpu::Color) -> bool {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             _ => {
@@ -286,7 +286,7 @@ impl Gpu {
                     view: &view,
                     depth_slice: None,
                     resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(backdrop), store: wgpu::StoreOp::Store },
                 })],
                 ..Default::default()
             });
@@ -358,6 +358,8 @@ struct App {
     slint_window: Rc<MinimalSoftwareWindow>,
     /// The Slint component shown; kept alive for the whole run.
     _ui: Box<dyn std::any::Any>,
+    /// The theme's deepest tone, read each frame: the ground around the video follows the theme.
+    backdrop: Box<dyn Fn() -> wgpu::Color>,
     ui_pixels: Vec<PremultipliedRgbaColor>,
     slot: Arc<Mutex<Option<Frame>>>,
     pipeline: gst::Pipeline,
@@ -395,7 +397,7 @@ impl App {
     fn redraw(&mut self) -> bool {
         self.draw_ui();
         let Some(gpu) = self.gpu.as_ref() else { return false };
-        let presented = gpu.render();
+        let presented = gpu.render((self.backdrop)());
         if presented {
             self.last_present = Instant::now();
         }
@@ -567,6 +569,22 @@ impl ApplicationHandler<UserEvent> for App {
     }
 }
 
+/// Shows a UI component; returns it, to keep it alive, and a reader of its theme's backdrop color.
+fn show<C>(ui: C) -> anyhow::Result<(Box<dyn std::any::Any>, Box<dyn Fn() -> wgpu::Color>)>
+where
+    C: slint::ComponentHandle + 'static,
+    for<'a> Theme<'a>: slint::Global<'a, C>,
+{
+    ui.show()?;
+    let weak = ui.as_weak();
+    let backdrop = move || {
+        let deep = weak.upgrade().map(|ui| ui.global::<Theme>().get_c().deep).unwrap_or_default();
+        let channel = |v: u8| v as f64 / 255.0;
+        wgpu::Color { r: channel(deep.red()), g: channel(deep.green()), b: channel(deep.blue()), a: 1.0 }
+    };
+    Ok((Box::new(ui), Box::new(backdrop)))
+}
+
 fn toggle_fullscreen(window: Option<&Window>) {
     if let Some(w) = window {
         w.set_fullscreen(if w.fullscreen().is_some() { None } else { Some(Fullscreen::Borderless(None)) });
@@ -591,26 +609,28 @@ fn main() -> anyhow::Result<()> {
     slint::platform::set_platform(Box::new(SpikePlatform { window: slint_window.clone(), start: Instant::now() }))
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     let info = format!("{} · {mode}", device.name);
-    let ui: Box<dyn std::any::Any> = match args.ui.as_str() {
+    let (ui, backdrop) = match args.ui.as_str() {
         "overlay" => {
-            let overlay = Overlay::new()?;
-            overlay.set_info(info.into());
-            overlay.show()?;
-            Box::new(overlay)
+            let ui = Overlay::new()?;
+            ui.set_info(info.into());
+            show(ui)?
         }
         "render-test" => {
-            let test = RenderTest::new()?;
-            test.set_info(info.into());
-            test.show()?;
-            Box::new(test)
+            let ui = RenderTest::new()?;
+            ui.set_info(info.into());
+            show(ui)?
         }
         "theme-test" => {
-            let test = ThemeTest::new()?;
-            test.set_info(info.into());
-            test.show()?;
-            Box::new(test)
+            let ui = ThemeTest::new()?;
+            ui.set_info(info.into());
+            show(ui)?
         }
-        other => anyhow::bail!("unknown UI {other:?} (overlay, render-test, theme-test)"),
+        "components" => {
+            let ui = ComponentsTest::new()?;
+            ui.set_info(info.into());
+            show(ui)?
+        }
+        other => anyhow::bail!("unknown UI {other:?} (overlay, render-test, theme-test, components)"),
     };
 
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
@@ -686,6 +706,7 @@ fn main() -> anyhow::Result<()> {
         gpu: None,
         slint_window,
         _ui: ui,
+        backdrop,
         ui_pixels: Vec::new(),
         slot,
         pipeline: pipeline.clone(),
