@@ -366,6 +366,8 @@ struct App {
     stats: bool,
     presented: u64,
     delays_ms: Vec<f64>,
+    // UI layer redraws and their cost (software render + texture upload), per second (T049).
+    ui_ms: Vec<f64>,
     last_report: Instant,
     /// When the last frame was presented and the monitor's refresh interval: animations redraw at
     /// most once per refresh.
@@ -408,6 +410,7 @@ impl App {
         if ui_pixels.len() != (w * h) as usize {
             *ui_pixels = vec![PremultipliedRgbaColor::default(); (w * h) as usize];
         }
+        let started = Instant::now();
         let drawn = self.slint_window.draw_if_needed(|renderer| {
             renderer.render(ui_pixels, w as usize);
         });
@@ -416,6 +419,7 @@ impl App {
                 gpu.ui = Some(gpu.make_layer(w, h));
             }
             gpu.upload(gpu.ui.as_ref().unwrap(), bytemuck::cast_slice(ui_pixels));
+            self.ui_ms.push(started.elapsed().as_secs_f64() * 1e3);
             return true;
         }
         false
@@ -427,9 +431,17 @@ impl App {
         }
         self.delays_ms.sort_by(f64::total_cmp);
         let median = self.delays_ms.get(self.delays_ms.len() / 2).copied().unwrap_or(f64::NAN);
-        println!("[loop]  {:>4} fps presented | frame ready -> presented median {median:.1} ms", self.presented);
+        self.ui_ms.sort_by(f64::total_cmp);
+        let ui_median = self.ui_ms.get(self.ui_ms.len() / 2).copied().unwrap_or(0.0);
+        let ui_max = self.ui_ms.last().copied().unwrap_or(0.0);
+        println!(
+            "[loop]  {:>4} fps presented | frame ready -> presented median {median:.1} ms | UI {:>3} redraws, median {ui_median:.1} ms, max {ui_max:.1} ms",
+            self.presented,
+            self.ui_ms.len()
+        );
         self.presented = 0;
         self.delays_ms.clear();
+        self.ui_ms.clear();
         self.last_report = Instant::now();
     }
 }
@@ -675,6 +687,7 @@ fn main() -> anyhow::Result<()> {
         stats: args.common.stats || args.common.record,
         presented: 0,
         delays_ms: Vec::new(),
+        ui_ms: Vec::new(),
         last_report: Instant::now(),
         last_present: Instant::now(),
         refresh: Duration::from_millis(16),

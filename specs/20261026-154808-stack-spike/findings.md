@@ -228,6 +228,24 @@ Outcome: depth with nine-slice shadows and rounded corners works, overlapping me
 own corners, a clipped thumbnail) is drawn by our shader. The shadows are images: their corner
 radius and blur are fixed per image, and screens above 100% scale need a @2x set.
 
+### UI cost on the video loop (T049, first look)
+
+`layered-preview --ui render-test --stats`, 1280×720 window, 100% scale, 1080p60 video. UI time is
+the software render plus the upload of the whole UI texture.
+
+| State | UI redraws per second | UI time median / max | Frame ready → presented |
+|---|---|---|---|
+| Idle | 0 | — | 0.8–0.9 ms |
+| Menu opening and closing twice a second | 25–32 | 0.7 / 0.9 ms | 0.8–1.1 ms |
+| First draw at start (fonts, SVG parsing) | 1 | 4–41 ms | — |
+
+An animating UI does not delay the video measurably at this size. Fullscreen at 1080p and 1440p
+with the real directions is T051.
+
+Decision for the real app (maintainer, 2026-10-28), whatever T051 shows: the video never waits
+for the UI. The UI is rendered on its own thread and the compositor always uses the last finished
+UI image; in this prototype a video frame that arrives while the UI changes waits for the redraw.
+
 ## Visual directions
 
 Not started (T027–T033).
