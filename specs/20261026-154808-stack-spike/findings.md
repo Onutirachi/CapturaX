@@ -303,6 +303,12 @@ starts below the title bar and never sits behind it; in fullscreen the title bar
 video takes the whole screen. Keys: F11 toggles fullscreen, Esc leaves it and never quits
 (docs/product.md F8).
 
+Review (T033, maintainer, 2026-10-29): the Float direction with live video from the ezcap (PS5,
+1080p60) in both themes, windowed and fullscreen, chrome shown and hidden and each dropdown open
+(video, audio, mode). The maintainer is satisfied and found nothing wrong or not working.
+Screenshots: [measurements/screens/](measurements/screens/) (`<theme>-<windowed|fullscreen>-<state>.jpg`).
+The latency in the info overlay is still a sample value.
+
 ## Decisions
 
 Pending (T040).

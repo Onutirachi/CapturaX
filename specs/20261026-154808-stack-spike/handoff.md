@@ -7,12 +7,16 @@
 Implementation in progress. US1 (video latency) is settled on Windows: the own render loop
 (`spike/layered-preview`, research R13) with Direct3D 12 and Mailbox matches native (5–6 camera
 frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
-US3 is mostly done: theme, components and the Float layout are approved, the video sits in a
-UI-defined area, and T032 (real devices, `--theme`, `--test-video`, input forwarding) is done and
-approved. US4 has not started. All work is committed except `brand/`; nothing pushed.
+US3 is done: Float approved with live video (T033), UI cost measured in fullscreen (T051). US4
+has not started. All work is committed except `brand/`; nothing pushed.
 
 ## Done in the last sessions
 
+- T051 measured by the maintainer and recorded in findings.md: in fullscreen at 1080p and 1440p
+  (NVIDIA DSR, no 1440p monitor) the video keeps 60 fps and a 0.8–1.1 ms ready → presented
+  median; the UI takes at most 3.4 ms per redraw (open dropdown costliest).
+- T033: the maintainer reviewed Float with live video and approved it with no changes;
+  screenshots in measurements/screens/. US3 is done.
 - T032: gallery moved to `ui/directions/float.slint` (`--ui float`, replaces `--ui components`);
   `--theme dark|light`; `--test-video` (`videotestsrc` in `--mode`, default 1080p60 NV12, new
   `capture::video::test`); pickers filled with real devices, audio inputs and modes; info overlay
@@ -74,10 +78,8 @@ Command (from `spike/`):
 
 ## Next step
 
-1. Optional: check T032 with the ezcap and with no device connected (seen here only with
-   `--test-video` and the C920). Choosing a picker item does not reopen the capture; say if the
-   review needs that.
-2. T051 and T033 with the maintainer (UI cost in fullscreen at 1080p and 1440p, review).
-3. US4: T034 ambient light on the GPU, T035 detachable info overlay, T036 language switching,
+1. Optional: check the no-device message (T032) running; the ezcap was seen in T033. Choosing
+   a picker item does not reopen the capture; say if the review needs that.
+2. US4: T034 ambient light on the GPU, T035 detachable info overlay, T036 language switching,
    T037 frameless window, then Linux (T038) and the capability table (T039).
-4. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).
+3. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).
