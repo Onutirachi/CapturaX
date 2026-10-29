@@ -333,6 +333,47 @@ Strings are written by hand here; the real app would extract them with `slint-tr
 Outcome: working on Windows; reviewed and approved by the maintainer with `--test-video`
 (English and Portuguese). The review shortened "Stream to friends" to "Stream".
 
+### Frameless window (T037)
+
+The Float direction opens a winit window without decorations (`with_decorations(false)`, plus
+`with_undecorated_shadow` on Windows for the system shadow and Windows 11's rounded corners); the
+other UIs keep the system frame, since they have no title bar of their own. The title bar from
+T028 asks for window actions through the `WindowState` global (drag, minimize, toggle maximize,
+close; `maximized` comes back from Rust on each resize). A press on the bar starts the system move
+(`drag_window`) only once the pointer moves more than 4 px, so a double click still reaches the
+bar and toggles maximize; after the move the loop sends Slint a pointer exit, since the system
+move swallows the release. Resizing is handled in Rust, before Slint: a 6 px band along the edges
+and corners sets the resize cursor and a left press there calls `drag_resize_window` (off when
+maximized or fullscreen). While the left button is held on the UI the edges are not checked, so
+a fast drag of the title bar toward the top edge keeps the normal cursor (the move starts only
+after 4 px, and the pointer could reach the resize band first).
+
+Checked by the maintainer on Windows 11: move by the bar (a maximized window restores under the
+pointer), double click to maximize and restore, resize from the four edges and corners, minimize,
+maximize, close, F11 and the dock's fullscreen, snapping by dragging to the screen's edges and
+Win+arrows. Not available: the snap layouts flyout on the maximize button. Windows shows it only
+when the window answers `WM_NCHITTEST` with `HTMAXBUTTON` over that button, which winit does not
+let an app do; it would take subclassing the window procedure.
+
+Review fixes: the minimum window is 800 × 520, the smallest where Float fits without overlaps
+(the toolbar's three dropdowns across; the right dock between the toolbar and the bottom
+bubbles); a compact layout for smaller windows is left to the main screen's spec (docs/product.md
+F8). The spike-only language and theme switches hide when the toolbar is too narrow for them; the
+real app keeps both in the settings (F39, F46). The info bubbles animate their place relative to
+their corner, so a window resize moves them at once (animating the absolute place made them chase
+the new corner for 300 ms).
+
+**The video stalls while the window is moved**, with the system frame (`--ui overlay`) as much as
+without it, and it did so before T037. Measured with `--test-video` at 1080p60 (`--stats` now also
+prints the longest gap between two presented frames and the window moves per second): capture
+steady at 60 fps with nothing dropped, while presenting falls to 34–57 fps with gaps of 50–130 ms;
+frame ready → presented median 2–23 ms (0.9 ms at rest). Holding the window still mid-drag
+presents one frame per second (gaps of 1005 ms). Cause: on Windows, moving or resizing a window
+runs the system's modal loop on the thread that owns it; the spike presents the video from that
+thread, on winit user events, which the modal loop delivers late. Reading the monitor's refresh
+rate on every move event was also slow and now happens only when the monitor changes; it was not
+the cause. The fix to prove is presenting the video from its own thread (T052).
+
 ## Visual directions
 
 The maintainer chose Float, laid out as the previous app, while reviewing the components (T028);
