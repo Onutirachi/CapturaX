@@ -2,9 +2,10 @@
 //! as soon as it arrives, with a Slint UI layer (software renderer) composited over the video.
 //!
 //! F11 toggles fullscreen on the current monitor; Esc closes an open menu, then leaves fullscreen.
-//! Close the window to quit.
+//! Close the window to quit. The Float direction draws its own title bar on a frameless window.
 
 mod ambient;
+mod window;
 
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -21,7 +22,10 @@ use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, NamedKey};
-use winit::window::{Fullscreen, Window, WindowId};
+use winit::monitor::MonitorHandle;
+use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
+
+use window::WindowAction;
 
 slint::include_modules!();
 
@@ -87,6 +91,8 @@ enum UserEvent {
     FrameReady,
     /// The UI asked for fullscreen on or off (the dock's button).
     ToggleFullscreen,
+    /// The title bar asked the window to move, minimize, maximize or close.
+    Window(WindowAction),
     Error(String),
 }
 
@@ -458,8 +464,17 @@ struct App {
     video_area: Box<dyn Fn() -> Option<Area>>,
     /// Tells the UI whether the window is fullscreen.
     set_fullscreen: Box<dyn Fn(bool)>,
+    /// Tells the UI whether the window is maximized.
+    set_maximized: Box<dyn Fn(bool)>,
     /// Closes an open menu; false when none was open (Esc then leaves fullscreen).
     close_menu: Box<dyn Fn() -> bool>,
+    /// The UI draws its own title bar: the window has no system frame and resizes from its edges.
+    frameless: bool,
+    /// The edge or corner under the pointer, where a left press resizes the window.
+    resize: Option<ResizeDirection>,
+    /// The left button is held on the UI: the edges do not take the pointer until it is released,
+    /// so a fast drag of the title bar toward an edge keeps the normal cursor.
+    pressed: bool,
     /// Whether the UI has the ambient light on, and its strength.
     ambient: Box<dyn Fn() -> bool>,
     ambient_strength: f32,
@@ -475,11 +490,17 @@ struct App {
     delays_ms: Vec<f64>,
     // UI layer redraws and their cost (software render + texture upload), per second (T049).
     ui_ms: Vec<f64>,
+    // Longest time between two presented video frames, and window moves, per second (T037).
+    last_video: Option<Instant>,
+    max_gap_ms: f64,
+    moves: u32,
     last_report: Instant,
     /// When the last frame was presented and the monitor's refresh interval: animations redraw at
     /// most once per refresh.
     last_present: Instant,
     refresh: Duration,
+    /// The monitor the refresh interval was read from.
+    monitor: Option<MonitorHandle>,
 }
 
 impl App {
@@ -488,9 +509,15 @@ impl App {
         self.request_redraw();
     }
 
-    /// Reads the refresh interval of the monitor the window is on.
+    /// Reads the refresh interval of the monitor the window is on, when it is another monitor:
+    /// reading it is slow on Windows, and a window move sends many events.
     fn update_refresh(&mut self, window: &Window) {
-        if let Some(mhz) = window.current_monitor().and_then(|m| m.refresh_rate_millihertz()).filter(|r| *r > 0) {
+        let monitor = window.current_monitor();
+        if monitor == self.monitor {
+            return;
+        }
+        self.monitor = monitor;
+        if let Some(mhz) = self.monitor.as_ref().and_then(|m| m.refresh_rate_millihertz()).filter(|r| *r > 0) {
             self.refresh = Duration::from_secs_f64(1000.0 / mhz as f64);
         }
     }
@@ -549,15 +576,20 @@ impl App {
         self.ui_ms.sort_by(f64::total_cmp);
         let ui_median = self.ui_ms.get(self.ui_ms.len() / 2).copied().unwrap_or(0.0);
         let ui_max = self.ui_ms.last().copied().unwrap_or(0.0);
+        let max = self.delays_ms.last().copied().unwrap_or(f64::NAN);
         println!(
-            "[loop]  {:>4} fps presented | frame ready -> presented median {median:.1} ms | UI {:>3} redraws, median {ui_median:.1} ms, max {ui_max:.1} ms | ambient {}",
+            "[loop]  {:>4} fps presented | frame ready -> presented median {median:.1} ms, max {max:.1} ms | longest gap {:.1} ms | UI {:>3} redraws, median {ui_median:.1} ms, max {ui_max:.1} ms | {} moves | ambient {}",
             self.presented,
+            self.max_gap_ms,
             self.ui_ms.len(),
+            self.moves,
             if (self.ambient)() { "on" } else { "off" }
         );
         self.presented = 0;
         self.delays_ms.clear();
         self.ui_ms.clear();
+        self.max_gap_ms = 0.0;
+        self.moves = 0;
         self.last_report = Instant::now();
     }
 }
@@ -567,10 +599,7 @@ impl ApplicationHandler<UserEvent> for App {
         if self.window.is_some() {
             return;
         }
-        let attrs = Window::default_attributes()
-            .with_title("CapturaX spike (layered)")
-            .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
-        let window = Arc::new(event_loop.create_window(attrs).expect("window"));
+        let window = Arc::new(event_loop.create_window(window::attributes(self.frameless)).expect("window"));
         let size = window.inner_size();
         self.scale = window.scale_factor() as f32;
         self.update_refresh(&window);
@@ -597,6 +626,16 @@ impl ApplicationHandler<UserEvent> for App {
                 event_loop.exit();
             }
             UserEvent::ToggleFullscreen => self.toggle_fullscreen(),
+            UserEvent::Window(action) => {
+                let Some(w) = self.window.clone() else { return };
+                if !window::act(&w, action) {
+                    event_loop.exit();
+                } else if let WindowAction::Drag = action {
+                    // The system move swallows the button release: let the bar drop its press.
+                    self.pressed = false;
+                    self.dispatch(SlintEvent::PointerExited);
+                }
+            }
             UserEvent::FrameReady => {
                 let Some(frame) = self.slot.lock().unwrap().take() else { return };
                 if let Some(gpu) = self.gpu.as_mut() {
@@ -609,6 +648,10 @@ impl ApplicationHandler<UserEvent> for App {
                 if self.redraw() {
                     self.presented += 1;
                     self.delays_ms.push(frame.ready.elapsed().as_secs_f64() * 1e3);
+                    let now = Instant::now();
+                    if let Some(last) = self.last_video.replace(now) {
+                        self.max_gap_ms = self.max_gap_ms.max((now - last).as_secs_f64() * 1e3);
+                    }
                 }
                 self.report();
             }
@@ -623,9 +666,13 @@ impl ApplicationHandler<UserEvent> for App {
                     gpu.resize(size.width, size.height);
                 }
                 self.slint_window.set_size(slint::PhysicalSize::new(size.width, size.height));
+                if let Some(w) = &self.window {
+                    (self.set_maximized)(w.is_maximized());
+                }
                 self.redraw();
             }
             WindowEvent::Moved(_) => {
+                self.moves += 1;
                 if let Some(window) = self.window.clone() {
                     self.update_refresh(&window);
                 }
@@ -638,11 +685,34 @@ impl ApplicationHandler<UserEvent> for App {
                 self.redraw();
             }
             WindowEvent::CursorMoved { position, .. } => {
+                if let Some(w) = self.window.as_ref().filter(|_| self.frameless && !self.pressed) {
+                    let resize = window::resize_direction(w, position);
+                    if resize != self.resize {
+                        w.set_cursor(window::cursor(resize));
+                        self.resize = resize;
+                    }
+                }
                 self.cursor = slint::LogicalPosition::new(position.x as f32 / self.scale, position.y as f32 / self.scale);
                 self.dispatch(SlintEvent::PointerMoved { position: self.cursor });
             }
-            WindowEvent::CursorLeft { .. } => self.dispatch(SlintEvent::PointerExited),
+            WindowEvent::CursorLeft { .. } => {
+                self.resize = None;
+                self.dispatch(SlintEvent::PointerExited);
+            }
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. }
+                if self.resize.is_some() =>
+            {
+                // The edges belong to the window, not the UI.
+                if let (Some(w), Some(direction)) = (&self.window, self.resize)
+                    && let Err(err) = w.drag_resize_window(direction)
+                {
+                    eprintln!("window resize: {err}");
+                }
+            }
             WindowEvent::MouseInput { state, button, .. } => {
+                if button == MouseButton::Left {
+                    self.pressed = state == ElementState::Pressed;
+                }
                 let button = match button {
                     MouseButton::Left => PointerEventButton::Left,
                     MouseButton::Right => PointerEventButton::Right,
@@ -745,8 +815,10 @@ struct Ui {
     backdrop: Box<dyn Fn() -> wgpu::Color>,
     video_area: Box<dyn Fn() -> Option<Area>>,
     set_fullscreen: Box<dyn Fn(bool)>,
+    set_maximized: Box<dyn Fn(bool)>,
     close_menu: Box<dyn Fn() -> bool>,
     ambient: Box<dyn Fn() -> bool>,
+    frameless: bool,
 }
 
 /// What a UI offers the loop beyond the shared globals; the defaults suit a UI without them.
@@ -757,11 +829,18 @@ struct Hooks {
     close_menu: Box<dyn Fn() -> bool>,
     /// Whether the ambient light is on.
     ambient: Box<dyn Fn() -> bool>,
+    /// Whether it draws its own title bar (the window then has no system frame).
+    title_bar: bool,
 }
 
 impl Default for Hooks {
     fn default() -> Self {
-        Self { video_area: Box::new(|| None), close_menu: Box::new(|| false), ambient: Box::new(|| false) }
+        Self {
+            video_area: Box::new(|| None),
+            close_menu: Box::new(|| false),
+            ambient: Box::new(|| false),
+            title_bar: false,
+        }
     }
 }
 
@@ -773,9 +852,19 @@ where
     for<'a> WindowState<'a>: slint::Global<'a, C>,
 {
     ui.global::<Theme>().set_dark(dark);
-    ui.global::<WindowState>().on_toggle_fullscreen(move || {
-        let _ = proxy.send_event(UserEvent::ToggleFullscreen);
-    });
+    let state = ui.global::<WindowState>();
+    let send = move |event: UserEvent| {
+        let _ = proxy.send_event(event);
+    };
+    let on = send.clone();
+    state.on_toggle_fullscreen(move || on(UserEvent::ToggleFullscreen));
+    let on = send.clone();
+    state.on_drag(move || on(UserEvent::Window(WindowAction::Drag)));
+    let on = send.clone();
+    state.on_minimize(move || on(UserEvent::Window(WindowAction::Minimize)));
+    let on = send.clone();
+    state.on_toggle_maximize(move || on(UserEvent::Window(WindowAction::ToggleMaximize)));
+    state.on_close(move || send(UserEvent::Window(WindowAction::Close)));
     ui.show()?;
     let weak = ui.as_weak();
     let backdrop = move || {
@@ -789,13 +878,21 @@ where
             ui.global::<WindowState>().set_fullscreen(on);
         }
     };
+    let weak = ui.as_weak();
+    let set_maximized = move |on: bool| {
+        if let Some(ui) = weak.upgrade() {
+            ui.global::<WindowState>().set_maximized(on);
+        }
+    };
     Ok(Ui {
         component: Box::new(ui),
         backdrop: Box::new(backdrop),
         video_area: hooks.video_area,
         set_fullscreen: Box::new(set_fullscreen),
+        set_maximized: Box::new(set_maximized),
         close_menu: hooks.close_menu,
         ambient: hooks.ambient,
+        frameless: hooks.title_bar,
     })
 }
 
@@ -1011,8 +1108,12 @@ fn main() -> anyhow::Result<()> {
             ui.set_ambient_light(args.ambient);
             let weak = ui.as_weak();
             let ambient = move || weak.upgrade().is_some_and(|ui| ui.get_ambient_light());
-            let hooks =
-                Hooks { video_area: Box::new(video_area), close_menu: Box::new(close_menu), ambient: Box::new(ambient) };
+            let hooks = Hooks {
+                video_area: Box::new(video_area),
+                close_menu: Box::new(close_menu),
+                ambient: Box::new(ambient),
+                title_bar: true,
+            };
             show(ui, hooks, dark, event_loop.create_proxy())?
         }
         other => anyhow::bail!("unknown UI {other:?} (overlay, render-test, theme-test, float)"),
@@ -1108,7 +1209,11 @@ fn main() -> anyhow::Result<()> {
         backdrop: ui.backdrop,
         video_area: ui.video_area,
         set_fullscreen: ui.set_fullscreen,
+        set_maximized: ui.set_maximized,
         close_menu: ui.close_menu,
+        frameless: ui.frameless,
+        resize: None,
+        pressed: false,
         ambient: ui.ambient,
         ambient_strength: args.ambient_strength.clamp(0.0, 1.0),
         ui_pixels: Vec::new(),
@@ -1119,10 +1224,14 @@ fn main() -> anyhow::Result<()> {
         stats: args.common.stats || args.common.record,
         presented: 0,
         delays_ms: Vec::new(),
+        last_video: None,
+        max_gap_ms: 0.0,
+        moves: 0,
         ui_ms: Vec::new(),
         last_report: Instant::now(),
         last_present: Instant::now(),
         refresh: Duration::from_millis(16),
+        monitor: None,
     };
     if let Some(sound) = &sound {
         let bus = sound.pipeline.bus().expect("pipeline has a bus");

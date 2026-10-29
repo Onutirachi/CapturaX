@@ -1,4 +1,4 @@
-// Own title bar for the frameless window (T028; wired to the window in T037), as in the previous
+// Own title bar for the frameless window (T028, wired in T037), as in the previous
 // app: a thin opaque bar with the wordmark and rounded window controls. Hidden in fullscreen.
 import { Theme } from "../theme.slint";
 
@@ -25,7 +25,9 @@ component WindowButton inherits Rectangle {
 
 export component TitleBar inherits Rectangle {
     in property <bool> maximized;
-    // Called on a left press on the empty part of the bar: the window starts a system move.
+    // Called when the pointer, pressed on the empty part of the bar, moves away from the press
+    // point: the window starts a system move. Not on the press itself, so a double click still
+    // reaches the bar.
     callback drag();
     callback minimize();
     callback toggle-maximize();
@@ -35,8 +37,8 @@ export component TitleBar inherits Rectangle {
     background: Theme.c.deep;
 
     TouchArea {
-        pointer-event(event) => {
-            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+        moved => {
+            if (self.pressed && (abs(self.mouse-x - self.pressed-x) > 4px || abs(self.mouse-y - self.pressed-y) > 4px)) {
                 root.drag();
             }
         }

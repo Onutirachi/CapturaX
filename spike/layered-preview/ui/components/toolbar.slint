@@ -14,6 +14,8 @@ export component Toolbar inherits Rectangle {
     in property <length> room: 10000px;
     // True while one of its menus is open: the chrome must not hide then.
     out property <bool> menu-open: device-list.open || audio-list.open || mode-list.open;
+    // Width the dropdowns take, padding included.
+    out property <length> used: row.preferred-width;
 
     public function close-menus() {
         device-list.open = false;
@@ -24,7 +26,7 @@ export component Toolbar inherits Rectangle {
     height: 88px;
     background: Theme.c.panel;
 
-    HorizontalLayout {
+    row := HorizontalLayout {
         padding: Theme.gap-l;
         spacing: Theme.gap-l;
         alignment: start;

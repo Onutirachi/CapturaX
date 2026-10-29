@@ -2,7 +2,7 @@
 // of the video, a dock on each side, capture info in the corners the user picks. Toolbar, docks and
 // the unpinned info hide 2 s after the pointer leaves them and come back when it reaches the top
 // of the video or a pinned bubble.
-// The lists come from Rust (real devices and modes); window controls are wired in T037.
+// The lists come from Rust (real devices and modes); the window controls are wired in T037.
 import { Theme } from "../theme.slint";
 import { Raised } from "../components/surface.slint";
 import { Tier } from "../components/basics.slint";
@@ -146,8 +146,13 @@ export component Float inherits Window {
             room: root.height - root.bar;
         }
 
+        // The language and theme switches are for testing the spike only (the real app keeps them in
+        // the settings): they hide when the window is too narrow to hold them beside the dropdowns.
+        property <bool> switches: self.width >= toolbar.used + 2 * 132px + Theme.gap-m + Theme.gap-l;
+
         // Runtime language switch (T036), left of the theme switch. Each language is named in itself.
         Raised {
+            visible: parent.switches;
             x: theme-switch.x - self.width - Theme.gap-m;
             y: (parent.height - self.height) / 2;
             width: 132px;
@@ -166,6 +171,7 @@ export component Float inherits Window {
 
         // Runtime theme switch (T032), at the toolbar's right end.
         theme-switch := Raised {
+            visible: parent.switches;
             x: parent.width - self.width - Theme.gap-l;
             y: (parent.height - self.height) / 2;
             width: 132px;
@@ -188,5 +194,10 @@ export component Float inherits Window {
         x: 0;
         y: 0;
         width: root.width;
+        maximized: WindowState.maximized;
+        drag => { WindowState.drag(); }
+        minimize => { WindowState.minimize(); }
+        toggle-maximize => { WindowState.toggle-maximize(); }
+        close => { WindowState.close(); }
     }
 }

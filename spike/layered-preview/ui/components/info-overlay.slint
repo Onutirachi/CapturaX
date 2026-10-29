@@ -24,6 +24,14 @@ component InfoItem inherits Rectangle {
     in property <length> room;
     // This bubble holds the only menu allowed open: the last one the pointer entered.
     in property <bool> current;
+    // Its place as a share of the overlay's size (0 left or top, 1 right or bottom) plus an
+    // offset. Both are animated, not the place itself: a window resize moves the bubble at once,
+    // and a move to another corner still glides along the same path.
+    in property <float> side-x;
+    in property <length> offset-x;
+    in property <float> side-y;
+    in property <length> offset-y;
+    in property <length> room-y;
     out property <bool> pointed: area.has-hover || bridge.has-hover || menu-area.has-hover
         || (root.picking && (corner-bridge.has-hover || corner-area.has-hover));
     callback step(int);
@@ -71,6 +79,13 @@ component InfoItem inherits Rectangle {
         triggered => { root.show-menu = false; }
     }
 
+    property <float> sx: root.side-x;
+    property <length> ox: root.offset-x;
+    property <float> sy: root.side-y;
+    property <length> oy: root.offset-y;
+    animate sx, ox, sy, oy { duration: 300ms; easing: ease-out; }
+    x: self.sx * root.room + self.ox;
+    y: self.sy * root.room-y + self.oy;
     height: 44px;
     width: row.preferred-width;
     border-radius: Theme.radius-m;
@@ -288,6 +303,13 @@ export component InfoOverlay inherits Rectangle {
             ? root.width - root.margin - root.group(root.corner[k], all)
             : root.margin)
     }
+    // 1 for the right corners (x) or the bottom ones (y), which follow the overlay's far edge.
+    pure function side-x(k: int) -> float {
+        root.corner[k] == 1 || root.corner[k] == 3 ? 1 : 0
+    }
+    pure function side-y(k: int) -> float {
+        root.corner[k] < 2 ? 0 : 1
+    }
     // Off screen past the nearest edge when not shown (the title bar covers the top one).
     pure function y-of(k: int) -> length {
         root.corner[k] < 2
@@ -335,17 +357,19 @@ export component InfoOverlay inherits Rectangle {
     }
 
     status := InfoItem {
-        x: root.x-of(0);
-        y: root.y-of(0);
+        side-x: root.side-x(0);
+        offset-x: root.x-of(0) - root.side-x(0) * root.width;
+        side-y: root.side-y(0);
+        offset-y: root.y-of(0) - root.side-y(0) * root.height;
         open: root.open;
         room: root.width;
+        room-y: root.height;
         pinned: root.pinned[0];
         corner: root.corner[0];
         first: root.order[0] == 0;
         last: root.order[0] == root.count(root.corner[0]) - 1;
         visible: root.exists(0);
         current: root.menu-at == 0;
-        animate x, y { duration: 300ms; easing: ease-out; }
         entered => { root.menu-at = 0; }
         step(by) => { root.step(0, by); }
         toggle-pin => { root.pinned[0] = !root.pinned[0]; }
@@ -364,17 +388,19 @@ export component InfoOverlay inherits Rectangle {
     }
 
     size := InfoItem {
-        x: root.x-of(1);
-        y: root.y-of(1);
+        side-x: root.side-x(1);
+        offset-x: root.x-of(1) - root.side-x(1) * root.width;
+        side-y: root.side-y(1);
+        offset-y: root.y-of(1) - root.side-y(1) * root.height;
         open: root.open;
         room: root.width;
+        room-y: root.height;
         pinned: root.pinned[1];
         corner: root.corner[1];
         first: root.order[1] == 0;
         last: root.order[1] == root.count(root.corner[1]) - 1;
         visible: root.exists(1);
         current: root.menu-at == 1;
-        animate x, y { duration: 300ms; easing: ease-out; }
         entered => { root.menu-at = 1; }
         step(by) => { root.step(1, by); }
         toggle-pin => { root.pinned[1] = !root.pinned[1]; }
@@ -388,17 +414,19 @@ export component InfoOverlay inherits Rectangle {
     }
 
     rate := InfoItem {
-        x: root.x-of(2);
-        y: root.y-of(2);
+        side-x: root.side-x(2);
+        offset-x: root.x-of(2) - root.side-x(2) * root.width;
+        side-y: root.side-y(2);
+        offset-y: root.y-of(2) - root.side-y(2) * root.height;
         open: root.open;
         room: root.width;
+        room-y: root.height;
         pinned: root.pinned[2];
         corner: root.corner[2];
         first: root.order[2] == 0;
         last: root.order[2] == root.count(root.corner[2]) - 1;
         visible: root.exists(2);
         current: root.menu-at == 2;
-        animate x, y { duration: 300ms; easing: ease-out; }
         entered => { root.menu-at = 2; }
         step(by) => { root.step(2, by); }
         toggle-pin => { root.pinned[2] = !root.pinned[2]; }
@@ -408,17 +436,19 @@ export component InfoOverlay inherits Rectangle {
     }
 
     delay := InfoItem {
-        x: root.x-of(3);
-        y: root.y-of(3);
+        side-x: root.side-x(3);
+        offset-x: root.x-of(3) - root.side-x(3) * root.width;
+        side-y: root.side-y(3);
+        offset-y: root.y-of(3) - root.side-y(3) * root.height;
         open: root.open;
         room: root.width;
+        room-y: root.height;
         pinned: root.pinned[3];
         corner: root.corner[3];
         first: root.order[3] == 0;
         last: root.order[3] == root.count(root.corner[3]) - 1;
         visible: root.exists(3);
         current: root.menu-at == 3;
-        animate x, y { duration: 300ms; easing: ease-out; }
         entered => { root.menu-at = 3; }
         step(by) => { root.step(3, by); }
         toggle-pin => { root.pinned[3] = !root.pinned[3]; }
