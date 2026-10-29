@@ -5,10 +5,11 @@
 //! Close the window to quit. The Float direction draws its own title bar on a frameless window.
 
 mod ambient;
+mod gpu;
 mod window;
 
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use capture::mode::{self, Mode};
@@ -25,6 +26,7 @@ use winit::keyboard::{Key, NamedKey};
 use winit::monitor::MonitorHandle;
 use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
 
+use gpu::{Gpu, Mailbox, Scene, UiImage, VideoThread};
 use window::WindowAction;
 
 slint::include_modules!();
@@ -87,8 +89,6 @@ struct Frame {
 }
 
 enum UserEvent {
-    /// A new frame is waiting in the shared slot.
-    FrameReady,
     /// The UI asked for fullscreen on or off (the dock's button).
     ToggleFullscreen,
     /// The title bar asked the window to move, minimize, maximize or close.
@@ -114,311 +114,8 @@ impl slint::platform::Platform for SpikePlatform {
     }
 }
 
-/// A texture drawn as one rectangle (video or UI layer).
-struct Layer {
-    texture: wgpu::Texture,
-    bind_group: wgpu::BindGroup,
-    rect: wgpu::Buffer,
-    width: u32,
-    height: u32,
-}
-
-struct Gpu {
-    surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    pipeline: wgpu::RenderPipeline,
-    layout: wgpu::BindGroupLayout,
-    sampler: wgpu::Sampler,
-    video: Option<Layer>,
-    ui: Option<Layer>,
-    /// A video frame was uploaded since the last render: the ambient light takes it.
-    fresh_video: bool,
-    ambient: ambient::Ambient,
-    glow: Layer,
-}
-
-impl Gpu {
-    fn new(window: Arc<Window>, wanted: Option<&str>, backend: Option<&str>) -> anyhow::Result<Self> {
-        let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
-        desc.backends = match backend {
-            None => wgpu::Backends::all(),
-            Some("vulkan") => wgpu::Backends::VULKAN,
-            Some("dx12") => wgpu::Backends::DX12,
-            Some("gl") => wgpu::Backends::GL,
-            Some(other) => anyhow::bail!("unknown backend {other:?} (vulkan, dx12, gl)"),
-        };
-        let instance = wgpu::Instance::new(desc);
-        let surface = instance.create_surface(window.clone())?;
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            ..Default::default()
-        }))?;
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))?;
-
-        let size = window.inner_size();
-        let caps = surface.get_capabilities(&adapter);
-        let mut config = surface
-            .get_default_config(&adapter, size.width.max(1), size.height.max(1))
-            .ok_or_else(|| anyhow::anyhow!("surface not supported by the adapter"))?;
-        // Plain (non-sRGB) format: the video bytes are shown as they are.
-        if let Some(format) = caps.formats.iter().find(|f| !f.is_srgb()) {
-            config.format = *format;
-        }
-        config.present_mode = choose_present_mode(&caps.present_modes, wanted)?;
-        // At most one frame waiting in the swap chain.
-        config.desired_maximum_frame_latency = 1;
-        surface.configure(&device, &config);
-        println!(
-            "GPU: {} ({:?}) | present mode {:?} | supported {:?}",
-            adapter.get_info().name,
-            adapter.get_info().backend,
-            config.present_mode,
-            caps.present_modes
-        );
-
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("layer"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    // Bounds for the vertices; size and radius for the rounded corners.
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("layer"),
-            bind_group_layouts: &[Some(&layout)],
-            ..Default::default()
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("layer"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleStrip, ..Default::default() },
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-        let ambient = ambient::Ambient::new(&device);
-        let glow = new_layer(
-            &device,
-            &layout,
-            &sampler,
-            ambient::WIDTH,
-            ambient::HEIGHT,
-            wgpu::TextureUsages::RENDER_ATTACHMENT,
-        );
-        Ok(Self {
-            surface,
-            device,
-            queue,
-            config,
-            pipeline,
-            layout,
-            sampler,
-            video: None,
-            ui: None,
-            fresh_video: false,
-            ambient,
-            glow,
-        })
-    }
-
-    fn resize(&mut self, width: u32, height: u32) {
-        self.config.width = width.max(1);
-        self.config.height = height.max(1);
-        self.surface.configure(&self.device, &self.config);
-    }
-
-    fn make_layer(&self, width: u32, height: u32) -> Layer {
-        new_layer(&self.device, &self.layout, &self.sampler, width, height, wgpu::TextureUsages::COPY_DST)
-    }
-
-    fn upload(&self, layer: &Layer, data: &[u8]) {
-        self.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &layer.texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            data,
-            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(layer.width * 4), rows_per_image: None },
-            wgpu::Extent3d { width: layer.width, height: layer.height, depth_or_array_layers: 1 },
-        );
-    }
-
-    /// Composites the ambient light (with its strength, when on), the video (letterboxed) and the
-    /// UI layer, then presents immediately. `area` is where the video is letterboxed (the whole
-    /// surface when the UI gives none); the ambient light fills it.
-    fn render(&mut self, backdrop: wgpu::Color, area: Option<Area>, ambient: Option<f32>) -> bool {
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-            _ => {
-                self.surface.configure(&self.device, &self.config);
-                return false;
-            }
-        };
-        let (w, h) = (self.config.width as f32, self.config.height as f32);
-        // Pixel rectangle to clip space, plus the size and radius the shader rounds the corners with.
-        let uniform = |x: f32, y: f32, rw: f32, rh: f32, radius: f32, opacity: f32| {
-            [x / w * 2.0 - 1.0, 1.0 - y / h * 2.0, (x + rw) / w * 2.0 - 1.0, 1.0 - (y + rh) / h * 2.0, rw, rh, radius, opacity]
-        };
-        let [ax, ay, aw, ah, radius] = area.unwrap_or([0.0, 0.0, w, h, 0.0]);
-        if let Some(video) = &self.video {
-            let scale = (aw / video.width as f32).min(ah / video.height as f32);
-            let (rw, rh) = ((video.width as f32 * scale).round(), (video.height as f32 * scale).round());
-            let (x, y) = ((ax + (aw - rw) / 2.0).round(), (ay + (ah - rh) / 2.0).round());
-            self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&uniform(x, y, rw, rh, radius, 1.0)));
-        }
-        if let Some(ui) = &self.ui {
-            self.queue.write_buffer(&ui.rect, 0, bytemuck::cast_slice(&uniform(0.0, 0.0, w, h, 0.0, 1.0)));
-        }
-        let view = frame.texture.create_view(&Default::default());
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let glow = match (ambient, &self.video) {
-            (Some(strength), Some(video)) => {
-                if std::mem::take(&mut self.fresh_video) {
-                    let video_view = video.texture.create_view(&Default::default());
-                    let glow_view = self.glow.texture.create_view(&Default::default());
-                    self.ambient.update(&self.device, &mut encoder, &video_view, &glow_view);
-                }
-                let rect = uniform(ax, ay, aw, ah, radius, strength);
-                self.queue.write_buffer(&self.glow.rect, 0, bytemuck::cast_slice(&rect));
-                self.ambient.ready().then_some(&self.glow)
-            }
-            _ => {
-                self.ambient.reset();
-                None
-            }
-        };
-        self.fresh_video = false;
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("composite"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(backdrop), store: wgpu::StoreOp::Store },
-                })],
-                ..Default::default()
-            });
-            pass.set_pipeline(&self.pipeline);
-            for layer in [glow, self.video.as_ref(), self.ui.as_ref()].into_iter().flatten() {
-                pass.set_bind_group(0, &layer.bind_group, &[]);
-                pass.draw(0..4, 0..1);
-            }
-        }
-        self.queue.submit([encoder.finish()]);
-        self.queue.present(frame);
-        true
-    }
-}
-
-/// A layer's texture (sampled, plus `usage`) with its rectangle and bind group.
-fn new_layer(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    sampler: &wgpu::Sampler,
-    width: u32,
-    height: u32,
-    usage: wgpu::TextureUsages,
-) -> Layer {
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("layer"),
-        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | usage,
-        view_formats: &[],
-    });
-    let rect = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("rect"),
-        size: 32,
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
-    let view = texture.create_view(&Default::default());
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("layer"),
-        layout,
-        entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
-            wgpu::BindGroupEntry { binding: 2, resource: rect.as_entire_binding() },
-        ],
-    });
-    Layer { texture, bind_group, rect, width, height }
-}
-
-fn choose_present_mode(supported: &[wgpu::PresentMode], wanted: Option<&str>) -> anyhow::Result<wgpu::PresentMode> {
-    use wgpu::PresentMode::*;
-    let order: Vec<wgpu::PresentMode> = match wanted {
-        Some("immediate") => vec![Immediate],
-        Some("mailbox") => vec![Mailbox],
-        Some("fifo") => vec![Fifo],
-        Some(other) => anyhow::bail!("unknown present mode {other:?} (immediate, mailbox, fifo)"),
-        None => vec![Immediate, Mailbox, Fifo],
-    };
-    order
-        .into_iter()
-        .find(|m| supported.contains(m))
-        .ok_or_else(|| anyhow::anyhow!("present mode {wanted:?} not supported (supported: {supported:?})"))
-}
-
-/// Appsink keeping only the newest RGBA frame in `slot`, waking the loop when the slot fills.
-fn appsink(slot: Arc<Mutex<Option<Frame>>>, proxy: EventLoopProxy<UserEvent>) -> gst_app::AppSink {
+/// Appsink handing each RGBA frame to the video thread.
+fn appsink(mailbox: Arc<Mailbox>) -> gst_app::AppSink {
     let caps = gst_video::VideoCapsBuilder::new().format(gst_video::VideoFormat::Rgba).build();
     let sink = gst_app::AppSink::builder().caps(&caps).sync(false).max_buffers(1).drop(true).build();
     sink.set_callbacks(
@@ -439,10 +136,7 @@ fn appsink(slot: Arc<Mutex<Option<Frame>>>, proxy: EventLoopProxy<UserEvent>) ->
                 for y in 0..height as usize {
                     data[y * row..(y + 1) * row].copy_from_slice(&src[y * stride..y * stride + row]);
                 }
-                let was_empty = slot.lock().unwrap().replace(Frame { width, height, data, ready: Instant::now() }).is_none();
-                if was_empty {
-                    let _ = proxy.send_event(UserEvent::FrameReady);
-                }
+                mailbox.send_frame(Frame { width, height, data, ready: Instant::now() });
                 Ok(gst::FlowSuccess::Ok)
             })
             .build(),
@@ -454,7 +148,13 @@ struct App {
     present: Option<String>,
     backend: Option<String>,
     window: Option<Arc<Window>>,
-    gpu: Option<Gpu>,
+    /// The window's size in physical pixels, which the UI is drawn at.
+    size: winit::dpi::PhysicalSize<u32>,
+    /// Presents the video and the UI layer (research R15); started with the window.
+    video: Option<VideoThread>,
+    mailbox: Arc<Mailbox>,
+    /// The scene last handed to the video thread.
+    scene: Option<Scene>,
     slint_window: Rc<MinimalSoftwareWindow>,
     /// The Slint component shown; kept alive for the whole run.
     _ui: Box<dyn std::any::Any>,
@@ -479,25 +179,15 @@ struct App {
     ambient: Box<dyn Fn() -> bool>,
     ambient_strength: f32,
     ui_pixels: Vec<PremultipliedRgbaColor>,
-    slot: Arc<Mutex<Option<Frame>>>,
     /// None when there is no video source (no device found).
     pipeline: Option<gst::Pipeline>,
     cursor: slint::LogicalPosition,
     scale: f32,
-    // Stats: frames presented and time from frame ready to present, per second.
+    /// The video thread prints its stats each second.
     stats: bool,
-    presented: u64,
-    delays_ms: Vec<f64>,
-    // UI layer redraws and their cost (software render + texture upload), per second (T049).
-    ui_ms: Vec<f64>,
-    // Longest time between two presented video frames, and window moves, per second (T037).
-    last_video: Option<Instant>,
-    max_gap_ms: f64,
-    moves: u32,
-    last_report: Instant,
-    /// When the last frame was presented and the monitor's refresh interval: animations redraw at
+    /// When the UI was last handed over and the monitor's refresh interval: animations redraw at
     /// most once per refresh.
-    last_present: Instant,
+    last_ui: Instant,
     refresh: Duration,
     /// The monitor the refresh interval was read from.
     monitor: Option<MonitorHandle>,
@@ -528,26 +218,14 @@ impl App {
         }
     }
 
-    /// Draws the UI layer if Slint says it changed, then composites and presents.
-    fn redraw(&mut self) -> bool {
-        self.draw_ui();
-        let scale = self.scale;
-        let area = (self.video_area)().map(|a| a.map(|v| v * scale));
-        let ambient = (self.ambient)().then_some(self.ambient_strength);
-        let backdrop = (self.backdrop)();
-        let Some(gpu) = self.gpu.as_mut() else { return false };
-        let presented = gpu.render(backdrop, area, ambient);
-        if presented {
-            self.last_present = Instant::now();
+    /// Advances timers and animations, draws the UI if Slint says it changed, and hands it to the
+    /// video thread with the scene when either changed.
+    fn update_ui(&mut self) {
+        if self.video.is_none() {
+            return;
         }
-        presented
-    }
-
-    /// Advances timers and animations and draws the UI layer if it changed; true when it drew.
-    fn draw_ui(&mut self) -> bool {
-        let Some(gpu) = self.gpu.as_mut() else { return false };
         slint::platform::update_timers_and_animations();
-        let (w, h) = (gpu.config.width, gpu.config.height);
+        let (w, h) = (self.size.width.max(1), self.size.height.max(1));
         let ui_pixels = &mut self.ui_pixels;
         if ui_pixels.len() != (w * h) as usize {
             *ui_pixels = vec![PremultipliedRgbaColor::default(); (w * h) as usize];
@@ -556,41 +234,21 @@ impl App {
         let drawn = self.slint_window.draw_if_needed(|renderer| {
             renderer.render(ui_pixels, w as usize);
         });
-        if drawn || gpu.ui.as_ref().is_none_or(|ui| ui.width != w || ui.height != h) {
-            if gpu.ui.as_ref().is_none_or(|ui| ui.width != w || ui.height != h) {
-                gpu.ui = Some(gpu.make_layer(w, h));
-            }
-            gpu.upload(gpu.ui.as_ref().unwrap(), bytemuck::cast_slice(ui_pixels));
-            self.ui_ms.push(started.elapsed().as_secs_f64() * 1e3);
-            return true;
+        let ui = drawn.then(|| {
+            let pixels = bytemuck::cast_slice(&self.ui_pixels).to_vec();
+            UiImage { width: w, height: h, pixels, cost_ms: started.elapsed().as_secs_f64() * 1e3 }
+        });
+        let scale = self.scale;
+        let scene = Scene {
+            backdrop: (self.backdrop)(),
+            area: (self.video_area)().map(|a| a.map(|v| v * scale)),
+            ambient: (self.ambient)().then_some(self.ambient_strength),
+        };
+        if ui.is_some() || self.scene != Some(scene) {
+            self.mailbox.send_ui(ui, scene, (self.size.width, self.size.height));
+            self.scene = Some(scene);
+            self.last_ui = Instant::now();
         }
-        false
-    }
-
-    fn report(&mut self) {
-        if !self.stats || self.last_report.elapsed() < Duration::from_secs(1) {
-            return;
-        }
-        self.delays_ms.sort_by(f64::total_cmp);
-        let median = self.delays_ms.get(self.delays_ms.len() / 2).copied().unwrap_or(f64::NAN);
-        self.ui_ms.sort_by(f64::total_cmp);
-        let ui_median = self.ui_ms.get(self.ui_ms.len() / 2).copied().unwrap_or(0.0);
-        let ui_max = self.ui_ms.last().copied().unwrap_or(0.0);
-        let max = self.delays_ms.last().copied().unwrap_or(f64::NAN);
-        println!(
-            "[loop]  {:>4} fps presented | frame ready -> presented median {median:.1} ms, max {max:.1} ms | longest gap {:.1} ms | UI {:>3} redraws, median {ui_median:.1} ms, max {ui_max:.1} ms | {} moves | ambient {}",
-            self.presented,
-            self.max_gap_ms,
-            self.ui_ms.len(),
-            self.moves,
-            if (self.ambient)() { "on" } else { "off" }
-        );
-        self.presented = 0;
-        self.delays_ms.clear();
-        self.ui_ms.clear();
-        self.max_gap_ms = 0.0;
-        self.moves = 0;
-        self.last_report = Instant::now();
     }
 }
 
@@ -601,12 +259,13 @@ impl ApplicationHandler<UserEvent> for App {
         }
         let window = Arc::new(event_loop.create_window(window::attributes(self.frameless)).expect("window"));
         let size = window.inner_size();
+        self.size = size;
         self.scale = window.scale_factor() as f32;
         self.update_refresh(&window);
         self.slint_window.window().dispatch_event(SlintEvent::ScaleFactorChanged { scale_factor: self.scale });
         self.slint_window.set_size(slint::PhysicalSize::new(size.width, size.height));
         match Gpu::new(window.clone(), self.present.as_deref(), self.backend.as_deref()) {
-            Ok(gpu) => self.gpu = Some(gpu),
+            Ok(gpu) => self.video = Some(VideoThread::start(gpu, self.mailbox.clone(), self.stats)),
             Err(err) => {
                 eprintln!("GPU setup failed: {err}");
                 event_loop.exit();
@@ -614,6 +273,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
         self.window = Some(window);
+        self.update_ui();
         if let Some(Err(err)) = self.pipeline.as_ref().map(|p| p.set_state(gst::State::Playing)) {
             eprintln!("Could not start capture: {err}");
         }
@@ -636,25 +296,6 @@ impl ApplicationHandler<UserEvent> for App {
                     self.dispatch(SlintEvent::PointerExited);
                 }
             }
-            UserEvent::FrameReady => {
-                let Some(frame) = self.slot.lock().unwrap().take() else { return };
-                if let Some(gpu) = self.gpu.as_mut() {
-                    if gpu.video.as_ref().is_none_or(|v| v.width != frame.width || v.height != frame.height) {
-                        gpu.video = Some(gpu.make_layer(frame.width, frame.height));
-                    }
-                    gpu.upload(gpu.video.as_ref().unwrap(), &frame.data);
-                    gpu.fresh_video = true;
-                }
-                if self.redraw() {
-                    self.presented += 1;
-                    self.delays_ms.push(frame.ready.elapsed().as_secs_f64() * 1e3);
-                    let now = Instant::now();
-                    if let Some(last) = self.last_video.replace(now) {
-                        self.max_gap_ms = self.max_gap_ms.max((now - last).as_secs_f64() * 1e3);
-                    }
-                }
-                self.report();
-            }
         }
     }
 
@@ -662,17 +303,15 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
-                if let Some(gpu) = self.gpu.as_mut() {
-                    gpu.resize(size.width, size.height);
-                }
+                self.size = size;
                 self.slint_window.set_size(slint::PhysicalSize::new(size.width, size.height));
                 if let Some(w) = &self.window {
                     (self.set_maximized)(w.is_maximized());
                 }
-                self.redraw();
+                self.update_ui();
             }
             WindowEvent::Moved(_) => {
-                self.moves += 1;
+                self.mailbox.count_move();
                 if let Some(window) = self.window.clone() {
                     self.update_refresh(&window);
                 }
@@ -681,9 +320,7 @@ impl ApplicationHandler<UserEvent> for App {
                 self.scale = scale_factor as f32;
                 self.dispatch(SlintEvent::ScaleFactorChanged { scale_factor: self.scale });
             }
-            WindowEvent::RedrawRequested => {
-                self.redraw();
-            }
+            WindowEvent::RedrawRequested => self.update_ui(),
             WindowEvent::CursorMoved { position, .. } => {
                 if let Some(w) = self.window.as_ref().filter(|_| self.frameless && !self.pressed) {
                     let resize = window::resize_direction(w, position);
@@ -763,19 +400,23 @@ impl ApplicationHandler<UserEvent> for App {
         // Keep Slint timers and animations running between video frames, so they do not step at
         // the video's frame rate. Read before updating: an update clears the flag until the next
         // draw reads the animated properties again.
+        let animating = self.slint_window.window().has_active_animations();
+        if !animating || Instant::now() >= self.last_ui + self.refresh {
+            self.update_ui();
+        }
         let mut wake = slint::platform::duration_until_next_timer_update().map(|wait| Instant::now() + wait);
-        if self.slint_window.window().has_active_animations() {
-            let next = self.last_present + self.refresh;
-            if Instant::now() >= next {
-                self.request_redraw();
-            } else {
-                wake = Some(wake.map_or(next, |w| w.min(next)));
-            }
-        } else if self.draw_ui() {
-            // A timer changed the UI (the chrome hiding): present it now.
-            self.request_redraw();
+        if animating {
+            let next = (self.last_ui + self.refresh).max(Instant::now() + Duration::from_millis(1));
+            wake = Some(wake.map_or(next, |w| w.min(next)));
         }
         event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
+    }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        // The video thread holds the surface: it stops while the window still exists.
+        if let Some(video) = self.video.as_mut() {
+            video.stop();
+        }
     }
 }
 
@@ -1120,7 +761,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let proxy = event_loop.create_proxy();
-    let slot = Arc::new(Mutex::new(None));
+    let mailbox = Arc::new(Mailbox::default());
 
     // Built before the video source takes the device.
     let sound = match (&input, args.audio) {
@@ -1148,7 +789,7 @@ fn main() -> anyhow::Result<()> {
                 if cfg!(windows) { "d3d12upload ! d3d12convert ! d3d12download" } else { "videoconvert" },
                 true,
             )?;
-            let sink = appsink(slot.clone(), proxy.clone());
+            let sink = appsink(mailbox.clone());
             let pipeline = gst::Pipeline::with_name("layered-preview");
             // The preview always goes through a tee and its own queue, so a run with --encoder
             // differs from a run without it only by the encoder branch.
@@ -1203,7 +844,10 @@ fn main() -> anyhow::Result<()> {
         present: args.present,
         backend: args.backend,
         window: None,
-        gpu: None,
+        size: Default::default(),
+        video: None,
+        mailbox,
+        scene: None,
         slint_window,
         _ui: ui.component,
         backdrop: ui.backdrop,
@@ -1217,19 +861,11 @@ fn main() -> anyhow::Result<()> {
         ambient: ui.ambient,
         ambient_strength: args.ambient_strength.clamp(0.0, 1.0),
         ui_pixels: Vec::new(),
-        slot,
         pipeline: pipeline.clone(),
         cursor: slint::LogicalPosition::new(0.0, 0.0),
         scale: 1.0,
         stats: args.common.stats || args.common.record,
-        presented: 0,
-        delays_ms: Vec::new(),
-        last_video: None,
-        max_gap_ms: 0.0,
-        moves: 0,
-        ui_ms: Vec::new(),
-        last_report: Instant::now(),
-        last_present: Instant::now(),
+        last_ui: Instant::now(),
         refresh: Duration::from_millis(16),
         monitor: None,
     };
