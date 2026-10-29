@@ -203,7 +203,7 @@ reference, measured by hand in FL Studio over several clicks.
 
 ## Capabilities
 
-Table not started (T034–T039).
+Table not started (T039); the sections below record each capability as it is tried.
 
 ### What the software renderer draws (T048, Slint 1.18.1, Windows)
 
@@ -272,6 +272,25 @@ come back at 1440p and look like the switch to fullscreen, not the UI (cause not
 Decision for the real app (maintainer, 2026-10-28), whatever T051 shows: the video never waits
 for the UI. The UI is rendered on its own thread and the compositor always uses the last finished
 UI image; in this prototype a video frame that arrives while the UI changes waits for the redraw.
+
+### Ambient light (T034)
+
+Built on the GPU in the render loop, as the previous app's AmbientLight.tsx: each new video frame
+is shrunk to 96×54 (16 taps per texel, saturation 1.4), blurred in two passes (sigma 6 texels) and
+blended into the previous glow (35% of a new frame at 30 Hz, scaled to the real frame interval).
+The glow is drawn stretched over the video area at strength 0.9, before the video, so it shows in
+the letterbox bars. The dock's button toggles it.
+
+`--ui float --stats`, `--test-video` 1080p60, Direct3D 12 + Mailbox, 1280×720 window:
+
+| Ambient light | Presented | Frame ready → presented |
+|---|---|---|
+| Off | 60–61 fps | 0.8–0.9 ms |
+| On | 60–61 fps | 0.9–1.0 ms |
+
+Outcome: working on Windows. The maintainer checked it with live video and a widened window and
+liked the result. The difference is about 0.1 ms on the CPU side; the GPU time of the three small
+passes is not measured. Linux is checked in T038.
 
 ## Visual directions
 

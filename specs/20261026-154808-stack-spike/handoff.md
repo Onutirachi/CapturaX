@@ -8,9 +8,21 @@ Implementation in progress. US1 (video latency) is settled on Windows: the own r
 (`spike/layered-preview`, research R13) with Direct3D 12 and Mailbox matches native (5–6 camera
 frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
 US3 is done: Float approved with live video (T033), UI cost measured in fullscreen (T051). US4
-has not started. All work is committed except `brand/`; nothing pushed.
+started: T034 (ambient light) is done and approved. All work is committed except `brand/`;
+nothing pushed.
 
 ## Done in the last sessions
+
+- T034 done, approved by the maintainer with live video (findings.md): `src/ambient.rs` and
+  `src/ambient.wgsl` follow the previous app's AmbientLight.tsx (96 × 54, saturation 1.4, blur
+  sigma 6 texels, 35% of each new frame at 30 Hz scaled to the real frame interval, strength
+  0.9). Each new video frame is shrunk (16 taps per texel), blurred in two passes, and the last
+  pass blends into the previous glow; the glow is drawn stretched over the video area (same
+  rounded corners) before the video, so it shows in the letterbox bars. The dock's button
+  toggles it (`ambient-light` on Float); `--ambient` starts it on, `--ambient-strength` sets the
+  strength (no runtime control); `--stats` prints `ambient on|off`. The layer shader's padding
+  became a per-layer opacity. With `--test-video` at 1080p60 here: 60 fps both ways, frame ready
+  → presented median 0.9–1.0 ms on vs 0.8–0.9 ms off (CPU side; the GPU time is not measured).
 
 - T051 measured by the maintainer and recorded in findings.md: in fullscreen at 1080p and 1440p
   (NVIDIA DSR, no 1440p monitor) the video keeps 60 fps and a 0.8–1.1 ms ready → presented
@@ -80,6 +92,6 @@ Command (from `spike/`):
 
 1. Optional: check the no-device message (T032) running; the ezcap was seen in T033. Choosing
    a picker item does not reopen the capture; say if the review needs that.
-2. US4: T034 ambient light on the GPU, T035 detachable info overlay, T036 language switching,
+2. US4: T035 detachable info overlay, T036 language switching,
    T037 frameless window, then Linux (T038) and the capability table (T039).
 3. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).
