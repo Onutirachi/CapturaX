@@ -131,7 +131,10 @@ possible, with the reason.
    - custom fonts and the brand logo;
    - switching language and theme without restart;
    - frameless window with its own title bar: move, resize, maximize, fullscreen, on Windows
-     and Linux.
+     and Linux;
+   - the video keeps playing smoothly while the window is moved or resized.
+     *Added 2026-10-29*: T037 found the video stalling while the window moves, with or without
+     the system frame (maintainer's decision: prove the fix in the spike).
 
 ---
 

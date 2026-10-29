@@ -374,6 +374,32 @@ thread, on winit user events, which the modal loop delivers late. Reading the mo
 rate on every move event was also slow and now happens only when the monitor changes; it was not
 the cause. The fix to prove is presenting the video from its own thread (T052).
 
+### Video thread (T052)
+
+Research R15 as built: a `video` thread owns the GPU (`src/gpu.rs`: surface, layers, ambient
+light, composite, present). The appsink puts each frame in a shared inbox and wakes it; the main
+thread draws the UI with Slint and, when it changed, puts a copy of the image there with the scene
+(backdrop, video area, ambient light) and the window size. The inbox keeps only the newest of
+each; the video thread presents when a frame or a UI image arrives and prints the `[loop]` stats.
+The surface is created on the main thread and moved; the thread stops before the window closes.
+The UI cost in `--stats` is now the Slint draw plus that copy (≈ 0.4–1.0 ms median); the upload
+moved to the video thread.
+
+Measured by the maintainer with `--test-video` at 1080p60, Float (frameless) and overlay (system
+frame) alike:
+
+| | Before (T037) | After |
+|---|---|---|
+| At rest | 60 fps, median 0.9 ms | 60–61 fps, median 1.1 ms |
+| Window moving | 34–57 fps, gaps 50–130 ms | 40–61 fps, gaps 30–115 ms; median 1–30 ms |
+| Held still mid-drag | 1 fps, gaps 1005 ms | no stall |
+
+The stall is gone; the maintainer sees a short hitch when a move starts, then smooth video.
+Fast moves still drop to 40–50 fps with a 20–30 ms median, with or without the system frame.
+The video thread no longer waits for the window's, so this is likely Windows composing the
+moving window (DWM), not the app; not confirmed. UI animations pause during a move, as expected.
+Capture never dropped a frame.
+
 ## Visual directions
 
 The maintainer chose Float, laid out as the previous app, while reviewing the components (T028);

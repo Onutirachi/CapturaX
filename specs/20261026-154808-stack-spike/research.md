@@ -111,6 +111,28 @@ alternatives considered.
   to the realistic floor (≈ 18–20 ms at 60 Hz). Further gains come from a 120 Hz source and
   tearing presentation, which apply to any option.
 
+## R15. Video presented from its own thread (decided 2026-10-29)
+
+- **Context**: under R13 one thread owns the window, runs Slint and presents the video, woken by
+  winit user events. On Windows, moving or resizing a window runs the system's modal loop on the
+  thread that owns it, and the user events arrive late: with `--test-video` at 1080p60 the video
+  drops to 34–57 fps with gaps of 50–130 ms while the window moves, and to one frame per second
+  while it is held still mid-drag (T037, findings.md).
+- **Decision**: a video thread owns the GPU (surface, layers, ambient light, composite, present).
+  The appsink hands each frame to it directly and wakes it, without the window's event queue. The
+  main thread keeps winit and Slint: when the UI changes it hands over the finished UI image, and
+  with it the surface size and the scene (backdrop, video area, ambient light); the video thread
+  keeps only the newest of each. It composites and presents when a new video frame or UI image
+  arrives, and counts the `[loop]` stats. The surface is created on the main thread and moved.
+- **Expected limit**: Slint stays on the blocked thread, so UI animations may pause during a move;
+  the video does not.
+- **Rationale**: the real app already keeps the video from waiting for the UI (R13); this also
+  keeps it from waiting for the window's thread. On Linux there is no modal loop, but the same
+  split holds.
+- **Alternatives**: keeping one thread and waking it with a timer during the move (`WM_TIMER`
+  through a window subclass) — Windows-only, and the video would still wait for the window's
+  thread; drawing from the appsink's streaming thread — blocks capture while the GPU works.
+
 ## R14. What the software renderer draws (2026-10-27)
 
 - **Context**: under R13 the whole UI goes through Slint's software renderer. Its 1.18.1 source

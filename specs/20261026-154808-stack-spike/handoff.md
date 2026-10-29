@@ -8,11 +8,28 @@ Implementation in progress. US1 (video latency) is settled on Windows: the own r
 (`spike/layered-preview`, research R13) with Direct3D 12 and Mailbox matches native (5–6 camera
 frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
 US3 is done: Float approved with live video (T033), UI cost measured in fullscreen (T051). US4
-started: T034 (ambient light) and T035 (info bubbles arranged per bubble, replacing the
-detached window) are done and approved. T036 (language switching) is done and approved. All work is committed except `brand/`; nothing
+started: T034 (ambient light), T035 (info bubbles arranged per bubble, replacing the detached
+window), T036 (language switching), T037 (frameless window) and T052 (video presented from its own
+thread, added after T037) are done and approved. All work is committed except `brand/`; nothing
 pushed.
 
 ## Done in the last sessions
+
+- T052 done and approved (spec US4, research R15, findings.md): moving the window stalled the
+  video, with or without the system frame, because Windows holds the window's thread during a
+  move and the video was presented from it. Now a `video` thread owns the GPU (src/gpu.rs) and
+  is woken by the appsink directly; the main thread keeps winit and Slint and hands over the
+  newest UI image, scene and size. The stall is gone; fast moves still drop to 40–50 fps (likely
+  DWM, not confirmed). `--stats` prints the longest gap between presented frames and the window
+  moves per second.
+- T037 done and approved (findings.md): frameless window for `--ui float` only (src/window.rs),
+  title bar actions through the `WindowState` global, move after 4 px so double click maximizes,
+  6 px resize band handled in Rust (not checked while the left button is held on the UI). All
+  checked on Windows 11 except the snap layouts flyout on the maximize button (needs
+  `HTMAXBUTTON`, not available through winit). Minimum window 800 × 520; the compact layout for
+  small windows is docs/product.md F8 (main screen spec). The spike-only language and theme
+  switches hide when narrow; in the real app they live in the settings (F39, new F46 in the App
+  shell spec). The bubbles follow a window resize at once.
 
 - T036 done and approved (findings.md): build.rs bundles `lang/<language>/LC_MESSAGES/layered-preview.po`
   (gettext, no translation context) and the UI strings use `@tr`; only `pt-BR` exists, English is
@@ -122,5 +139,5 @@ Command (from `spike/`):
 
 1. Optional: check the no-device message (T032) running; the ezcap was seen in T033. Choosing
    a picker item does not reopen the capture; say if the review needs that.
-2. US4: T037 frameless window, then Linux (T038) and the capability table (T039).
+2. US4: Linux (T038, also check moving the window there) and the capability table (T039).
 3. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).
