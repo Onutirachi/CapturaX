@@ -27,7 +27,6 @@ All binaries run from `spike/` with `cargo run --release -p <name> -- <options>`
 | `--bare` | video only, no chrome (measured path B) |
 | `--transfer <cpu or gpu>` | how frames reach Slint (default `cpu`) |
 | `--renderer <name>` | Slint renderer: `femtovg` (OpenGL, default), `femtovg-wgpu`, `skia` (Direct3D on Windows), `skia-opengl`, `skia-wgpu`, `software` (T014) |
-| `--direction <float, frame or rail>` | starting visual direction (switchable at runtime) |
 | `--theme <dark or light>` | starting theme (switchable at runtime) |
 | `--test-video <file>` | use a video file instead of a device (visual review only) |
 

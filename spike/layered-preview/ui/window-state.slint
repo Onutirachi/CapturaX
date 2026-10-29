@@ -1,0 +1,17 @@
+// Shared with Rust (T050, T037): the window's state and where the video goes.
+
+// The window's state, kept by Rust; the UI asks for changes through the callbacks.
+export global WindowState {
+    in-out property <bool> fullscreen;
+    callback toggle-fullscreen();
+}
+
+// Where the compositor draws the video, in logical pixels: the video is letterboxed inside and its
+// corners are rounded in the shader (the UI layer cannot clip the video).
+export struct VideoRect {
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    radius: length,
+}

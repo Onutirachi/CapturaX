@@ -1,7 +1,7 @@
 //! Own render loop (research R13, T047): winit window + wgpu swap chain presenting each video frame
 //! as soon as it arrives, with a Slint UI layer (software renderer) composited over the video.
 //!
-//! F11 or F toggles fullscreen on the current monitor; Esc or Q quits.
+//! F11 toggles fullscreen on the current monitor; Esc leaves it. Close the window to quit.
 
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -60,8 +60,13 @@ struct Frame {
 enum UserEvent {
     /// A new frame is waiting in the shared slot.
     FrameReady,
+    /// The UI asked for fullscreen on or off (the dock's button).
+    ToggleFullscreen,
     Error(String),
 }
+
+/// Where the video goes, in physical pixels: x, y, width, height, corner radius.
+type Area = [f32; 5];
 
 /// Slint platform: one software-rendered window whose pixels we composite ourselves.
 struct SpikePlatform {
@@ -161,7 +166,8 @@ impl Gpu {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    // Bounds for the vertices; size and radius for the rounded corners.
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -228,7 +234,7 @@ impl Gpu {
         });
         let rect = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("rect"),
-            size: 16,
+            size: 32,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -260,7 +266,8 @@ impl Gpu {
     }
 
     /// Composites the video (letterboxed) and the UI layer, then presents immediately.
-    fn render(&self, backdrop: wgpu::Color) -> bool {
+    /// `area` is where the video is letterboxed (the whole surface when the UI gives none).
+    fn render(&self, backdrop: wgpu::Color, area: Option<Area>) -> bool {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             _ => {
@@ -269,13 +276,19 @@ impl Gpu {
             }
         };
         let (w, h) = (self.config.width as f32, self.config.height as f32);
+        // Pixel rectangle to clip space, plus the size and radius the shader rounds the corners with.
+        let uniform = |x: f32, y: f32, rw: f32, rh: f32, radius: f32| {
+            [x / w * 2.0 - 1.0, 1.0 - y / h * 2.0, (x + rw) / w * 2.0 - 1.0, 1.0 - (y + rh) / h * 2.0, rw, rh, radius, 0.0]
+        };
         if let Some(video) = &self.video {
-            let scale = (w / video.width as f32).min(h / video.height as f32);
-            let (rw, rh) = (video.width as f32 * scale / w, video.height as f32 * scale / h);
-            self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&[-rw, rh, rw, -rh]));
+            let [ax, ay, aw, ah, radius] = area.unwrap_or([0.0, 0.0, w, h, 0.0]);
+            let scale = (aw / video.width as f32).min(ah / video.height as f32);
+            let (rw, rh) = ((video.width as f32 * scale).round(), (video.height as f32 * scale).round());
+            let (x, y) = ((ax + (aw - rw) / 2.0).round(), (ay + (ah - rh) / 2.0).round());
+            self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&uniform(x, y, rw, rh, radius)));
         }
         if let Some(ui) = &self.ui {
-            self.queue.write_buffer(&ui.rect, 0, bytemuck::cast_slice(&[-1.0f32, 1.0, 1.0, -1.0]));
+            self.queue.write_buffer(&ui.rect, 0, bytemuck::cast_slice(&uniform(0.0, 0.0, w, h, 0.0)));
         }
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
@@ -360,6 +373,10 @@ struct App {
     _ui: Box<dyn std::any::Any>,
     /// The theme's deepest tone, read each frame: the ground around the video follows the theme.
     backdrop: Box<dyn Fn() -> wgpu::Color>,
+    /// Where the UI wants the video, in logical pixels (none: the whole window).
+    video_area: Box<dyn Fn() -> Option<Area>>,
+    /// Tells the UI whether the window is fullscreen.
+    set_fullscreen: Box<dyn Fn(bool)>,
     ui_pixels: Vec<PremultipliedRgbaColor>,
     slot: Arc<Mutex<Option<Frame>>>,
     pipeline: gst::Pipeline,
@@ -397,7 +414,9 @@ impl App {
     fn redraw(&mut self) -> bool {
         self.draw_ui();
         let Some(gpu) = self.gpu.as_ref() else { return false };
-        let presented = gpu.render((self.backdrop)());
+        let scale = self.scale;
+        let area = (self.video_area)().map(|a| a.map(|v| v * scale));
+        let presented = gpu.render((self.backdrop)(), area);
         if presented {
             self.last_present = Instant::now();
         }
@@ -483,6 +502,7 @@ impl ApplicationHandler<UserEvent> for App {
                 eprintln!("{message}");
                 event_loop.exit();
             }
+            UserEvent::ToggleFullscreen => self.toggle_fullscreen(),
             UserEvent::FrameReady => {
                 let Some(frame) = self.slot.lock().unwrap().take() else { return };
                 if let Some(gpu) = self.gpu.as_mut() {
@@ -535,10 +555,11 @@ impl ApplicationHandler<UserEvent> for App {
                 });
             }
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => match event.logical_key {
-                Key::Named(NamedKey::F11) => toggle_fullscreen(self.window.as_deref()),
-                Key::Named(NamedKey::Escape) => event_loop.exit(),
-                Key::Character(c) if c.eq_ignore_ascii_case("f") => toggle_fullscreen(self.window.as_deref()),
-                Key::Character(c) if c.eq_ignore_ascii_case("q") => event_loop.exit(),
+                Key::Named(NamedKey::F11) => self.toggle_fullscreen(),
+                // Esc never quits: it closes what is open, then leaves fullscreen.
+                Key::Named(NamedKey::Escape) if self.window.as_ref().is_some_and(|w| w.fullscreen().is_some()) => {
+                    self.toggle_fullscreen()
+                }
                 _ => {}
             },
             _ => {}
@@ -569,12 +590,25 @@ impl ApplicationHandler<UserEvent> for App {
     }
 }
 
-/// Shows a UI component; returns it, to keep it alive, and a reader of its theme's backdrop color.
-fn show<C>(ui: C) -> anyhow::Result<(Box<dyn std::any::Any>, Box<dyn Fn() -> wgpu::Color>)>
+/// A shown UI component and what the loop reads from it or tells it.
+struct Ui {
+    /// Kept alive for the whole run.
+    component: Box<dyn std::any::Any>,
+    backdrop: Box<dyn Fn() -> wgpu::Color>,
+    video_area: Box<dyn Fn() -> Option<Area>>,
+    set_fullscreen: Box<dyn Fn(bool)>,
+}
+
+/// Shows a UI component. `video_area` reads where it wants the video (none: the whole window).
+fn show<C>(ui: C, video_area: Box<dyn Fn() -> Option<Area>>, proxy: EventLoopProxy<UserEvent>) -> anyhow::Result<Ui>
 where
     C: slint::ComponentHandle + 'static,
     for<'a> Theme<'a>: slint::Global<'a, C>,
+    for<'a> WindowState<'a>: slint::Global<'a, C>,
 {
+    ui.global::<WindowState>().on_toggle_fullscreen(move || {
+        let _ = proxy.send_event(UserEvent::ToggleFullscreen);
+    });
     ui.show()?;
     let weak = ui.as_weak();
     let backdrop = move || {
@@ -582,12 +616,23 @@ where
         let channel = |v: u8| v as f64 / 255.0;
         wgpu::Color { r: channel(deep.red()), g: channel(deep.green()), b: channel(deep.blue()), a: 1.0 }
     };
-    Ok((Box::new(ui), Box::new(backdrop)))
+    let weak = ui.as_weak();
+    let set_fullscreen = move |on: bool| {
+        if let Some(ui) = weak.upgrade() {
+            ui.global::<WindowState>().set_fullscreen(on);
+        }
+    };
+    Ok(Ui { component: Box::new(ui), backdrop: Box::new(backdrop), video_area, set_fullscreen: Box::new(set_fullscreen) })
 }
 
-fn toggle_fullscreen(window: Option<&Window>) {
-    if let Some(w) = window {
-        w.set_fullscreen(if w.fullscreen().is_some() { None } else { Some(Fullscreen::Borderless(None)) });
+impl App {
+    fn toggle_fullscreen(&mut self) {
+        if let Some(w) = &self.window {
+            let on = w.fullscreen().is_none();
+            w.set_fullscreen(on.then_some(Fullscreen::Borderless(None)));
+            (self.set_fullscreen)(on);
+            w.request_redraw();
+        }
     }
 }
 
@@ -609,31 +654,33 @@ fn main() -> anyhow::Result<()> {
     slint::platform::set_platform(Box::new(SpikePlatform { window: slint_window.clone(), start: Instant::now() }))
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     let info = format!("{} · {mode}", device.name);
-    let (ui, backdrop) = match args.ui.as_str() {
+    let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
+    let ui = match args.ui.as_str() {
         "overlay" => {
             let ui = Overlay::new()?;
             ui.set_info(info.into());
-            show(ui)?
+            show(ui, Box::new(|| None), event_loop.create_proxy())?
         }
         "render-test" => {
             let ui = RenderTest::new()?;
             ui.set_info(info.into());
-            show(ui)?
+            show(ui, Box::new(|| None), event_loop.create_proxy())?
         }
         "theme-test" => {
             let ui = ThemeTest::new()?;
             ui.set_info(info.into());
-            show(ui)?
+            show(ui, Box::new(|| None), event_loop.create_proxy())?
         }
         "components" => {
             let ui = ComponentsTest::new()?;
             ui.set_info(info.into());
-            show(ui)?
+            let weak = ui.as_weak();
+            let area = move || weak.upgrade().map(|ui| ui.get_video_area()).map(|a| [a.x, a.y, a.width, a.height, a.radius]);
+            show(ui, Box::new(area), event_loop.create_proxy())?
         }
         other => anyhow::bail!("unknown UI {other:?} (overlay, render-test, theme-test, components)"),
     };
 
-    let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     let proxy = event_loop.create_proxy();
     let slot = Arc::new(Mutex::new(None));
 
@@ -698,15 +745,17 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    println!("F11 or F: fullscreen on the current monitor. Esc or Q: quit.");
+    println!("F11: fullscreen on the current monitor. Esc: leave fullscreen.");
     let mut app = App {
         present: args.present,
         backend: args.backend,
         window: None,
         gpu: None,
         slint_window,
-        _ui: ui,
-        backdrop,
+        _ui: ui.component,
+        backdrop: ui.backdrop,
+        video_area: ui.video_area,
+        set_fullscreen: ui.set_fullscreen,
         ui_pixels: Vec::new(),
         slot,
         pipeline: pipeline.clone(),

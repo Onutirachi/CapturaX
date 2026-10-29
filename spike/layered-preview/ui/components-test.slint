@@ -10,6 +10,7 @@ import { ViewDock, ActionDock } from "components/dock.slint";
 import { DropItem } from "components/dropdown.slint";
 import { Toolbar } from "components/toolbar.slint";
 import { InfoOverlay } from "components/info-overlay.slint";
+import { WindowState, VideoRect } from "window-state.slint";
 
 export component ComponentsTest inherits Window {
     in property <string> info;
@@ -37,7 +38,9 @@ export component ComponentsTest inherits Window {
     background: transparent;
     default-font-family: Theme.font;
 
-    property <length> bar: 32px;
+    // The title bar hides in fullscreen; the video starts below it, never behind it.
+    property <length> bar: WindowState.fullscreen ? 0 : 32px;
+    out property <VideoRect> video-area: { x: 0, y: root.bar, width: root.width, height: root.height - root.bar, radius: 0 };
     property <bool> active: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
         || right-area.has-hover || toolbar.menu-open;
@@ -83,7 +86,10 @@ export component ComponentsTest inherits Window {
         width: left-dock.width;
         height: left-dock.height;
         animate x { duration: 300ms; easing: ease-out; }
-        left-dock := ViewDock { }
+        left-dock := ViewDock {
+            fullscreen: WindowState.fullscreen;
+            toggle-fullscreen => { WindowState.toggle-fullscreen(); }
+        }
     }
 
     right-area := TouchArea {
@@ -128,7 +134,7 @@ export component ComponentsTest inherits Window {
     }
 
     // Last, so the hidden toolbar slides under it.
-    TitleBar {
+    if !WindowState.fullscreen: TitleBar {
         x: 0;
         y: 0;
         width: root.width;

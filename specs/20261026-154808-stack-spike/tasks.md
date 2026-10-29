@@ -97,9 +97,9 @@ agent updates handoff.md (constitution, Development Workflow).
 
 ## Phase 5: User Story 3 — Compare visual directions with live video (P3)
 
-**Goal**: Float, Frame and Rail directions, dark and light, with live video.
+**Goal**: Float, Frame and Rail directions, dark and light, with live video. Revised 2026-10-29: the maintainer chose Float (the previous app's layout) during T028; Frame and Rail are dropped.
 
-**Independent Test**: switch directions and themes at runtime; every direction shows title bar, video, info overlay, source picker and dock.
+**Independent Test**: switch themes at runtime; the direction shows title bar, video, info overlay, source picker and dock.
 
 All UI work lives in spike/layered-preview/ (research R13): the loop presents the video and
 composites one UI layer drawn by Slint's software renderer. `build.rs` compiles ui/app.slint
@@ -109,15 +109,15 @@ instead of ui/overlay.slint. slint-preview stays as the measured path B and gets
 - [x] T049 [US3] Extend `--stats` with the UI cost: per second, the number of UI redraws and the median and maximum software render + upload time, in spike/layered-preview/src/main.rs
 - [x] T027 [US3] Create theme tokens for dark and light (accent `#FF7304`, depth by tone and shadow, no outlines) and load one custom font family bundled in spike/layered-preview/ui/assets/fonts/, in spike/layered-preview/ui/theme.slint. Result: dark and light palettes approved, adjusted to WCAG contrast (text 4.5:1 on every surface, dark ink on the orange, info bubbles black at 55%); samples with `--ui theme-test`; also published as the CapturaX design system artifact for reuse outside Slint
 - [x] T028 [P] [US3] Copy the logo (old/capturax-react/brand/X.svg and CapturaX.svg) into spike/layered-preview/ui/assets/ and create shared components (title bar with window controls, dock with screenshot, record, stream, fullscreen and volume, source picker with groups and resolution badges, info overlay, raised and sunken surfaces as decided in T048; the info overlay follows the previous app's bubbles: background black at 30%, radius 16, height 44, text, icons and badges opaque; badge colors from old/capturax-react/src/core/utils/constants.ts), with visible labels of at most three words and longer text only in tooltips, in spike/layered-preview/ui/components/. Result: gallery with `--ui components`; icons are the previous app's Tabler set (MIT); window controls not wired yet (T037)
-- [ ] T050 [US3] Video area from the UI: app.slint exposes the geometry and corner radius of the element where the video goes; after each UI draw the loop reads it and draws the video letterboxed inside it, with the corners rounded in the shader (the UI layer cannot clip the video), in spike/layered-preview/src/main.rs and spike/layered-preview/src/shader.wgsl
-- [ ] T029 [P] [US3] Create the Float direction (chrome hides after a few idle seconds and comes back on mouse move) in spike/layered-preview/ui/directions/float.slint
-- [ ] T030 [P] [US3] Create the Frame direction in spike/layered-preview/ui/directions/frame.slint
-- [ ] T031 [P] [US3] Create the Rail direction in spike/layered-preview/ui/directions/rail.slint
-- [ ] T032 [US3] Add runtime switching of direction and theme, `--direction`, `--theme` and `--test-video` (`videotestsrc` in the same mode instead of the card); fill the source picker with the real capture devices and monitors and a few sample windows; forward the mouse wheel, right button and keyboard to Slint; when no capture device is found, show a clear message with the next action (connect a device or use `--test-video`) instead of an empty video area; in spike/layered-preview/src/main.rs and spike/layered-preview/ui/app.slint
-- [ ] T051 [US3] (maintainer) Run each direction fullscreen at 1080p and 1440p with `--stats` while moving the mouse over the chrome; the agent records the UI cost (T049) and the frame ready → presented median with the UI idle and animating in findings.md. Moving the UI render to its own thread is already decided for the real app (findings.md, T049); T051 tells how much the prototype's shared thread costs
-- [ ] T033 [US3] (maintainer) Review the directions with live video and save screenshots (Snipping Tool) in specs/20261026-154808-stack-spike/measurements/screens/; the agent records the choice and reasons in findings.md
+- [x] T050 [US3] Video area from the UI: app.slint exposes the geometry and corner radius of the element where the video goes; after each UI draw the loop reads it and draws the video letterboxed inside it, with the corners rounded in the shader (the UI layer cannot clip the video), in spike/layered-preview/src/main.rs and spike/layered-preview/src/shader.wgsl. Result: the video starts below the title bar, letterboxed on the theme's deepest tone; in fullscreen the title bar hides and the video takes the whole screen (WindowState global); F11 toggles fullscreen, Esc only leaves it
+- [x] T029 [P] [US3] Create the Float direction (chrome hides after a few idle seconds and comes back on mouse move) in spike/layered-preview/ui/directions/float.slint. Result: built as the T028 gallery in spike/layered-preview/ui/components-test.slint (`--ui components`); it becomes the direction file in T032
+- [x] T030 [P] [US3] ~~Create the Frame direction in spike/layered-preview/ui/directions/frame.slint~~ Dropped: Float chosen (FR-006 revised)
+- [x] T031 [P] [US3] ~~Create the Rail direction in spike/layered-preview/ui/directions/rail.slint~~ Dropped: Float chosen (FR-006 revised)
+- [ ] T032 [US3] Add runtime switching of theme, `--theme` and `--test-video` (`videotestsrc` in the same mode instead of the card); fill the source picker with the real capture devices and monitors and a few sample windows; forward the mouse wheel, right button and keyboard to Slint (Esc closes an open menu before leaving fullscreen); when no capture device is found, show a clear message with the next action (connect a device or use `--test-video`) instead of an empty video area; in spike/layered-preview/src/main.rs and spike/layered-preview/ui/app.slint
+- [ ] T051 [US3] (maintainer) Run the Float direction fullscreen at 1080p and 1440p with `--stats` while moving the mouse over the chrome; the agent records the UI cost (T049) and the frame ready → presented median with the UI idle and animating in findings.md. Moving the UI render to its own thread is already decided for the real app (findings.md, T049); T051 tells how much the prototype's shared thread costs
+- [ ] T033 [US3] (maintainer) Review the Float direction with live video and save screenshots (Snipping Tool) in specs/20261026-154808-stack-spike/measurements/screens/; the agent records the review in findings.md
 
-**Checkpoint**: maintainer chooses a direction; commit.
+**Checkpoint**: maintainer approves the direction; commit.
 
 ---
 

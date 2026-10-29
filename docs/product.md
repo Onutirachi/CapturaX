@@ -44,7 +44,7 @@ streaming), and a **View output** action shows the output in the preview.
 |---|---|---|
 | F6 | Preview the device with the lowest possible latency. | |
 | F7 | Measured latency and frame rate, updated live. | |
-| F8 | Frameless window with its own title bar; fullscreen with F11, leave with Esc. | |
+| F8 | Frameless window with its own title bar; fullscreen with F11. Esc closes an open menu first, then leaves fullscreen; it never quits the app. | |
 | F9 | Optional ambient light: the area around the video glows with the video's colors. | |
 | F10 | Hide the preview to save resources; recording and streaming continue. | |
 | F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected, black image while a signal is present (likely HDCP: suggest turning it off on the console). Never an empty list. | |

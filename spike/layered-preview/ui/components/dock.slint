@@ -116,7 +116,8 @@ component Gap inherits Rectangle {
 }
 
 export component ViewDock inherits DockPanel {
-    in-out property <bool> fullscreen;
+    in property <bool> fullscreen;
+    callback toggle-fullscreen();
     in-out property <bool> ambient-light;
     in-out property <float> volume: 0.7;
     in-out property <bool> muted;
@@ -125,7 +126,7 @@ export component ViewDock inherits DockPanel {
         icon: root.fullscreen ? @image-url("../assets/icons/fullscreen_exit.svg") : @image-url("../assets/icons/fullscreen.svg");
         tooltip: root.fullscreen ? "Exit fullscreen (F11)" : "Fullscreen (F11)";
         tooltip-side: Side.right;
-        clicked => { root.fullscreen = !root.fullscreen; }
+        clicked => { root.toggle-fullscreen(); }
     }
 
     IconButton {

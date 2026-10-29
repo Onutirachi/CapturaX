@@ -159,6 +159,9 @@ possible, with the reason.
   delay, its offset to the video, and its drift over at least 30 minutes.
 - **FR-006**: The spike MUST provide two or three visual directions of the main screen, switchable
   at runtime, each in a dark and a light theme, each showing the elements listed in User Story 3.
+  *Revised 2026-10-29*: the maintainer chose the Float direction, laid out as the previous app,
+  during the component review (T028); Frame and Rail are not built, so one direction with both
+  themes is enough.
 - **FR-007**: Visual directions MUST use the brand logo and orange `#FF7304` as the accent, no
   decorative outlines, and visible labels of at most three words.
 - **FR-008**: The spike MUST report each capability listed in User Story 4 as working, working

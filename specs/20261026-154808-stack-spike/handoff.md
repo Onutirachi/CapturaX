@@ -1,54 +1,67 @@
 # Handoff: Stack Spike
 
-**Updated**: 2026-10-27 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261026-154808-stack-spike`
+**Updated**: 2026-10-29 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261026-154808-stack-spike`
 
 ## State
 
 Implementation in progress. US1 (video latency) is settled on Windows: the own render loop
 (`spike/layered-preview`, research R13) with Direct3D 12 and Mailbox matches native (5–6 camera
-frames ≈ 21–25 ms) with a Slint UI layer, and the encoder adds nothing. US2 (audio) works and is
-measured except for drift. US3 and US4 have not started. All work is committed; nothing pushed.
+frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
+US3 is mostly done: theme, components and the Float layout are approved and the video sits in a
+UI-defined area. US4 has not started. All work is committed except the logos (below); nothing
+pushed.
 
-## Done in the last session
+## Done in the last sessions
 
-- T047 own render loop, T013 encoder load test, T023 audio preview: see tasks.md and findings.md.
-- Manual measurements recorded in findings.md: renderers, layered backends, YUY2 (no gain),
-  encoder, audio paths, the ezcap's wrong color range.
-- `layered-preview --audio` is the usable "play through the spike" command; the maintainer played
-  with it and noticed no difference from the passthrough:
-  `.\target\release\layered-preview.exe --device ezcap --mode 1920x1080@60:NV12 --backend dx12 --present mailbox --audio --range full`
-- docs/product.md: three automatic modes in F3 (Auto source, Auto max resolution, Auto max FPS),
-  a color range setting in F2, a Voicemeeter idea in Future ideas.
+- US3/US4 tasks rewritten for `spike/layered-preview` (T048–T051 added).
+- T048 software renderer check (research R14): nine-slice shadows kept; no gradients, no blur,
+  no `drop-shadow`; SVGs must be sized in their own aspect ratio.
+- T049 `--stats` reports the UI cost (≈ 0.7 ms per redraw on the shared thread).
+- T027 theme (dark and light, WCAG contrast, Inter) and T028 components in the previous app's
+  layout, shown with `--ui components`. The same identity is a design system artifact for other
+  projects: https://claude.ai/artifact/Q5DGmM2hywuyy6T1hV6fW1 (private).
+- T050 video area from the UI: video below the title bar, title bar hidden in fullscreen,
+  ground in the theme's deepest tone. F11 toggles fullscreen; Esc only leaves it (product F8).
+- T029 done as the components gallery; T030 and T031 (Frame, Rail) dropped, FR-006 revised.
+
+Command (from `spike/`):
+`.\target\release\layered-preview.exe --device ezcap --mode 1920x1080@60:NV12 --backend dx12 --present mailbox --ui components --range full`
+(add `--audio`, `--stats` as needed).
 
 ## Decisions
 
-- Option D (research R13): our own winit + wgpu loop presents video on arrival; Slint draws the UI
-  with its software renderer into a layer composited on the GPU. On Windows, Direct3D 12 is
-  required (Vulkan goes through DWM composition, ≈ 4 frames slower). Mailbox: as fast as
-  Immediate, no tearing.
-- Audio: free-running output (`sync=false`), 20 ms output buffer, a queue dropping audio beyond
-  20 ms (research R7, revised). Through the Voicemeeter virtual input it measures ≈ 100–110 ms;
-  the previous app measured 160 ms on the same path.
-- Audio measurement method changed (research R3, "Method used in practice"): passthrough monitor
-  headphone out → PC line in, mixed with the preview in Voicemeeter, gap measured in FL Studio.
-- The real app must present video on its own thread (the window stutters while dragged) and needs
-  a color range setting (the ezcap declares limited range but sends full).
-- The maintainer counts video frames by hand in After Effects; the analyzer (T016–T018) is still
-  wanted for the formal 20-sample run.
+- Option D (research R13): own winit + wgpu loop presents video on arrival; Slint draws the UI
+  with its software renderer into a layer composited on the GPU. Direct3D 12 + Mailbox on
+  Windows.
+- The video never waits for the UI in the real app: the UI renders on its own thread and the
+  compositor uses the last finished UI image.
+- Visual rules: only panels may be semi-transparent; menus, dropdowns, buttons and icons are
+  opaque; info bubbles are black at 55% with opaque text, fixed to the window's bottom right.
+  The preview's device dropdown lists devices only (screens and windows are recording/stream
+  sources). Dropdowns have a fixed width.
+- Logo font: Urbanist ExtraBold (800), slightly tight tracking.
+
+## Do not commit yet
+
+- `brand/` (the maintainer's new logos) and the spike copies `spike/layered-preview/ui/assets/`
+  `CapturaX.svg`, `X.svg`, `CapturaX-light.svg`. They are committed when the brand work starts.
+  Note: committed spike code already references `CapturaX-light.svg`.
 
 ## Open questions
 
+- The maintainer will compare the image with the passthrough to check whether it is darker even
+  with `--range full`.
+- Proposal awaiting the maintainer: the device dropdown detail shows the last mode used for that
+  device, else the default automatic mode. If accepted, record it in docs/product.md F2/F3.
 - Linux latency (T021, T038): wgpu uses Vulkan there; depends on KWin direct scanout.
-- Audio without Voicemeeter (straight to the headset) not measured.
-- Remaining latency levers not tested: 120 Hz source through the PC's HDMI, VRR (findings.md).
+- Audio drift (T025) and audio without Voicemeeter not measured.
 
 ## Next step
 
-1. Maintainer, when convenient: T025 audio drift, measuring at minute 0 and minute 30 with
-   `layered-preview --audio`, noting any clicks.
-2. Rewrite US3 and US4 tasks (T027–T039) for `spike/layered-preview` instead of
-   `spike/slint-preview`, before any code: the UI is drawn by Slint's software renderer, so
-   measure its CPU cost at 1080p and 1440p; ambient light becomes a GPU effect in our own shader;
-   the frameless title bar uses the winit window. Get the maintainer's approval, then implement.
-3. At the end, formal measurement in one session: analyzer (T016–T018), browser (T015), all paths
-   at 1080p60 and 1080p120 (T019–T020), Linux (T021).
+1. T032: move the gallery into `ui/directions/float.slint`; `--theme`, runtime theme switch,
+   `--test-video`; real devices in the dropdowns; forward wheel, right button and keyboard to
+   Slint (Esc closes menus first); clear message when no device is found.
+2. T051 and T033 with the maintainer (UI cost in fullscreen at 1080p and 1440p, review).
+3. US4: T034 ambient light on the GPU, T035 detachable info overlay, T036 language switching,
+   T037 frameless window, then Linux (T038) and the capability table (T039).
+4. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).

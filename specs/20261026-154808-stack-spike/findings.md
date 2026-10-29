@@ -248,7 +248,8 @@ UI image; in this prototype a video frame that arrives while the UI changes wait
 
 ## Visual directions
 
-Not started (T028–T033).
+The maintainer chose Float, laid out as the previous app, while reviewing the components (T028);
+Frame and Rail were dropped (FR-006 revised).
 
 Theme (T027): one cool neutral in four tone steps, orange accent, Inter, depth by tone and
 nine-slice shadows; approved by the maintainer, then adjusted so every text pair reaches 4.5:1 in
@@ -268,6 +269,12 @@ the video takes the theme's deepest tone (the compositor reads it from the UI ea
 drawn by the software renderer over the video in both themes. Slint notes: an `Image` inside a layout asks for
 the image's natural width even when only its height is set, so logos need both sides (in the
 SVG's aspect ratio); icons are single-ink SVGs tinted with `colorize`.
+
+Video area (T050): the UI exposes where the video goes (`video-area`: position, size, corner
+radius) and the loop letterboxes the video inside it; the shader rounds the corners. The video
+starts below the title bar and never sits behind it; in fullscreen the title bar hides and the
+video takes the whole screen. Keys: F11 toggles fullscreen, Esc leaves it and never quits
+(docs/product.md F8).
 
 ## Decisions
 

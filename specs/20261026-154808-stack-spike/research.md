@@ -196,6 +196,8 @@ alternatives considered.
 - **Rationale**: three distinct answers to "where does the chrome go relative to the video", which is
   the main layout question for a video-first app.
 - **Alternatives**: color-only variations of one layout — would not inform the layout decision.
+- **Update (2026-10-29)**: the maintainer chose Float, laid out as the previous app, while
+  reviewing the components (T028). Frame and Rail are dropped (T030, T031).
 
 ## R11. Keeping spike code out of `main`
 

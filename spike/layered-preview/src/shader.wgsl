@@ -4,6 +4,10 @@
 struct Rect {
     // Left, top, right, bottom in clip space.
     bounds: vec4<f32>,
+    // Size in pixels and corner radius in pixels (0: square corners).
+    size: vec2<f32>,
+    radius: f32,
+    _pad: f32,
 };
 
 @group(0) @binding(0) var tex: texture_2d<f32>;
@@ -29,5 +33,10 @@ fn vs(@builtin(vertex_index) index: u32) -> VertexOut {
 
 @fragment
 fn fs(in: VertexOut) -> @location(0) vec4<f32> {
-    return textureSample(tex, samp, in.uv);
+    let color = textureSample(tex, samp, in.uv);
+    // Signed distance to the rounded rectangle, in pixels; one pixel of anti-aliased edge.
+    let half_size = rect.size * 0.5;
+    let q = abs(in.uv * rect.size - half_size) - (half_size - vec2<f32>(rect.radius));
+    let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - rect.radius;
+    return color * clamp(0.5 - d, 0.0, 1.0);
 }
