@@ -8,10 +8,23 @@ Implementation in progress. US1 (video latency) is settled on Windows: the own r
 (`spike/layered-preview`, research R13) with Direct3D 12 and Mailbox matches native (5–6 camera
 frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
 US3 is done: Float approved with live video (T033), UI cost measured in fullscreen (T051). US4
-started: T034 (ambient light) is done and approved. All work is committed except `brand/`;
-nothing pushed.
+started: T034 (ambient light) and T035 (info bubbles arranged per bubble, replacing the
+detached window) are done and approved. All work is committed except `brand/`; nothing pushed.
 
 ## Done in the last sessions
+
+- T035 done and approved (findings.md); the spec, F42 in docs/product.md and tasks.md were
+  revised: the detached floating window was built, then dropped as not useful, and its code
+  discarded. Instead each info bubble is arranged on its own (ui/components/info-overlay.slint):
+  hovering it with the chrome open shows a menu `[<] [pin] [corner] [>]` above it (below in the
+  top corners); the corner button opens a 2 × 2 menu of the four corners, current one
+  highlighted. Each corner is a group packed against it; a bubble sent to another corner goes to
+  the group's far end. Chrome open: every bubble; on hiding, the unpinned ones slide off the nearest
+  screen edge first, then the pinned ones close up against their corner (maintainer's review). On
+  showing, the pinned ones make room first, then the others slide in.
+  One menu open at a time (the last bubble entered), opening after 120 ms of hover. Top corners sit below the toolbar while it shows. Default: all bottom right, none
+  pinned. IconButton gained `enabled`; new icons chevron_left/right and corner_tl/tr/bl/br. The agent's
+  sandbox shows no windows: the maintainer runs every visual check.
 
 - T034 done, approved by the maintainer with live video (findings.md): `src/ambient.rs` and
   `src/ambient.wgsl` follow the previous app's AmbientLight.tsx (96 × 54, saturation 1.4, blur
@@ -90,8 +103,10 @@ Command (from `spike/`):
 
 ## Next step
 
+0. Proposed, awaiting the maintainer: show the measured frame rate in the FPS bubble (the loop
+   already counts presented frames per second; today the bubble shows the selected mode).
 1. Optional: check the no-device message (T032) running; the ezcap was seen in T033. Choosing
    a picker item does not reopen the capture; say if the review needs that.
-2. US4: T035 detachable info overlay, T036 language switching,
+2. US4: T036 language switching,
    T037 frameless window, then Linux (T038) and the capability table (T039).
 3. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).

@@ -292,6 +292,29 @@ Outcome: working on Windows. The maintainer checked it with live video and a wid
 liked the result. The difference is about 0.1 ms on the CPU side; the GPU time of the three small
 passes is not measured. Linux is checked in T038.
 
+### Info bubbles (T035)
+
+The capability "overlay detached as a floating window that stays on top" was built and dropped:
+the maintainer found it not useful. It worked as a second borderless winit window with its own
+Slint software window (the platform hands out one window adapter per component). On Windows it
+needed its own wgpu device: only a DirectComposition swap chain (`DxgiFromVisual`) lets a window
+be transparent, and the main window keeps its HWND swap chain. On Wayland, always on top and
+window placement are not available to apps, so it would have been limited there.
+
+What replaces it, all in Slint over the video: each bubble (status, resolution, FPS, latency) is
+arranged on its own. Hovering a bubble for 120 ms with the chrome open shows a menu (move left,
+pin, corner, move right), one menu at a time; the corner button opens a 2 × 2 menu of the four
+corners. Each corner holds its own group, packed against it. When the chrome hides, the unpinned
+bubbles slide off the nearest screen edge, then the pinned ones close up against their corner;
+on showing, the pinned ones make room first, then the unpinned ones slide back vertically (at
+once when none is pinned). Positions
+are computed by hand (Slint layouts do not animate), with the per-bubble state in arrays of the
+component.
+
+Outcome: working on Windows; reviewed and approved by the maintainer with `--test-video`. The
+FPS bubble shows the selected mode and the latency bubble a sample value, not measurements.
+Placements are not saved between runs.
+
 ## Visual directions
 
 The maintainer chose Float, laid out as the previous app, while reviewing the components (T028);
