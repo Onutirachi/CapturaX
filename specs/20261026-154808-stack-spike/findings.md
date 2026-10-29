@@ -242,6 +242,33 @@ the software render plus the upload of the whole UI texture.
 An animating UI does not delay the video measurably at this size. Fullscreen at 1080p and 1440p
 with the real directions is T051.
 
+### UI cost in fullscreen (T051)
+
+`--ui float --stats`, ezcap 1080p60 NV12, Direct3D 12 + Mailbox, fullscreen (F11) on a 1080p
+144 Hz monitor at 100% scale. The maintainer has no 1440p monitor: 1440p is the same monitor at
+2560×1440 through NVIDIA DSR (1.78x DL), which gives the same UI texture size. Animations redraw at
+144 Hz, so a 300 ms chrome animation is about 43 redraws and a 160 ms dropdown animation about 23.
+
+| Screen | State | UI redraws per second | UI time median / max | Frame ready → presented |
+|---|---|---|---|---|
+| 1080p | Idle, chrome hidden | 0 | — | 0.8–1.0 ms |
+| 1080p | Chrome showing | 45 | 1.4 / 1.8 ms | 0.9 ms |
+| 1080p | Chrome hiding | 41 | 0.7 / 2.1 ms | 0.9 ms |
+| 1080p | A dropdown opening or closing every second | 21–22 | 2.0–2.8 / 3.4 ms | 0.8–0.9 ms |
+| 1080p | Pointer moving to the other dropdown | 53 | 0.7 / 2.9 ms | 1.1 ms |
+| 1440p (DSR) | Idle, chrome hidden | 0 | — | 0.8–0.9 ms |
+| 1440p (DSR) | Chrome showing, pointer moving over it | 85 | 1.5 / 2.6 ms | 1.0 ms |
+| 1440p (DSR) | Chrome hiding | 39 | 1.1 / 2.6 ms | 1.0 ms |
+
+Outcome: the video kept 60 fps and its per-second median stayed at 0.8–1.1 ms in every state, at
+both sizes. The UI never took more than 3.4 ms per redraw. The open dropdown is the costliest UI
+(2.0–2.8 ms median, more for the longer list), and 1440p costs only a little more than 1080p
+(1.5 against 1.4 ms showing the chrome), far less than its 1.78 times the pixels. The per-second
+median hides single frames: in this prototype a video frame that arrives during a redraw waits up
+to its length (3.4 ms at most), which the real app avoids by rendering the UI on its own thread.
+Two seconds at the start of the 1080p run showed a 9 ms median with no UI redraw; they did not
+come back at 1440p and look like the switch to fullscreen, not the UI (cause not confirmed).
+
 Decision for the real app (maintainer, 2026-10-28), whatever T051 shows: the video never waits
 for the UI. The UI is rendered on its own thread and the compositor always uses the last finished
 UI image; in this prototype a video frame that arrives while the UI changes waits for the redraw.
