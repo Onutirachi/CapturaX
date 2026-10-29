@@ -1,5 +1,6 @@
 // Dropdown (T028): a fixed-width opaque control with a small title above the chosen value and its
 // badge; opens an opaque menu, grouped when items carry a group, each item with detail and badge.
+// A menu taller than `menu-room` scrolls (wheel or drag) with a thin position indicator.
 import { Theme } from "../theme.slint";
 import { Raised } from "surface.slint";
 import { Badge, Tier } from "basics.slint";
@@ -18,6 +19,8 @@ export component Dropdown inherits Raised {
     in-out property <int> current;
     // Open state is in-out so the screen can close the menu on a click elsewhere or on hide.
     in-out property <bool> open;
+    // Space below the control for the menu, from the screen (the window's height left below it).
+    in property <length> menu-room: 10000px;
     callback picked(int);
 
     fill: Theme.c.top;
@@ -93,74 +96,99 @@ export component Dropdown inherits Raised {
         x: 0;
         y: root.height + (root.open ? 8px : 0);
         width: max(root.width, 320px);
-        height: list.preferred-height;
+        height: min(list.preferred-height + 12px, max(root.menu-room - 8px, 120px));
         opacity: root.open ? 1 : 0;
         visible: self.opacity > 0;
         animate opacity, y { duration: Theme.quick; easing: ease-out; }
 
-        list := VerticalLayout {
-            padding: 6px;
-            spacing: 2px;
+        // The menu's padding (6px) also separates the items from the indicator and the indicator
+        // from the edge; the indicator stays clear of the rounded corners.
+        property <bool> scrolls: list.preferred-height > scroller.height;
+        property <length> bar-width: 4px;
 
-            for item[i] in root.items: VerticalLayout {
-                // Group header, indented like the item names.
-                if item.group != "" && (i == 0 || root.items[i - 1].group != item.group): HorizontalLayout {
-                    padding-left: 12px;
-                    Text {
-                        height: 30px;
-                        text: item.group;
-                        color: Theme.c.text-faint;
-                        font-size: Theme.text-s;
-                        font-weight: 600;
-                        vertical-alignment: center;
-                    }
-                }
+        // Inset by the menu's padding so the clip stays inside the rounded corners.
+        scroller := Flickable {
+            x: 6px;
+            y: 6px;
+            width: parent.width - 12px - (menu.scrolls ? menu.bar-width + 6px : 0);
+            height: parent.height - 12px;
+            content-height: list.preferred-height;
 
-                Rectangle {
-                    height: item.detail != "" ? 44px : 36px;
-                    border-radius: Theme.radius-s;
-                    background: i == root.current ? Theme.c.press : item-area.has-hover ? Theme.c.hover : transparent;
+            list := VerticalLayout {
+                width: scroller.width;
+                spacing: 2px;
 
-                    item-area := TouchArea {
-                        clicked => {
-                            root.current = i;
-                            root.open = false;
-                            root.picked(i);
-                        }
-                    }
-
-                    HorizontalLayout {
+                for item[i] in root.items: VerticalLayout {
+                    // Group header, indented like the item names.
+                    if item.group != "" && (i == 0 || root.items[i - 1].group != item.group): HorizontalLayout {
                         padding-left: 12px;
-                        padding-right: 12px;
-                        spacing: 10px;
+                        Text {
+                            height: 30px;
+                            text: item.group;
+                            color: Theme.c.text-faint;
+                            font-size: Theme.text-s;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
 
-                        VerticalLayout {
-                            alignment: center;
-                            Text {
-                                text: item.name;
-                                color: Theme.c.text;
-                                font-size: Theme.text-m;
-                                overflow: elide;
-                            }
-                            if item.detail != "": Text {
-                                text: item.detail;
-                                color: Theme.c.text-muted;
-                                font-size: Theme.text-s;
-                                overflow: elide;
+                    Rectangle {
+                        height: item.detail != "" ? 44px : 36px;
+                        border-radius: Theme.radius-s;
+                        background: i == root.current ? Theme.c.press : item-area.has-hover ? Theme.c.hover : transparent;
+
+                        item-area := TouchArea {
+                            clicked => {
+                                root.current = i;
+                                root.open = false;
+                                root.picked(i);
                             }
                         }
 
-                        if item.badge != "": VerticalLayout {
-                            alignment: center;
-                            horizontal-stretch: 0;
-                            Badge {
-                                text: item.badge;
-                                tier: item.tier;
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            spacing: 10px;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: item.name;
+                                    color: Theme.c.text;
+                                    font-size: Theme.text-m;
+                                    overflow: elide;
+                                }
+                                if item.detail != "": Text {
+                                    text: item.detail;
+                                    color: Theme.c.text-muted;
+                                    font-size: Theme.text-s;
+                                    overflow: elide;
+                                }
+                            }
+
+                            if item.badge != "": VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 0;
+                                Badge {
+                                    text: item.badge;
+                                    tier: item.tier;
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+
+        // Position indicator, only when the list scrolls.
+        if menu.scrolls: Rectangle {
+            property <length> track: menu.height - 2 * Theme.radius-m;
+            x: parent.width - 6px - self.width;
+            y: Theme.radius-m + (self.track - self.height) * (-scroller.content-y / (list.preferred-height - scroller.height));
+            width: menu.bar-width;
+            height: max(24px, self.track * scroller.height / list.preferred-height);
+            border-radius: self.width / 2;
+            background: Theme.c.text-faint;
         }
     }
 }

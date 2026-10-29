@@ -18,5 +18,8 @@ winit = "0.30"
 pollster = "1"
 bytemuck = { version = "1", features = ["derive"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [build-dependencies]
 slint-build.workspace = true

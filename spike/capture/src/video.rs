@@ -66,3 +66,23 @@ pub fn build(device: &VideoDevice, mode: Mode, range: Option<Range>) -> anyhow::
     bin.add_pad(&gst::GhostPad::with_target(&pad)?)?;
     Ok(Source { bin, mode })
 }
+
+/// A live test pattern in `mode` instead of a device (visual review without a card). MJPG and
+/// formats the pattern cannot produce fall back to NV12.
+pub fn test(mut mode: Mode) -> anyhow::Result<Source> {
+    if mode.format.is_empty() || mode.format == "MJPG" {
+        mode.format = "NV12".into();
+    }
+    let bin = gst::Bin::with_name("capture");
+    let src = gst::ElementFactory::make("videotestsrc")
+        .name("source")
+        .property("is-live", true)
+        .property_from_str("pattern", "smpte")
+        .build()?;
+    let filter = gst::ElementFactory::make("capsfilter").property("caps", mode.caps()).build()?;
+    bin.add_many([&src, &filter])?;
+    src.link(&filter)?;
+    let pad = filter.static_pad("src").expect("capsfilter has a src pad");
+    bin.add_pad(&gst::GhostPad::with_target(&pad)?)?;
+    Ok(Source { bin, mode })
+}

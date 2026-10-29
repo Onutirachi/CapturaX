@@ -40,6 +40,12 @@ Own render loop (research R13). Shared options, plus:
 | `--backend <api>` | graphics API: `vulkan`, `dx12` or `gl` (default: wgpu's choice; on the maintainer's NVIDIA it picks Vulkan) |
 | `--encoder` | add the hardware H.264 encoder branch (load test, T013); prints the encoder used, and with `--stats` the encoded frames per second |
 | `--audio` | also play the audio input paired with the video device on the system default output, as `audio-preview --free-run --buffer 20` does |
+| `--ui <name>` | UI over the video: `overlay` (default, measured path), `render-test` (T048), `theme-test` (T027), `float` (the Float direction, T032) |
+| `--theme <dark or light>` | starting theme (default `dark`; the Float direction switches it at runtime) |
+| `--test-video` | a live test pattern (`videotestsrc`) in `--mode` (default `1920x1080@60:NV12`) instead of a device (visual review only) |
+
+With `--ui float` and no device found, the window opens with a message saying what to do (connect
+a device or use `--test-video`) instead of failing.
 
 ## audio-preview
 

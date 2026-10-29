@@ -7,11 +7,28 @@
 Implementation in progress. US1 (video latency) is settled on Windows: the own render loop
 (`spike/layered-preview`, research R13) with Direct3D 12 and Mailbox matches native (5–6 camera
 frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
-US3 is mostly done: theme, components and the Float layout are approved and the video sits in a
-UI-defined area. US4 has not started. All work is committed except the logos (below); nothing
-pushed.
+US3 is mostly done: theme, components and the Float layout are approved, the video sits in a
+UI-defined area, and T032 (real devices, `--theme`, `--test-video`, input forwarding) is done and
+approved. US4 has not started. All work is committed except `brand/`; nothing pushed.
 
 ## Done in the last sessions
+
+- T032: gallery moved to `ui/directions/float.slint` (`--ui float`, replaces `--ui components`);
+  `--theme dark|light`; `--test-video` (`videotestsrc` in `--mode`, default 1080p60 NV12, new
+  `capture::video::test`); pickers filled with real devices, audio inputs and modes; info overlay
+  shows the running mode (latency stays a sample value); wheel, right/middle button and keyboard
+  forwarded to Slint; Esc closes an open menu first; with no device the window opens with a
+  message (Float only, the other UIs still fail). Checked here with `--test-video` and the C920
+  (the ezcap was not connected); the no-device message was not seen running.
+- Dropdown menus taller than the room below them scroll (wheel or drag) with a thin indicator.
+- Fixed UI animations stepping at the video's frame rate (they looked choppy with the C920 at
+  15–30 fps): the loop checked `has_active_animations` after `update_timers_and_animations`,
+  which clears it. Animations now redraw at the monitor's refresh rate (≈ 43 redraws for the
+  300 ms hide at 144 Hz); a timer that changes the UI is drawn at once. The fix was folded into
+  the render loop commit, and the spike logos into the commits that first use them (history
+  rewritten; the old branch head is kept as `backup/stack-spike-before-rebase` until approved).
+- Spike logos committed as `CapturaX-dark.svg`, `CapturaX-light.svg` and `X.svg` (named like
+  `brand/`).
 
 - US3/US4 tasks rewritten for `spike/layered-preview` (T048–T051 added).
 - T048 software renderer check (research R14): nine-slice shadows kept; no gradients, no blur,
@@ -25,7 +42,7 @@ pushed.
 - T029 done as the components gallery; T030 and T031 (Frame, Rail) dropped, FR-006 revised.
 
 Command (from `spike/`):
-`.\target\release\layered-preview.exe --device ezcap --mode 1920x1080@60:NV12 --backend dx12 --present mailbox --ui components --range full`
+`.\target\release\layered-preview.exe --device ezcap --mode 1920x1080@60:NV12 --backend dx12 --present mailbox --ui float --range full`
 (add `--audio`, `--stats` as needed).
 
 ## Decisions
@@ -43,9 +60,8 @@ Command (from `spike/`):
 
 ## Do not commit yet
 
-- `brand/` (the maintainer's new logos) and the spike copies `spike/layered-preview/ui/assets/`
-  `CapturaX.svg`, `X.svg`, `CapturaX-light.svg`. They are committed when the brand work starts.
-  Note: committed spike code already references `CapturaX-light.svg`.
+- `brand/` (the maintainer's new logos): committed when the brand work starts. The spike copies
+  in `spike/layered-preview/ui/assets/` are committed.
 
 ## Open questions
 
@@ -58,9 +74,9 @@ Command (from `spike/`):
 
 ## Next step
 
-1. T032: move the gallery into `ui/directions/float.slint`; `--theme`, runtime theme switch,
-   `--test-video`; real devices in the dropdowns; forward wheel, right button and keyboard to
-   Slint (Esc closes menus first); clear message when no device is found.
+1. Optional: check T032 with the ezcap and with no device connected (seen here only with
+   `--test-video` and the C920). Choosing a picker item does not reopen the capture; say if the
+   review needs that.
 2. T051 and T033 with the maintainer (UI cost in fullscreen at 1080p and 1440p, review).
 3. US4: T034 ambient light on the GPU, T035 detachable info overlay, T036 language switching,
    T037 frameless window, then Linux (T038) and the capability table (T039).

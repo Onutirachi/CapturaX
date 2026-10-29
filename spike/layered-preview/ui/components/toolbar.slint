@@ -10,6 +10,8 @@ export component Toolbar inherits Rectangle {
     in-out property <int> device;
     in-out property <int> audio-input;
     in-out property <int> mode;
+    // Space from the toolbar's top to the bottom of the window, for the menus.
+    in property <length> room: 10000px;
     // True while one of its menus is open: the chrome must not hide then.
     out property <bool> menu-open: device-list.open || audio-list.open || mode-list.open;
 
@@ -28,6 +30,7 @@ export component Toolbar inherits Rectangle {
         alignment: start;
 
         device-list := Dropdown {
+            menu-room: root.room - self.y - self.height - Theme.gap-l;
             title: "Video";
             items: root.devices;
             current <=> root.device;
@@ -41,6 +44,7 @@ export component Toolbar inherits Rectangle {
         }
 
         audio-list := Dropdown {
+            menu-room: root.room - self.y - self.height - Theme.gap-l;
             title: "Audio";
             items: root.audio-inputs;
             current <=> root.audio-input;
@@ -53,6 +57,7 @@ export component Toolbar inherits Rectangle {
         }
 
         mode-list := Dropdown {
+            menu-room: root.room - self.y - self.height - Theme.gap-l;
             title: "Mode";
             items: root.modes;
             current <=> root.mode;

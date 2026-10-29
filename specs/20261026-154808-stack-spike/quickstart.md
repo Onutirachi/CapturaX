@@ -50,7 +50,7 @@ whether any offset is noticeable.
 
 ## 4. Visual directions and capabilities
 
-`cargo run --release -p layered-preview -- --device ezcap --backend dx12 --present mailbox --ui components --theme dark --stats`
+`cargo run --release -p layered-preview -- --device ezcap --backend dx12 --present mailbox --ui float --theme dark --stats`
 
 Without the card: add `--test-video`.
 

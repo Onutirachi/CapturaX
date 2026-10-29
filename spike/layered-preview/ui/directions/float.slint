@@ -1,40 +1,38 @@
-// Component gallery (T028), laid out as the previous app: title bar above, toolbar over the top of
-// the video, a dock on each side, capture info at the bottom right. Toolbar, docks and info hide
-// 2 s after the pointer leaves them and come back when it reaches the top of the video.
-// Window controls do nothing here; T037 wires them to the window.
-import { Theme } from "theme.slint";
-import { Raised } from "components/surface.slint";
-import { Tier } from "components/basics.slint";
-import { TitleBar } from "components/title-bar.slint";
-import { ViewDock, ActionDock } from "components/dock.slint";
-import { DropItem } from "components/dropdown.slint";
-import { Toolbar } from "components/toolbar.slint";
-import { InfoOverlay } from "components/info-overlay.slint";
-import { WindowState, VideoRect } from "window-state.slint";
+// Float direction (T029, T032), laid out as the previous app: title bar above, toolbar over the top
+// of the video, a dock on each side, capture info at the bottom right. Toolbar, docks and info
+// hide 2 s after the pointer leaves them and come back when it reaches the top of the video.
+// The lists come from Rust (real devices and modes); window controls are wired in T037.
+import { Theme } from "../theme.slint";
+import { Raised } from "../components/surface.slint";
+import { Tier } from "../components/basics.slint";
+import { TitleBar } from "../components/title-bar.slint";
+import { ViewDock, ActionDock } from "../components/dock.slint";
+import { DropItem } from "../components/dropdown.slint";
+import { Toolbar } from "../components/toolbar.slint";
+import { InfoOverlay } from "../components/info-overlay.slint";
+import { WindowState, VideoRect } from "../window-state.slint";
 
-export component ComponentsTest inherits Window {
-    in property <string> info;
+export component Float inherits Window {
     // Devices only: screens and windows are sources of recording and streaming, not the preview.
-    in property <[DropItem]> devices: [
-        { name: "ezcap Live Gamer Ultra", detail: "1920 × 1080 · 60 FPS", badge: "Full HD", tier: Tier.full-hd },
-        { name: "Webcam C920", detail: "1280 × 720 · 30 FPS", badge: "HD", tier: Tier.hd },
-        { name: "Elgato Cam Link 4K", detail: "3840 × 2160 · 30 FPS", badge: "4K", tier: Tier.uhd },
-    ];
-    in property <[DropItem]> audio-inputs: [
-        { name: "Auto (ezcap Live Gamer Ultra)" },
-        { name: "None" },
-        { name: "Line In (Realtek Audio)" },
-    ];
-    in property <[DropItem]> modes: [
-        { group: "Automatic", name: "Auto source", detail: "1920 × 1080 · 60 FPS", badge: "Full HD", tier: Tier.full-hd },
-        { group: "Automatic", name: "Auto max resolution", detail: "2560 × 1440 · 60 FPS", badge: "QHD", tier: Tier.qhd },
-        { group: "Automatic", name: "Auto max FPS", detail: "1920 × 1080 · 120 FPS", badge: "Full HD", tier: Tier.full-hd },
-        { group: "Modes", name: "3840 × 2160 · 30 FPS", badge: "4K", tier: Tier.uhd },
-        { group: "Modes", name: "2560 × 1440 · 60 FPS", badge: "QHD", tier: Tier.qhd },
-        { group: "Modes", name: "1920 × 1080 · 120 FPS", badge: "Full HD", tier: Tier.full-hd },
-        { group: "Modes", name: "1920 × 1080 · 60 FPS", badge: "Full HD", tier: Tier.full-hd },
-        { group: "Modes", name: "1280 × 720 · 60 FPS", badge: "HD", tier: Tier.hd },
-    ];
+    in property <[DropItem]> devices;
+    in property <[DropItem]> audio-inputs;
+    in property <[DropItem]> modes;
+    in property <int> device;
+    in property <int> audio-input;
+    in property <int> mode;
+    // The running mode, for the info overlay.
+    in property <string> resolution;
+    in property <string> badge;
+    in property <Tier> tier: Tier.other;
+    in property <int> fps;
+    // Shown over the video area when there is no video (no device found), with the next action.
+    in property <string> notice;
+    out property <bool> menu-open: toolbar.menu-open;
+
+    public function close-menus() {
+        toolbar.close-menus();
+    }
+
     background: transparent;
     default-font-family: Theme.font;
 
@@ -59,6 +57,21 @@ export component ComponentsTest inherits Window {
         }
     }
 
+    if root.notice != "": Raised {
+        x: (root.width - self.width) / 2;
+        y: root.bar + (root.height - root.bar - self.height) / 2;
+        width: min(message.preferred-width + 2 * Theme.gap-xl, root.width - 2 * Theme.gap-xl);
+        height: message.preferred-height + 2 * Theme.gap-l;
+        message := Text {
+            width: parent.width - 2 * Theme.gap-xl;
+            text: root.notice;
+            color: Theme.c.text;
+            font-size: Theme.text-m;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+
     // Reaching the top of the video brings the chrome back.
     top-zone := TouchArea {
         x: 0;
@@ -76,6 +89,12 @@ export component ComponentsTest inherits Window {
         x: root.width - self.preferred-width - Theme.gap-xl;
         y: root.active || self.pinned ? root.height - 44px - Theme.gap-xl : root.height + 40px;
         height: 44px;
+        capturing: root.notice == "";
+        resolution: root.resolution;
+        badge: root.badge;
+        tier: root.tier;
+        fps: root.fps;
+        // Sample value: the live latency is not measured by the app.
         latency-ms: 23;
         animate y { duration: 300ms; easing: ease-out; }
     }
@@ -112,9 +131,13 @@ export component ComponentsTest inherits Window {
             devices: root.devices;
             audio-inputs: root.audio-inputs;
             modes: root.modes;
+            device: root.device;
+            audio-input: root.audio-input;
+            mode: root.mode;
+            room: root.height - root.bar;
         }
 
-        // Theme switch for this gallery, at the toolbar's right end.
+        // Runtime theme switch (T032), at the toolbar's right end.
         Raised {
             x: parent.width - self.width - Theme.gap-l;
             y: (parent.height - self.height) / 2;
