@@ -9,7 +9,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | # | Spec | Covers | Depends on | Status |
 |---|---|---|---|---|
 | 1 | [Stack spike](#1-stack-spike) | — | — | next |
-| 2 | [App shell](#2-app-shell) | F8, F11 (framework), F39, F40, F41 (settings storage) | 1 | |
+| 2 | [App shell](#2-app-shell) | F8, F11 (framework), F39, F40, F41 (settings storage), F46 | 1 | |
 | 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43 | 2 | |
 | 4 | [Preview audio](#4-preview-audio) | F12–F14 | 3 | |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
@@ -49,7 +49,7 @@ Linux checked too. Old implementation for reference: old/capturax-react.
 
 ```text
 /speckit-specify App shell (see docs/roadmap.md #2): the Rust + Slint application skeleton
-chosen by the stack spike. Covers F8, F39, F40, the settings storage part of F41, and a common
+chosen by the stack spike. Covers F8, F39, F40, F46, the settings storage part of F41, and a common
 way to show empty and error states (F11). Includes the theme tokens from the spike's chosen
 visual direction, i18n infrastructure (English and Portuguese), the portable settings file with
 the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).

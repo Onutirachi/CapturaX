@@ -44,7 +44,7 @@ streaming), and a **View output** action shows the output in the preview.
 |---|---|---|
 | F6 | Preview the device with the lowest possible latency. | |
 | F7 | Measured latency and frame rate, updated live. Its spec defines which frame rate is shown (what the source delivers, what reaches the app or what is presented) and whether dropped frames are shown. | |
-| F8 | Frameless window with its own title bar; fullscreen with F11. Esc closes an open menu first, then leaves fullscreen; it never quits the app. | |
+| F8 | Frameless window with its own title bar; fullscreen with F11. Esc closes an open menu first, then leaves fullscreen; it never quits the app. In small windows the main screen switches to a compact layout instead of overlapping its controls (the stack spike's Float needs 800 × 520 without it). | |
 | F9 | Optional ambient light: the area around the video glows with the video's colors. | |
 | F10 | Hide the preview to save resources; recording and streaming continue. | |
 | F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected, black image while a signal is present (likely HDCP: suggest turning it off on the console). Never an empty list. | |
@@ -122,6 +122,7 @@ streaming), and a **View output** action shows the output in the preview.
 | ID | Feature | Spec |
 |---|---|---|
 | F39 | English and Portuguese (Brazil), automatic from the system language or chosen in the settings, switching without restart. | |
+| F46 | Dark and light themes, chosen in the settings. | |
 | F40 | Persistent settings. Categories are defined in their own spec. | |
 | F41 | Portable: settings, keys and state next to the executable; if that folder is not writable, warn and use the per-user configuration folder. The installer copies files and configures the firewall; the app has a **Configure firewall** action for restored backups. GStreamer ships with the app. | |
 | F44 | Updates: check GitHub Releases, notify about a new version, install it automatically when the user agrees. The check can be turned off. | |
