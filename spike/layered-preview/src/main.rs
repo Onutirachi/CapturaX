@@ -4,6 +4,8 @@
 //! F11 toggles fullscreen on the current monitor; Esc closes an open menu, then leaves fullscreen.
 //! Close the window to quit.
 
+mod ambient;
+
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -57,6 +59,14 @@ struct Args {
     /// Show a live test pattern in --mode (default 1920x1080@60) instead of a device
     #[arg(long)]
     test_video: bool,
+
+    /// Start with the ambient light on (Float direction; the dock's button toggles it)
+    #[arg(long)]
+    ambient: bool,
+
+    /// Ambient light strength, from 0 to 1 (the previous app used 0.9)
+    #[arg(long, default_value_t = 0.9)]
+    ambient_strength: f32,
 }
 
 /// One RGBA frame, rows packed without padding.
@@ -112,6 +122,10 @@ struct Gpu {
     sampler: wgpu::Sampler,
     video: Option<Layer>,
     ui: Option<Layer>,
+    /// A video frame was uploaded since the last render: the ambient light takes it.
+    fresh_video: bool,
+    ambient: ambient::Ambient,
+    glow: Layer,
 }
 
 impl Gpu {
@@ -222,7 +236,29 @@ impl Gpu {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        Ok(Self { surface, device, queue, config, pipeline, layout, sampler, video: None, ui: None })
+        let ambient = ambient::Ambient::new(&device);
+        let glow = new_layer(
+            &device,
+            &layout,
+            &sampler,
+            ambient::WIDTH,
+            ambient::HEIGHT,
+            wgpu::TextureUsages::RENDER_ATTACHMENT,
+        );
+        Ok(Self {
+            surface,
+            device,
+            queue,
+            config,
+            pipeline,
+            layout,
+            sampler,
+            video: None,
+            ui: None,
+            fresh_video: false,
+            ambient,
+            glow,
+        })
     }
 
     fn resize(&mut self, width: u32, height: u32) {
@@ -232,33 +268,7 @@ impl Gpu {
     }
 
     fn make_layer(&self, width: u32, height: u32) -> Layer {
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("layer"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let rect = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("rect"),
-            size: 32,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let view = texture.create_view(&Default::default());
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("layer"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
-                wgpu::BindGroupEntry { binding: 2, resource: rect.as_entire_binding() },
-            ],
-        });
-        Layer { texture, bind_group, rect, width, height }
+        new_layer(&self.device, &self.layout, &self.sampler, width, height, wgpu::TextureUsages::COPY_DST)
     }
 
     fn upload(&self, layer: &Layer, data: &[u8]) {
@@ -275,9 +285,10 @@ impl Gpu {
         );
     }
 
-    /// Composites the video (letterboxed) and the UI layer, then presents immediately.
-    /// `area` is where the video is letterboxed (the whole surface when the UI gives none).
-    fn render(&self, backdrop: wgpu::Color, area: Option<Area>) -> bool {
+    /// Composites the ambient light (with its strength, when on), the video (letterboxed) and the
+    /// UI layer, then presents immediately. `area` is where the video is letterboxed (the whole
+    /// surface when the UI gives none); the ambient light fills it.
+    fn render(&mut self, backdrop: wgpu::Color, area: Option<Area>, ambient: Option<f32>) -> bool {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             _ => {
@@ -287,21 +298,38 @@ impl Gpu {
         };
         let (w, h) = (self.config.width as f32, self.config.height as f32);
         // Pixel rectangle to clip space, plus the size and radius the shader rounds the corners with.
-        let uniform = |x: f32, y: f32, rw: f32, rh: f32, radius: f32| {
-            [x / w * 2.0 - 1.0, 1.0 - y / h * 2.0, (x + rw) / w * 2.0 - 1.0, 1.0 - (y + rh) / h * 2.0, rw, rh, radius, 0.0]
+        let uniform = |x: f32, y: f32, rw: f32, rh: f32, radius: f32, opacity: f32| {
+            [x / w * 2.0 - 1.0, 1.0 - y / h * 2.0, (x + rw) / w * 2.0 - 1.0, 1.0 - (y + rh) / h * 2.0, rw, rh, radius, opacity]
         };
+        let [ax, ay, aw, ah, radius] = area.unwrap_or([0.0, 0.0, w, h, 0.0]);
         if let Some(video) = &self.video {
-            let [ax, ay, aw, ah, radius] = area.unwrap_or([0.0, 0.0, w, h, 0.0]);
             let scale = (aw / video.width as f32).min(ah / video.height as f32);
             let (rw, rh) = ((video.width as f32 * scale).round(), (video.height as f32 * scale).round());
             let (x, y) = ((ax + (aw - rw) / 2.0).round(), (ay + (ah - rh) / 2.0).round());
-            self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&uniform(x, y, rw, rh, radius)));
+            self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&uniform(x, y, rw, rh, radius, 1.0)));
         }
         if let Some(ui) = &self.ui {
-            self.queue.write_buffer(&ui.rect, 0, bytemuck::cast_slice(&uniform(0.0, 0.0, w, h, 0.0)));
+            self.queue.write_buffer(&ui.rect, 0, bytemuck::cast_slice(&uniform(0.0, 0.0, w, h, 0.0, 1.0)));
         }
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
+        let glow = match (ambient, &self.video) {
+            (Some(strength), Some(video)) => {
+                if std::mem::take(&mut self.fresh_video) {
+                    let video_view = video.texture.create_view(&Default::default());
+                    let glow_view = self.glow.texture.create_view(&Default::default());
+                    self.ambient.update(&self.device, &mut encoder, &video_view, &glow_view);
+                }
+                let rect = uniform(ax, ay, aw, ah, radius, strength);
+                self.queue.write_buffer(&self.glow.rect, 0, bytemuck::cast_slice(&rect));
+                self.ambient.ready().then_some(&self.glow)
+            }
+            _ => {
+                self.ambient.reset();
+                None
+            }
+        };
+        self.fresh_video = false;
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("composite"),
@@ -314,7 +342,7 @@ impl Gpu {
                 ..Default::default()
             });
             pass.set_pipeline(&self.pipeline);
-            for layer in [&self.video, &self.ui].into_iter().flatten() {
+            for layer in [glow, self.video.as_ref(), self.ui.as_ref()].into_iter().flatten() {
                 pass.set_bind_group(0, &layer.bind_group, &[]);
                 pass.draw(0..4, 0..1);
             }
@@ -323,6 +351,44 @@ impl Gpu {
         self.queue.present(frame);
         true
     }
+}
+
+/// A layer's texture (sampled, plus `usage`) with its rectangle and bind group.
+fn new_layer(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    sampler: &wgpu::Sampler,
+    width: u32,
+    height: u32,
+    usage: wgpu::TextureUsages,
+) -> Layer {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("layer"),
+        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | usage,
+        view_formats: &[],
+    });
+    let rect = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("rect"),
+        size: 32,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    let view = texture.create_view(&Default::default());
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("layer"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 2, resource: rect.as_entire_binding() },
+        ],
+    });
+    Layer { texture, bind_group, rect, width, height }
 }
 
 fn choose_present_mode(supported: &[wgpu::PresentMode], wanted: Option<&str>) -> anyhow::Result<wgpu::PresentMode> {
@@ -389,6 +455,9 @@ struct App {
     set_fullscreen: Box<dyn Fn(bool)>,
     /// Closes an open menu; false when none was open (Esc then leaves fullscreen).
     close_menu: Box<dyn Fn() -> bool>,
+    /// Whether the UI has the ambient light on, and its strength.
+    ambient: Box<dyn Fn() -> bool>,
+    ambient_strength: f32,
     ui_pixels: Vec<PremultipliedRgbaColor>,
     slot: Arc<Mutex<Option<Frame>>>,
     /// None when there is no video source (no device found).
@@ -430,10 +499,12 @@ impl App {
     /// Draws the UI layer if Slint says it changed, then composites and presents.
     fn redraw(&mut self) -> bool {
         self.draw_ui();
-        let Some(gpu) = self.gpu.as_ref() else { return false };
         let scale = self.scale;
         let area = (self.video_area)().map(|a| a.map(|v| v * scale));
-        let presented = gpu.render((self.backdrop)(), area);
+        let ambient = (self.ambient)().then_some(self.ambient_strength);
+        let backdrop = (self.backdrop)();
+        let Some(gpu) = self.gpu.as_mut() else { return false };
+        let presented = gpu.render(backdrop, area, ambient);
         if presented {
             self.last_present = Instant::now();
         }
@@ -474,9 +545,10 @@ impl App {
         let ui_median = self.ui_ms.get(self.ui_ms.len() / 2).copied().unwrap_or(0.0);
         let ui_max = self.ui_ms.last().copied().unwrap_or(0.0);
         println!(
-            "[loop]  {:>4} fps presented | frame ready -> presented median {median:.1} ms | UI {:>3} redraws, median {ui_median:.1} ms, max {ui_max:.1} ms",
+            "[loop]  {:>4} fps presented | frame ready -> presented median {median:.1} ms | UI {:>3} redraws, median {ui_median:.1} ms, max {ui_max:.1} ms | ambient {}",
             self.presented,
-            self.ui_ms.len()
+            self.ui_ms.len(),
+            if (self.ambient)() { "on" } else { "off" }
         );
         self.presented = 0;
         self.delays_ms.clear();
@@ -527,6 +599,7 @@ impl ApplicationHandler<UserEvent> for App {
                         gpu.video = Some(gpu.make_layer(frame.width, frame.height));
                     }
                     gpu.upload(gpu.video.as_ref().unwrap(), &frame.data);
+                    gpu.fresh_video = true;
                 }
                 if self.redraw() {
                     self.presented += 1;
@@ -668,6 +741,7 @@ struct Ui {
     video_area: Box<dyn Fn() -> Option<Area>>,
     set_fullscreen: Box<dyn Fn(bool)>,
     close_menu: Box<dyn Fn() -> bool>,
+    ambient: Box<dyn Fn() -> bool>,
 }
 
 /// What a UI offers the loop beyond the shared globals; the defaults suit a UI without them.
@@ -676,11 +750,13 @@ struct Hooks {
     video_area: Box<dyn Fn() -> Option<Area>>,
     /// Closes an open menu, false when none was open.
     close_menu: Box<dyn Fn() -> bool>,
+    /// Whether the ambient light is on.
+    ambient: Box<dyn Fn() -> bool>,
 }
 
 impl Default for Hooks {
     fn default() -> Self {
-        Self { video_area: Box::new(|| None), close_menu: Box::new(|| false) }
+        Self { video_area: Box::new(|| None), close_menu: Box::new(|| false), ambient: Box::new(|| false) }
     }
 }
 
@@ -714,6 +790,7 @@ where
         video_area: hooks.video_area,
         set_fullscreen: Box::new(set_fullscreen),
         close_menu: hooks.close_menu,
+        ambient: hooks.ambient,
     })
 }
 
@@ -919,7 +996,11 @@ fn main() -> anyhow::Result<()> {
                     open
                 })
             };
-            let hooks = Hooks { video_area: Box::new(video_area), close_menu: Box::new(close_menu) };
+            ui.set_ambient_light(args.ambient);
+            let weak = ui.as_weak();
+            let ambient = move || weak.upgrade().is_some_and(|ui| ui.get_ambient_light());
+            let hooks =
+                Hooks { video_area: Box::new(video_area), close_menu: Box::new(close_menu), ambient: Box::new(ambient) };
             show(ui, hooks, dark, event_loop.create_proxy())?
         }
         other => anyhow::bail!("unknown UI {other:?} (overlay, render-test, theme-test, float)"),
@@ -1016,6 +1097,8 @@ fn main() -> anyhow::Result<()> {
         video_area: ui.video_area,
         set_fullscreen: ui.set_fullscreen,
         close_menu: ui.close_menu,
+        ambient: ui.ambient,
+        ambient_strength: args.ambient_strength.clamp(0.0, 1.0),
         ui_pixels: Vec::new(),
         slot,
         pipeline: pipeline.clone(),

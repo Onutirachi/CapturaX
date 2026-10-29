@@ -1,5 +1,5 @@
-// Draws one textured rectangle; used twice per frame: the video, then the UI layer.
-// Textures hold premultiplied RGBA, blended with (One, OneMinusSrcAlpha).
+// Draws one textured rectangle; used for each layer per frame: the ambient light when on, the
+// video, then the UI layer. Textures hold premultiplied RGBA, blended with (One, OneMinusSrcAlpha).
 
 struct Rect {
     // Left, top, right, bottom in clip space.
@@ -7,7 +7,7 @@ struct Rect {
     // Size in pixels and corner radius in pixels (0: square corners).
     size: vec2<f32>,
     radius: f32,
-    _pad: f32,
+    opacity: f32,
 };
 
 @group(0) @binding(0) var tex: texture_2d<f32>;
@@ -38,5 +38,5 @@ fn fs(in: VertexOut) -> @location(0) vec4<f32> {
     let half_size = rect.size * 0.5;
     let q = abs(in.uv * rect.size - half_size) - (half_size - vec2<f32>(rect.radius));
     let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - rect.radius;
-    return color * clamp(0.5 - d, 0.0, 1.0);
+    return color * (clamp(0.5 - d, 0.0, 1.0) * rect.opacity);
 }

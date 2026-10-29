@@ -28,6 +28,8 @@ export component Float inherits Window {
     // Shown over the video area when there is no video (no device found), with the next action.
     in property <string> notice;
     out property <bool> menu-open: toolbar.menu-open;
+    // The dock's toggle; the loop draws the ambient light behind the video while it is on (T034).
+    in-out property <bool> ambient-light <=> left-dock.ambient-light;
 
     public function close-menus() {
         toolbar.close-menus();
