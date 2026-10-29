@@ -31,7 +31,7 @@ export component Toolbar inherits Rectangle {
 
         device-list := Dropdown {
             menu-room: root.room - self.y - self.height - Theme.gap-l;
-            title: "Video";
+            title: @tr("Video");
             items: root.devices;
             current <=> root.device;
             // One menu at a time.
@@ -45,7 +45,7 @@ export component Toolbar inherits Rectangle {
 
         audio-list := Dropdown {
             menu-room: root.room - self.y - self.height - Theme.gap-l;
-            title: "Audio";
+            title: @tr("Audio");
             items: root.audio-inputs;
             current <=> root.audio-input;
             changed open => {
@@ -58,7 +58,7 @@ export component Toolbar inherits Rectangle {
 
         mode-list := Dropdown {
             menu-room: root.room - self.y - self.height - Theme.gap-l;
-            title: "Mode";
+            title: @tr("Mode");
             items: root.modes;
             current <=> root.mode;
             changed open => {

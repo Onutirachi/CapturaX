@@ -124,14 +124,14 @@ export component ViewDock inherits DockPanel {
 
     IconButton {
         icon: root.fullscreen ? @image-url("../assets/icons/fullscreen_exit.svg") : @image-url("../assets/icons/fullscreen.svg");
-        tooltip: root.fullscreen ? "Exit fullscreen (F11)" : "Fullscreen (F11)";
+        tooltip: root.fullscreen ? @tr("Exit fullscreen (F11)") : @tr("Fullscreen (F11)");
         tooltip-side: Side.right;
         clicked => { root.toggle-fullscreen(); }
     }
 
     IconButton {
         icon: @image-url("../assets/icons/ambient_light.svg");
-        tooltip: root.ambient-light ? "Turn off ambient light" : "Ambient light";
+        tooltip: root.ambient-light ? @tr("Turn off ambient light") : @tr("Ambient light");
         tooltip-side: Side.right;
         active: root.ambient-light;
         clicked => { root.ambient-light = !root.ambient-light; }
@@ -154,7 +154,7 @@ export component ActionDock inherits DockPanel {
 
     IconButton {
         icon: root.preview-hidden ? @image-url("../assets/icons/preview_off.svg") : @image-url("../assets/icons/preview.svg");
-        tooltip: root.preview-hidden ? "Show preview" : "Hide preview (recording continues)";
+        tooltip: root.preview-hidden ? @tr("Show preview") : @tr("Hide preview (recording continues)");
         tooltip-side: Side.left;
         active: root.preview-hidden;
         clicked => { root.preview-hidden = !root.preview-hidden; }
@@ -162,14 +162,14 @@ export component ActionDock inherits DockPanel {
 
     IconButton {
         icon: @image-url("../assets/icons/screenshot.svg");
-        tooltip: "Screenshot (F9)";
+        tooltip: @tr("Screenshot (F9)");
         tooltip-side: Side.left;
         clicked => { root.screenshot(); }
     }
 
     IconButton {
         icon: root.recording ? @image-url("../assets/icons/record_stop.svg") : @image-url("../assets/icons/record.svg");
-        tooltip: root.recording ? "Stop recording (F10)" : "Record (F10)";
+        tooltip: root.recording ? @tr("Stop recording (F10)") : @tr("Record (F10)");
         tooltip-side: Side.left;
         active: root.recording;
         primary: true;
@@ -178,7 +178,7 @@ export component ActionDock inherits DockPanel {
 
     IconButton {
         icon: @image-url("../assets/icons/live.svg");
-        tooltip: root.live ? "Stop streaming" : "Stream to friends";
+        tooltip: root.live ? @tr("Stop streaming") : @tr("Stream");
         tooltip-side: Side.left;
         active: root.live;
         primary: true;
@@ -189,7 +189,7 @@ export component ActionDock inherits DockPanel {
 
     IconButton {
         icon: @image-url("../assets/icons/settings.svg");
-        tooltip: "Settings";
+        tooltip: @tr("Settings");
         tooltip-side: Side.left;
         clicked => { root.settings(); }
     }

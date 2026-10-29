@@ -4,6 +4,7 @@
 import { Theme } from "../theme.slint";
 import { Raised } from "surface.slint";
 import { Badge, Tier } from "basics.slint";
+import { Texts } from "../texts.slint";
 
 export struct DropItem {
     group: string,
@@ -58,7 +59,7 @@ export component Dropdown inherits Raised {
                 spacing: 8px;
 
                 Text {
-                    text: root.items.length > 0 ? root.items[root.current].name : "None";
+                    text: root.items.length > 0 ? Texts.label(root.items[root.current].name) : @tr("None");
                     color: Theme.c.text;
                     font-size: Theme.text-m;
                     font-weight: 600;
@@ -124,7 +125,7 @@ export component Dropdown inherits Raised {
                         padding-left: 12px;
                         Text {
                             height: 30px;
-                            text: item.group;
+                            text: Texts.label(item.group);
                             color: Theme.c.text-faint;
                             font-size: Theme.text-s;
                             font-weight: 600;
@@ -153,13 +154,13 @@ export component Dropdown inherits Raised {
                             VerticalLayout {
                                 alignment: center;
                                 Text {
-                                    text: item.name;
+                                    text: Texts.label(item.name);
                                     color: Theme.c.text;
                                     font-size: Theme.text-m;
                                     overflow: elide;
                                 }
                                 if item.detail != "": Text {
-                                    text: item.detail;
+                                    text: Texts.label(item.detail);
                                     color: Theme.c.text-muted;
                                     font-size: Theme.text-s;
                                     overflow: elide;

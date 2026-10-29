@@ -12,6 +12,7 @@ import { DropItem } from "../components/dropdown.slint";
 import { Toolbar } from "../components/toolbar.slint";
 import { InfoOverlay } from "../components/info-overlay.slint";
 import { WindowState, VideoRect } from "../window-state.slint";
+import { Texts } from "../texts.slint";
 
 export component Float inherits Window {
     // Devices only: screens and windows are sources of recording and streaming, not the preview.
@@ -26,11 +27,13 @@ export component Float inherits Window {
     in property <string> badge;
     in property <Tier> tier: Tier.other;
     in property <int> fps;
-    // Shown over the video area when there is no video (no device found), with the next action.
-    in property <string> notice;
+    // No device found: a message over the video area says what to do next.
+    in property <bool> no-device;
     out property <bool> menu-open: toolbar.menu-open;
     // The dock's toggle; the loop draws the ambient light behind the video while it is on (T034).
     in-out property <bool> ambient-light <=> left-dock.ambient-light;
+    // The language button (T036): Rust selects the bundled translation.
+    callback select-language(string);
 
     public function close-menus() {
         toolbar.close-menus();
@@ -60,14 +63,14 @@ export component Float inherits Window {
         }
     }
 
-    if root.notice != "": Raised {
+    if root.no-device: Raised {
         x: (root.width - self.width) / 2;
         y: root.bar + (root.height - root.bar - self.height) / 2;
         width: min(message.preferred-width + 2 * Theme.gap-xl, root.width - 2 * Theme.gap-xl);
         height: message.preferred-height + 2 * Theme.gap-l;
         message := Text {
             width: parent.width - 2 * Theme.gap-xl;
-            text: root.notice;
+            text: @tr("No capture device found. Connect a capture card or a webcam and start again, or run with --test-video.");
             color: Theme.c.text;
             font-size: Theme.text-m;
             horizontal-alignment: center;
@@ -96,7 +99,7 @@ export component Float inherits Window {
         height: root.height;
         open: root.active;
         top: root.bar + (root.active ? toolbar.height + Theme.gap-m : Theme.gap-xl);
-        capturing: root.notice == "";
+        capturing: !root.no-device;
         resolution: root.resolution;
         badge: root.badge;
         tier: root.tier;
@@ -143,8 +146,26 @@ export component Float inherits Window {
             room: root.height - root.bar;
         }
 
-        // Runtime theme switch (T032), at the toolbar's right end.
+        // Runtime language switch (T036), left of the theme switch. Each language is named in itself.
         Raised {
+            x: theme-switch.x - self.width - Theme.gap-m;
+            y: (parent.height - self.height) / 2;
+            width: 132px;
+            height: 48px;
+            fill: Theme.c.top;
+            TouchArea {
+                clicked => { root.select-language(Texts.language == "en" ? "pt-BR" : "en"); }
+            }
+            Text {
+                text: Texts.language == "en" ? "Português" : "English";
+                color: Theme.c.text;
+                font-size: Theme.text-m;
+                font-weight: 600;
+            }
+        }
+
+        // Runtime theme switch (T032), at the toolbar's right end.
+        theme-switch := Raised {
             x: parent.width - self.width - Theme.gap-l;
             y: (parent.height - self.height) / 2;
             width: 132px;
@@ -154,7 +175,7 @@ export component Float inherits Window {
                 clicked => { Theme.dark = !Theme.dark; }
             }
             Text {
-                text: Theme.dark ? "Light theme" : "Dark theme";
+                text: Theme.dark ? @tr("Light theme") : @tr("Dark theme");
                 color: Theme.c.text;
                 font-size: Theme.text-m;
                 font-weight: 600;

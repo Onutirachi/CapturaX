@@ -56,6 +56,11 @@ struct Args {
     #[arg(long, default_value = "dark")]
     theme: String,
 
+    /// Starting language: en or pt-BR (default: the system's; switchable at runtime in the Float
+    /// direction)
+    #[arg(long)]
+    lang: Option<String>,
+
     /// Show a live test pattern in --mode (default 1920x1080@60) instead of a device
     #[arg(long)]
     test_video: bool,
@@ -905,7 +910,7 @@ fn fill_float(ui: &Float, input: &Input, mode: &Mode, requested: bool, audio_on:
     let inputs: Vec<String> = audio::audio_devices("Audio/Source")?.into_iter().map(|d| d.name).collect();
     let paired = inputs.iter().find(|n| !source_name.is_empty() && n.to_lowercase().contains(&source_name.to_lowercase()));
     let mut audio_items = vec![match paired {
-        Some(name) => item("", &format!("Auto ({name})"), "", None),
+        Some(name) => item("", "Auto", name, None),
         None => item("", "Auto", "No paired input", None),
     }];
     audio_items.push(item("", "None", "", None));
@@ -914,9 +919,7 @@ fn fill_float(ui: &Float, input: &Input, mode: &Mode, requested: bool, audio_on:
     ui.set_audio_input(if audio_on { 0 } else { 1 });
 
     if let Input::Nothing = input {
-        ui.set_notice(
-            "No capture device found. Connect a capture card or a webcam and start again, or run with --test-video.".into(),
-        );
+        ui.set_no_device(true);
     } else {
         let (tier, badge) = tier(mode);
         ui.set_resolution(size_text(mode).into());
@@ -985,6 +988,15 @@ fn main() -> anyhow::Result<()> {
         "float" => {
             let ui = Float::new()?;
             fill_float(&ui, &input, &mode, args.common.mode.is_some(), args.audio, &listed)?;
+            // Picked after the component exists; the Slint text follows at once.
+            if let Some(lang) = &args.lang {
+                slint::select_bundled_translation(lang).map_err(|e| anyhow::anyhow!("language {lang:?}: {e}"))?;
+            }
+            ui.on_select_language(|lang| {
+                if let Err(e) = slint::select_bundled_translation(&lang) {
+                    eprintln!("language {lang:?}: {e}");
+                }
+            });
             let weak = ui.as_weak();
             let video_area =
                 move || weak.upgrade().map(|ui| ui.get_video_area()).map(|a| [a.x, a.y, a.width, a.height, a.radius]);

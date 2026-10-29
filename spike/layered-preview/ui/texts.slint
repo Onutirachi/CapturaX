@@ -1,0 +1,20 @@
+// Translation helpers (T036). Strings are English in the code and translated with `@tr` from the
+// bundled lang/<language>/LC_MESSAGES/layered-preview.po, switched at runtime.
+export global Texts {
+    // The running language, as a translatable string: "pt-BR" in the Portuguese catalog.
+    out property <string> language: @tr("en");
+
+    // Picker text built in Rust arrives as these English keys and is translated here, so every
+    // translation lives in one catalog. Anything else (device names, modes) passes through.
+    public pure function label(text: string) -> string {
+        if text == "Automatic" { return @tr("Automatic"); }
+        if text == "Modes" { return @tr("Modes"); }
+        if text == "Auto" { return @tr("Auto"); }
+        if text == "Auto max resolution" { return @tr("Auto max resolution"); }
+        if text == "Auto max FPS" { return @tr("Auto max FPS"); }
+        if text == "No paired input" { return @tr("No paired input"); }
+        if text == "None" { return @tr("None"); }
+        if text == "Test pattern" { return @tr("Test pattern"); }
+        return text;
+    }
+}

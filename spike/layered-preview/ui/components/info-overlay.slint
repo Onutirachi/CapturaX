@@ -360,7 +360,7 @@ export component InfoOverlay inherits Rectangle {
                 colorize: Theme.info-text;
             }
         }
-        BubbleText { text: root.capturing ? "Capturing" : "Paused"; }
+        BubbleText { text: root.capturing ? @tr("Capturing") : @tr("Paused"); }
     }
 
     size := InfoItem {
