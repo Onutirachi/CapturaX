@@ -43,7 +43,7 @@ streaming), and a **View output** action shows the output in the preview.
 | ID | Feature | Spec |
 |---|---|---|
 | F6 | Preview the device with the lowest possible latency. | |
-| F7 | Measured latency and frame rate, updated live. | |
+| F7 | Measured latency and frame rate, updated live. Its spec defines which frame rate is shown (what the source delivers, what reaches the app or what is presented) and whether dropped frames are shown. | |
 | F8 | Frameless window with its own title bar; fullscreen with F11. Esc closes an open menu first, then leaves fullscreen; it never quits the app. | |
 | F9 | Optional ambient light: the area around the video glows with the video's colors. | |
 | F10 | Hide the preview to save resources; recording and streaming continue. | |

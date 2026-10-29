@@ -76,6 +76,9 @@ Command (from `spike/`):
 
 ## Decisions
 
+- The FPS bubble keeps showing the selected mode in the spike: the measured frame rate is built
+  with F7 in the real app, whose spec defines which rate is shown (maintainer, 2026-10-29).
+
 - Option D (research R13): own winit + wgpu loop presents video on arrival; Slint draws the UI
   with its software renderer into a layer composited on the GPU. Direct3D 12 + Mailbox on
   Windows.
@@ -103,8 +106,6 @@ Command (from `spike/`):
 
 ## Next step
 
-0. Proposed, awaiting the maintainer: show the measured frame rate in the FPS bubble (the loop
-   already counts presented frames per second; today the bubble shows the selected mode).
 1. Optional: check the no-device message (T032) running; the ezcap was seen in T033. Choosing
    a picker item does not reopen the capture; say if the review needs that.
 2. US4: T036 language switching,
