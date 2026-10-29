@@ -1,6 +1,7 @@
 // Float direction (T029, T032), laid out as the previous app: title bar above, toolbar over the top
-// of the video, a dock on each side, capture info at the bottom right. Toolbar, docks and info
-// hide 2 s after the pointer leaves them and come back when it reaches the top of the video.
+// of the video, a dock on each side, capture info in the corners the user picks. Toolbar, docks and
+// the unpinned info hide 2 s after the pointer leaves them and come back when it reaches the top
+// of the video or a pinned bubble.
 // The lists come from Rust (real devices and modes); window controls are wired in T037.
 import { Theme } from "../theme.slint";
 import { Raised } from "../components/surface.slint";
@@ -43,7 +44,7 @@ export component Float inherits Window {
     out property <VideoRect> video-area: { x: 0, y: root.bar, width: root.width, height: root.height - root.bar, radius: 0 };
     property <bool> active: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || right-area.has-hover || toolbar.menu-open;
+        || right-area.has-hover || toolbar.menu-open || info.engaged;
     changed engaged => {
         if (self.engaged) {
             self.active = true;
@@ -87,10 +88,14 @@ export component Float inherits Window {
         clicked => { toolbar.close-menus(); }
     }
 
-    InfoOverlay {
-        x: root.width - self.preferred-width - Theme.gap-xl;
-        y: root.active || self.pinned ? root.height - 44px - Theme.gap-xl : root.height + 40px;
-        height: 44px;
+    // The bubbles the user arranged (T035); in the top corners they sit below the open toolbar.
+    info := InfoOverlay {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        open: root.active;
+        top: root.bar + (root.active ? toolbar.height + Theme.gap-m : Theme.gap-xl);
         capturing: root.notice == "";
         resolution: root.resolution;
         badge: root.badge;
@@ -98,7 +103,6 @@ export component Float inherits Window {
         fps: root.fps;
         // Sample value: the live latency is not measured by the app.
         latency-ms: 23;
-        animate y { duration: 300ms; easing: ease-out; }
     }
 
     left-area := TouchArea {

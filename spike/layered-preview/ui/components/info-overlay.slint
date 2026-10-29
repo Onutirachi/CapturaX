@@ -1,21 +1,10 @@
-// Capture info over the video (T028): bubbles in the previous app's shape, black at 55%, opaque
-// text, icons and badges. Pinned, it stays while the rest of the chrome hides.
+// Capture info over the video (T028, T035): bubbles in the previous app's shape, black at 55%,
+// opaque text, icons and badges. The user arranges them: hovering a bubble while the chrome is
+// open shows a menu to move it left or right, pin it, and anchor it to a corner. Each corner holds
+// its own group, packed against it; with the chrome hidden only the pinned bubbles stay.
 import { Theme } from "../theme.slint";
-import { Badge, Tier } from "basics.slint";
-
-export component InfoBubble inherits Rectangle {
-    height: 44px;
-    width: row.preferred-width;
-    border-radius: Theme.radius-m;
-    background: Theme.info-bubble;
-
-    row := HorizontalLayout {
-        padding-left: 12px;
-        padding-right: 12px;
-        spacing: 8px;
-        @children
-    }
-}
+import { Raised } from "surface.slint";
+import { Badge, Tier, IconButton } from "basics.slint";
 
 component BubbleText inherits Text {
     color: Theme.info-text;
@@ -23,7 +12,190 @@ component BubbleText inherits Text {
     vertical-alignment: center;
 }
 
-export component InfoOverlay inherits HorizontalLayout {
+// One bubble with its menu. Corners: 0 top left, 1 top right, 2 bottom left, 3 bottom right.
+component InfoItem inherits Rectangle {
+    // The chrome is open: the menu may show.
+    in property <bool> open;
+    in property <bool> pinned;
+    in property <int> corner;
+    in property <bool> first;
+    in property <bool> last;
+    // The window's width, to keep the menus inside it.
+    in property <length> room;
+    // This bubble holds the only menu allowed open: the last one the pointer entered.
+    in property <bool> current;
+    out property <bool> pointed: area.has-hover || bridge.has-hover || menu-area.has-hover
+        || (root.picking && (corner-bridge.has-hover || corner-area.has-hover));
+    callback step(int);
+    callback toggle-pin();
+    callback anchor(int);
+    callback entered();
+
+    property <bool> top: root.corner < 2;
+    property <bool> show-menu;
+    // The corner menu is open.
+    property <bool> picking;
+    changed pointed => {
+        if (self.pointed) {
+            self.entered();
+        }
+    }
+    changed open => {
+        if (!self.open) {
+            self.show-menu = false;
+        }
+    }
+    changed current => {
+        if (!self.current) {
+            self.show-menu = false;
+        }
+    }
+    changed show-menu => {
+        if (!self.show-menu) {
+            self.picking = false;
+        }
+    }
+
+    // Opens after a short hover, so sweeping the pointer across the bubbles opens none. Hovering
+    // a pinned bubble brings the chrome back, and then its menu.
+    Timer {
+        interval: 120ms;
+        running: root.pointed && root.open && root.current && !root.show-menu;
+        triggered => { root.show-menu = true; }
+    }
+
+    // Stays open while the pointer is on the bubble, the menus or the gaps between, and a moment after.
+    Timer {
+        interval: 250ms;
+        running: root.show-menu && !root.pointed;
+        triggered => { root.show-menu = false; }
+    }
+
+    height: 44px;
+    width: row.preferred-width;
+    border-radius: Theme.radius-m;
+    background: Theme.info-bubble;
+
+    area := TouchArea { }
+
+    row := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 8px;
+        @children
+    }
+
+    // Marks the pinned bubbles while the chrome is open.
+    if root.pinned && root.open: Image {
+        x: parent.width - 15px;
+        y: 5px;
+        width: 10px;
+        height: 10px;
+        source: @image-url("../assets/icons/pin_enable.svg");
+        colorize: Theme.c.accent;
+    }
+
+    // Covers the gap between the bubble and the menu, so crossing it keeps the menu open.
+    bridge := TouchArea {
+        x: menu.x;
+        y: root.top ? root.height : -8px;
+        width: menu.width;
+        height: 8px;
+        visible: menu.visible;
+    }
+
+    menu := Raised {
+        fill: Theme.c.top;
+        width: 4 * 40px + 3 * 2px + 2 * 4px;
+        height: 48px;
+        // Centered on the bubble, inside the window.
+        x: max(Theme.gap-m - root.x, min((root.width - self.width) / 2, root.room - Theme.gap-m - root.x - self.width));
+        y: root.top ? root.height + 8px : -self.height - 8px;
+        opacity: root.show-menu ? 1 : 0;
+        visible: self.opacity > 0;
+        animate opacity { duration: Theme.quick; }
+
+        menu-area := TouchArea {
+            IconButton {
+                x: 4px;
+                y: 4px;
+                size: 40px;
+                icon: @image-url("../assets/icons/chevron_left.svg");
+                enabled: !root.first;
+                clicked => { root.picking = false; root.step(-1); }
+            }
+            IconButton {
+                x: 4px + 42px;
+                y: 4px;
+                size: 40px;
+                icon: root.pinned ? @image-url("../assets/icons/pin_enable.svg") : @image-url("../assets/icons/pin_disable.svg");
+                active: root.pinned;
+                clicked => { root.picking = false; root.toggle-pin(); }
+            }
+            IconButton {
+                x: 4px + 2 * 42px;
+                y: 4px;
+                size: 40px;
+                icon: root.corner == 0 ? @image-url("../assets/icons/corner_tl.svg")
+                    : root.corner == 1 ? @image-url("../assets/icons/corner_tr.svg")
+                    : root.corner == 2 ? @image-url("../assets/icons/corner_bl.svg")
+                    : @image-url("../assets/icons/corner_br.svg");
+                active: root.picking;
+                clicked => { root.picking = !root.picking; }
+            }
+            IconButton {
+                x: 4px + 3 * 42px;
+                y: 4px;
+                size: 40px;
+                icon: @image-url("../assets/icons/chevron_right.svg");
+                enabled: !root.last;
+                clicked => { root.picking = false; root.step(1); }
+            }
+        }
+    }
+
+    corner-bridge := TouchArea {
+        x: corners.x;
+        y: root.top ? menu.y + menu.height : menu.y - 8px;
+        width: corners.width;
+        height: 8px;
+        visible: corners.visible;
+    }
+
+    // The four corners, laid out as they are on the screen; the current one is highlighted.
+    corners := Raised {
+        fill: Theme.c.top;
+        width: 2 * 44px + 3 * 6px;
+        height: self.width;
+        // Centered on the corner button, inside the window.
+        x: max(Theme.gap-m - root.x, min(menu.x + 4px + 2 * 42px + 20px - self.width / 2, root.room - Theme.gap-m - root.x - self.width));
+        y: root.top ? menu.y + menu.height + 8px : menu.y - self.height - 8px;
+        opacity: root.picking ? 1 : 0;
+        visible: self.opacity > 0;
+        animate opacity { duration: Theme.quick; }
+
+        corner-area := TouchArea {
+            for icon[index] in [
+                @image-url("../assets/icons/corner_tl.svg"),
+                @image-url("../assets/icons/corner_tr.svg"),
+                @image-url("../assets/icons/corner_bl.svg"),
+                @image-url("../assets/icons/corner_br.svg"),
+            ]: IconButton {
+                x: 6px + mod(index, 2) * 50px;
+                y: 6px + floor(index / 2) * 50px;
+                icon: icon;
+                active: root.corner == index;
+                clicked => {
+                    root.show-menu = false;
+                    root.anchor(index);
+                }
+            }
+        }
+    }
+}
+
+// Covers the window; only the bubbles take the pointer.
+export component InfoOverlay inherits Rectangle {
     in property <bool> capturing: true;
     in property <string> resolution: "1920 × 1080";
     in property <string> badge: "Full HD";
@@ -31,12 +203,154 @@ export component InfoOverlay inherits HorizontalLayout {
     in property <int> fps: 60;
     // Negative when unknown: the bubble is hidden.
     in property <int> latency-ms: -1;
-    in-out property <bool> pinned;
+    // The chrome is open: every bubble shows; closed, only the pinned ones.
+    in property <bool> open: true;
+    // The unpinned bubbles still hold their places: on closing they slide off the screen edge
+    // first, and only then the pinned ones close up against their corner. On opening it goes the
+    // other way: the pinned ones make room, then the others slide in (at once if none is pinned).
+    property <bool> spread: true;
+    property <bool> arrived: true;
+    changed open => {
+        if (self.open) {
+            self.spread = true;
+            self.arrived = !self.any-pinned();
+        } else {
+            self.arrived = false;
+        }
+    }
+    Timer {
+        interval: 300ms;
+        running: !root.open && root.spread;
+        triggered => { root.spread = false; }
+    }
+    Timer {
+        interval: 300ms;
+        running: root.open && !root.arrived;
+        triggered => { root.arrived = true; }
+    }
+    // The bubble whose menu may open.
+    property <int> menu-at: -1;
+    // Where the top corners' bubbles start, and where the bottom corners' bubbles end.
+    in property <length> top: Theme.gap-xl;
+    in property <length> bottom: root.height - Theme.gap-xl;
+    // True while the pointer is on a bubble or its menus: the chrome must not hide then.
+    out property <bool> engaged: status.pointed || size.pointed || rate.pointed || delay.pointed;
 
-    spacing: Theme.gap-m;
-    alignment: start;
+    // Per bubble (status, resolution, frame rate, latency): its corner, its place in that corner's
+    // group from left to right, and whether it is pinned.
+    in-out property <[int]> corner: [3, 3, 3, 3];
+    in-out property <[int]> order: [0, 1, 2, 3];
+    in-out property <[bool]> pinned: [false, false, false, false];
 
-    InfoBubble {
+    property <length> margin: Theme.gap-xl;
+    property <length> gap: Theme.gap-m;
+
+    pure function exists(k: int) -> bool {
+        k != 3 || root.latency-ms >= 0
+    }
+    // On screen.
+    pure function shown(k: int) -> bool {
+        ((root.open && root.arrived) || root.pinned[k]) && root.exists(k)
+    }
+    pure function any-pinned() -> bool {
+        root.pinned[0] || root.pinned[1] || root.pinned[2] || (root.pinned[3] && root.exists(3))
+    }
+    // Holding a place in its group, in the layout with every bubble (`all`) or the pinned ones.
+    pure function placed(k: int, all: bool) -> bool {
+        (all || root.pinned[k]) && root.exists(k)
+    }
+    pure function w(k: int) -> length {
+        k == 0 ? status.width : k == 1 ? size.width : k == 2 ? rate.width : delay.width
+    }
+    pure function count(c: int) -> int {
+        (root.corner[0] == c ? 1 : 0) + (root.corner[1] == c ? 1 : 0) + (root.corner[2] == c ? 1 : 0)
+            + (root.corner[3] == c ? 1 : 0)
+    }
+    // Width taken by bubble k when it is placed in corner c before place p.
+    pure function before(k: int, c: int, p: int, all: bool) -> length {
+        root.corner[k] == c && root.order[k] < p && root.placed(k, all) ? root.w(k) + root.gap : 0
+    }
+    pure function group(c: int, all: bool) -> length {
+        max(0, root.before(0, c, 4, all) + root.before(1, c, 4, all) + root.before(2, c, 4, all)
+            + root.before(3, c, 4, all) - root.gap)
+    }
+    pure function offset(k: int, all: bool) -> length {
+        root.before(0, root.corner[k], root.order[k], all) + root.before(1, root.corner[k], root.order[k], all)
+            + root.before(2, root.corner[k], root.order[k], all) + root.before(3, root.corner[k], root.order[k], all)
+    }
+    // An unpinned bubble keeps its place in the layout with every bubble, so it only slides
+    // vertically; a pinned one closes up once the others are gone.
+    pure function x-of(k: int) -> length {
+        root.layout-x(k, root.spread || !root.pinned[k])
+    }
+    pure function layout-x(k: int, all: bool) -> length {
+        root.offset(k, all) + (root.corner[k] == 1 || root.corner[k] == 3
+            ? root.width - root.margin - root.group(root.corner[k], all)
+            : root.margin)
+    }
+    // Off screen past the nearest edge when not shown (the title bar covers the top one).
+    pure function y-of(k: int) -> length {
+        root.corner[k] < 2
+            ? (root.shown(k) ? root.top : -84px)
+            : (root.shown(k) ? root.bottom - 44px : root.height + 40px)
+    }
+
+    // Gives `other` the place of bubble k if it holds place `to` in the same corner.
+    function swap(k: int, other: int, to: int) {
+        if (other != k && root.corner[other] == root.corner[k] && root.order[other] == to) {
+            root.order[other] = root.order[k];
+        }
+    }
+    function step(k: int, by: int) {
+        let to = root.order[k] + by;
+        self.swap(k, 0, to);
+        self.swap(k, 1, to);
+        self.swap(k, 2, to);
+        self.swap(k, 3, to);
+        root.order[k] = to;
+    }
+    // Closes the gap bubble k leaves in its group and opens room at the far end of corner c.
+    function settle(k: int, other: int, c: int) {
+        if (other != k) {
+            if (root.corner[other] == root.corner[k] && root.order[other] > root.order[k]) {
+                root.order[other] -= 1;
+            }
+            // In the right corners the far end is the left: the others move one place right.
+            if (root.corner[other] == c && (c == 1 || c == 3)) {
+                root.order[other] += 1;
+            }
+        }
+    }
+    function anchor(k: int, c: int) {
+        if (c == root.corner[k]) {
+            return;
+        }
+        let end = root.count(c);
+        self.settle(k, 0, c);
+        self.settle(k, 1, c);
+        self.settle(k, 2, c);
+        self.settle(k, 3, c);
+        root.corner[k] = c;
+        root.order[k] = c == 1 || c == 3 ? 0 : end;
+    }
+
+    status := InfoItem {
+        x: root.x-of(0);
+        y: root.y-of(0);
+        open: root.open;
+        room: root.width;
+        pinned: root.pinned[0];
+        corner: root.corner[0];
+        first: root.order[0] == 0;
+        last: root.order[0] == root.count(root.corner[0]) - 1;
+        visible: root.exists(0);
+        current: root.menu-at == 0;
+        animate x, y { duration: 300ms; easing: ease-out; }
+        entered => { root.menu-at = 0; }
+        step(by) => { root.step(0, by); }
+        toggle-pin => { root.pinned[0] = !root.pinned[0]; }
+        anchor(c) => { root.anchor(0, c); }
+
         VerticalLayout {
             alignment: center;
             Image {
@@ -49,7 +363,23 @@ export component InfoOverlay inherits HorizontalLayout {
         BubbleText { text: root.capturing ? "Capturing" : "Paused"; }
     }
 
-    InfoBubble {
+    size := InfoItem {
+        x: root.x-of(1);
+        y: root.y-of(1);
+        open: root.open;
+        room: root.width;
+        pinned: root.pinned[1];
+        corner: root.corner[1];
+        first: root.order[1] == 0;
+        last: root.order[1] == root.count(root.corner[1]) - 1;
+        visible: root.exists(1);
+        current: root.menu-at == 1;
+        animate x, y { duration: 300ms; easing: ease-out; }
+        entered => { root.menu-at = 1; }
+        step(by) => { root.step(1, by); }
+        toggle-pin => { root.pinned[1] = !root.pinned[1]; }
+        anchor(c) => { root.anchor(1, c); }
+
         BubbleText { text: root.resolution; }
         if root.badge != "": VerticalLayout {
             alignment: center;
@@ -57,30 +387,43 @@ export component InfoOverlay inherits HorizontalLayout {
         }
     }
 
-    InfoBubble {
+    rate := InfoItem {
+        x: root.x-of(2);
+        y: root.y-of(2);
+        open: root.open;
+        room: root.width;
+        pinned: root.pinned[2];
+        corner: root.corner[2];
+        first: root.order[2] == 0;
+        last: root.order[2] == root.count(root.corner[2]) - 1;
+        visible: root.exists(2);
+        current: root.menu-at == 2;
+        animate x, y { duration: 300ms; easing: ease-out; }
+        entered => { root.menu-at = 2; }
+        step(by) => { root.step(2, by); }
+        toggle-pin => { root.pinned[2] = !root.pinned[2]; }
+        anchor(c) => { root.anchor(2, c); }
+
         BubbleText { text: root.fps + " FPS"; }
     }
 
-    if root.latency-ms >= 0: InfoBubble {
+    delay := InfoItem {
+        x: root.x-of(3);
+        y: root.y-of(3);
+        open: root.open;
+        room: root.width;
+        pinned: root.pinned[3];
+        corner: root.corner[3];
+        first: root.order[3] == 0;
+        last: root.order[3] == root.count(root.corner[3]) - 1;
+        visible: root.exists(3);
+        current: root.menu-at == 3;
+        animate x, y { duration: 300ms; easing: ease-out; }
+        entered => { root.menu-at = 3; }
+        step(by) => { root.step(3, by); }
+        toggle-pin => { root.pinned[3] = !root.pinned[3]; }
+        anchor(c) => { root.anchor(3, c); }
+
         BubbleText { text: root.latency-ms + " ms"; }
-    }
-
-    // A square bubble: the touch area must sit outside the bubble's row layout.
-    Rectangle {
-        width: 44px;
-        height: 44px;
-        border-radius: Theme.radius-m;
-        background: Theme.info-bubble;
-
-        TouchArea {
-            clicked => { root.pinned = !root.pinned; }
-        }
-
-        Image {
-            source: root.pinned ? @image-url("../assets/icons/pin_enable.svg") : @image-url("../assets/icons/pin_disable.svg");
-            width: 18px;
-            height: 18px;
-            colorize: root.pinned ? Theme.c.accent : Theme.info-text;
-        }
     }
 }
