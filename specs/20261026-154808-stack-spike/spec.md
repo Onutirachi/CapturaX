@@ -119,8 +119,11 @@ possible, with the reason.
 1. **Given** the prototype, **When** each capability below is tried, **Then** the report marks it as
    working, working with limits (stated), or not possible:
    - ambient light glowing around the video with the video's colors;
-   - capture info overlay over the video, semi-transparent, pinnable;
-   - the same overlay detached as a floating window that stays on top of other apps;
+   - capture info overlay over the video, semi-transparent, as separate bubbles: each one
+     pinnable on its own, movable in the order, and anchored to a corner of its choice; with
+     the chrome hidden only the pinned bubbles show, packed against their corner;
+     *Revised 2026-10-29*: replaces "the same overlay detached as a floating window that stays
+     on top of other apps" (maintainer's decision during T035: not useful);
    - resolution badges (HD, Full HD, QHD, 4K) with distinct colors;
    - a source picker with groups (devices, screens, windows) and badges;
    - depth effects similar in spirit to the Ninjoy prints (layered shadows, raised and sunken
@@ -166,6 +169,8 @@ possible, with the reason.
   decorative outlines, and visible labels of at most three words.
 - **FR-008**: The spike MUST report each capability listed in User Story 4 as working, working
   with stated limits, or not possible.
+  *Revised 2026-10-29*: the detached floating info window is dropped; per-bubble pinning, order
+  and corner replace it (User Story 4).
 - **FR-009**: The fastest acceptable preview path and the chosen visual direction MUST be run on
   the maintainer's Linux computer, and the result reported.
 - **FR-010**: The spike MUST produce a findings report in this feature directory with the
