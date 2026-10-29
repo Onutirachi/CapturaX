@@ -9,9 +9,23 @@ Implementation in progress. US1 (video latency) is settled on Windows: the own r
 frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
 US3 is done: Float approved with live video (T033), UI cost measured in fullscreen (T051). US4
 started: T034 (ambient light) and T035 (info bubbles arranged per bubble, replacing the
-detached window) are done and approved. All work is committed except `brand/`; nothing pushed.
+detached window) are done and approved. T036 (language switching) is done and approved. All work is committed except `brand/`; nothing
+pushed.
 
 ## Done in the last sessions
+
+- T036 done and approved (findings.md): build.rs bundles `lang/<language>/LC_MESSAGES/layered-preview.po`
+  (gettext, no translation context) and the UI strings use `@tr`; only `pt-BR` exists, English is
+  the source. The toolbar has a language button left of the theme button, named in the other
+  language ("Português" / "English"), which calls `slint::select_bundled_translation`; the text
+  changes without restart. Slint starts in the system language; `--lang en|pt-BR` overrides it.
+  Picker text built in Rust (Automatic, Auto max FPS, None, Test pattern…) is passed as English
+  keys and translated in Slint by `Texts.label` (ui/texts.slint), so all translations stay in one
+  catalog; the running language is the translatable string `@tr("en")` ("pt-BR" in the catalog).
+  The no-device message moved to Slint (`no-device` replaces `notice`); the paired audio item is
+  now "Auto" with the input's name as its detail. Checked here: builds with no warnings and
+  `--lang fr` lists `pt-BR` as available. The maintainer checked it running; the review shortened
+  "Stream to friends" to "Stream" ("Transmitir").
 
 - T035 done and approved (findings.md); the spec, F42 in docs/product.md and tasks.md were
   revised: the detached floating window was built, then dropped as not useful, and its code
@@ -108,6 +122,5 @@ Command (from `spike/`):
 
 1. Optional: check the no-device message (T032) running; the ezcap was seen in T033. Choosing
    a picker item does not reopen the capture; say if the review needs that.
-2. US4: T036 language switching,
-   T037 frameless window, then Linux (T038) and the capability table (T039).
+2. US4: T037 frameless window, then Linux (T038) and the capability table (T039).
 3. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).

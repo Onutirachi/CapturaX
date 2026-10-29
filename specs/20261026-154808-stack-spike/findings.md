@@ -315,6 +315,24 @@ Outcome: working on Windows; reviewed and approved by the maintainer with `--tes
 FPS bubble shows the selected mode and the latency bubble a sample value, not measurements.
 Placements are not saved between runs.
 
+### Language switching (T036)
+
+Slint's bundled translations: build.rs compiles `lang/<language>/LC_MESSAGES/layered-preview.po`
+(gettext, no translation context) into the binary, and the strings in the `.slint` files use
+`@tr`, with English as the source. `slint::select_bundled_translation` switches the language
+while running; every translated text updates at once, with no restart and no rebuild of the
+pickers. At startup Slint picks the system language; `--lang en|pt-BR` overrides it. The
+toolbar's language button names the other language in itself ("Português" / "English").
+
+`@tr` takes literals only, so text built in Rust (the pickers' automatic entries, groups, None,
+Test pattern) is passed as English keys and translated in Slint by a lookup function
+(`Texts.label`); all translations stay in one catalog. The running language is itself a
+translatable string (`@tr("en")`, "pt-BR" in the catalog), so the UI knows it without Rust.
+Strings are written by hand here; the real app would extract them with `slint-tr-extractor`.
+
+Outcome: working on Windows; reviewed and approved by the maintainer with `--test-video`
+(English and Portuguese). The review shortened "Stream to friends" to "Stream".
+
 ## Visual directions
 
 The maintainer chose Float, laid out as the previous app, while reviewing the components (T028);
