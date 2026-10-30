@@ -187,6 +187,16 @@ alternatives considered.
   output keeps correcting a ≈ 170 ms clock skew. The chosen setting free-runs the output
   (`sync=false`, as the previous app did) with a 20 ms output buffer, after a queue that drops its
   oldest audio beyond 20 ms, so a delay at start-up cannot stay in the buffers.
+- **Revised again (T053)**: on Windows the preview audio moves through WASAPI directly
+  (`audio-preview --engine wasapi`), not through the GStreamer elements, which hide their buffers
+  and reached 108–121 ms with a drift of 2.6 ms per minute. Each device opens shared or exclusive,
+  the user's choice per device (docs/product.md F47). Shared sides use the shortest period the
+  Windows mixer allows (IAudioClient3; 2.67 ms on the output here, the card stays at 10 ms);
+  exclusive sides skip the mixer in the device's own format. Between input and output the app
+  holds 2 ms of spare audio by following the level with the playback rate (±1000 ppm, linear
+  interpolation) instead of cutting. Measured against the monitor's own audio: 59 ms shared, 46 ms
+  with the card exclusive, 18 ms with both exclusive. GStreamer still takes the audio for
+  recording and streaming. Linux (PipeWire) is still to be seen.
 
 ## R8. Encoder load test
 

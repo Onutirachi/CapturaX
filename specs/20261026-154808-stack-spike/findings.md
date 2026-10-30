@@ -147,10 +147,47 @@ platform is for the capture spec.
 The card is UVC only, so delivery before a frame is complete (as some professional cards do) is
 not available.
 
-## Audio — preliminary (Windows, PS5 menu clicks, via Voicemeeter)
+## Audio (Windows, via Voicemeeter)
 
-Method: research R3, "Method used in practice". Delay of the preview relative to the line-input
-reference, measured by hand in FL Studio over several clicks.
+Method: research R3, "Method used in practice": the PS5 menu beeps reach Voicemeeter twice, from
+the monitor's headphone jack through the line input (reference) and from the preview. From
+2026-10-29 the reference is panned left and the preview right in the Voicemeeter recorder, and the
+delay is the onset difference of each beep pair, 25–26 pairs per 25 s recording
+(`analyze.py audio --stereo`; earlier recordings mixed both to one channel).
+
+**WASAPI engine (`audio-preview --engine wasapi`, chosen, research R7):**
+
+| Setting | Median | p95 | Notes |
+|---|---|---|---|
+| card and output shared | 59 ms | 60 ms | the maintainer hears it clearly better than GStreamer |
+| card exclusive, output shared | 46 ms | 46 ms | |
+| card and output exclusive | **18 ms** | 18 ms | the closest of all by ear, closer than WDM; no other app can use the output |
+| Voicemeeter reading the card directly (WDM), no app | −26 ms | −25 ms | ahead of the reference |
+
+- The reference is not zero: Voicemeeter reading the card is 26 ms ahead of it, so the monitor
+  delays its own audio by about that much. Against the card itself the app's path is about 44 ms
+  with both sides exclusive, most of it in the Voicemeeter virtual input.
+- Inside the app the audio waits about 7.5 ms with the card exclusive and 6.3 ms with both, and
+  nothing was cut; only a few ms of silence at start-up.
+- Before the period and rate changes the same engine gave 112 ms shared, 91 ms card exclusive,
+  33 ms both exclusive (36 ms on a virtual input reserved for the preview); the previous CapturaX
+  gave 160 ms shared.
+- **A/V offset** against the chosen video path (slint-layered, 30.4 ms): audio 29 ms behind the
+  image shared, 12 ms ahead with both exclusive; within SC-005 (45 ms ahead, 125 ms behind) either way.
+- **Drift**: not measured with this engine. It holds the audio waiting in the app steady (rate
+  correction within ±170 ppm in the logs), but a 30-minute run was not recorded. A hardware output
+  cannot be recorded with the reference on another channel with the maintainer's equipment, so it
+  would run through Voicemeeter.
+- Not measured without Voicemeeter.
+
+**GStreamer elements (`wasapi2src` → `wasapi2sink`, replaced):** 121 ms on 2026-10-30. Over 31.5
+minutes on 2026-10-29 the delay grew linearly from 108 to 187 ms, 2.63 ms per minute (44 ppm),
+while the app's own queue stayed empty and dropped 20 ms in total: the growth was after the app,
+in the Voicemeeter virtual input, which absorbs the clock difference between the card and the
+output. The formal clips gave 119 ms at minute 0 and 182 ms at minute 30. SC-005 fails on drift on
+this path.
+
+Earlier hand measurements in FL Studio (2026-10-27), same reference, mixed to one channel:
 
 | Path | Delay | Notes |
 |---|---|---|
@@ -158,18 +195,12 @@ reference, measured by hand in FL Studio over several clicks.
 | audio-preview, pipeline clock (`sync=true`) | silent | continuous clock-skew correction |
 | audio-preview `--free-run` (200 ms output buffer) | 300–350 ms | |
 | `--free-run --buffer 20` | ≈ 120 ms | |
-| `--free-run --buffer 20` with the 20 ms dropping queue | **100–110 ms** | no clicks or dropouts; chosen |
+| `--free-run --buffer 20` with the 20 ms dropping queue | 100–110 ms | no clicks or dropouts; chosen then |
 | same, `--exclusive both` | lower | heavily distorted and crackling; exclusive mode also locks the device |
 | previous CapturaX (raw WASAPI, shared mode, 15 ms output queue) | 160 ms | |
 
-- The card adds almost nothing: what remains is the path from an app into the Voicemeeter virtual
-  input through the Windows mixer, which the previous app paid too. Not measured yet without
-  Voicemeeter (output straight to the headset).
-- **A/V offset**: audio ≈ 105 ms against video ≈ 21–25 ms, so sound is ≈ 80 ms behind the image,
-  within the 125 ms limit of SC-005 (preliminary). Playing with `layered-preview --audio`, the
-  maintainer noticed no offset; the difference is audible only when the passthrough sound plays at
-  the same time.
-- Drift over 30 minutes: not measured yet (T025).
+- Playing with `layered-preview --audio` (GStreamer path, ≈ 105 ms), the maintainer noticed no
+  offset; the difference was audible only with the passthrough sound playing at the same time.
 
 ## Image
 
