@@ -26,9 +26,10 @@ run,path,variant,mode,platform,second,rendered,dropped,pipeline_latency_ms
 
 ## summary.md
 
-Markdown tables generated from the CSV files: one video table per platform (rows: path and
-variant; columns per mode: n, median, p95, dropped frames) and one audio table (median, p95, A/V
-offset, drift). The findings report copies or links these tables.
+Markdown tables generated from the CSV files: one video table per platform and mode (rows: path
+and variant; columns: n, median, p95, min, max, dropped frames; every path is listed, "n/a" when
+not measured) and one audio table (per platform, output and minute: n, median, p95, A/V offset,
+drift). The findings report copies or links these tables.
 
 Clips (`*.mp4`) stay in a local folder and are not committed; the CSV keeps the file name so a result
 can be traced back to its clip.

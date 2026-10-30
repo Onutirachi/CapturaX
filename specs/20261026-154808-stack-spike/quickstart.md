@@ -32,15 +32,20 @@ For each path (native, slint-cpu, slint-gpu, browser, obs) and each mode (1080p6
 1. Start the path fullscreen on the monitor next to the TV, in the mode under test.
 2. Film the TV and the monitor together for 25 seconds at 240 fps, both screens fully in frame.
 3. `uv run tools/analyze.py video <clip> --path <path> --variant <variant> --mode <mode> --platform windows`
+   (add `--fps 240` if the script says the clip stores another rate; mark the TV, then the preview)
 
 Expected: at least 20 samples per run; no delay negative or above 500 ms.
 
 Encoder load: repeat the slint-layered run with `--encoder` and compare (variant `encoder-on`).
 
+Browser: serve `spike/browser/` on localhost (contracts/cli.md), open `index.html` in Edge, pick
+the card and the mode, press F.
+
 ## 3. Audio
 
 1. `cargo run --release -p audio-preview -- --output <speakers>` with the PS5 sync video playing.
-2. Record 25 seconds of normal video with sound, TV and PC speakers both audible.
+2. Record 25 seconds where every sound is heard twice, reference first: the Voicemeeter mix
+   (research R3, method used in practice) or a phone video with the TV and PC speakers.
 3. `uv run tools/analyze.py audio <clip> --platform windows --output <speakers> --minute 0`
 4. Leave it running; record again at minute 30 (`--minute 30`).
 
@@ -64,4 +69,5 @@ chosen direction, recording the session type.
 
 ## 6. Summary
 
-`uv run tools/analyze.py summary` then complete `findings.md` with the decisions.
+`uv run tools/analyze.py summary --av-reference "slint-layered,<variant>,<mode>"` then complete
+`findings.md` with the decisions.

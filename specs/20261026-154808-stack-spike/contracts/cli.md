@@ -61,7 +61,13 @@ a device or use `--test-video`) instead of failing.
 
 ## browser/index.html
 
-Opened from disk in Edge. Device and mode chosen in the page; shows the measured frame rate.
+Served on localhost and opened in Edge (from disk, Edge hides device names and ids), e.g.
+`uv run --no-project python -m http.server 8765 --directory spike/browser`; `?mode=1920x1080@60`
+picks the mode. Device and mode chosen in the page (the usual sizes and rates within the
+device's capabilities; one the device does not offer shows an error); shows the mode in use, the
+measured frame rate, skipped frames and, when the browser reports a capture time, capture →
+display. F or double click toggles fullscreen, S hides the stats. The last device and mode are
+remembered.
 
 ## tools/analyze.py
 
@@ -72,4 +78,18 @@ Opened from disk in Edge. Device and mode chosen in the page; shows the measured
 | `uv run tools/analyze.py summary` | write summary tables (markdown) from all samples |
 
 On the first run of a clip the script asks the user to mark the TV and preview regions once (two
-rectangles) and remembers them per clip.
+rectangles, on the brightest of the first frames) and remembers them per clip in
+`<clip>.regions.json`. Running a clip again replaces its rows.
+
+| Option | Meaning |
+|---|---|
+| `video --fps <n>` | recording rate, when the clip stores its playback rate instead (the script stops and asks for it below 100 fps) |
+| `video --regions "x,y,w,h x,y,w,h"` | TV and preview boxes in clip pixels, instead of marking them |
+| `video --remark` | mark the regions again |
+| `video --min-gap <ms>` | after a change, how long further changes count as the same one (default 300; a flash's on and off are one change) |
+| `video --lag <frames>` | compare each frame with the one this many frames before (default 1; 3 for noisy clips, where a screen's change spread over several camera frames stays under the noise) |
+| `audio --max-delay <ms>` | most time between the two sounds of a pair (default 300) |
+| `audio --rise <dB>` | how far a sound must rise over the 30 ms before it (default 12) |
+| `audio --min-gap <ms>` | after an onset, how long further onsets are the same sound (default 20) |
+| `audio --stereo` | reference on the left channel and preview on the right (a Voicemeeter recording with the two panned apart); each left onset is paired with the nearest right one, so the preview may come first |
+| `summary --av-reference "<path>,<variant>,<mode>"` | the video run whose median the audio offset is measured against |

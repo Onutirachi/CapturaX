@@ -32,7 +32,13 @@ One row per flash detected in a clip.
 | delay_ms | preview flash time − TV flash time; must be ≥ 0 |
 
 Validation: a clip with fewer than 5 detected flash pairs is rejected; delays above 500 ms are
-flagged as detection errors and excluded.
+flagged as detection errors and excluded. A pair whose reference switches from under 20% to over
+80% of its change within one camera frame is excluded: the reference display always takes longer,
+so the camera skipped frames there (found in the first clips: 5 of 286 pairs).
+
+Each change is timed when the region's brightness crosses halfway between before and after,
+interpolated between camera frames, so displays with different pixel response are compared at the
+same point. Hand counts that take the first visible change on the reference read a little lower.
 
 ## Audio sample
 
