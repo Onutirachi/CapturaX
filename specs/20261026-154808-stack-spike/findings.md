@@ -203,7 +203,20 @@ reference, measured by hand in FL Studio over several clicks.
 
 ## Capabilities
 
-Table not started (T039); the sections below record each capability as it is tried.
+Spec User Story 4, one row per capability (T039). Draft: the Linux column is filled in T038. The
+sections below record how each capability was built and checked.
+
+| Capability | Windows | Linux | Notes |
+|---|---|---|---|
+| Ambient light around the video, in its colors | working | not checked (T038) | GPU passes in the render loop, ≈ 0.1 ms CPU side; GPU time not measured (T034) |
+| Info overlay as separate bubbles: pin, order, corner; only pinned ones with the chrome hidden | working | not checked (T038) | Positions computed by hand (Slint layouts do not animate); placements not saved between runs (T035). The detached floating window was dropped; on Wayland it would have been limited (no always on top or placement) |
+| Resolution badges (HD, Full HD, QHD, 4K) in distinct colors | working | not checked (T038) | `Badge` with the previous app's colors, in the mode picker and the resolution bubble (T028) |
+| Source picker with groups and badges | working | not checked (T038) | Dropdown with group headers, detail and badge per item (T028); the preview's device picker lists devices only (screens and windows belong to recording and stream sources), so groups are seen in the mode picker (Automatic, Modes) |
+| Depth effects (layered shadows, raised and sunken surfaces) | limited | not checked (T038) | Nine-slice shadow images and tone steps; the software renderer draws no `drop-shadow`, no gradients on rounded shapes, no rounded clip, and Slint has no blur. Shadows need a @2x set above 100% scale (T048) |
+| Custom fonts and the brand logo | working | not checked (T038) | Bundled Inter; SVG logos must be sized in their own aspect ratio, and the dark theme uses a light variant (T048) |
+| Language and theme switching without restart | working | not checked (T038) | Bundled gettext catalogs and `@tr`; text built in Rust is translated in Slint (T036) |
+| Frameless window: move, resize, maximize, fullscreen | limited | not checked (T038) | All work, snapping included; no snap layouts flyout on the maximize button (needs `HTMAXBUTTON`, not reachable through winit) (T037) |
+| Smooth video while the window moves or resizes | limited | not checked (T038) | No stall since the video has its own thread; fast moves drop to 40–50 fps, likely DWM, not confirmed (T052) |
 
 ### What the software renderer draws (T048, Slint 1.18.1, Windows)
 
