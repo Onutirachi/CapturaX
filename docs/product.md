@@ -58,6 +58,7 @@ streaming), and a **View output** action shows the output in the preview.
 | F12 | Play an audio input on a chosen output with the lowest possible latency. The main use is hearing the console through the capture card while playing. | |
 | F13 | By default the input is the audio of the same device as the video (paired automatically); the user can choose another. | |
 | F14 | Volume and mute. This audio is only for the user and never goes into recordings or streams. | |
+| F47 | Settings list every audio input and output with an **Exclusive mode** checkbox each (off by default). Exclusive skips the system mixer for the lowest delay, but no other app can use that device meanwhile; the list says so. Windows only (WASAPI); measured on the spike against the monitor's own audio: 59 ms shared, 46 ms with the input exclusive, 18 ms with both. | |
 
 ### D. Output audio (recording and streaming)
 
