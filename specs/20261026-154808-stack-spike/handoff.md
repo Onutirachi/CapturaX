@@ -1,19 +1,69 @@
 # Handoff: Stack Spike
 
-**Updated**: 2026-10-29 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261026-154808-stack-spike`
+**Updated**: 2026-10-30 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261026-154808-stack-spike`
 
 ## State
 
 Implementation in progress. US1 (video latency) is settled on Windows: the own render loop
 (`spike/layered-preview`, research R13) with Direct3D 12 and Mailbox matches native (5–6 camera
-frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio) works and is measured except for drift.
+frames ≈ 21–25 ms) with a Slint UI layer. US2 (audio): on Windows the preview audio moves through
+WASAPI directly (`audio-preview --engine wasapi`, research R7), shared or exclusive per device;
+measured, except a 30-minute drift run with the new engine.
 US3 is done: Float approved with live video (T033), UI cost measured in fullscreen (T051). US4
 started: T034 (ambient light), T035 (info bubbles arranged per bubble, replacing the detached
 window), T036 (language switching), T037 (frameless window) and T052 (video presented from its own
-thread, added after T037) are done and approved. All work is committed except `brand/`; nothing
-pushed.
+thread, added after T037) are done and approved. The measurement tools are written (T015, T016,
+T017, T024) and the capability table is drafted (T039, Windows only); these, the formal
+measurements and the audio work await the maintainer's validation of the proposed commits and
+are not committed. `brand/` is not committed either; nothing pushed.
 
 ## Done in the last sessions
+
+- T053 done (findings.md "Audio", research R7, tasks.md): the GStreamer audio path grew 2.63 ms per
+  minute over 31.5 minutes (108 → 187 ms) with its own queue empty, so the growth was in the
+  Voicemeeter virtual input. The previous app's method was found in this project's 2026-10-27
+  session and in CapturaX-old (branch feat/hibrido, src-tauri/src/audio) and ported as
+  `spike/audio-preview/src/wasapi.rs` (`--engine wasapi`, `--exclusive input|output|both`,
+  `--period`, `--margin`), then improved: shared sides take the shortest Windows mixer period
+  (IAudioClient3), and the playback rate follows the audio waiting in the app (2 ms spare)
+  instead of cutting at 40 ms. Measured against the monitor's audio (reference panned left,
+  preview right in the Voicemeeter recorder): 59 ms shared (was 112), 46 ms card exclusive (91),
+  18 ms both exclusive (33); Voicemeeter reading the card is −26 ms, so the reference itself lags.
+  `analyze.py audio --stereo` measures such recordings; the run-4 clips are in clips/ and in
+  audio-samples.csv, summary regenerated against slint-layered 1080p60.
+  Launchers 14–18 in spike/target/release (not in git); logs and recordings in clips/ and the
+  maintainer's Voicemeeter folder. The maintainer stopped testing here: a hardware output cannot be
+  recorded on a separate channel with their equipment.
+
+- Formal Windows clips recorded by the maintainer (T020, T025; 11 video clips at 240 fps, audio at
+  minutes 0 and 30, all in clips/) and analyzed into measurements/ (video-samples.csv,
+  audio-samples.csv, summary.md; not yet written into findings.md, T022/T026). Regions for every
+  clip in `clips/<clip>.regions.json` (TV right, preview left). The analyzer changed while doing
+  it: changes are timed at the halfway brightness crossing (sub-frame), and a pair whose reference
+  switches within one camera frame is excluded as a camera skip (data-model.md). Results (median
+  ms, 1080p60): native 28.6, slint-layered 30.4, with encoder 31.5, browser 28.5, OBS 39.7,
+  slint-cpu 53.2; at 1080p120 every path is 3–5 ms slower. Audio: 119 ms at minute 0, 182 ms at
+  minute 30: **drift of +63 ms** (≈ 2 ms per minute, seen inside a single clip too), failing
+  SC-005; cause not found (the 20 ms dropping queue does not bound it). The browser page
+  opened the exact modes (120 reads 120.00048, resizeMode none). T018: the maintainer counted 8
+  frames on 5-layered-60 (reference at half, preview at its first lit frame, since that monitor
+  switches within one camera frame); the script gives 6.4–8.1, within one camera frame. Audio drift:
+  T053 added (`audio-preview --stats` drift report, `14-audio-drift.bat` in target/release writes
+  clips/audio-drift.log); the sink's ring buffer and the dropping queue bound what waits inside the
+  app to about 40 ms, so the growth is likely after the app (Windows mixer or Voicemeeter), not
+  confirmed. The maintainer asked whether an HTML UI would be better than Slint, since the browser
+  preview matched native, and then decided to keep Slint (see Decisions).
+
+- Measurement tools, not yet reviewed or committed: `spike/tools/analyze.py` `video` (frame
+  difference per region, events merged within 300 ms, each TV event paired with the next preview
+  event; prints pairs in camera frames for T018; `--fps 240` when a clip stores its playback
+  rate), `audio` (onset pairs in any recording where each sound is heard twice, e.g. the
+  Voicemeeter mix) and `summary` (one table per platform and mode, every path listed;
+  `--av-reference` picks the video run for the A/V offset). Checked only with synthetic clips of
+  known delay (exact) and then on all of the maintainer's clips (above). `spike/browser/index.html`
+  (T015) is served on localhost (from disk Edge hides the device names) and opened the card's
+  exact modes. contracts/cli.md, contracts/measurements.md (summary per platform and
+  mode) and quickstart.md updated. findings.md has the capability table with the Windows column.
 
 - T052 done and approved (spec US4, research R15, findings.md): moving the window stalled the
   video, with or without the system frame, because Windows holds the window's thread during a
@@ -107,6 +157,17 @@ Command (from `spike/`):
 
 ## Decisions
 
+- Audio preview on Windows (maintainer, 2026-10-30): WASAPI directly, not the GStreamer
+  elements. Every audio input and output gets an **Exclusive mode** checkbox in the settings, off
+  by default (docs/product.md F47); both modes stay and both are improved. Nothing specific to
+  Voicemeeter or virtual devices: ordinary users must get the best result, and those with more
+  than one output can reserve one. Tips for Voicemeeter users may come later (the product idea of
+  letting Voicemeeter read the card stays).
+
+- Slint stays (maintainer, 2026-10-29): the browser preview matching native latency does not
+  reopen the UI choice, neither a browser preview (principle III) nor an HTML UI over the native
+  video. Not to be raised again; T040 records it.
+
 - The FPS bubble keeps showing the selected mode in the spike: the measured frame rate is built
   with F7 in the real app, whose spec defines which rate is shown (maintainer, 2026-10-29).
 
@@ -133,11 +194,14 @@ Command (from `spike/`):
 - Proposal awaiting the maintainer: the device dropdown detail shows the last mode used for that
   device, else the default automatic mode. If accepted, record it in docs/product.md F2/F3.
 - Linux latency (T021, T038): wgpu uses Vulkan there; depends on KWin direct scanout.
-- Audio drift (T025) and audio without Voicemeeter not measured.
+- Audio: 30-minute drift with the WASAPI engine and audio without Voicemeeter not measured; the
+  spike's `layered-preview --audio` still uses the GStreamer path.
 
 ## Next step
 
-1. Optional: check the no-device message (T032) running; the ezcap was seen in T033. Choosing
-   a picker item does not reopen the capture; say if the review needs that.
-2. US4: Linux (T038, also check moving the window there) and the capability table (T039).
-3. At the end, formal measurement (T015–T022, T024–T026) and wrap-up (T040–T044).
+1. Maintainer validates the proposed commits (tools, measurements, WASAPI audio engine, audio
+   results, F47).
+2. Optional: check the no-device message (T032) running. Choosing a picker item does not reopen
+   the capture; say if the review needs that.
+3. US4: Linux (T038, also check moving the window there), then the Linux column of T039.
+4. Findings for video and audio (T022, T026) and wrap-up (T040–T044).
