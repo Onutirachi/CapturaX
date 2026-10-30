@@ -646,7 +646,7 @@ fn fill_float(ui: &Float, input: &Input, mode: &Mode, requested: bool, audio_on:
     ui.set_mode(mode_index);
 
     let inputs: Vec<String> = audio::audio_devices("Audio/Source")?.into_iter().map(|d| d.name).collect();
-    let paired = inputs.iter().find(|n| !source_name.is_empty() && n.to_lowercase().contains(&source_name.to_lowercase()));
+    let paired = inputs.iter().find(|n| audio::pairs(n, source_name));
     let mut audio_items = vec![match paired {
         Some(name) => item("", "Auto", name, None),
         None => item("", "Auto", "No paired input", None),

@@ -57,7 +57,11 @@ a device or use `--test-video`) instead of failing.
 | `--free-run` | play each block as soon as it arrives, without waiting for the pipeline clock (output `sync=false`, as the previous app did), through a queue that drops the oldest audio beyond `--max-queue` |
 | `--max-queue <ms>` | with `--free-run`, the most audio waiting between input and output (default 20 ms) |
 | `--buffer <ms>` | output buffer size (GStreamer's default is 200 ms); the output writes in blocks of half of it, at most 10 ms |
+| `--stats` | also prints every 10 s the input and output rates against the system clock, the audio the queue dropped and its level (drift diagnosis, T053) |
 | `--exclusive <input, output or both>` | open that side in WASAPI exclusive mode (Windows; shorter device period, other apps cannot use the device meanwhile) |
+| `--engine <gstreamer or wasapi>` | `wasapi` moves the audio with WASAPI directly, started from the previous CapturaX: event driven; a shared side uses the shortest period the Windows mixer allows and the output keeps 1.5 periods queued; `--exclusive` applies to it too, in the device's own format, one period per packet; the playback rate follows the audio waiting in the app to hold `--margin`; with `--stats` it prints every 10 s the audio waiting in the app and in Windows, the rate correction, and the audio cut or filled with silence (Windows; T053) |
+| `--period <ms>` | with `--engine wasapi`, the period of each side (default: the shortest the device, or the Windows mixer for a shared side, allows) |
+| `--margin <ms>` | with `--engine wasapi`, the spare audio kept waiting in the app; the playback rate follows the level to hold it (default 2) |
 
 ## browser/index.html
 

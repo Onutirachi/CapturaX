@@ -3,6 +3,9 @@
 //!
 //! Ctrl+C quits.
 
+#[cfg(windows)]
+mod wasapi;
+
 use std::time::{Duration, Instant};
 
 use capture::{audio, cli::CommonArgs, devices};
@@ -42,6 +45,18 @@ struct Args {
     /// Open input, output or both in WASAPI exclusive mode (Windows)
     #[arg(long)]
     exclusive: Option<Exclusive>,
+
+    /// Who moves the audio: GStreamer, or WASAPI directly as the previous CapturaX did (Windows)
+    #[arg(long, value_enum, default_value_t = Engine::Gstreamer)]
+    engine: Engine,
+
+    /// With --engine wasapi, the period of each side in milliseconds (default: the shortest the device or the Windows mixer allows)
+    #[arg(long)]
+    period: Option<f64>,
+
+    /// With --engine wasapi, the spare audio kept waiting in the app, in milliseconds
+    #[arg(long, default_value_t = 2.0)]
+    margin: f64,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
@@ -49,6 +64,12 @@ enum Exclusive {
     Input,
     Output,
     Both,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+enum Engine {
+    Gstreamer,
+    Wasapi,
 }
 
 /// Microseconds from an integer property, if the element has it (WASAPI elements only).
@@ -86,6 +107,21 @@ fn main() -> anyhow::Result<()> {
     println!("input:  {}", input.name);
     println!("output: {}", output.as_ref().map_or("system default", |d| d.name.as_str()));
 
+    if args.engine == Engine::Wasapi {
+        #[cfg(windows)]
+        {
+            let side = |exclusive| wasapi::Side { exclusive, period_ms: args.period };
+            let sides = (
+                side(matches!(args.exclusive, Some(Exclusive::Input | Exclusive::Both))),
+                side(matches!(args.exclusive, Some(Exclusive::Output | Exclusive::Both))),
+            );
+            let stats = args.common.stats.then_some(Duration::from_secs(10));
+            return wasapi::run(&input.name, output.as_ref().map(|d| d.name.as_str()), sides, args.margin, stats);
+        }
+        #[cfg(not(windows))]
+        anyhow::bail!("--engine wasapi exists on Windows only");
+    }
+
     let options = audio::PreviewOptions {
         free_run: args.free_run,
         buffer_ms: args.buffer,
@@ -93,8 +129,10 @@ fn main() -> anyhow::Result<()> {
         exclusive_input: matches!(args.exclusive, Some(Exclusive::Input | Exclusive::Both)),
         exclusive_output: matches!(args.exclusive, Some(Exclusive::Output | Exclusive::Both)),
     };
-    let audio::Preview { pipeline, input: src, output: sink } = audio::build_preview(&input, output.as_ref(), &options)?;
+    let preview = audio::build_preview(&input, output.as_ref(), &options)?;
+    let (pipeline, src, sink) = (preview.pipeline.clone(), preview.input.clone(), preview.output.clone());
     pipeline.set_state(gst::State::Playing)?;
+    let _drift = args.common.stats.then(|| audio::DriftReporter::start(&preview, Duration::from_secs(10)));
 
     let bus = pipeline.bus().expect("pipeline has a bus");
     let mut reported = false;
