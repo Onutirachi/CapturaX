@@ -137,6 +137,12 @@ streaming), and a **View output** action shows the output in the preview.
 | F18 | Manual audio/video sync offset | Same reason as above. |
 | — | Peer-to-peer without a relay | Viewers behind restrictive NAT could not connect; replaced by F34 with a TURN fallback. |
 
+## To reconsider
+
+- F25/F26: separate sources for recording and streaming, back to separate setup windows. The
+  maintainer found a case (2026-11-04) where one shared source gets in the way. Decide before
+  the Record / Stream window spec; check it against the constitution's "one source at a time".
+
 ## Future ideas
 
 Not planned; listed so they are not lost.
