@@ -178,7 +178,10 @@ alternatives considered.
 ## R7. Preview audio
 
 - **Decision**: Windows: `wasapi2src` → `wasapi2sink`, both with `low-latency=true`. Linux:
-  `pipewiresrc` → `pipewiresink`. The output device is chosen by the user (the headset).
+  `pipewiresrc` → `pipewiresink`, changed during the Linux visit to `pulsesrc` → `pulsesink` on
+  the same PipeWire nodes through pipewire-pulse: `pipewiresink` hangs on stop, and next to
+  `pulsesink` `pipewiresrc` starves (findings.md "Linux"). The output device is chosen by the
+  user (the headset).
 - **Rationale**: WASAPI low-latency mode reached about 10–20 ms in the previous app; PipeWire is
   CachyOS's audio server.
 - **Alternatives**: PulseAudio elements on Linux — PipeWire native elements avoid the compatibility

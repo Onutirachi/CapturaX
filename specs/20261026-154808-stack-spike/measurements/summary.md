@@ -5,6 +5,18 @@ Delays in ms, relative to the reference (the passthrough display for video).
 
 ## Video
 
+### linux, 1920x1080@60 NV12
+
+| Path | Variant | n | Median | p95 | Min | Max | Dropped |
+|---|---|---|---|---|---|---|---|
+| native | gl | 23 | 35.7 | 39.9 | 32.7 | 40.7 | 0.00% |
+| slint-cpu | — | n/a | n/a | n/a | n/a | n/a | n/a |
+| slint-gpu | — | n/a | n/a | n/a | n/a | n/a | n/a |
+| slint-layered | clocks-locked | 21 | 33.4 | 38.1 | 29.4 | 38.2 | 0.00% |
+| slint-layered | software-ui | 26 | 38.0 | 47.3 | 33.3 | 54.7 | 0.00% |
+| browser | — | n/a | n/a | n/a | n/a | n/a | n/a |
+| obs | — | n/a | n/a | n/a | n/a | n/a | n/a |
+
 ### windows, 1920x1080@120 NV12
 
 | Path | Variant | n | Median | p95 | Min | Max | Dropped |
@@ -32,11 +44,11 @@ Delays in ms, relative to the reference (the passthrough display for video).
 
 | Platform | Output | Minute | n | Median | p95 | A/V offset | Drift |
 |---|---|---|---|---|---|---|---|
-| windows | gstreamer | 0 | 25 | 119.0 | 120.0 | 88.5 | 63.0 |
-| windows | gstreamer | 30 | 25 | 182.0 | 182.0 | 151.6 | 63.0 |
-| windows | voicemeeter wdm, no app | 0 | 26 | -26.0 | -25.2 | -56.5 | n/a |
-| windows | wasapi both exclusive | 0 | 25 | 18.0 | 18.0 | -12.4 | n/a |
-| windows | wasapi card exclusive | 0 | 25 | 46.0 | 46.0 | 15.6 | n/a |
-| windows | wasapi shared | 0 | 26 | 59.0 | 60.0 | 28.6 | n/a |
+| windows | gstreamer | 0 | 25 | 119.0 | 120.0 | n/a | 63.0 |
+| windows | gstreamer | 30 | 25 | 182.0 | 182.0 | n/a | 63.0 |
+| windows | voicemeeter wdm, no app | 0 | 26 | -26.0 | -25.2 | n/a | n/a |
+| windows | wasapi both exclusive | 0 | 25 | 18.0 | 18.0 | n/a | n/a |
+| windows | wasapi card exclusive | 0 | 25 | 46.0 | 46.0 | n/a | n/a |
+| windows | wasapi shared | 0 | 26 | 59.0 | 60.0 | n/a | n/a |
 
-A/V offset: audio median − video median of `slint-layered, software-ui, 1920x1080@60 NV12`; positive means the sound is behind the image. Drift: last minute's median − first's.
+A/V offset: audio median − video median of no video reference (pass `--av-reference`); positive means the sound is behind the image. Drift: last minute's median − first's.

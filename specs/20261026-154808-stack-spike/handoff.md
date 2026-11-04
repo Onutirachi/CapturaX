@@ -1,6 +1,6 @@
 # Handoff: Stack Spike
 
-**Updated**: 2026-10-30 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261026-154808-stack-spike`
+**Updated**: 2026-11-04 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261026-154808-stack-spike`
 
 ## State
 
@@ -12,12 +12,45 @@ measured, except a 30-minute drift run with the new engine.
 US3 is done: Float approved with live video (T033), UI cost measured in fullscreen (T051). US4
 started: T034 (ambient light), T035 (info bubbles arranged per bubble, replacing the detached
 window), T036 (language switching), T037 (frameless window) and T052 (video presented from its own
-thread, added after T037) are done and approved. The measurement tools are written (T015, T016,
-T017, T024) and the capability table is drafted (T039, Windows only); these, the formal
-measurements and the audio work await the maintainer's validation of the proposed commits and
-are not committed. `brand/` is not committed either; nothing pushed.
+thread, added after T037) are done and approved. Linux (2026-11-03/04): T021 done (clips
+analyzed); T038 and T039 done: every capability works on Linux as on Windows (depth limited the
+same way), with two small-window visual bugs left for the shell spec (findings.md
+"Capabilities (T038)"). Everything is committed: the
+Linux fixes were folded into the commits that introduced each path (the Float pairing line into
+the WASAPI engine commit, where `audio::pairs` appears), each rewritten code commit checked to
+build, and the results are in "docs(spike): record the Linux results". `brand/` is not
+committed; nothing pushed.
 
 ## Done in the last sessions
+
+- Linux, T021 and T038 (findings.md "Linux", measurements/environment.md): the agent reaches the
+  CachyOS PC by SSH (`clandini@192.168.0.30`, key `~/.ssh/ninjoy_cachyos`; the IP changed from
+  .237; fish shell, so send `bash -s` with a heredoc; passwordless `sudo -n` works). The branch
+  went there as a git bundle (`~/Projetos/CapturaX`, not a remote; copy changed files with `scp`
+  and rebuild there). Only `gst-plugins-good` was missing. Windows from SSH: export
+  `XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1`. Launchers 1–4 `.sh` in
+  spike/target/release there (not in git). Results at 1080p60: native GL 35.7 ms, slint-layered
+  Vulkan Mailbox 38.0 ms, 33.4 ms with the GPU clocks locked: the RTX 3050 drops to P8 under this
+  light load and frame ready → presented goes from 1.7 to 6.2 ms. Clips in clips/linux/ (hand-held,
+  dim; analyzed with the new `analyze.py video --lag 3`, which matched a Windows clip). CSV rows of
+  clips under clips/ are now keyed by their path there (`linux/1-native-60.mp4`), since the Linux
+  clips reuse the Windows names. Spike fixes for Linux (uncommitted; fold into the commits that
+  introduced each path): V4L2 chosen over the PipeWire camera (capture/src/devices.rs), PipeWire
+  audio devices by type, pairing without the `: ezcap L` suffix (shared by the Float picker),
+  stereo input caps, `node.latency` for the 20 ms buffer (capture/src/audio.rs), native-preview
+  stats on the GL bin. The Windows build was rebuilt after them without warnings, but not run.
+  `waylandsink` shows two frames only (noted, not investigated).
+- Linux audio: closing Float once froze the desktop. `pipewiresink` hangs on stop in 4–7 of 10
+  runs, `pulsesink` in 0 of 10 (findings.md "Linux"), so the spike's Linux output is now
+  `pulsesink`; next to it `pipewiresrc` delivered only ≈ 23 % of the audio (heard as heavy
+  stutter), so the input is now `pulsesrc` (capture/src/audio.rs `input_element`,
+  `output_element`; Windows path unchanged, built on both). Measured real time with
+  `audio-preview --stats`; the maintainer heard Float's audio clean through VBAN. The maintainer confirmed Float's
+  buttons and window, closing and reopening many times without a hang, and the Auto pairing.
+  layered-preview still `_exit`s if stopping takes over 3 s (`libc` added for unix). The maintainer hears that PC only through VBAN to the
+  Windows PC; it used to capture the card directly, so the spike's own Linux audio output was
+  never heard. Now a VBAN service on that PC (`vban on|off`, or "VBAN liga/desliga" in the KDE
+  menu, user unit `vban.service`) sends a virtual output set as default; Pulsemeeter removed.
 
 - T053 done (findings.md "Audio", research R7, tasks.md): the GStreamer audio path grew 2.63 ms per
   minute over 31.5 minutes (108 → 187 ms) with its own queue empty, so the growth was in the
@@ -189,19 +222,25 @@ Command (from `spike/`):
 
 ## Open questions
 
+- Linux GPU power state: how the real app keeps the GPU from stepping down to P8 without root
+  (≈ 4.6 ms median, ≈ 9 ms p95 on the RTX 3050). Not checked on Windows.
+- Linux capture: `v4l2src` or PipeWire's camera (`pipewiresrc`, needed in a sandbox) not compared
+  for latency.
 - The maintainer will compare the image with the passthrough to check whether it is darker even
   with `--range full`.
 - Proposal awaiting the maintainer: the device dropdown detail shows the last mode used for that
   device, else the default automatic mode. If accepted, record it in docs/product.md F2/F3.
 - Linux latency (T021, T038): wgpu uses Vulkan there; depends on KWin direct scanout.
+- For the shell spec, seen on Linux in a small window (same code on Windows): the dock covers the
+  bubbles' hover (the hover should be above the dock), and dropdown menus are cut off at the
+  window's edge.
+- Recording and streaming with separate sources (and setup windows) again: the maintainer found a
+  case where one shared source gets in the way; noted in docs/product.md "To reconsider", to
+  decide before the Record / Stream window spec.
 - Audio: 30-minute drift with the WASAPI engine and audio without Voicemeeter not measured; the
   spike's `layered-preview --audio` still uses the GStreamer path.
 
 ## Next step
 
-1. Maintainer validates the proposed commits (tools, measurements, WASAPI audio engine, audio
-   results, F47).
-2. Optional: check the no-device message (T032) running. Choosing a picker item does not reopen
-   the capture; say if the review needs that.
-3. US4: Linux (T038, also check moving the window there), then the Linux column of T039.
-4. Findings for video and audio (T022, T026) and wrap-up (T040–T044).
+1. Optional: check the no-device message (T032) running.
+2. Findings for video and audio (T022, T026) and wrap-up (T040–T044).

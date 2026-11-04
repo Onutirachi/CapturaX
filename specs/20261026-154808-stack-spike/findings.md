@@ -107,7 +107,7 @@ the software renderer into a transparent layer and composited over the video on 
   No gain on this card; at most one camera frame worse, within manual counting noise. NV12 stays
   first in the format preference.
 - On Linux there is no Direct3D: wgpu uses Vulkan and the result depends on the compositor
-  (direct scanout and tearing control on Wayland). To be measured (T021, T038).
+  (direct scanout and tearing control on Wayland). Measured in T021: section "Linux" below.
 
 ### T013 — encoder load (slint-layered, Direct3D 12, Mailbox, 1080p60)
 
@@ -146,6 +146,105 @@ platform is for the capture spec.
 
 The card is UVC only, so delivery before a frame is complete (as some professional cards do) is
 not available.
+
+## Linux (CachyOS, KDE Plasma on Wayland, RTX 3050)
+
+Environment in [measurements/environment.md](measurements/environment.md). The agent set up and
+built the spike over SSH; the maintainer recorded and checked on the screen.
+
+### Video latency (T021, 1080p60, 240 fps camera, analyzed by `analyze.py`)
+
+| Path | Variant | n | Median | p95 |
+|---|---|---|---|---|
+| native (`glimagesink`) | gl | 23 | 35.7 ms | 39.9 ms |
+| slint-layered, Vulkan, Mailbox | GPU clocks left to the driver | 26 | 38.0 ms | 47.3 ms |
+| slint-layered, Vulkan, Mailbox | GPU clocks locked at maximum | 21 | **33.4 ms** | 38.1 ms |
+
+- **The GPU's power state costs ≈ 4.6 ms at the median and ≈ 9 ms at p95.** The preview loads the
+  RTX 3050 so little that the driver steps down from P0 (1777 MHz) to P5 and P8 (210 MHz), then
+  back up when its load reaches ≈ 38%, in a cycle of a few seconds. Frame ready → presented
+  follows it: 1.6–1.7 ms at P0, 3.1–3.6 ms at P5, 6.0–6.6 ms at P8; the same with Mailbox,
+  Immediate and Fifo. Locking only the graphics clock (`nvidia-smi -lgc`) still let the memory
+  clock fall (P5, 3.1 ms); locking both (`-lgc` and `-lmc`) kept 1.6–1.7 ms. On Wayland there is no
+  "prefer maximum performance" setting (`nvidia-settings` PowerMizer is X11 only), and locking
+  clocks needs root. How the real app keeps the GPU awake is an open question (below). Not checked
+  on Windows, where frame ready → presented stayed at 0.8–1.1 ms on the RTX 5070 Ti.
+- With clocks locked, the own render loop is **2.3 ms faster than the native GL sink**; with the
+  driver's default it is 2.3 ms slower. SC-002 holds on Linux only if the GPU stays awake.
+- Against Windows (slint-layered 30.4 ms, native 28.6 ms at 1080p60) Linux is 3–7 ms slower, but
+  the camera position, the computer and the preview monitor's connection (HDMI at 120 Hz there,
+  DisplayPort at 144 Hz on Windows) all differ, so the platforms are not compared beyond that.
+- The clips were filmed hand-held in a dimmer room: the camera noise hid part of the flashes from
+  the analyzer (20 of 26 found). `analyze.py video --lag 3` compares each frame with the one three
+  frames earlier, so a flash that a screen spreads over several camera frames shows whole; the
+  moment is still the halfway brightness crossing. All 26 found; a Windows clip analyzed again with
+  `--lag 3` gave the same median (30.4 ms, 2 of 26 samples moved by 0.1–0.2 ms).
+- Direct scanout and tearing control in KWin were not checked separately: the native clip was
+  fullscreen through KWin's window menu (glimagesink has no fullscreen property), slint-layered by
+  F11.
+
+### What the spike needed on Linux
+
+Fixed in the spike (found running it here; all paths were written for Linux but never run there):
+
+- **The video came through PipeWire, not V4L2.** GStreamer's PipeWire device provider hides the
+  V4L2 one and lists the card as a PipeWire camera whose `device.api` is also `v4l2`, so the filter
+  took it and `create_element` gave `pipewiresrc`. Research R4 and T008 call for `v4l2src`: the
+  device monitor now shows every provider and the V4L2 device is chosen by its type. Whether
+  PipeWire's camera path adds latency was not measured; the real app must choose one knowingly
+  (PipeWire is the path for sandboxed packages and for sharing the camera with other apps).
+- **No audio device was listed**: PipeWire nodes report the API under them (`alsa`), not
+  `pipewire`; the PipeWire provider's devices are now chosen by type. The input name
+  (`ezcap Live GAMER ULTRA Estéreo analógico`) only pairs with the V4L2 name once its `: ezcap L`
+  suffix is left out; the Auto item of the Float audio picker used its own matching and showed "No
+  paired input" until it shared the same rule.
+- **`pipewiresrc` negotiated mono** (left channel only) and the stream counted hundreds of errors
+  in `pw-top`; the input is now held to the device's own format. The 20 ms output buffer has no
+  `buffer-time` on `pipewiresink`: it is asked for as `node.latency` = 480/48000 (10 ms) on both
+  sides.
+- `native-preview --stats` crashed: `glimagesink` is a bin and its stats are on the inner sink.
+- `waylandsink` shows two frames and drops the rest, windowed or fullscreen (not investigated; GL
+  is the native path's default on Linux anyway).
+- V4L2 offers each mode also as DMA-BUF (`DMA_DRM`), a possible zero-copy import into Vulkan for
+  the real app.
+
+### Capabilities (T038)
+
+The maintainer ran Float with live video and audio and checked every capability: all work as on
+Windows (the window moves smoothly, maximizes and snaps to the screen sides). Two visual bugs in
+a small window, for the shell spec: the dock covers the bubbles' hover, and dropdown menus are cut
+off at the window's edge. Rows in the capability table below.
+
+- The sound heard was not the spike's: with no speakers on that PC, the maintainer streams its audio
+  to the Windows PC with `vban_emitter`, which was capturing the card directly, while the spike
+  played to the unconnected S/PDIF output. The spike's Linux audio output is not heard yet.
+- **Closing the spike once froze the desktop.** Stopping the audio pipeline deadlocked inside
+  GStreamer's PipeWire plugin (main thread waiting for the PipeWire loop lock, the loop thread
+  waiting on a condition in the plugin), and the stuck client stalled the PipeWire graph, so every
+  app that played a sound hung too, KWin's "not responding" dialogs included; killing the process
+  freed everything. Reproduced with `gst-launch-1.0`, the card's `pipewiresrc` through the
+  spike's convert, resample and 20 ms queue, stopped by SIGINT after 3 s (`timeout -s INT -k 5`,
+  10 runs each): to `pipewiresink`, 4 and 7 of 10 runs hung; to `pulsesink` (through
+  pipewire-pulse), 0 of 10; to `fakesink`, 0 of 10. So the hang is in `pipewiresink` and is
+  intermittent, not caused by the spike's settings. (A first count, 2 of 6 and then 0 of 8, was
+  wrong: the test never signaled the processes, which stayed alive.) The spike now plays through
+  `pulsesink` on Linux (aimed at the chosen PipeWire node by name) and still leaves with `_exit`
+  if stopping takes over 3 s.
+- **With `pulsesink`, the audio stuttered badly:** in the same pipeline, `pipewiresrc` delivered
+  only 17–25 % of the card's audio (`audio-preview --stats`: input −768 000 ppm; the same with
+  the queue not leaky, without `node.latency`, or with `use-bufferpool` or `always-copy`; 50 %
+  with its clock off; 100 % with `fakesink`). Through `pulsesrc` the input is real time (−6 ppm,
+  no gaps in a recording of the output), so the spike's Linux input is now `pulsesrc` on the
+  card's PipeWire node, with the output's buffer sizes. Both sides going through pipewire-pulse
+  is a workaround for the spike: the real app's Linux audio should use PipeWire directly. The real app's Linux audio should not depend on
+  `pipewiresink`: PipeWire directly (as WASAPI directly on Windows, research R7) is the likely
+  path, for the audio spec.
+- To hear that PC, the maintainer now has a VBAN service there that sends a virtual output (set
+  as default while it runs) to Voicemeeter, so what the spike plays reaches the Windows PC. Its
+  first version stuttered and piled up errors in Voicemeeter: `vban_emitter` opens the PulseAudio
+  capture with the server's default fragment, so it sent bursts every ≈ 340 ms;
+  `PULSE_LATENCY_MSEC=10` steadies it (largest gap 10.8 ms). A lesson for the real app's link
+  streaming: pace the packets, do not send what a large capture buffer hands over at once.
 
 ## Audio (Windows, via Voicemeeter)
 
@@ -234,20 +333,21 @@ Earlier hand measurements in FL Studio (2026-10-27), same reference, mixed to on
 
 ## Capabilities
 
-Spec User Story 4, one row per capability (T039). Draft: the Linux column is filled in T038. The
+Spec User Story 4, one row per capability (T039). Linux: checked by the maintainer on CachyOS,
+KDE Plasma Wayland (T038); depth is limited there for the same software-renderer reasons. The
 sections below record how each capability was built and checked.
 
 | Capability | Windows | Linux | Notes |
 |---|---|---|---|
-| Ambient light around the video, in its colors | working | not checked (T038) | GPU passes in the render loop, ≈ 0.1 ms CPU side; GPU time not measured (T034) |
-| Info overlay as separate bubbles: pin, order, corner; only pinned ones with the chrome hidden | working | not checked (T038) | Positions computed by hand (Slint layouts do not animate); placements not saved between runs (T035). The detached floating window was dropped; on Wayland it would have been limited (no always on top or placement) |
-| Resolution badges (HD, Full HD, QHD, 4K) in distinct colors | working | not checked (T038) | `Badge` with the previous app's colors, in the mode picker and the resolution bubble (T028) |
-| Source picker with groups and badges | working | not checked (T038) | Dropdown with group headers, detail and badge per item (T028); the preview's device picker lists devices only (screens and windows belong to recording and stream sources), so groups are seen in the mode picker (Automatic, Modes) |
-| Depth effects (layered shadows, raised and sunken surfaces) | limited | not checked (T038) | Nine-slice shadow images and tone steps; the software renderer draws no `drop-shadow`, no gradients on rounded shapes, no rounded clip, and Slint has no blur. Shadows need a @2x set above 100% scale (T048) |
-| Custom fonts and the brand logo | working | not checked (T038) | Bundled Inter; SVG logos must be sized in their own aspect ratio, and the dark theme uses a light variant (T048) |
-| Language and theme switching without restart | working | not checked (T038) | Bundled gettext catalogs and `@tr`; text built in Rust is translated in Slint (T036) |
-| Frameless window: move, resize, maximize, fullscreen | limited | not checked (T038) | All work, snapping included; no snap layouts flyout on the maximize button (needs `HTMAXBUTTON`, not reachable through winit) (T037) |
-| Smooth video while the window moves or resizes | limited | not checked (T038) | No stall since the video has its own thread; fast moves drop to 40–50 fps, likely DWM, not confirmed (T052) |
+| Ambient light around the video, in its colors | working | working | GPU passes in the render loop, ≈ 0.1 ms CPU side; GPU time not measured (T034) |
+| Info overlay as separate bubbles: pin, order, corner; only pinned ones with the chrome hidden | working | working | Positions computed by hand (Slint layouts do not animate); placements not saved between runs (T035). Bug seen on Linux (same code on Windows): in a small window the dock covers a bubble's hover; the hover should be above the dock. The detached floating window was dropped; on Wayland it would have been limited (no always on top or placement) |
+| Resolution badges (HD, Full HD, QHD, 4K) in distinct colors | working | working | `Badge` with the previous app's colors, in the mode picker and the resolution bubble (T028) |
+| Source picker with groups and badges | working | working | Dropdown with group headers, detail and badge per item (T028). Bug seen on Linux (same code on Windows): in a small window the dropdown menu is cut off at the window's edge; the preview's device picker lists devices only (screens and windows belong to recording and stream sources), so groups are seen in the mode picker (Automatic, Modes) |
+| Depth effects (layered shadows, raised and sunken surfaces) | limited | limited | Nine-slice shadow images and tone steps; the software renderer draws no `drop-shadow`, no gradients on rounded shapes, no rounded clip, and Slint has no blur. Shadows need a @2x set above 100% scale (T048) |
+| Custom fonts and the brand logo | working | working | Bundled Inter; SVG logos must be sized in their own aspect ratio, and the dark theme uses a light variant (T048) |
+| Language and theme switching without restart | working | working | Bundled gettext catalogs and `@tr`; text built in Rust is translated in Slint (T036) |
+| Frameless window: move, resize, maximize, fullscreen | limited | working | All work, snapping included; no snap layouts flyout on the maximize button (needs `HTMAXBUTTON`, not reachable through winit) (T037). On KDE Wayland moving, maximizing and snapping to the sides work (T038) |
+| Smooth video while the window moves or resizes | limited | working | No stall since the video has its own thread; fast moves drop to 40–50 fps on Windows, likely DWM, not confirmed (T052). On KDE Wayland the maintainer saw the window move smoothly (T038) |
 
 ### What the software renderer draws (T048, Slint 1.18.1, Windows)
 
