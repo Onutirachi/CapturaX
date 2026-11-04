@@ -4,11 +4,19 @@
 
 ## State
 
-Spec, plan and tasks approved and committed (`docs: add app shell spec`, `plan`, `tasks`; the
-`/speckit-analyze` fixes are folded into the tasks commit). Implementation approved by the
-maintainer (2026-11-04). Phase 1 (T001–T006) done and checked on Windows (`cargo build`,
-`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo deny check licenses
-bans`), waiting for the maintainer's validation before the commit `build: add cargo workspace`.
+Spec, plan and tasks approved and committed. Implementation approved by the maintainer
+(2026-11-04). Phase 1 committed (`build: add cargo workspace`). Phase 2 (T007–T020) done and
+checked on Windows, waiting for the maintainer's validation before the commit
+`feat: add window, render loop and settings store`.
+
+Phase 2 checks (Windows 11, RTX 5070 Ti): `cargo fmt --check`, `cargo clippy --workspace
+--all-targets -- -D warnings` and `cargo test --workspace` (44 tests) pass; `capturax` opens an
+undecorated 1280 × 720 window filled with the dark theme's `deep` tone drawn by the video thread
+(DX12 + Mailbox, first present about 0.6 s after start in a debug build), quits with code 0 on
+close, writes `capturax.toml` and `capturax.log` next to the executable; `--backend gl` exits 2;
+`--fullscreen --windowed` exits 64. The Linux build of `app` cannot be checked from Windows
+(Slint's fontconfig needs the Linux system libraries); `platform` and `settings` pass clippy for
+`x86_64-unknown-linux-gnu`. Linux is checked by CI (T061) or on the CachyOS machine.
 
 ## Done in the last sessions
 
@@ -29,6 +37,14 @@ bans`), waiting for the maintainer's validation before the commit `build: add ca
 
 ## Decisions
 
+- Phase 2: the presentation order is derived from the wgpu backends the build has (DX12 → the
+  Windows order, else the Linux order) instead of `cfg(windows)`, so `app/src` stays free of
+  platform `cfg` (T060). `settings::LoadOutcome::Damaged { kept_as }` is an `Option<PathBuf>`
+  (the rename can fail). A first start (no file) or a damaged file writes the current values at
+  once (`Store::save_soon`, recorded in data-model.md "Saving"). `KNOWN_LANGUAGES` in
+  `app/src/main.rs` is temporary until `i18n::LANGUAGES` (T042). Things not wired yet by design:
+  window placement (T032), notices pushed (US3), window actions beyond the basics (T030), the
+  translated renderer message (T058).
 - Phase 1: Slint 1.18.1 is still the newest 1.x (research R1). `zbus = "5"` because ksni 0.3
   uses zbus 5 (one copy in the build; zbus 6 exists). `windows-sys` 0.61 with the features the
   platform tasks need, declared once in the workspace. `deny.toml` has
@@ -59,4 +75,5 @@ bans`), waiting for the maintainer's validation before the commit `build: add ca
 
 ## Next step
 
-Maintainer validates Phase 1; commit `build: add cargo workspace`; then Phase 2 (T007–T020).
+Maintainer validates Phase 2; commit `feat: add window, render loop and settings store`; then
+Phase 3 (US1), or T060 and T061 first so CI guards the rest (tasks.md, Implementation Strategy).

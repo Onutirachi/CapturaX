@@ -1,1 +1,45 @@
 //! Linux implementation of the platform layer.
+
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+use winit::platform::wayland::WindowAttributesExtWayland;
+use winit::platform::x11::WindowAttributesExtX11;
+use winit::window::WindowAttributes;
+
+pub mod autostart;
+pub mod instance;
+pub mod tray;
+
+/// The app id: matches the `.desktop` file the packaged app installs (research R12).
+const APP_ID: &str = "capturax";
+
+pub fn app_folder() -> Option<PathBuf> {
+    // An AppImage runs from a read-only mount; its settings belong next to the AppImage file.
+    match std::env::var_os("APPIMAGE") {
+        Some(image) if !image.is_empty() => Path::new(&image).parent().map(PathBuf::from),
+        _ => super::exe_folder(),
+    }
+}
+
+pub fn show_system_message(title: &str, text: &str) {
+    let shown = run("kdialog", &["--title", title, "--error", text])
+        || run("zenity", &["--error", "--title", title, "--text", text]);
+    if !shown {
+        eprintln!("{title}: {text}");
+    }
+}
+
+/// Runs a dialog program and waits for it; false when it is missing or failed to show.
+fn run(program: &str, args: &[&str]) -> bool {
+    Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.code().is_some_and(|c| c == 0 || c == 1))
+}
+
+pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
+    let attrs = WindowAttributesExtWayland::with_name(attrs, APP_ID, APP_ID);
+    WindowAttributesExtX11::with_name(attrs, APP_ID, APP_ID)
+}

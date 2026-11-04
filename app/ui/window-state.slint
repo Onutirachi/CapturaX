@@ -1,0 +1,14 @@
+// The window's state, kept by Rust; the UI asks for changes through the callbacks. Ported from
+// the stack spike (T037, T050).
+export global WindowState {
+    in property <bool> maximized;
+    in property <bool> fullscreen;
+    // The window has the keyboard focus.
+    in property <bool> active: true;
+    callback minimize();
+    callback toggle-maximize();
+    callback close();
+    callback toggle-fullscreen();
+    // The title bar's drag area: start a system move.
+    callback start-move();
+}

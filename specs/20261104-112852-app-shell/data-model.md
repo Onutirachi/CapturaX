@@ -23,7 +23,8 @@ Crate `settings`. The user's choices, grouped in categories; each later spec add
 - **Unknown values**: the loaded TOML table is kept in memory; known fields are written into it on
   save, so unknown keys and categories survive.
 - **Saving**: every change marks the settings dirty; the saver writes 300 ms after the last change
-  and once more on quit (research R6).
+  and once more on quit (research R6). When there was no file, or it was damaged and set aside,
+  the current values are written at start, so the user finds a file next to the app.
 
 ## Settings location
 

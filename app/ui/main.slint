@@ -1,0 +1,54 @@
+// The window root (plan, UI structure). The UI is drawn into a transparent image that the video
+// thread composites over the video, so the window background stays transparent; the ground around
+// the video is the theme's deepest tone, read by Rust and cleared by the video thread.
+// Layers from bottom to top: video area, state message, chrome, notices, settings panel, then the
+// top layer for menus, dropdowns and tooltips.
+import { Theme, Palette } from "theme.slint";
+import { Texts } from "texts.slint";
+import { WindowState } from "window-state.slint";
+import { Notice, NoticeKind } from "components/notice.slint";
+
+export { Theme, Palette, Texts, WindowState, NoticeKind }
+
+export component AppWindow inherits Window {
+    background: transparent;
+    default-font-family: Theme.font;
+    title: Texts.app-name;
+
+    // The title bar's height; it hides in fullscreen and the video starts below it, never behind.
+    property <length> bar: WindowState.fullscreen ? 0 : 32px;
+
+    // Where the video thread draws the video, in logical pixels: letterboxed inside, corners
+    // rounded in the shader (the UI layer cannot clip the video).
+    out property <length> video-x: 0;
+    out property <length> video-y: root.bar;
+    out property <length> video-width: root.width;
+    out property <length> video-height: root.height - root.bar;
+    out property <length> video-radius: 0;
+
+    // The notice shown, set by Rust from its queue (app/src/notices.rs).
+    in property <bool> notice-visible;
+    in property <NoticeKind> notice-kind;
+    in property <string> notice-text;
+    callback dismiss-notice();
+
+    // Video area: drawn by the video thread, nothing here.
+
+    // State message layer (no source, spec FR-035): filled by the state message task.
+
+    // Chrome layer (title bar, toolbar slot, docks): filled by the chrome tasks.
+
+    // Notices layer.
+    if root.notice-visible: Notice {
+        x: root.video-x + (root.video-width - self.width) / 2;
+        y: root.video-y + Theme.gap-l;
+        width: min(560px, root.video-width - 2 * Theme.gap-l);
+        kind: root.notice-kind;
+        text: root.notice-text;
+        dismiss => { root.dismiss-notice(); }
+    }
+
+    // Settings panel layer: filled by the settings panel task.
+
+    // Top layer (menus, dropdowns, tooltips): filled by the menu and tooltip tasks.
+}

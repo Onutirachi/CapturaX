@@ -26,7 +26,7 @@ gst-video = { package = "gstreamer-video", version = "0.25" }
 # General
 clap = { version = "4", features = ["derive"] }
 log = { version = "0.4", features = ["std"] }
-toml = "1"
+toml = { version = "1", features = ["preserve_order"] }
 tempfile = "3"
 sys-locale = "0.3"
 dirs = "7"

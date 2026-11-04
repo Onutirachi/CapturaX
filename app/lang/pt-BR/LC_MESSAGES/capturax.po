@@ -1,0 +1,15 @@
+# Portuguese (Brazil) translation of CapturaX.
+# Bundled at build time (app/build.rs); msgid is the English source text, entries have no context.
+msgid ""
+msgstr ""
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "CapturaX"
+msgstr "CapturaX"
+
+msgid "Dismiss"
+msgstr "Dispensar"
