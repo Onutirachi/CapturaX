@@ -4,9 +4,10 @@
 
 ## State
 
-Spec drafted, its open questions answered, committed (`docs: add app shell spec`, unmerged);
-waiting for the maintainer's approval before `/speckit-plan`. docs/roadmap.md marks spec #2 in
-progress.
+Spec approved by the maintainer (2026-11-04). `/speckit-plan` done: plan.md, research.md
+(R1–R14), data-model.md, contracts/ (cli, settings-file, stats, single-instance, platform),
+quickstart.md. Committed as `docs: add app shell plan` (unmerged). The maintainer accepted fast-move
+frame drops on Windows as a known limit (spec Edge Cases, SC-003).
 
 ## Done in the last sessions
 
@@ -27,7 +28,11 @@ progress.
 
 ## Decisions
 
-- All recorded in spec.md, docs/product.md and the constitution; none live only here.
+- All recorded in spec.md, plan.md, research.md, docs/product.md and the constitution; none live
+  only here. Main plan choices: three-crate workspace (`app`, `crates/settings`,
+  `crates/platform`); UI drawn on the main thread, video thread owns wgpu (spike R15); TOML
+  settings `capturax.toml` with lenient load and atomic replace; shadows generated at the display
+  scale; test video through GStreamer `videotestsrc`; tray `tray-icon` (Windows) / `ksni` (Linux).
 
 ## Open questions
 
@@ -37,4 +42,4 @@ progress.
 
 ## Next step
 
-Maintainer approves spec.md; then `/speckit-plan`.
+`/speckit-tasks`.

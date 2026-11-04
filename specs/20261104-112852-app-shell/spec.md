@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-04
 
-**Status**: Draft
+**Status**: Approved (2026-11-04)
 
 **Input**: User description: "App shell (see docs/roadmap.md #2): the Rust + Slint application skeleton chosen by the stack spike: own winit + wgpu render loop with the video presented from its own thread and Slint drawn as a layer over it (stack spike findings, research R13 and R15), the Float direction's frameless window and chrome. Covers F8, F39, F40, F46, the settings storage part of F41, and a common way to show empty and error states (F11). Includes the theme tokens from the spike's chosen visual direction, i18n infrastructure (English and Portuguese), the portable settings file with the per-user fallback, and CI (format, lint, tests, build on Windows and Linux)."
 
@@ -211,9 +211,10 @@ change that only breaks one platform's build; each is reported and blocks the me
   the app reads it and saves later changes to the per-user folder.
 - On Linux run as an AppImage, "the app's folder" is the folder that holds the AppImage file, not
   the read-only mounted image.
-- Fast window moves on Windows: the spike saw 40–50 fps during fast moves, likely the system
-  compositor. The plan confirms the cause; if it is outside the app, it is documented as a known
-  limit, not fixed.
+- Fast window moves on Windows: the spike saw the video drop to 40–50 fps during fast moves,
+  likely the system compositor. Accepted as a known limit, not investigated (maintainer,
+  2026-11-04): nobody plays through the preview while moving the window. What matters is that the
+  window itself moves smoothly and the video never stalls.
 
 ## Requirements *(mandatory)*
 
@@ -395,8 +396,9 @@ spec #3 against the spike's 30.4 ms median; this spec only must not add to it.
 - **SC-002**: With the test video at 60 fps and the window still, at least 99% of the seconds
   present 59–61 frames, in every interface state of SC-001.
 - **SC-003**: While the window is held still mid-drag, or resized slowly, the video keeps
-  presenting at the source's rate (spike before T052: one frame per second). During fast moves on
-  Windows, any drop below the source's rate is explained in the findings with its cause.
+  presenting at the source's rate (spike before T052: one frame per second). During fast moves the
+  window moves smoothly and the video keeps updating; a frame rate below the source's during the
+  move is accepted (Edge Cases).
 - **SC-004**: The window appears with the empty state within 2 s of starting the app on the
   maintainer's machines (findings, environment).
 - **SC-005**: Language and theme switches complete in under 100 ms, and no text is left in the
