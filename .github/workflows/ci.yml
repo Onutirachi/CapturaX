@@ -1,0 +1,87 @@
+# Checks every change on Windows and Linux (spec 20261104-112852-app-shell, research R13).
+# The rule on main requires the jobs `checks` and `build-test` (FR-038).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  GST_VERSION: "1.28.8"
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Licenses and bans
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check licenses bans
+
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install system libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libxkbcommon-dev libwayland-dev libdbus-1-dev libfontconfig1-dev
+
+      # One Inno Setup installer with runtime and development files since 1.28. The default
+      # all-users folder matches PKG_CONFIG_PATH in .cargo/config.toml.
+      - name: Restore GStreamer (Windows)
+        if: runner.os == 'Windows'
+        id: gst-cache
+        uses: actions/cache@v4
+        with:
+          path: C:\Program Files\gstreamer
+          key: gstreamer-msvc-x86_64-${{ env.GST_VERSION }}
+      - name: Install GStreamer (Windows)
+        if: runner.os == 'Windows' && steps.gst-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $name = "gstreamer-1.0-msvc-x86_64-$env:GST_VERSION.exe"
+          $url = "https://gstreamer.freedesktop.org/data/pkg/windows/$env:GST_VERSION/msvc/$name"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\$name"
+          $p = Start-Process "$env:RUNNER_TEMP\$name" -Wait -PassThru `
+            -ArgumentList '/VERYSILENT', '/NORESTART', '/ALLUSERS', '/TYPE=devel'
+          if ($p.ExitCode -ne 0) { throw "GStreamer installer exited with $($p.ExitCode)" }
+      - name: Put GStreamer on PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = 'C:\Program Files\gstreamer\1.0\msvc_x86_64\bin'
+          if (-not (Test-Path "$bin\pkg-config.exe")) { throw "GStreamer not found in $bin" }
+          $bin | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      - name: Release build
+        run: cargo build --workspace --release

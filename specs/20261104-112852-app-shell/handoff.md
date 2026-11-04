@@ -5,18 +5,18 @@
 ## State
 
 Spec, plan and tasks approved and committed. Implementation approved by the maintainer
-(2026-11-04). Phase 1 committed (`build: add cargo workspace`). Phase 2 (T007–T020) done and
-checked on Windows, waiting for the maintainer's validation before the commit
-`feat: add window, render loop and settings store`.
+(2026-11-04). Phase 1 committed (`build: add cargo workspace`), Phase 2 committed
+(`feat: add window, render loop and settings store`). T060 and T061 (CI guard) written and
+waiting for the maintainer's validation before the commit `ci: add platform boundary test and
+workflow`.
 
-Phase 2 checks (Windows 11, RTX 5070 Ti): `cargo fmt --check`, `cargo clippy --workspace
---all-targets -- -D warnings` and `cargo test --workspace` (44 tests) pass; `capturax` opens an
-undecorated 1280 × 720 window filled with the dark theme's `deep` tone drawn by the video thread
-(DX12 + Mailbox, first present about 0.6 s after start in a debug build), quits with code 0 on
-close, writes `capturax.toml` and `capturax.log` next to the executable; `--backend gl` exits 2;
-`--fullscreen --windowed` exits 64. The Linux build of `app` cannot be checked from Windows
-(Slint's fontconfig needs the Linux system libraries); `platform` and `settings` pass clippy for
-`x86_64-unknown-linux-gnu`. Linux is checked by CI (T061) or on the CachyOS machine.
+T060: `app/tests/platform_boundary.rs` passes (4 tests; the parsers have their own tests:
+renamed and target-specific dependencies, `cfg(not(windows))`, `cfg_attr`, `cfg!`, comments).
+T061: `.github/workflows/ci.yml` written but **never run**: it runs for the first time when the
+branch is pushed (T062), so T061 stays unchecked until it passes there. Locally on Windows:
+`cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test
+--workspace` (48 tests) and `cargo deny check licenses bans` pass. The Linux build of `app` is
+still unchecked (CI or CachyOS).
 
 ## Done in the last sessions
 
@@ -37,6 +37,13 @@ close, writes `capturax.toml` and `capturax.log` next to the executable; `--back
 
 ## Decisions
 
+- T060/T061: `cargo deny check bans` was already failing after Phase 2: Slint's default features
+  bring `ksni` (via `i-slint-core`, feature `system-tray`) and `muda` (via
+  `i-slint-backend-winit`). Those two Slint crates are now allowed wrappers in `deny.toml`.
+  Turning Slint's default features off fails: without a Slint backend, `.slint` SVG images do
+  not compile. GStreamer 1.28 on Windows ships one Inno Setup `.exe` (no MSI), installed in CI
+  with `/VERYSILENT /NORESTART /ALLUSERS /TYPE=devel`; Ubuntu also needs `libfontconfig1-dev`.
+  All recorded in research R13 and T061.
 - Phase 2: the presentation order is derived from the wgpu backends the build has (DX12 → the
   Windows order, else the Linux order) instead of `cfg(windows)`, so `app/src` stays free of
   platform `cfg` (T060). `settings::LoadOutcome::Damaged { kept_as }` is an `Option<PathBuf>`
@@ -75,5 +82,6 @@ close, writes `capturax.toml` and `capturax.log` next to the executable; `--back
 
 ## Next step
 
-Maintainer validates Phase 2; commit `feat: add window, render loop and settings store`; then
-Phase 3 (US1), or T060 and T061 first so CI guards the rest (tasks.md, Implementation Strategy).
+Maintainer validates T060/T061; commit `ci: add platform boundary test and workflow`; then
+Phase 3 (US1), starting with the parallel tasks T021, T022, T024, T025 (tasks.md, Parallel
+Example). The first CI run happens when the maintainer asks to push (T062).

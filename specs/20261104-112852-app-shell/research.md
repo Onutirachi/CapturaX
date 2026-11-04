@@ -227,10 +227,17 @@ reopened here; entries below say how the shell builds it.
     compatibility; `tray-icon`, `muda` and `ksni` reachable only through `platform`).
     `windows-sys` and `zbus` also arrive transitively through winit, wgpu and Slint, so
     `cargo deny` cannot ban them by name; the test `app/tests/platform_boundary.rs` fails when
-    `app` or `settings` lists an OS crate as a direct dependency.
+    `app` or `settings` lists an OS crate as a direct dependency. Slint's default features also
+    bring `ksni` (its `system-tray` feature, through `i-slint-core`) and `muda` (its winit
+    backend), so those two Slint crates are allowed wrappers in `deny.toml`. Turning Slint's
+    default features off was tried and dropped: without a Slint backend, `.slint` SVG images do
+    not compile (checked 2026-11-04).
   - `build-test` matrix `windows-latest`, `ubuntu-24.04`: install GStreamer (Ubuntu: apt
-    `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` plus the window system headers;
-    Windows: the 1.28 MSVC development installer, cached), `cargo clippy --all-targets -- -D
+    `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` plus the window system headers and
+    `libfontconfig1-dev` for Slint's font lookup; Windows: the 1.28 MSVC x86_64 installer, which
+    since 1.28 is one Inno Setup `.exe` holding runtime and development files, run with
+    `/VERYSILENT /NORESTART /ALLUSERS /TYPE=devel` and cached by version),
+    `cargo clippy --all-targets -- -D
     warnings`, `cargo test`, `cargo build --release`.
   - Rust cache (`Swatinem/rust-cache`) to stay under 20 min (SC-008).
 - Merge blocking (FR-038) is a repository rule on `main` requiring these checks; the maintainer

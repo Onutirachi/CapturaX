@@ -30,8 +30,10 @@ wildcards = "deny"
 allow-wildcard-paths = true
 # OS crates only through the platform layer (constitution IV). windows-sys and zbus also come in
 # through winit, wgpu and Slint, so app/tests/platform_boundary.rs checks those instead.
+# Slint's default features bring its own menu bar (muda, winit backend) and system tray (ksni,
+# core); the app does not use them, and only Slint's internal crates may wrap them.
 deny = [
     { crate = "tray-icon", wrappers = ["capturax-platform"] },
-    { crate = "muda", wrappers = ["tray-icon"] },
-    { crate = "ksni", wrappers = ["capturax-platform"] },
+    { crate = "muda", wrappers = ["tray-icon", "i-slint-backend-winit"] },
+    { crate = "ksni", wrappers = ["capturax-platform", "i-slint-core"] },
 ]
