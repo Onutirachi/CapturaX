@@ -11,7 +11,8 @@
 | Reference display (passthrough) | 27G2G4 on its HDMI input, fed by the card's passthrough; next to the C24FG7x |
 | GStreamer | 1.28.8, MSVC x86_64 (`C:\Program Files\gstreamer\1.0\msvc_x86_64`) |
 | Rust | 1.99.0, stable-x86_64-pc-windows-msvc |
-| OBS | installed (version to fill) |
+| OBS | OBS Studio 32.2.2 (read on 2026-11-04, after the clips) |
+| Browser | Microsoft Edge 156.0.4314.58 (read on 2026-11-04, after the clips) |
 | Camera | Galaxy S23 FE, 240 fps slow motion |
 | Source | PlayStation 5, video output locked to 1080p (the 27G2G4 shows no passthrough above 1080p), HDR off, HDCP off |
 

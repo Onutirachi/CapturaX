@@ -142,7 +142,7 @@ instead of ui/overlay.slint. slint-preview stays as the measured path B and gets
 
 ## Phase 7: Decisions and wrap-up
 
-- [ ] T040 Complete findings.md: environment, method, decisions (Slint status, chosen preview path, chosen direction), open questions for later specs
+- [x] T040 Complete findings.md: environment, method, decisions (Slint status, chosen preview path, chosen direction), open questions for later specs. Result: Slint confirmed with the own render loop; open questions grouped by roadmap spec
 - [ ] T041 Amend the constitution with the Slint decision (version bump, Sync Impact note) in .specify/memory/constitution.md, and update the stack spike row and any affected later specs in docs/roadmap.md
 - [ ] T042 Update specs/20261026-154808-stack-spike/handoff.md to the final state
 - [ ] T043 (maintainer approves) Tag the branch head as `spike/stack-20261026` and push the tag, then delete `spike/` in a commit (research R11)

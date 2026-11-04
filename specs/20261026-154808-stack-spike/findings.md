@@ -1,7 +1,7 @@
 # Findings: Stack Spike
 
-Status: **in progress**. Sections are filled as the spike advances; decisions are taken only at the
-end (T040).
+Status: **complete**. The decisions are at the end, followed by the open questions handed to later
+specs.
 
 ## Environment
 
@@ -372,7 +372,8 @@ maintainer notices while playing, and under 10 ms of drift over 30 minutes.
 - Dragging the slint-layered window stutters the video, sometimes for a long moment, with or
   without the encoder, while the pipeline keeps delivering 60 fps. On Windows the system holds the
   app's event loop during a window move, and this prototype presents from that loop. The real app
-  must present video on a thread of its own. Fullscreen is not affected.
+  must present video on a thread of its own. Fullscreen is not affected. Fixed in the spike by T052
+  (research R15).
 
 - In the 1080p120 mode with a 60 Hz source, the card delivers about 111 fps on every path; the
   limit is the source, not the path.
@@ -634,4 +635,60 @@ The latency in the info overlay is still a sample value.
 
 ## Decisions
 
-Pending (T040).
+- **Slint is confirmed for the interface** (SC-002, constitution amendment in T041), on one
+  condition: the app owns the window (winit) and the GPU swap chain (wgpu) and presents each video
+  frame on arrival, from a thread of its own; Slint draws the whole UI with its software renderer
+  into a layer that the video thread composites over the video (research R13, R15). Video inside
+  Slint's own window stays 1.5 frames behind native whatever the renderer, so it is not used. The
+  software renderer sets the visual limits: no blur, no `drop-shadow`, no gradients or clipping on
+  rounded shapes; depth comes from tone steps and nine-slice shadows (R14).
+- **The video never waits for the UI or the window**: the UI renders on its own thread in the real
+  app and the compositor takes its last finished image; the window's thread can be held by the
+  system (window moves on Windows) without stopping the video.
+- **Preview path**: Direct3D 12 with Mailbox on Windows (Vulkan there goes through DWM and is
+  ≈ 15 ms slower); Vulkan with Mailbox on Linux. NV12 first in the format preference. Capture
+  through `mfvideosrc` on Windows and `v4l2src` on Linux, as used here; PipeWire's camera was not
+  compared.
+- **Preview audio on Windows**: WASAPI directly, not the GStreamer elements; every input and
+  output can be shared or exclusive, off by default (docs/product.md F47). GStreamer still carries
+  audio for recording and streaming. On Linux the spike used `pulsesrc` → `pulsesink` because
+  `pipewiresink` hangs on stop; the real app's Linux audio is for the preview audio spec.
+- **Visual direction**: Float, laid out as the previous app, with the T027 theme (cool neutral in
+  four tones, orange accent, Inter, WCAG contrast in both themes); Frame and Rail dropped.
+  Only panels are semi-transparent; menus, buttons and icons are opaque.
+- **Not reopened**: a browser preview or an HTML UI over the native video, although the browser
+  matched native latency (maintainer, 2026-10-29).
+- **Color range**: the ezcap declares limited range and sends full, so the app needs a color range
+  setting (Auto, Full, Limited).
+
+## Open questions for later specs
+
+Grouped by the roadmap spec (docs/roadmap.md) expected to answer them.
+
+- **App shell (#2)**
+  - In a small window the dock covers the info bubbles' hover, and dropdown menus are cut off at
+    the window's edge (seen on Linux, same code on Windows).
+  - Fast window moves drop the video to 40–50 fps on Windows (likely DWM, not confirmed).
+  - The snap layouts flyout on the maximize button needs `HTMAXBUTTON`, not reachable through
+    winit.
+  - Nine-slice shadows need a @2x set above 100% display scale.
+- **Device preview (#3)**
+  - Linux GPU power state: the RTX 3050 steps down to P8 under the preview's light load
+    (≈ 4.6 ms median, ≈ 9 ms p95); how to keep it awake without root. Not checked on Windows.
+  - Linux capture: `v4l2src` against PipeWire's camera (`pipewiresrc`, needed in a sandboxed
+    package) not compared for latency; KWin direct scanout not checked separately.
+  - Capturing a 60 Hz signal in the 1080p120 mode costs every path 3–5 ms; the Auto source mode
+    (F3) and how to read the incoming signal per platform.
+  - Latency levers not tested: a 120 Hz source, VRR, PresentMon to confirm independent flip,
+    zero-copy upload (DMA-BUF import on Linux).
+  - The color range setting; the maintainer will also compare the image with the passthrough again
+    with `--range full`.
+  - Proposal awaiting the maintainer: the device dropdown detail shows the last mode used for that
+    device, else the default automatic mode (F2/F3).
+- **Preview audio (#4)**
+  - Drift over 30 minutes with the WASAPI engine, and the delay with a hardware output instead of
+    Voicemeeter, not measured (SC-005 open on drift).
+  - Linux audio path and its measurement (only heard through VBAN here).
+- **Preview extras (#6)**: the ambient light's GPU time was not measured.
+- **Recording (#9)**: recording and streaming with separate sources (and setup windows) again;
+  noted in docs/product.md "To reconsider", to decide before the Record / Stream window spec.
