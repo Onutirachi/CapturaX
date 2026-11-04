@@ -8,10 +8,10 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 
 | # | Spec | Covers | Depends on | Status |
 |---|---|---|---|---|
-| 1 | [Stack spike](#1-stack-spike) | — | — | next |
+| 1 | [Stack spike](#1-stack-spike) ([spec](../specs/20261026-154808-stack-spike/spec.md)) | — | — | done |
 | 2 | [App shell](#2-app-shell) | F8, F11 (framework), F39, F40, F41 (settings storage), F46 | 1 | |
 | 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43 | 2 | |
-| 4 | [Preview audio](#4-preview-audio) | F12–F14 | 3 | |
+| 4 | [Preview audio](#4-preview-audio) | F12–F14, F47 | 3 | |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
@@ -32,6 +32,10 @@ spec 13 can start any time after spec 2.
 Validates Rust + GStreamer + Slint before any feature work. The findings go into the plan as
 decisions; the spike code is not merged.
 
+Done: [findings](../specs/20261026-154808-stack-spike/findings.md). Slint confirmed with the
+app's own render loop; the "Open questions for later specs" section there lists what each later
+spec inherits. The spike code is kept under the tag `spike/stack-20261026`.
+
 ```text
 /speckit-specify Stack spike, before any feature work (see docs/roadmap.md #1). Two goals:
 (1) Preview latency: open a capture card in its native mode and measure glass-to-glass latency
@@ -49,7 +53,9 @@ Linux checked too. Old implementation for reference: old/capturax-react.
 
 ```text
 /speckit-specify App shell (see docs/roadmap.md #2): the Rust + Slint application skeleton
-chosen by the stack spike. Covers F8, F39, F40, F46, the settings storage part of F41, and a common
+chosen by the stack spike: own winit + wgpu render loop with the video presented from its own
+thread and Slint drawn as a layer over it (stack spike findings, research R13 and R15), the Float
+direction's frameless window and chrome. Covers F8, F39, F40, F46, the settings storage part of F41, and a common
 way to show empty and error states (F11). Includes the theme tokens from the spike's chosen
 visual direction, i18n infrastructure (English and Portuguese), the portable settings file with
 the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
@@ -62,7 +68,8 @@ the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
 from docs/product.md. Device list with hot plug, native modes, the automatic modes (source, max resolution, max FPS), reconnect,
 latency and FPS measurement, explicit empty and error states (including a hint to turn off
 HDCP on the console when the image is black while a signal is present). Must state a latency budget and
-how it is measured (constitution principle I).
+how it is measured (constitution principle I); the stack spike measured 30.4 ms median at 1080p60
+on Windows with Direct3D 12 + Mailbox, and lists the open questions this spec inherits.
 ```
 
 ### 4. Preview audio
@@ -70,7 +77,9 @@ how it is measured (constitution principle I).
 ```text
 /speckit-specify Preview audio (see docs/roadmap.md #4): covers F12-F14 from docs/product.md.
 Lowest-latency playback of an audio input on a chosen output, paired automatically with the
-video device, with volume and mute. Must state a latency budget and how it is measured.
+video device, with volume and mute, and F47 (exclusive mode per device). On Windows through WASAPI
+directly, as the stack spike's engine; it must measure the 30-minute drift the spike left open,
+and the Linux path. Must state a latency budget and how it is measured.
 ```
 
 ### 5. Screenshot
@@ -83,8 +92,9 @@ video device, with volume and mute. Must state a latency budget and how it is me
 
 ```text
 /speckit-specify Preview extras (see docs/roadmap.md #6): covers F9, F10 and F42 from
-docs/product.md: ambient light, hiding the preview, and the capture info overlay (pinnable, and
-detachable as a floating window).
+docs/product.md: ambient light, hiding the preview, and the capture info overlay (bubbles that
+can be pinned, reordered and anchored to any corner; the detached window was dropped in the
+stack spike).
 ```
 
 ### 7. Screen and window capture
