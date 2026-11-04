@@ -17,7 +17,8 @@ friends can watch live in their browser.
 
 ## Out of scope
 
-- More than one source at a time (scenes, compositing, picture-in-picture, webcam overlay).
+- More than one source in one output (scenes, compositing, picture-in-picture, webcam overlay).
+  Recording and streaming are two outputs and may each use a different source.
 - Streaming to third-party platforms (RTMP, Twitch, YouTube, Kick).
 - Video editing or effects.
 
@@ -35,10 +36,10 @@ The **Spec** column is filled in when a spec covers the feature.
 | F4 | When a device disconnects, show it; when it comes back, reopen it automatically. | |
 | F5 | Screens and windows as a source for recording and streaming, with the cursor and without a capture border. On Windows the app lists them (screens named like "Screen 2 - 27G2G4"); on Linux Wayland the system picker chooses them. | |
 
-The preview shows devices only. Screens and windows are sources of the output (recording and
-streaming), and a **View output** action shows the output in the preview. With no device open,
-the preview shows a "no source" state; its action opens the app's source picker, the same one
-the toolbar opens, not a picker of its own (maintainer, 2026-11-06).
+The preview shows devices only. Screens and windows are sources of the outputs (recording and
+streaming); **View recording** and **View stream** show that output's source in the preview.
+With no device open, the preview shows a "no source" state; its action opens the app's source
+picker, the same one the toolbar opens, not a picker of its own (maintainer, 2026-11-06).
 
 ### B. Preview
 
@@ -67,8 +68,8 @@ the toolbar opens, not a picker of its own (maintainer, 2026-11-06).
 
 | ID | Feature | Spec |
 |---|---|---|
-| F15 | Audio sources list under the output source: **Add audio** picks any audio input of the computer or **PC sound**; up to 8 sources; volume per source, adjustable live. The audio of the source device is added automatically and can be removed. | |
-| F16 | **PC sound** captures apps individually and leaves out excluded apps (default: Discord). CapturaX itself is always excluded. The app picker lists apps playing now, open, and seen before, and accepts an executable name typed by hand. Changes apply immediately, even while recording. | |
+| F15 | Each output (recording, streaming) has its own audio sources list under its source: **Add audio** picks any audio input of the computer or **PC sound**; up to 8 sources; volume per source, adjustable live. The audio of the source device is added automatically and can be removed. | |
+| F16 | **PC sound** captures apps individually and leaves out excluded apps (default: Discord). CapturaX itself is always excluded. Each output has its own app selection and exclusions. The app picker lists apps playing now, open, and seen before, and accepts an executable name typed by hand. Changes apply immediately, even while recording. | |
 | F17 | Track 1 is always the mix of all sources. A **Separate track** checkbox per source adds that source as its own track in recordings. The checkboxes are hidden when only streaming. | |
 
 ### E. Screenshot
@@ -87,13 +88,13 @@ the toolbar opens, not a picker of its own (maintainer, 2026-11-06).
 | F23 | Correct colors from capture cards that send full-range video (no dark or crushed image). | |
 | F24 | Recording time and file size shown while recording. | |
 
-### G. Record / Stream window
+### G. Record and Stream panels
 
 | ID | Feature | Spec |
 |---|---|---|
-| F25 | One window to set up the output: source and audio (shared by recording and streaming), then a Recording column and a Streaming column, each shown when its switch is on. | |
-| F26 | The source is any device, screen or window (default: the preview device). Recording and streaming always use the same source. | |
-| F27 | While recording, the source and the audio devices are locked (volumes still change). While only streaming they can change, and **Apply** restarts the stream; viewers reconnect by themselves. | |
+| F25 | Recording and streaming are set up in two separate panels inside the main window, **Record** and **Stream** (like the settings panel), each with its own source and audio. Nothing ties them together: to record and stream the same thing, the user picks the same source in both. | |
+| F26 | Each output's source is any device, screen or window (default: the preview device). Recording and streaming can run at the same time with different sources, different apps and different audio, or with the same ones; a device or screen used by both is captured once. | |
+| F27 | While recording, the Record panel's options are locked until recording stops (volumes still change). The Stream panel's options can change during a live, and **Apply** restarts the stream; viewers reconnect by themselves. | |
 
 ### H. Live by direct link (the PC serves the stream)
 
@@ -144,9 +145,6 @@ the toolbar opens, not a picker of its own (maintainer, 2026-11-06).
 
 ## To reconsider
 
-- F25/F26: separate sources for recording and streaming, back to separate setup windows. The
-  maintainer found a case (2026-11-04) where one shared source gets in the way. Decide before
-  the Record / Stream window spec; check it against the constitution's "one source at a time".
 - **Record / stream only mode** (maintainer, 2026-11-04): start without the preview, in a compact
   window, only to record and stream: a **Start without preview** setting, and a command-line
   option that overrides it for one start (as Start in fullscreen, F8). Reason: Discord's screen
@@ -154,7 +152,7 @@ the toolbar opens, not a picker of its own (maintainer, 2026-11-06).
   users have no capture card and would use only screen and window streaming. This changes the
   main scenario (Vision) and may change the roadmap's order (specs 7, 10–12 earlier) and the
   constitution's description of the product. Decide before spec #3 starts, or at least before
-  the Record / Stream window spec.
+  the Record panel spec (#9).
 - **Hide preview and its audio** (maintainer, 2026-11-06): hiding the preview (F10) releases the
   device, but whether it also stops listening (C) is not decided. Decide in the spec that adds
   F10.
@@ -170,8 +168,8 @@ Not planned; listed so they are not lost.
 - End a live after a long inactivity, so it cannot be left on by mistake (the old app streamed
   for 2 days unnoticed). What counts as inactive is open: no viewers for a while, no input on the
   PC, or both (specs #10 and #12).
-- Start and stop recording and streaming from the tray menu (F48), or open the Record / Stream
-  window from it (specs #9 and #10).
+- Start and stop recording and streaming from the tray menu (F48), or open the Record or Stream
+  panel from it (specs #9 and #10).
 - For Voicemeeter users, suggest letting Voicemeeter read the capture card directly: the lowest
   possible audio delay (measured ≈ 0, against ≈ 100 ms through its virtual input).
 - Server mode where the server distributes the stream (upload once, any number of viewers).

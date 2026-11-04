@@ -117,7 +117,7 @@ docs/product.md, on Windows (own list) and Linux (Wayland portal picker, X11 if 
 
 ```text
 /speckit-specify Output audio (see docs/roadmap.md #8): covers F15-F17 from docs/product.md.
-Audio sources list (up to 8), PC sound captured per app with exclusions (Windows process
+Audio sources list per output (up to 8), PC sound captured per app with exclusions (Windows process
 loopback, Linux PipeWire), mix on track 1 and optional separate tracks.
 ```
 
@@ -125,14 +125,15 @@ loopback, Linux PipeWire), mix on track 1 and optional separate tracks.
 
 ```text
 /speckit-specify Recording (see docs/roadmap.md #9): covers F20-F27 from docs/product.md,
-including the Record / Stream window (streaming column added later by spec 10).
+including the Record panel (the Stream panel is added by spec 10).
 ```
 
 ### 10. Direct link
 
 ```text
 /speckit-specify Direct link live (see docs/roadmap.md #10): covers F28-F33 and the viewer page
-F38 from docs/product.md. The PC serves the stream; automatic network setup; hardened server.
+F38 from docs/product.md, and the Stream panel (F25, F27). The PC serves the stream; automatic
+network setup; hardened server.
 ```
 
 ### 11. Server

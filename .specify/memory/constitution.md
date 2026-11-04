@@ -1,14 +1,12 @@
 <!--
 Sync Impact Report
-- Version: 1.0.0 -> 1.1.0 (MINOR: guidance materially expanded after the stack spike)
-- Modified: III. One Native Media Pipeline (the app may render the preview and play preview
-  audio itself; preview video and audio are not held to one clock); Technology and Product
-  Constraints (Slint confirmed, with the render architecture it requires)
+- Version: 1.1.0 -> 1.1.1 (PATCH: clarification)
+- Modified: II. Simple by Default ("one source at a time" now reads "one source per output":
+  recording and streaming may use different sources; compositing stays out of scope)
 - Added sections: none. Removed sections: none.
 - Templates: plan-template.md, spec-template.md, tasks-template.md need no change.
-- Follow-up: docs/roadmap.md updated (stack spike done; app shell, device preview, preview
-  audio and preview extras entries revised).
-- Source: specs/20261026-154808-stack-spike/findings.md "Decisions".
+- Follow-up: docs/product.md F15, F16, F25-F27 revised (separate sources and audio per output).
+- Source: maintainer decision, 2026-11-04.
 -->
 
 # CapturaX Constitution
@@ -36,9 +34,10 @@ Rationale: low-latency preview is the reason CapturaX exists; every other featur
 
 ### II. Simple by Default
 
-- One source at a time. Scenes, compositing, overlays burned into the output and streaming to
-  third-party platforms (RTMP, Twitch, YouTube) are out of scope; adding them requires an
-  amendment.
+- One source per output. Recording and streaming are separate outputs and may each use a
+  different source at the same time, but an output never combines sources. Scenes,
+  compositing, overlays burned into the output and streaming to third-party platforms (RTMP,
+  Twitch, YouTube) are out of scope; adding them requires an amendment.
 - Defaults MUST work without configuration: automatic device mode, audio paired with the
   video device, automatic network setup. An option is added only for a demonstrated need;
   prefer removing an option over explaining it.
@@ -185,4 +184,4 @@ starting from a fresh context.
 - Every plan MUST include a constitution check, and every pull request review MUST verify
   compliance. Deviations MUST be documented in the plan with a justification.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-11-04
+**Version**: 1.1.1 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-11-04
