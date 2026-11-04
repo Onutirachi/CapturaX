@@ -16,8 +16,8 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
 | 8 | [Output audio](#8-output-audio) | F15–F17 | 4 | |
-| 9 | [Recording](#9-recording) | F20–F27 | 7, 8 | |
-| 10 | [Direct link](#10-direct-link) | F28–F33, F38 | 9 | |
+| 9 | [Recording](#9-recording) | F20–F27, F50 (framework, record, screenshot), F51 (recording) | 7, 8 | |
+| 10 | [Direct link](#10-direct-link) | F28–F33, F38, F50 (stream), F51 (streaming) | 9 | |
 | 11 | [Server](#11-server) | F34–F37 (server side) | 10 | |
 | 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37 (app side) | 11 | |
 | 13 | [Packaging and updates](#13-packaging-and-updates) | F41 (installer, firewall), F44, F45 | 2 | |
@@ -125,15 +125,18 @@ loopback, Linux PipeWire), mix on track 1 and optional separate tracks.
 
 ```text
 /speckit-specify Recording (see docs/roadmap.md #9): covers F20-F27 from docs/product.md,
-including the Record panel (the Stream panel is added by spec 10).
+including the Record panel (the Stream panel is added by spec 10), the global
+hotkeys of F50 for recording and screenshot (the streaming hotkey is added by spec 10), and the
+recording status of F51 on the tray icon and the taskbar button.
 ```
 
 ### 10. Direct link
 
 ```text
 /speckit-specify Direct link live (see docs/roadmap.md #10): covers F28-F33 and the viewer page
-F38 from docs/product.md, and the Stream panel (F25, F27). The PC serves the stream; automatic
-network setup; hardened server.
+F38 from docs/product.md, the Stream panel (F25, F27), the F50 global hotkey to start and stop
+streaming, and the streaming status of F51. The PC serves the stream; automatic network setup;
+hardened server.
 ```
 
 ### 11. Server

@@ -76,13 +76,13 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 
 | ID | Feature | Spec |
 |---|---|---|
-| F19 | F9 saves a PNG at the native resolution to the Pictures/CapturaX folder and copies it to the clipboard. | |
+| F19 | **Ctrl+F8** (F50) saves a PNG at the native resolution to the Pictures/CapturaX folder and copies it to the clipboard. | |
 
 ### F. Recording
 
 | ID | Feature | Spec |
 |---|---|---|
-| F20 | F10 starts and stops recording to MP4: H.264 or HEVC on the GPU (AV1 where supported) with AAC audio, in a configurable folder (default Videos/CapturaX). | |
+| F20 | **Ctrl+F10** (F50) starts and stops recording to MP4: H.264 or HEVC on the GPU (AV1 where supported) with AAC audio, in a configurable folder (default Videos/CapturaX). | |
 | F21 | Quality presets — Original, High (up to 1080p), Medium (up to 720p, up to 60 fps), Light (720p30), Custom — with an estimate of size per hour. | |
 | F22 | Crash-safe: if the computer crashes, the file is valid up to the last second. | |
 | F23 | Correct colors from capture cards that send full-range video (no dark or crushed image). | |
@@ -134,6 +134,8 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 | F45 | Windows and Linux (AppImage on Linux). | |
 | F48 | Optional tray icon: with **Keep in tray when closed** on, closing the window keeps the app in the tray (Open, Quit). Hidden where the desktop has no tray. Later specs may add record and stream to its menu. | |
 | F49 | **Start with the system** (off by default), on Windows and Linux. With the tray option on, it starts straight to the tray, with no window. A moved portable folder keeps starting. | |
+| F50 | Hotkeys that work both in the window and while another app (for example a game) is in focus: **Ctrl+F8** screenshot, **Ctrl+F9** start and stop streaming, **Ctrl+F10** start and stop recording. Keys can be changed in the settings. There are no separate in-window keys for these actions. A key already taken by another program is not detected or handled; the user changes it if needed. On Linux under Wayland they go through the desktop's global shortcuts portal where it exists. | |
+| F51 | Recording and streaming status outside the window: the tray icon (F48) changes with what the app is doing (idle, recording, streaming, both), and the taskbar button shows a small status badge (on Windows a taskbar overlay icon; on Linux where the desktop supports it). | |
 
 ## Removed
 
