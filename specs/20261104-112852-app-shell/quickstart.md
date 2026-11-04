@@ -58,10 +58,10 @@ Do 1–18 on Windows 11 and on CachyOS KDE Plasma Wayland, at 100% and at 150% o
 
 ```sh
 capturax --test-video 1080p60 --stats
-capturax --test-video 1440p60 --stats
 ```
 
-For each, windowed and fullscreen, in each interface state (idle, chrome showing and hiding, a
+On a 1080p screen and on a 1440p screen (NVIDIA DSR 1.78x on a 1080p monitor), windowed and
+fullscreen, in each interface state (idle, chrome showing and hiding, a
 menu opening and closing, language switch, theme switch), record about 30 s of `[loop]` lines:
 
 - SC-001: `ready_ms` median ≤ 1.5 ms and max ≤ 3 ms in every line.

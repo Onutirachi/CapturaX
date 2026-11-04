@@ -21,7 +21,6 @@ pub struct UiImage {
     pub width: u32,
     pub height: u32,
     /// Draw and copy time on the main thread, for the stats.
-    #[expect(dead_code, reason = "the stats read it (spec US1)")]
     pub draw_ms: f64,
 }
 

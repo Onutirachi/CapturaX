@@ -172,8 +172,20 @@ reopened here; entries below say how the shell builds it.
   devices. `--stats` prints one line per second (contracts/stats.md): frames received, presented,
   dropped in the inbox, frame ready → presented median and max, longest gap between presents,
   UI images, UI draw time median and max, window moves, presentation in use.
-- GStreamer is only initialized when the test video is asked for; a normal start does not need it
-  (bundling is spec #13).
+- The app links the GStreamer libraries, so they must be present to start at all: in this spec's
+  development builds from the GStreamer install (`bin` on `PATH` on Windows); in the portable
+  package they ship next to the executable or inside the AppImage (constitution VI, spec #13).
+  Every real use needs GStreamer anyway; there is no start without it to support.
+- A frame is ready when the appsink callback hands it to the inbox, after copying it out of the
+  GStreamer buffer, as the spike measured it (SC-001 compares with the spike's numbers).
+- While the test video plays, `platform::precise_timers()` keeps the Windows timer resolution at
+  1 ms (`timeBeginPeriod`; Linux: nothing). At the default 15.6 ms, `videotestsrc` paces its
+  frames to the timer's ticks: 60 per second, but in bursts with gaps of 25–32 ms, so `gap_ms`
+  could not show the video loop's own gaps (measured 2026-11-04: `gap_ms` 32 → 18 ms at 60 fps).
+  Windows 11 ignores the request while the window is covered unless the process opts out with
+  `SetProcessInformation(ProcessPowerThrottling, IGNORE_TIMER_RESOLUTION)`, which the guard also
+  does (without it, some runs fell back to 31 ms gaps).
+  Spec #3 decides whether capture devices need it too.
 - **Rationale**: constitution III (media on GStreamer); spec #3 reuses the path and the stats.
 - **Alternatives**: a Rust frame generator — custom media code the constitution asks to avoid,
   and it would not exercise the appsink path.

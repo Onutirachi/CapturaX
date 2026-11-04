@@ -19,6 +19,7 @@ are indicative; tasks fix the exact signatures.
 | `system_theme_watch(sender)` | not used (winit reports it) | XDG Settings portal | FR-017 |
 | `show_system_message(title, text)` | `MessageBoxW` | `kdialog`, `zenity`, else stderr | FR-036, FR-013 |
 | `snap::attach(window, max_button_rect)` | subclass + `HTMAXBUTTON` (best effort) | no-op | FR-011 |
+| `precise_timers() -> TimerGuard` | `timeBeginPeriod(1)` until the guard drops | no-op | FR-004, research R9 |
 
 `platform` depends on winit for `window_attributes` and `snap::attach`; it is the only crate that
 uses winit's platform extension traits.

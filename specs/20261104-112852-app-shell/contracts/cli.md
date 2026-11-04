@@ -30,4 +30,4 @@ interface (FR-004) but are listed by `--help`.
 | 0 | Normal quit, or a second start that handed over to the running instance |
 | 2 | No usable renderer (FR-036), after the system message |
 | 64 | Invalid command line |
-| 69 | `--test-video` asked but GStreamer or `videotestsrc` is missing |
+| 69 | `--test-video` asked but GStreamer cannot start or its `videotestsrc` plugin is missing |

@@ -389,10 +389,12 @@ Mailbox and Linux with Vulkan + Mailbox. Glass-to-glass latency with a real card
 spec #3 against the spike's 30.4 ms median; this spec only must not add to it.
 
 - **SC-001**: Frame ready → presented has a median of at most 1.5 ms and a per-second maximum of
-  at most 3 ms, at 1080p and 1440p, windowed and fullscreen, in every interface state: idle,
-  chrome showing and hiding, a menu opening and closing, language and theme switching (spike
-  T049 and T051: 0.8–1.1 ms median; the 3.4 ms worst case came from the interface drawing on the
-  video's thread, which FR-001 removes).
+  at most 3 ms, with the 1080p60 test video on a 1080p screen and on a 1440p screen (NVIDIA DSR,
+  as in the spike; the maintainer has no native 1440p monitor), windowed and fullscreen, in every
+  interface state: idle, chrome showing and hiding, a menu opening and closing, language and
+  theme switching (spike T049 and T051: 0.8–1.1 ms median, 1080p frames from the card; the
+  3.4 ms worst case came from the interface drawing on the video's thread, which FR-001 removes).
+  A 1440p video is measured with a real card in spec #3 if the card captures it.
 - **SC-002**: With the test video at 60 fps and the window still, at least 99% of the seconds
   present 59–61 frames, in every interface state of SC-001.
 - **SC-003**: While the window is held still mid-drag, or resized slowly, the video keeps

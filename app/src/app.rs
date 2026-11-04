@@ -15,10 +15,13 @@ use winit::window::{Fullscreen, Window, WindowId};
 use crate::cli::StartupOptions;
 use crate::notices::{Kind, Notices};
 use crate::render::{Presentation, Scene, VideoThread};
+use crate::test_video::TestVideo;
 use crate::ui::{NoticeKind, Texts, Ui, WindowState};
 
 /// Exit code when no renderer could start (contracts/cli.md).
 pub const EXIT_NO_RENDERER: i32 = 2;
+/// Exit code when `--test-video` cannot play: GStreamer or `videotestsrc` is missing.
+pub const EXIT_NO_TEST_VIDEO: i32 = 69;
 
 /// Events reaching the main thread from the UI's callbacks and, later, from the platform layer.
 #[derive(Debug, Clone, Copy)]
@@ -45,6 +48,7 @@ pub struct App {
     notices: Notices,
     window: Option<Arc<Window>>,
     video: Option<VideoThread>,
+    test_video: Option<TestVideo>,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
     /// When the UI was last handed over and the monitor's refresh interval: animations redraw at
@@ -87,6 +91,7 @@ impl App {
             notices: Notices::default(),
             window: None,
             video: None,
+            test_video: None,
             scene: None,
             last_ui: Instant::now(),
             refresh: Duration::from_millis(16),
@@ -221,8 +226,8 @@ impl ApplicationHandler<UserEvent> for App {
             backend: self.options.backend,
             present: self.options.present,
         };
-        match VideoThread::start(window.clone(), presentation, self.process_start) {
-            Ok(video) => self.video = Some(video),
+        let video = match VideoThread::start(window.clone(), presentation, self.process_start, self.options.stats) {
+            Ok(video) => video,
             Err(err) => {
                 // The translated system message comes with the state message work (spec FR-036).
                 log::error!("no usable renderer: {err}");
@@ -230,7 +235,21 @@ impl ApplicationHandler<UserEvent> for App {
                 event_loop.exit();
                 return;
             }
+        };
+        if let Some(size) = self.options.test_video {
+            match TestVideo::start(size, video.inbox().clone()) {
+                Ok(test_video) => self.test_video = Some(test_video),
+                Err(err) => {
+                    log::error!("{err}");
+                    eprintln!("{err}");
+                    self.video = Some(video);
+                    self.exit_code = EXIT_NO_TEST_VIDEO;
+                    event_loop.exit();
+                    return;
+                }
+            }
         }
+        self.video = Some(video);
         self.window = Some(window.clone());
         self.update_ui();
         window.set_visible(true);
@@ -265,6 +284,9 @@ impl ApplicationHandler<UserEvent> for App {
                 self.request_redraw();
             }
             WindowEvent::Moved(_) => {
+                if let Some(video) = &self.video {
+                    video.inbox().window_moved();
+                }
                 if let Some(window) = self.window.clone() {
                     self.update_refresh(&window);
                 }
@@ -295,8 +317,12 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // Quit sequence (FR-014): the video thread holds the surface, so it stops while the window
-        // still exists; then the settings are flushed and the window destroyed.
+        // Quit sequence (FR-014): the test video stops first so no frame arrives during the stop;
+        // the video thread holds the surface, so it stops while the window still exists; then the
+        // settings are flushed and the window destroyed.
+        if let Some(mut test_video) = self.test_video.take() {
+            test_video.stop();
+        }
         if let Some(mut video) = self.video.take() {
             video.stop();
         }

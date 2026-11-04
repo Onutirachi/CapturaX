@@ -4,19 +4,16 @@
 
 ## State
 
-Spec, plan and tasks approved and committed. Implementation approved by the maintainer
-(2026-11-04). Phase 1 committed (`build: add cargo workspace`), Phase 2 committed
-(`feat: add window, render loop and settings store`). T060 and T061 (CI guard) written and
-waiting for the maintainer's validation before the commit `ci: add platform boundary test and
-workflow`.
+Phases 1 and 2 committed; T060/T061 committed (`ci: add platform boundary test and workflow`;
+the workflow has never run, it runs when the branch is pushed, T062, so T061 stays unchecked).
+Phase 3 started: T021 (stats), T022 (test video) and T023 (wiring) done and checked on Windows,
+committed (`feat: add test video and presentation stats`).
 
-T060: `app/tests/platform_boundary.rs` passes (4 tests; the parsers have their own tests:
-renamed and target-specific dependencies, `cfg(not(windows))`, `cfg_attr`, `cfg!`, comments).
-T061: `.github/workflows/ci.yml` written but **never run**: it runs for the first time when the
-branch is pushed (T062), so T061 stays unchecked until it passes there. Locally on Windows:
-`cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test
---workspace` (48 tests) and `cargo deny check licenses bans` pass. The Linux build of `app` is
-still unchecked (CI or CachyOS).
+T021–T023 checks (Windows 11, RTX 5070 Ti, release, window 1280 × 720): `capturax --test-video
+1080p60 --stats` prints the `[present]` header and one `[loop]` line per second: pres 60,
+repl 0, ready_ms 1.1–1.2 median / 1.3–1.8 max, gap_ms 18–19 (first second higher: startup);
+1440p60 video: ready_ms 1.6–1.7 median (not part of SC-001 any more). fmt, clippy (Windows;
+`platform` and `settings` also for Linux), 54 tests pass.
 
 ## Done in the last sessions
 
@@ -37,6 +34,17 @@ still unchecked (CI or CachyOS).
 
 ## Decisions
 
+- T022/T023: a frame is "ready" when the appsink hands it to the inbox, after its copy, as the
+  spike measured (before the copy, 1080p read 2.3 ms). While the test video plays,
+  `platform::precise_timers()` holds 1 ms timer resolution on Windows and opts out of Windows
+  11's timer throttling: at the default 15.6 ms `videotestsrc` delivered frames in bursts and
+  `gap_ms` read 32 ms. Recorded in research R9 and contracts/platform.md.
+- Maintainer (2026-11-04): GStreamer is linked and needed to start; no start without it is
+  supported (development builds use the install on `PATH`; the portable package ships it,
+  constitution VI, spec #13). R9 and exit 69 in contracts/cli.md updated. SC-001 is measured
+  with the 1080p60 test video on a 1080p screen and on a 1440p screen through NVIDIA DSR (no
+  native 1440p monitor); spec.md, quickstart.md and T041 updated. The `1440p60` preset stays
+  (FR-004).
 - T060/T061: `cargo deny check bans` was already failing after Phase 2: Slint's default features
   bring `ksni` (via `i-slint-core`, feature `system-tray`) and `muda` (via
   `i-slint-backend-winit`). Those two Slint crates are now allowed wrappers in `deny.toml`.
@@ -76,12 +84,9 @@ still unchecked (CI or CachyOS).
 
 ## Open questions
 
-- None in the spec.
 - The record / stream only mode may change the product's main scenario and the roadmap's order;
   product.md asks to decide it before spec #3 starts.
 
 ## Next step
 
-Maintainer validates T060/T061; commit `ci: add platform boundary test and workflow`; then
-Phase 3 (US1), starting with the parallel tasks T021, T022, T024, T025 (tasks.md, Parallel
-Example). The first CI run happens when the maintainer asks to push (T062).
+T024 (placement) and T025 (shadows), then the UI components T026–T029 (tasks.md, US1).

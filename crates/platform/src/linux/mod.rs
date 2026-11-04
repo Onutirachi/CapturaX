@@ -39,6 +39,15 @@ fn run(program: &str, args: &[&str]) -> bool {
         .is_ok_and(|status| status.code().is_some_and(|c| c == 0 || c == 1))
 }
 
+/// Linux timers are already precise.
+pub struct TimerGuard;
+
+impl TimerGuard {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
     let attrs = WindowAttributesExtWayland::with_name(attrs, APP_ID, APP_ID);
     WindowAttributesExtX11::with_name(attrs, APP_ID, APP_ID)

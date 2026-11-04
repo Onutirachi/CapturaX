@@ -7,11 +7,12 @@ mod gpu;
 
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use winit::window::Window;
 
 use crate::cli::{Backend, PresentMode};
+use crate::stats::Stats;
 use crate::ui::UiImage;
 
 pub use gpu::RendererError;
@@ -47,6 +48,10 @@ struct State {
     /// Presenting is off while the window is hidden.
     hidden: bool,
     stop: bool,
+    /// Counted for the stats since the video thread last looked.
+    received: u32,
+    replaced: u32,
+    moves: u32,
 }
 
 /// Hands frames and UI images to the video thread and wakes it.
@@ -61,11 +66,20 @@ impl Inbox {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    #[expect(dead_code, reason = "the test video sends frames (spec US1)")]
     /// From the source: replaces a frame not yet presented.
     pub fn send_frame(&self, frame: VideoFrame) {
-        self.lock().frame = Some(frame);
+        let mut state = self.lock();
+        state.received += 1;
+        if state.frame.replace(frame).is_some() {
+            state.replaced += 1;
+        }
+        drop(state);
         self.wake.notify_one();
+    }
+
+    /// From the main thread: the window moved (for the stats).
+    pub fn window_moved(&self) {
+        self.lock().moves += 1;
     }
 
     /// From the main thread: the UI image when it was redrawn, and the scene.
@@ -96,18 +110,19 @@ pub struct VideoThread {
 
 impl VideoThread {
     /// Sets up the GPU for `window` and starts the thread. `process_start` is used to log the time
-    /// to the first present (SC-004).
+    /// to the first present (SC-004); with `stats` the thread prints contracts/stats.md.
     pub fn start(
         window: Arc<Window>,
         presentation: Presentation,
         process_start: Instant,
+        stats: bool,
     ) -> Result<Self, RendererError> {
         let gpu = gpu::Gpu::new(window, presentation)?;
         let inbox = Arc::new(Inbox::default());
         let thread_inbox = inbox.clone();
         let handle = std::thread::Builder::new()
             .name("video".into())
-            .spawn(move || run(gpu, &thread_inbox, process_start))
+            .spawn(move || run(gpu, &thread_inbox, process_start, stats))
             .map_err(|e| RendererError(format!("video thread: {e}")))?;
         Ok(Self {
             inbox,
@@ -147,14 +162,43 @@ impl Drop for VideoThread {
     }
 }
 
-fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant) {
+fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
+    let mut stats = stats.then(|| {
+        print_stats(&gpu.header());
+        Stats::new(Instant::now())
+    });
     let mut scene: Option<Scene> = None;
     let mut first_present = true;
     loop {
         let (frame, ui) = {
             let mut state = inbox.lock();
-            while !state.stop && (state.hidden || (state.frame.is_none() && !state.changed)) {
-                state = inbox.wake.wait(state).unwrap_or_else(|e| e.into_inner());
+            loop {
+                if let Some(stats) = &mut stats {
+                    stats.received(std::mem::take(&mut state.received));
+                    stats.replaced(std::mem::take(&mut state.replaced));
+                    stats.window_moved(std::mem::take(&mut state.moves));
+                    if let Some(line) = stats.report(Instant::now()) {
+                        print_stats(&line);
+                    }
+                }
+                if state.stop || !(state.hidden || (state.frame.is_none() && !state.changed)) {
+                    break;
+                }
+                state = match &stats {
+                    // Wake for the next line even when nothing arrives.
+                    Some(stats) => {
+                        let timeout = stats
+                            .next_report()
+                            .saturating_duration_since(Instant::now())
+                            .max(Duration::from_millis(1));
+                        inbox
+                            .wake
+                            .wait_timeout(state, timeout)
+                            .unwrap_or_else(|e| e.into_inner())
+                            .0
+                    }
+                    None => inbox.wake.wait(state).unwrap_or_else(|e| e.into_inner()),
+                };
             }
             if state.stop {
                 return;
@@ -168,6 +212,9 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant) {
         gpu.resize(scene.size.0, scene.size.1);
         if let Some(ui) = ui {
             gpu.set_ui(&ui);
+            if let Some(stats) = &mut stats {
+                stats.ui_image(ui.draw_ms);
+            }
         }
         let ready = frame.map(|frame| {
             gpu.set_video(&frame);
@@ -181,8 +228,15 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant) {
                     process_start.elapsed().as_secs_f64() * 1e3
                 );
             }
-            // The stats (spec FR-005) take `ready` from here.
-            let _ = ready;
+            if let (Some(stats), Some(ready)) = (&mut stats, ready) {
+                stats.presented(ready, Instant::now());
+            }
         }
     }
+}
+
+/// `--stats` output goes to stdout and the log (contracts/cli.md).
+fn print_stats(line: &str) {
+    println!("{line}");
+    log::info!("{line}");
 }

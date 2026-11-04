@@ -119,6 +119,8 @@ pub struct Gpu {
     sampler: wgpu::Sampler,
     video: Option<Layer>,
     ui: Option<Layer>,
+    /// The `[present]` line of contracts/stats.md for the presentation in use.
+    header: String,
 }
 
 impl Gpu {
@@ -176,15 +178,14 @@ impl Gpu {
         // At most one frame waiting in the swap chain.
         config.desired_maximum_frame_latency = 1;
         surface.configure(&device, &config);
-        log::info!(
-            "presentation: backend={} mode={} adapter=\"{}\" surface={}x{}",
+        let header = crate::stats::header(
             backend_name(backend),
             mode_name(mode),
-            adapter.get_info().name,
-            config.width,
-            config.height
+            &adapter.get_info().name,
+            (config.width, config.height),
         );
-        Ok(Self::with_device(surface, device, queue, config))
+        log::info!("presentation: {header}");
+        Ok(Self::with_device(surface, device, queue, config, header))
     }
 
     fn with_device(
@@ -192,6 +193,7 @@ impl Gpu {
         device: wgpu::Device,
         queue: wgpu::Queue,
         config: wgpu::SurfaceConfiguration,
+        header: String,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("composite.wgsl"));
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -274,7 +276,13 @@ impl Gpu {
             sampler,
             video: None,
             ui: None,
+            header,
         }
+    }
+
+    /// The `[present]` header of the presentation in use.
+    pub fn header(&self) -> String {
+        self.header.clone()
     }
 
     /// Reconfigures the surface when the window's size changed.

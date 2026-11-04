@@ -6,6 +6,8 @@ mod icon;
 mod log;
 mod notices;
 mod render;
+mod stats;
+mod test_video;
 mod ui;
 
 use std::time::Instant;

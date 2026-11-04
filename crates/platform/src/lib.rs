@@ -37,6 +37,21 @@ pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
     os::window_attributes(attrs)
 }
 
+/// Keeps the system's timers precise while it lives: Windows wakes sleeping threads every 15.6 ms
+/// by default, which makes GStreamer's live sources deliver frames in bursts (research R9).
+/// Nothing to do on Linux.
+#[must_use = "timers stay precise only while the guard lives"]
+pub struct TimerGuard {
+    _os: os::TimerGuard,
+}
+
+/// Asks for 1 ms timer resolution until the guard drops.
+pub fn precise_timers() -> TimerGuard {
+    TimerGuard {
+        _os: os::TimerGuard::new(),
+    }
+}
+
 /// The running executable's folder.
 fn exe_folder() -> Option<PathBuf> {
     std::env::current_exe().ok()?.parent().map(PathBuf::from)
