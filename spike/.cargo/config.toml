@@ -1,4 +1,0 @@
-# Lets gstreamer-rs find the GStreamer development files on Windows (research R1).
-# On Linux the path does not exist and pkg-config falls back to the system paths.
-[env]
-PKG_CONFIG_PATH = "C:\\Program Files\\gstreamer\\1.0\\msvc_x86_64\\lib\\pkgconfig"

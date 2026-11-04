@@ -4,10 +4,11 @@
 
 ## State
 
-The spike is complete; only T043 and T044 are left, and both need the maintainer's approval. The
-results, decisions and open questions are in [findings.md](findings.md); the constitution is at
-1.1.0 with the Slint decision, and docs/roadmap.md marks the spike done. Everything is committed
-locally; nothing is pushed. `brand/` is not committed.
+Done. The results, decisions and open questions are in [findings.md](findings.md); the
+constitution is at 1.1.0 with the Slint decision, and docs/roadmap.md marks the spike done. The
+spike code is kept in the tag `spike/stack-20261026` (pushed) and removed from the branch; the
+latency tools were adopted into [tools/latency/](../../tools/latency/README.md). The branch goes
+to `main` by squash merge. `brand/` is not committed.
 
 ## Done in the last session
 
@@ -22,6 +23,10 @@ locally; nothing is pushed. `brand/` is not committed.
   streams. The maintainer's reading: only the capture-card preview must have the lowest latency;
   for recording and streaming low latency is desirable, not required. Roadmap entries 1, 2, 3,
   4 (now with F47) and 6 revised; docs/product.md lip-sync note corrected.
+- T043: tag pushed; `flash.html`, `analyze.py` and `make_sync_video.py` moved to tools/latency/
+  (maintainer's request, so the tools and their links survive), `analyze.py` given
+  `--measurements <dir>` and `summary --paths`; re-analyzing one video and one audio clip gave the
+  committed samples exactly, and the summary only changed its header line. `spike/` deleted.
 
 ## Decisions
 
@@ -30,15 +35,10 @@ locally; nothing is pushed. `brand/` is not committed.
 ## Open questions
 
 - See findings.md "Open questions for later specs" (grouped by roadmap spec).
-- After `spike/` is deleted, links from the spec documents into `spike/` (for example
-  findings.md "Method" to `spike/tools/flash.html`) will point to removed files; decide in T043
-  whether to point them at the tag instead.
-- Local branches `backup/stack-spike-before-rebase` and `backup/before-linux-fixups` were kept
-  until the rewritten history was approved; delete them after the merge if the maintainer agrees.
+- Local branches `backup/stack-spike-before-rebase` and `backup/before-linux-fixups` and the
+  ignored build output in `spike/target/` (with the launchers) are still on the maintainer's disk;
+  delete them if the maintainer agrees. The spike can be rebuilt from the tag.
 
 ## Next step
 
-1. T043, with the maintainer's approval: tag the branch head as `spike/stack-20261026`, push the
-   tag, then delete `spike/` in a commit (research R11).
-2. T044, with the maintainer's approval: push the branch, open the pull request, squash merge.
-3. Then the next spec is App shell (docs/roadmap.md #2), in a new conversation.
+Start the App shell spec (docs/roadmap.md #2) in a new conversation, from `main`.
