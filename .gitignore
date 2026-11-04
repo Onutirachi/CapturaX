@@ -18,3 +18,11 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Python (analysis tools)
+__pycache__/
+*.pyc
+.venv/
+
+# Measurement clips stay local (results are committed as CSV)
+/clips/

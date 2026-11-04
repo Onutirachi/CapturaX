@@ -1,0 +1,78 @@
+# Quickstart: Running the Stack Spike
+
+How to set up, run and measure. Command details are in [contracts/cli.md](contracts/cli.md).
+
+After the spike the code under `spike/` was removed from the branch; it is kept in the tag
+`spike/stack-20261026`. The measurement tools (`flash.html`, `analyze.py`, `make_sync_video.py`)
+were adopted into [tools/latency/](../../tools/latency/README.md); the `analyze.py` commands
+below run from the repository root.
+
+## Prerequisites
+
+- Windows: Rust stable (MSVC), Visual Studio Build Tools, GStreamer 1.28.x
+  `gstreamer-1.0-msvc-x86_64-<version>.exe` with the development components selected (installer
+  type "development" or `/TYPE=devel`), `uv`, Edge, OBS.
+- CachyOS: Rust stable, GStreamer with base, good and bad plugins plus the PipeWire plugin and
+  NVIDIA codec support, `uv`.
+- Hardware: ezcap Live Gamer Ultra, PS5 connected through the card's HDMI passthrough to the TV
+  (game mode on), Galaxy S23 FE.
+- On the PS5: HDCP off (Settings > System > HDMI) and an A/V sync test video (flash and beep once
+  per second) open in the YouTube app, or played from a USB drive in the media gallery if the app
+  refuses to play with HDCP off.
+
+## 1. Check the setup
+
+```sh
+gst-inspect-1.0 --version          # 1.28.x
+gst-device-monitor-1.0 Video/Source # the card and its modes
+cd spike && cargo run --release -p native-preview -- --list
+```
+
+Expected: the card is listed with 1920x1080@60 and its highest frame-rate mode.
+
+## 2. Video latency, per path and mode
+
+For each path (native, slint-cpu, slint-gpu, browser, obs) and each mode (1080p60, highest fps):
+
+1. Start the path fullscreen on the monitor next to the TV, in the mode under test.
+2. Film the TV and the monitor together for 25 seconds at 240 fps, both screens fully in frame.
+3. `uv run tools/latency/analyze.py --measurements specs/20261026-154808-stack-spike/measurements video <clip> --path <path> --variant <variant> --mode <mode> --platform windows`
+   (add `--fps 240` if the script says the clip stores another rate; mark the TV, then the preview)
+
+Expected: at least 20 samples per run; no delay negative or above 500 ms.
+
+Encoder load: repeat the slint-layered run with `--encoder` and compare (variant `encoder-on`).
+
+Browser: serve `spike/browser/` on localhost (contracts/cli.md), open `index.html` in Edge, pick
+the card and the mode, press F.
+
+## 3. Audio
+
+1. `cargo run --release -p audio-preview -- --output <speakers>` with the PS5 sync video playing.
+2. Record 25 seconds where every sound is heard twice, reference first: the Voicemeeter mix
+   (research R3, method used in practice) or a phone video with the TV and PC speakers.
+3. `uv run tools/latency/analyze.py --measurements specs/20261026-154808-stack-spike/measurements audio <clip> --platform windows --output <speakers> --minute 0`
+4. Leave it running; record again at minute 30 (`--minute 30`).
+
+Expected: delay median reported; offset to the video median of the same session within
+45 ms ahead / 125 ms behind; drift under 10 ms. Then listen with the headset while playing and note
+whether any offset is noticeable.
+
+## 4. Visual directions and capabilities
+
+`cargo run --release -p layered-preview -- --device ezcap --backend dx12 --present mailbox --ui float --theme dark --stats`
+
+Without the card: add `--test-video`.
+
+Switch themes in the app; check every capability in spec User Story 4 and record
+the outcomes and screenshots in `findings.md`.
+
+## 5. Linux
+
+Move the card to the CachyOS computer and repeat steps 1–2 for the fastest path and step 4 for the
+chosen direction, recording the session type.
+
+## 6. Summary
+
+`uv run tools/latency/analyze.py --measurements specs/20261026-154808-stack-spike/measurements summary --paths native,slint-cpu,slint-gpu,slint-layered,browser,obs --av-reference "slint-layered,<variant>,<mode>"` then complete
+`findings.md` with the decisions.

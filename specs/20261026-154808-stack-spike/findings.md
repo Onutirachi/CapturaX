@@ -1,0 +1,699 @@
+# Findings: Stack Spike
+
+Status: **complete**. The decisions are at the end, followed by the open questions handed to later
+specs.
+
+## Environment
+
+See [measurements/environment.md](measurements/environment.md).
+
+## Method (as run)
+
+- Source: [tools/latency/flash.html](../../tools/latency/flash.html) served from the Windows PC
+  (`live-server`) and opened in the PS5 browser through a link sent by e-mail (the browser has no
+  address bar, and the PS5 media gallery did not list MP4 files from the USB drive). The page
+  flashes white for 50 ms once per second.
+- Reference: 27G2G4 on the card's HDMI passthrough. Preview: C24FG7x, 1920x1080 @ 144 Hz,
+  DisplayPort on the RTX 5070 Ti, fullscreen.
+- Camera: Galaxy S23 FE at 240 fps (one camera frame ≈ 4.17 ms).
+- Counting: first **by hand**, camera frames between the flash on the reference and on the
+  preview, in After Effects, across several clips per path. The formal results come from one
+  25 s clip per path and mode analyzed by `analyze.py video` (data-model.md): brightness change
+  per screen region, each change timed at its halfway brightness crossing (sub-frame), each
+  reference flash paired with the next preview flash, and a pair whose reference switches within
+  one camera frame excluded as a camera skip (5 of 286 pairs). The maintainer's own count on one
+  clip (8 camera frames) matched the script (6.4–8.1) within one camera frame (T018).
+
+## Video latency (Windows, 1080p, PS5 at 60 Hz)
+
+Delay of the preview relative to the passthrough reference, from
+[measurements/summary.md](measurements/summary.md) (T020). One frame is 16.7 ms at 60 fps and
+8.3 ms at 120 fps.
+
+| Path | Variant | 1080p60 median (p95) | 1080p120 median (p95) |
+|---|---|---|---|
+| native (`d3d12videosink`) | Direct3D 12 | 28.6 (31.2) | 31.4 (36.1) |
+| **slint-layered** (chosen) | Direct3D 12, Mailbox, software UI layer | **30.4 (32.9)** | 35.0 (39.4) |
+| slint-layered with encoder | same, plus `nvh264enc` | 31.5 (34.0) | — |
+| browser (Edge, `getUserMedia`) | | 28.5 (31.9) | 32.5 (37.6) |
+| OBS (fullscreen projector) | | 39.7 (61.1) | 57.4 (69.5) |
+| slint-cpu (Slint's own window) | femtovg, bare | 53.2 (66.5) | 51.8 (61.6) |
+
+21–26 samples per row; no path dropped a frame. slint-gpu was not built (T014 was redirected to
+the own render loop). The source runs at 60 Hz in both modes, so the 120 mode only shows the cost
+of capturing a 60 Hz signal in it (about 111 fps delivered): every path is 3–5 ms slower there,
+OBS 18 ms; the cause was not investigated, and the capture spec's Auto source mode (below) avoids
+the mismatch.
+
+### Reading against the success criteria
+
+- **SC-001** (20 samples, median and p95, one method): **passes** for every path measured, on
+  Windows in both modes and on Linux at 1080p60 (21–26 samples). Linux measured only the native
+  path and slint-layered, as planned in T021.
+- **SC-002** (Slint within one frame of native): **passes** with the own render loop
+  (slint-layered): 1.8 ms behind native at 1080p60 (0.1 frame), 3.6 ms at 1080p120 (0.4 frame);
+  on Linux 2.3 ms behind with the driver's default clocks and 2.3 ms ahead with the clocks locked.
+  **Fails** with Slint's own window (slint-cpu: 24.6 ms behind, 1.5 frames), whatever the renderer
+  (T014). Slint is confirmed for the interface only on the condition that the app presents the
+  video itself and Slint draws a layer over it (research R13).
+- **SC-003** (chosen path no more than one frame slower than OBS at 1080p60): **passes**:
+  slint-layered is 9.3 ms faster than OBS at the median and 28 ms at p95.
+- **SC-004** (encoder adds under one frame and at most 1% dropped): **passes**: `nvh264enc` at
+  12 Mbps added 1.1 ms at the median (0.07 frame) and no frame was dropped, by the preview or by
+  the encoder.
+- The browser matched native (28.5 ms). It does not reopen the UI choice (Decisions).
+
+### First hand counts (superseded by the table above)
+
+| Path | 1080p60 | 1080p120 | Notes |
+|---|---|---|---|
+| native (`d3d12videosink`) | 6 frames ≈ **25 ms** | 6 frames ≈ **25 ms** | |
+| slint-cpu (bare) | 12 frames ≈ **50 ms** | 12 frames ≈ **50 ms** | |
+| OBS (preview) | 12–13 frames ≈ **50–54 ms** | — | |
+| browser | not measured yet | | |
+| slint, other renderers | 10–12 frames ≈ **42–50 ms** | — | T014 step 1, below |
+| **slint-layered, DX12** (Immediate or Mailbox) | 5–6 frames ≈ **21–25 ms** | — | T047, below |
+| slint-layered, Vulkan Immediate | 10 frames ≈ **42 ms** | — | |
+| slint-layered, Vulkan Mailbox | 9–10 frames ≈ **38–42 ms** | — | |
+
+The hand counts ordered the paths as the script does and guided the work below. They read 3–4 ms
+lower than the script on native and slint-layered, since they took each screen's first lit frame
+instead of the halfway crossing; OBS varied the most (the script's p95 is 61 ms).
+
+### Where slint-cpu spends its time (T046)
+
+Median per frame, 1080p60, measured inside the app:
+
+| Stage | ms |
+|---|---|
+| capture → appsink (GPU color conversion and download) | 1.1 |
+| copy into the Slint image | 1.9 |
+| wait for the UI thread | 0.0 |
+| UI update → render done | 8.3 |
+| **total inside the app** | **≈ 11.4** |
+
+The copies cost only ≈ 3 ms, so moving frames through the GPU alone cannot close a ≈ 25 ms gap.
+Inferred, not measured directly: ≈ 8 ms is the frame waiting for Slint's next render (it renders
+about 120 times per second for 60 frames), and ≈ 15 ms comes after rendering, in the presentation
+queue (one or two refreshes at 144 Hz). T014 was redirected to these two stages.
+
+### T014 step 1 — Slint renderers (1080p60, counted by hand, 240 fps camera)
+
+| Renderer | Presents through | Camera frames | ≈ ms | In-app pacing (UI → drawn) |
+|---|---|---|---|---|
+| femtovg (default) | OpenGL | 12 | 50 | 8.4 ms, 120 draws for 60 frames |
+| femtovg-wgpu | Direct3D 12 (wgpu) | 11 | 46 | 8.6 ms, 120 draws |
+| skia | Direct3D | 12 | 50 | not reported (no draw notifications) |
+| skia-opengl | OpenGL | not filmed (same path as femtovg) | — | 8.7 ms, 120 draws |
+| skia-wgpu | — | fails: "Unsupported WGPU backend for use with Skia: vulkan" | — | — |
+| software | CPU drawing, copied to the window | 10 | 42 | not available (no rendering notifier) |
+
+The renderer changes at most ≈ 8 ms; ≈ 17 ms remain versus native. The in-app pacing is the same
+for every GPU renderer, so it comes from Slint's core and not from the renderer. The software
+renderer, which does not go through the GPU's vsync queue, is the fastest, which supports the
+inference that much of the gap is in presentation.
+
+### T047 — own render loop (slint-layered)
+
+winit window and wgpu swap chain presenting each video frame on arrival; the Slint UI rendered by
+the software renderer into a transparent layer and composited over the video on the GPU
+(research R13). 1080p60, fullscreen, counted by hand at 240 fps.
+
+| Backend | Present mode | Camera frames | ≈ ms |
+|---|---|---|---|
+| Vulkan | Immediate | 10 | 42 |
+| Vulkan | Mailbox | 9–10 | 38–42 |
+| Direct3D 12 | Immediate | 5–6 | 21–25 |
+| Direct3D 12 | Mailbox | 5–6 | 21–25 |
+
+- Inside the app, frame ready → presented takes ≈ 0.9 ms (median), so the backend difference is
+  after presentation.
+- The DWM hypothesis holds: a Vulkan swap chain on Windows is composed by DWM, while a DXGI
+  flip-model swap chain (Direct3D 12) in fullscreen can get independent flip and skip composition,
+  like the native sink.
+- Mailbox is as fast as Immediate on Direct3D 12 at this measurement resolution and does not tear.
+  The maintainer saw occasional tearing with Immediate; whether it is noticeable while playing is
+  still to be judged.
+- The UI layer works: text and button draw over the video and the button takes clicks.
+- YUY2 instead of NV12 (Direct3D 12, Mailbox, 1080p60): 7 camera frames, against 5–6 with NV12.
+  No gain on this card; at most one camera frame worse, within manual counting noise. NV12 stays
+  first in the format preference.
+- On Linux there is no Direct3D: wgpu uses Vulkan and the result depends on the compositor
+  (direct scanout and tearing control on Wayland). Measured in T021: section "Linux" below.
+
+### T013 — encoder load (slint-layered, Direct3D 12, Mailbox, 1080p60)
+
+A `tee` branch encodes the video with `nvh264enc` at 12 Mbps into a discarding sink, as a
+recording would; its queue does not drop frames. The preview goes through the same `tee` with and
+without the encoder.
+
+| Run | Camera frames | Encoded | Preview dropped | Frame ready → presented (median) |
+|---|---|---|---|---|
+| without encoder | 5–6 | — | 0 | ≈ 1.1 ms |
+| with encoder | 5–6 | 60 fps | 0 | ≈ 1.1 ms |
+
+No measurable added latency and no dropped frames by hand; the formal clips confirm it (1.1 ms,
+SC-004 above).
+
+### Remaining latency levers (not yet tested)
+
+At 60 Hz the card delivers a frame only after receiving all of it (≈ 16.7 ms), so 21–25 ms is
+within a few milliseconds of the floor. What is left, largest first:
+
+1. A 120 Hz source halves that wait (≈ 8 ms less). Testing needs a 120 Hz source with the flash
+   page, such as the PC's HDMI output into the card, since the PS5 browser runs at 60 Hz.
+2. VRR on the preview monitor removes the wait for the next refresh without tearing. The
+   C24FG7x range likely starts above 60 Hz, so it may only help with a 120 Hz source.
+3. PresentMon can confirm independent flip and measure the time to display with millisecond
+   resolution, below the camera's 4.17 ms.
+4. Card modes (720p60; YUY2 tested, no gain), GPU power settings and the monitor's low-lag mode: small, cheap
+   checks.
+5. Zero-copy upload: under 1 ms; left to the real implementation.
+
+A 120 Hz source only helps if the app captures at 120 Hz. The spike's automatic choice (largest
+resolution at about 60 fps) would pick 1440p60 on this card and drop half of a 1080p120 signal.
+docs/product.md F3 now lists an **Auto source** mode (follow the incoming signal, when the device
+reports it) next to Auto max resolution and Auto max FPS; how to read the incoming signal per
+platform is for the capture spec.
+
+The card is UVC only, so delivery before a frame is complete (as some professional cards do) is
+not available.
+
+## Linux (CachyOS, KDE Plasma on Wayland, RTX 3050)
+
+Environment in [measurements/environment.md](measurements/environment.md). The agent set up and
+built the spike over SSH; the maintainer recorded and checked on the screen.
+
+### Video latency (T021, 1080p60, 240 fps camera, analyzed by `analyze.py`)
+
+| Path | Variant | n | Median | p95 |
+|---|---|---|---|---|
+| native (`glimagesink`) | gl | 23 | 35.7 ms | 39.9 ms |
+| slint-layered, Vulkan, Mailbox | GPU clocks left to the driver | 26 | 38.0 ms | 47.3 ms |
+| slint-layered, Vulkan, Mailbox | GPU clocks locked at maximum | 21 | **33.4 ms** | 38.1 ms |
+
+- **The GPU's power state costs ≈ 4.6 ms at the median and ≈ 9 ms at p95.** The preview loads the
+  RTX 3050 so little that the driver steps down from P0 (1777 MHz) to P5 and P8 (210 MHz), then
+  back up when its load reaches ≈ 38%, in a cycle of a few seconds. Frame ready → presented
+  follows it: 1.6–1.7 ms at P0, 3.1–3.6 ms at P5, 6.0–6.6 ms at P8; the same with Mailbox,
+  Immediate and Fifo. Locking only the graphics clock (`nvidia-smi -lgc`) still let the memory
+  clock fall (P5, 3.1 ms); locking both (`-lgc` and `-lmc`) kept 1.6–1.7 ms. On Wayland there is no
+  "prefer maximum performance" setting (`nvidia-settings` PowerMizer is X11 only), and locking
+  clocks needs root. How the real app keeps the GPU awake is an open question (below). Not checked
+  on Windows, where frame ready → presented stayed at 0.8–1.1 ms on the RTX 5070 Ti.
+- With clocks locked, the own render loop is **2.3 ms faster than the native GL sink**; with the
+  driver's default it is 2.3 ms slower. SC-002 holds on Linux only if the GPU stays awake.
+- Against Windows (slint-layered 30.4 ms, native 28.6 ms at 1080p60) Linux is 3–7 ms slower, but
+  the camera position, the computer and the preview monitor's connection (HDMI at 120 Hz there,
+  DisplayPort at 144 Hz on Windows) all differ, so the platforms are not compared beyond that.
+- The clips were filmed hand-held in a dimmer room: the camera noise hid part of the flashes from
+  the analyzer (20 of 26 found). `analyze.py video --lag 3` compares each frame with the one three
+  frames earlier, so a flash that a screen spreads over several camera frames shows whole; the
+  moment is still the halfway brightness crossing. All 26 found; a Windows clip analyzed again with
+  `--lag 3` gave the same median (30.4 ms, 2 of 26 samples moved by 0.1–0.2 ms).
+- Direct scanout and tearing control in KWin were not checked separately: the native clip was
+  fullscreen through KWin's window menu (glimagesink has no fullscreen property), slint-layered by
+  F11.
+
+### What the spike needed on Linux
+
+Fixed in the spike (found running it here; all paths were written for Linux but never run there):
+
+- **The video came through PipeWire, not V4L2.** GStreamer's PipeWire device provider hides the
+  V4L2 one and lists the card as a PipeWire camera whose `device.api` is also `v4l2`, so the filter
+  took it and `create_element` gave `pipewiresrc`. Research R4 and T008 call for `v4l2src`: the
+  device monitor now shows every provider and the V4L2 device is chosen by its type. Whether
+  PipeWire's camera path adds latency was not measured; the real app must choose one knowingly
+  (PipeWire is the path for sandboxed packages and for sharing the camera with other apps).
+- **No audio device was listed**: PipeWire nodes report the API under them (`alsa`), not
+  `pipewire`; the PipeWire provider's devices are now chosen by type. The input name
+  (`ezcap Live GAMER ULTRA Estéreo analógico`) only pairs with the V4L2 name once its `: ezcap L`
+  suffix is left out; the Auto item of the Float audio picker used its own matching and showed "No
+  paired input" until it shared the same rule.
+- **`pipewiresrc` negotiated mono** (left channel only) and the stream counted hundreds of errors
+  in `pw-top`; the input is now held to the device's own format. The 20 ms output buffer has no
+  `buffer-time` on `pipewiresink`: it is asked for as `node.latency` = 480/48000 (10 ms) on both
+  sides.
+- `native-preview --stats` crashed: `glimagesink` is a bin and its stats are on the inner sink.
+- `waylandsink` shows two frames and drops the rest, windowed or fullscreen (not investigated; GL
+  is the native path's default on Linux anyway).
+- V4L2 offers each mode also as DMA-BUF (`DMA_DRM`), a possible zero-copy import into Vulkan for
+  the real app.
+
+### Capabilities (T038)
+
+The maintainer ran Float with live video and audio and checked every capability: all work as on
+Windows (the window moves smoothly, maximizes and snaps to the screen sides). Two visual bugs in
+a small window, for the shell spec: the dock covers the bubbles' hover, and dropdown menus are cut
+off at the window's edge. Rows in the capability table below.
+
+- The sound heard was not the spike's: with no speakers on that PC, the maintainer streams its audio
+  to the Windows PC with `vban_emitter`, which was capturing the card directly, while the spike
+  played to the unconnected S/PDIF output. The spike's Linux audio output is not heard yet.
+- **Closing the spike once froze the desktop.** Stopping the audio pipeline deadlocked inside
+  GStreamer's PipeWire plugin (main thread waiting for the PipeWire loop lock, the loop thread
+  waiting on a condition in the plugin), and the stuck client stalled the PipeWire graph, so every
+  app that played a sound hung too, KWin's "not responding" dialogs included; killing the process
+  freed everything. Reproduced with `gst-launch-1.0`, the card's `pipewiresrc` through the
+  spike's convert, resample and 20 ms queue, stopped by SIGINT after 3 s (`timeout -s INT -k 5`,
+  10 runs each): to `pipewiresink`, 4 and 7 of 10 runs hung; to `pulsesink` (through
+  pipewire-pulse), 0 of 10; to `fakesink`, 0 of 10. So the hang is in `pipewiresink` and is
+  intermittent, not caused by the spike's settings. (A first count, 2 of 6 and then 0 of 8, was
+  wrong: the test never signaled the processes, which stayed alive.) The spike now plays through
+  `pulsesink` on Linux (aimed at the chosen PipeWire node by name) and still leaves with `_exit`
+  if stopping takes over 3 s.
+- **With `pulsesink`, the audio stuttered badly:** in the same pipeline, `pipewiresrc` delivered
+  only 17–25 % of the card's audio (`audio-preview --stats`: input −768 000 ppm; the same with
+  the queue not leaky, without `node.latency`, or with `use-bufferpool` or `always-copy`; 50 %
+  with its clock off; 100 % with `fakesink`). Through `pulsesrc` the input is real time (−6 ppm,
+  no gaps in a recording of the output), so the spike's Linux input is now `pulsesrc` on the
+  card's PipeWire node, with the output's buffer sizes. Both sides going through pipewire-pulse
+  is a workaround for the spike: the real app's Linux audio should use PipeWire directly. The real app's Linux audio should not depend on
+  `pipewiresink`: PipeWire directly (as WASAPI directly on Windows, research R7) is the likely
+  path, for the audio spec.
+- To hear that PC, the maintainer now has a VBAN service there that sends a virtual output (set
+  as default while it runs) to Voicemeeter, so what the spike plays reaches the Windows PC. Its
+  first version stuttered and piled up errors in Voicemeeter: `vban_emitter` opens the PulseAudio
+  capture with the server's default fragment, so it sent bursts every ≈ 340 ms;
+  `PULSE_LATENCY_MSEC=10` steadies it (largest gap 10.8 ms). A lesson for the real app's link
+  streaming: pace the packets, do not send what a large capture buffer hands over at once.
+
+## Audio (Windows, via Voicemeeter)
+
+Method: research R3, "Method used in practice": the PS5 menu beeps reach Voicemeeter twice, from
+the monitor's headphone jack through the line input (reference) and from the preview. From
+2026-10-29 the reference is panned left and the preview right in the Voicemeeter recorder, and the
+delay is the onset difference of each beep pair, 25–26 pairs per 25 s recording
+(`analyze.py audio --stereo`; earlier recordings mixed both to one channel).
+
+**WASAPI engine (`audio-preview --engine wasapi`, chosen, research R7):**
+
+| Setting | Median | p95 | Notes |
+|---|---|---|---|
+| card and output shared | 59 ms | 60 ms | the maintainer hears it clearly better than GStreamer |
+| card exclusive, output shared | 46 ms | 46 ms | |
+| card and output exclusive | **18 ms** | 18 ms | the closest of all by ear, closer than WDM; no other app can use the output |
+| Voicemeeter reading the card directly (WDM), no app | −26 ms | −25 ms | ahead of the reference |
+
+- The reference is not zero: Voicemeeter reading the card is 26 ms ahead of it, so the monitor
+  delays its own audio by about that much. Against the card itself the app's path is about 44 ms
+  with both sides exclusive, most of it in the Voicemeeter virtual input.
+- Inside the app the audio waits about 7.5 ms with the card exclusive and 6.3 ms with both, and
+  nothing was cut; only a few ms of silence at start-up.
+- Before the period and rate changes the same engine gave 112 ms shared, 91 ms card exclusive,
+  33 ms both exclusive (36 ms on a virtual input reserved for the preview); the previous CapturaX
+  gave 160 ms shared.
+- **A/V offset** against the chosen video path (slint-layered, 30.4 ms): audio 29 ms behind the
+  image shared, 12 ms ahead with both exclusive; within SC-005 (45 ms ahead, 125 ms behind) either way.
+- **Drift**: not measured with this engine. It holds the audio waiting in the app steady (rate
+  correction within ±170 ppm in the logs), but a 30-minute run was not recorded. A hardware output
+  cannot be recorded with the reference on another channel with the maintainer's equipment, so it
+  would run through Voicemeeter.
+- Not measured without Voicemeeter.
+
+**GStreamer elements (`wasapi2src` → `wasapi2sink`, replaced):** 121 ms on 2026-10-30. Over 31.5
+minutes on 2026-10-29 the delay grew linearly from 108 to 187 ms, 2.63 ms per minute (44 ppm),
+while the app's own queue stayed empty and dropped 20 ms in total: the growth was after the app,
+in the Voicemeeter virtual input, which absorbs the clock difference between the card and the
+output. The formal clips gave 119 ms at minute 0 and 182 ms at minute 30. SC-005 fails on drift on
+this path.
+
+Earlier hand measurements in FL Studio (2026-10-27), same reference, mixed to one channel:
+
+| Path | Delay | Notes |
+|---|---|---|
+| Voicemeeter reading the card directly (WDM) | ≈ 0 | the two clicks are hard to tell apart |
+| audio-preview, pipeline clock (`sync=true`) | silent | continuous clock-skew correction |
+| audio-preview `--free-run` (200 ms output buffer) | 300–350 ms | |
+| `--free-run --buffer 20` | ≈ 120 ms | |
+| `--free-run --buffer 20` with the 20 ms dropping queue | 100–110 ms | no clicks or dropouts; chosen then |
+| same, `--exclusive both` | lower | heavily distorted and crackling; exclusive mode also locks the device |
+| previous CapturaX (raw WASAPI, shared mode, 15 ms output queue) | 160 ms | |
+
+- Playing with `layered-preview --audio` (GStreamer path, ≈ 105 ms), the maintainer noticed no
+  offset; the difference was audible only with the passthrough sound playing at the same time.
+
+### Reading against SC-005
+
+SC-005 asks for three things: audio within 45 ms ahead and 125 ms behind the video, no offset the
+maintainer notices while playing, and under 10 ms of drift over 30 minutes.
+
+- **Offset: passes** on the WASAPI engine in every setting: against slint-layered (30.4 ms) the
+  audio is 29 ms behind shared, 16 ms behind with the card exclusive, 12 ms ahead with both
+  exclusive. Both references come from the same monitor, whose audio is about 26 ms behind the
+  card (above) and whose own image delay was not measured; for any image delay between 0 and
+  26 ms every setting stays within the limits.
+- **By ear: passes**: no offset noticed while playing (GStreamer path, the slowest), and both
+  exclusive heard as the closest of all.
+- **Drift: open** for the chosen engine (not measured over 30 minutes); **fails** on the GStreamer
+  path (+63 ms in 30 minutes), which is why it was replaced. The engine's rate correction stayed
+  within ±170 ppm, so it holds the audio waiting in the app steady, but whatever the output device
+  adds after the app is not seen by it. The audio spec must measure it before release, ideally
+  also with a hardware output.
+- Measured only through Voicemeeter on Windows; Linux audio was checked by ear only (through
+  VBAN), not measured.
+
+## Image
+
+- The ezcap declares limited range (16–235, colorimetry `2:3:0:1`) but sends full range: on a PS5
+  home screen about 8% of the luma values were below 16. Read as limited, those are clipped to
+  black and the preview looks darker than the passthrough. With `--range full` the maintainer
+  found it matching the passthrough on the same monitor (27G2G4, switching HDMI and DisplayPort
+  inputs). The app needs a color range setting (Auto, Full, Limited); Auto can infer full range
+  from values below 16.
+
+## Observations
+
+- The previous CapturaX showed video with `getUserMedia` in WebView2 and measured 6 camera frames,
+  on par with native: an indication for the browser reference (T015).
+- Playing with `layered-preview --audio` (Direct3D 12, Mailbox, 1080p60), the maintainer noticed no
+  difference from the passthrough by eye.
+
+- Dragging the slint-layered window stutters the video, sometimes for a long moment, with or
+  without the encoder, while the pipeline keeps delivering 60 fps. On Windows the system holds the
+  app's event loop during a window move, and this prototype presents from that loop. The real app
+  must present video on a thread of its own. Fullscreen is not affected. Fixed in the spike by T052
+  (research R15).
+
+- In the 1080p120 mode with a 60 Hz source, the card delivers about 111 fps on every path; the
+  limit is the source, not the path.
+- The in-pipeline latency query reports 0 ms with `mfvideosrc`; it cannot be used as a secondary
+  measurement in this form.
+- The Slint window drew about twice per delivered frame at 60 fps (120 draws for 60 frames):
+  redundant rendering to investigate.
+- Judged by eye, the maintainer could not reliably tell which path was faster; measurement was
+  needed.
+
+## Capabilities
+
+Spec User Story 4, one row per capability (T039). Linux: checked by the maintainer on CachyOS,
+KDE Plasma Wayland (T038); depth is limited there for the same software-renderer reasons. The
+sections below record how each capability was built and checked.
+
+| Capability | Windows | Linux | Notes |
+|---|---|---|---|
+| Ambient light around the video, in its colors | working | working | GPU passes in the render loop, ≈ 0.1 ms CPU side; GPU time not measured (T034) |
+| Info overlay as separate bubbles: pin, order, corner; only pinned ones with the chrome hidden | working | working | Positions computed by hand (Slint layouts do not animate); placements not saved between runs (T035). Bug seen on Linux (same code on Windows): in a small window the dock covers a bubble's hover; the hover should be above the dock. The detached floating window was dropped; on Wayland it would have been limited (no always on top or placement) |
+| Resolution badges (HD, Full HD, QHD, 4K) in distinct colors | working | working | `Badge` with the previous app's colors, in the mode picker and the resolution bubble (T028) |
+| Source picker with groups and badges | working | working | Dropdown with group headers, detail and badge per item (T028). Bug seen on Linux (same code on Windows): in a small window the dropdown menu is cut off at the window's edge; the preview's device picker lists devices only (screens and windows belong to recording and stream sources), so groups are seen in the mode picker (Automatic, Modes) |
+| Depth effects (layered shadows, raised and sunken surfaces) | limited | limited | Nine-slice shadow images and tone steps; the software renderer draws no `drop-shadow`, no gradients on rounded shapes, no rounded clip, and Slint has no blur. Shadows need a @2x set above 100% scale (T048) |
+| Custom fonts and the brand logo | working | working | Bundled Inter; SVG logos must be sized in their own aspect ratio, and the dark theme uses a light variant (T048) |
+| Language and theme switching without restart | working | working | Bundled gettext catalogs and `@tr`; text built in Rust is translated in Slint (T036) |
+| Frameless window: move, resize, maximize, fullscreen | limited | working | All work, snapping included; no snap layouts flyout on the maximize button (needs `HTMAXBUTTON`, not reachable through winit) (T037). On KDE Wayland moving, maximizing and snapping to the sides work (T038) |
+| Smooth video while the window moves or resizes | limited | working | No stall since the video has its own thread; fast moves drop to 40–50 fps on Windows, likely DWM, not confirmed (T052). On KDE Wayland the maintainer saw the window move smoothly (T038) |
+
+### What the software renderer draws (T048, Slint 1.18.1, Windows)
+
+Test screen `layered-preview --ui render-test`, over the video, checked from screenshots.
+
+| Feature | Result |
+|---|---|
+| Bundled font (Inter, variable) | Drawn; weights 400, 600 and 800 distinct; system fonts also available. The maintainer liked Inter: it is the font for the directions |
+| SVG logo | Drawn anti-aliased, **but with 2 px teeth when the element's box does not have the SVG's aspect ratio**: Slint rasterizes the SVG keeping its aspect (90×87 for a 90×90 box) and then stretches the result without filtering, repeating one row in every ~29. Sizing the image by one side only (`height: 90px`) removes them. The CapturaX wordmark has dark letters: the dark theme needs a light variant |
+| Rounded rectangle (solid color) | Drawn, smooth corners |
+| Linear and radial gradients | Drawn, but **the border radius is ignored**: square corners |
+| Gradient fill on a rounded `Path` | **Drawn as a solid color**: not a workaround |
+| Opacity | Drawn, blends with the video |
+| `drop-shadow-*` | **Not drawn** (empty in the renderer source) |
+| Clip with a border radius | **Square**: the radius is ignored |
+| Nine-slice image | Drawn; a pre-blurred shadow (tools/make_shadow.py, two layers: soft and tight) looks soft, with no seams at 3× zoom |
+| Overlapping menu | A menu with shadows opens over other elements with an opacity and position animation (160 ms). Captured mid-fade and open while semi-transparent: the content shows through it without the shadow darkening it (hollow shadows). Menus are now opaque (maintainer's decision); the fade still applies |
+| Blur | Not available in Slint in any renderer. Dropped (maintainer's decision): only panels are semi-transparent, without blur |
+
+Outcome: depth with nine-slice shadows and rounded corners works, overlapping menus included
+(research R14). Gradients and blur are dropped (maintainer's decision); only panels are semi-transparent. Anything round over the video (its
+own corners, a clipped thumbnail) is drawn by our shader. The shadows are images: their corner
+radius and blur are fixed per image, and screens above 100% scale need a @2x set.
+
+### UI cost on the video loop (T049, first look)
+
+`layered-preview --ui render-test --stats`, 1280×720 window, 100% scale, 1080p60 video. UI time is
+the software render plus the upload of the whole UI texture.
+
+| State | UI redraws per second | UI time median / max | Frame ready → presented |
+|---|---|---|---|
+| Idle | 0 | — | 0.8–0.9 ms |
+| Menu opening and closing twice a second | 25–32 | 0.7 / 0.9 ms | 0.8–1.1 ms |
+| First draw at start (fonts, SVG parsing) | 1 | 4–41 ms | — |
+
+An animating UI does not delay the video measurably at this size. Fullscreen at 1080p and 1440p
+with the real directions is T051.
+
+### UI cost in fullscreen (T051)
+
+`--ui float --stats`, ezcap 1080p60 NV12, Direct3D 12 + Mailbox, fullscreen (F11) on a 1080p
+144 Hz monitor at 100% scale. The maintainer has no 1440p monitor: 1440p is the same monitor at
+2560×1440 through NVIDIA DSR (1.78x DL), which gives the same UI texture size. Animations redraw at
+144 Hz, so a 300 ms chrome animation is about 43 redraws and a 160 ms dropdown animation about 23.
+
+| Screen | State | UI redraws per second | UI time median / max | Frame ready → presented |
+|---|---|---|---|---|
+| 1080p | Idle, chrome hidden | 0 | — | 0.8–1.0 ms |
+| 1080p | Chrome showing | 45 | 1.4 / 1.8 ms | 0.9 ms |
+| 1080p | Chrome hiding | 41 | 0.7 / 2.1 ms | 0.9 ms |
+| 1080p | A dropdown opening or closing every second | 21–22 | 2.0–2.8 / 3.4 ms | 0.8–0.9 ms |
+| 1080p | Pointer moving to the other dropdown | 53 | 0.7 / 2.9 ms | 1.1 ms |
+| 1440p (DSR) | Idle, chrome hidden | 0 | — | 0.8–0.9 ms |
+| 1440p (DSR) | Chrome showing, pointer moving over it | 85 | 1.5 / 2.6 ms | 1.0 ms |
+| 1440p (DSR) | Chrome hiding | 39 | 1.1 / 2.6 ms | 1.0 ms |
+
+Outcome: the video kept 60 fps and its per-second median stayed at 0.8–1.1 ms in every state, at
+both sizes. The UI never took more than 3.4 ms per redraw. The open dropdown is the costliest UI
+(2.0–2.8 ms median, more for the longer list), and 1440p costs only a little more than 1080p
+(1.5 against 1.4 ms showing the chrome), far less than its 1.78 times the pixels. The per-second
+median hides single frames: in this prototype a video frame that arrives during a redraw waits up
+to its length (3.4 ms at most), which the real app avoids by rendering the UI on its own thread.
+Two seconds at the start of the 1080p run showed a 9 ms median with no UI redraw; they did not
+come back at 1440p and look like the switch to fullscreen, not the UI (cause not confirmed).
+
+Decision for the real app (maintainer, 2026-10-28), whatever T051 shows: the video never waits
+for the UI. The UI is rendered on its own thread and the compositor always uses the last finished
+UI image; in this prototype a video frame that arrives while the UI changes waits for the redraw.
+
+### Ambient light (T034)
+
+Built on the GPU in the render loop, as the previous app's AmbientLight.tsx: each new video frame
+is shrunk to 96×54 (16 taps per texel, saturation 1.4), blurred in two passes (sigma 6 texels) and
+blended into the previous glow (35% of a new frame at 30 Hz, scaled to the real frame interval).
+The glow is drawn stretched over the video area at strength 0.9, before the video, so it shows in
+the letterbox bars. The dock's button toggles it.
+
+`--ui float --stats`, `--test-video` 1080p60, Direct3D 12 + Mailbox, 1280×720 window:
+
+| Ambient light | Presented | Frame ready → presented |
+|---|---|---|
+| Off | 60–61 fps | 0.8–0.9 ms |
+| On | 60–61 fps | 0.9–1.0 ms |
+
+Outcome: working on Windows. The maintainer checked it with live video and a widened window and
+liked the result. The difference is about 0.1 ms on the CPU side; the GPU time of the three small
+passes is not measured. Linux is checked in T038.
+
+### Info bubbles (T035)
+
+The capability "overlay detached as a floating window that stays on top" was built and dropped:
+the maintainer found it not useful. It worked as a second borderless winit window with its own
+Slint software window (the platform hands out one window adapter per component). On Windows it
+needed its own wgpu device: only a DirectComposition swap chain (`DxgiFromVisual`) lets a window
+be transparent, and the main window keeps its HWND swap chain. On Wayland, always on top and
+window placement are not available to apps, so it would have been limited there.
+
+What replaces it, all in Slint over the video: each bubble (status, resolution, FPS, latency) is
+arranged on its own. Hovering a bubble for 120 ms with the chrome open shows a menu (move left,
+pin, corner, move right), one menu at a time; the corner button opens a 2 × 2 menu of the four
+corners. Each corner holds its own group, packed against it. When the chrome hides, the unpinned
+bubbles slide off the nearest screen edge, then the pinned ones close up against their corner;
+on showing, the pinned ones make room first, then the unpinned ones slide back vertically (at
+once when none is pinned). Positions
+are computed by hand (Slint layouts do not animate), with the per-bubble state in arrays of the
+component.
+
+Outcome: working on Windows; reviewed and approved by the maintainer with `--test-video`. The
+FPS bubble shows the selected mode and the latency bubble a sample value, not measurements.
+Placements are not saved between runs.
+
+### Language switching (T036)
+
+Slint's bundled translations: build.rs compiles `lang/<language>/LC_MESSAGES/layered-preview.po`
+(gettext, no translation context) into the binary, and the strings in the `.slint` files use
+`@tr`, with English as the source. `slint::select_bundled_translation` switches the language
+while running; every translated text updates at once, with no restart and no rebuild of the
+pickers. At startup Slint picks the system language; `--lang en|pt-BR` overrides it. The
+toolbar's language button names the other language in itself ("Português" / "English").
+
+`@tr` takes literals only, so text built in Rust (the pickers' automatic entries, groups, None,
+Test pattern) is passed as English keys and translated in Slint by a lookup function
+(`Texts.label`); all translations stay in one catalog. The running language is itself a
+translatable string (`@tr("en")`, "pt-BR" in the catalog), so the UI knows it without Rust.
+Strings are written by hand here; the real app would extract them with `slint-tr-extractor`.
+
+Outcome: working on Windows; reviewed and approved by the maintainer with `--test-video`
+(English and Portuguese). The review shortened "Stream to friends" to "Stream".
+
+### Frameless window (T037)
+
+The Float direction opens a winit window without decorations (`with_decorations(false)`, plus
+`with_undecorated_shadow` on Windows for the system shadow and Windows 11's rounded corners); the
+other UIs keep the system frame, since they have no title bar of their own. The title bar from
+T028 asks for window actions through the `WindowState` global (drag, minimize, toggle maximize,
+close; `maximized` comes back from Rust on each resize). A press on the bar starts the system move
+(`drag_window`) only once the pointer moves more than 4 px, so a double click still reaches the
+bar and toggles maximize; after the move the loop sends Slint a pointer exit, since the system
+move swallows the release. Resizing is handled in Rust, before Slint: a 6 px band along the edges
+and corners sets the resize cursor and a left press there calls `drag_resize_window` (off when
+maximized or fullscreen). While the left button is held on the UI the edges are not checked, so
+a fast drag of the title bar toward the top edge keeps the normal cursor (the move starts only
+after 4 px, and the pointer could reach the resize band first).
+
+Checked by the maintainer on Windows 11: move by the bar (a maximized window restores under the
+pointer), double click to maximize and restore, resize from the four edges and corners, minimize,
+maximize, close, F11 and the dock's fullscreen, snapping by dragging to the screen's edges and
+Win+arrows. Not available: the snap layouts flyout on the maximize button. Windows shows it only
+when the window answers `WM_NCHITTEST` with `HTMAXBUTTON` over that button, which winit does not
+let an app do; it would take subclassing the window procedure.
+
+Review fixes: the minimum window is 800 × 520, the smallest where Float fits without overlaps
+(the toolbar's three dropdowns across; the right dock between the toolbar and the bottom
+bubbles); a compact layout for smaller windows is left to the main screen's spec (docs/product.md
+F8). The spike-only language and theme switches hide when the toolbar is too narrow for them; the
+real app keeps both in the settings (F39, F46). The info bubbles animate their place relative to
+their corner, so a window resize moves them at once (animating the absolute place made them chase
+the new corner for 300 ms).
+
+**The video stalls while the window is moved**, with the system frame (`--ui overlay`) as much as
+without it, and it did so before T037. Measured with `--test-video` at 1080p60 (`--stats` now also
+prints the longest gap between two presented frames and the window moves per second): capture
+steady at 60 fps with nothing dropped, while presenting falls to 34–57 fps with gaps of 50–130 ms;
+frame ready → presented median 2–23 ms (0.9 ms at rest). Holding the window still mid-drag
+presents one frame per second (gaps of 1005 ms). Cause: on Windows, moving or resizing a window
+runs the system's modal loop on the thread that owns it; the spike presents the video from that
+thread, on winit user events, which the modal loop delivers late. Reading the monitor's refresh
+rate on every move event was also slow and now happens only when the monitor changes; it was not
+the cause. The fix to prove is presenting the video from its own thread (T052).
+
+### Video thread (T052)
+
+Research R15 as built: a `video` thread owns the GPU (`src/gpu.rs`: surface, layers, ambient
+light, composite, present). The appsink puts each frame in a shared inbox and wakes it; the main
+thread draws the UI with Slint and, when it changed, puts a copy of the image there with the scene
+(backdrop, video area, ambient light) and the window size. The inbox keeps only the newest of
+each; the video thread presents when a frame or a UI image arrives and prints the `[loop]` stats.
+The surface is created on the main thread and moved; the thread stops before the window closes.
+The UI cost in `--stats` is now the Slint draw plus that copy (≈ 0.4–1.0 ms median); the upload
+moved to the video thread.
+
+Measured by the maintainer with `--test-video` at 1080p60, Float (frameless) and overlay (system
+frame) alike:
+
+| | Before (T037) | After |
+|---|---|---|
+| At rest | 60 fps, median 0.9 ms | 60–61 fps, median 1.1 ms |
+| Window moving | 34–57 fps, gaps 50–130 ms | 40–61 fps, gaps 30–115 ms; median 1–30 ms |
+| Held still mid-drag | 1 fps, gaps 1005 ms | no stall |
+
+The stall is gone; the maintainer sees a short hitch when a move starts, then smooth video.
+Fast moves still drop to 40–50 fps with a 20–30 ms median, with or without the system frame.
+The video thread no longer waits for the window's, so this is likely Windows composing the
+moving window (DWM), not the app; not confirmed. UI animations pause during a move, as expected.
+Capture never dropped a frame.
+
+## Visual directions
+
+The maintainer chose Float, laid out as the previous app, while reviewing the components (T028);
+Frame and Rail were dropped (FR-006 revised).
+
+Theme (T027): one cool neutral in four tone steps, orange accent, Inter, depth by tone and
+nine-slice shadows; approved by the maintainer, then adjusted so every text pair reaches 4.5:1 in
+both themes: dark ink on the orange instead of white, a deeper orange (`accent-text`) for orange
+text in light, info bubbles black at 55% (30% left white text at 2.1:1 over a white frame), a
+2px focus ring as the only outline. The same identity is kept outside the repository as a design
+system artifact (tokens, rules, component previews) for other projects.
+
+Components (T028), arranged as the previous app after the maintainer's review: a thin opaque
+title bar with the wordmark and rounded window controls; a toolbar over the top of the video with
+fixed-width dropdowns (video device, audio, mode; devices only, screens and windows belong to the
+output's source); a left dock (fullscreen, ambient light, volume with a slider on hover) and a
+right dock (preview, screenshot, record, stream, settings); capture info at the bottom right with a
+pin; tooltips after 500 ms. Toolbar, docks and info hide 2 s after the pointer leaves and return
+when it reaches the top of the video. Toggled tools sit on a soft orange chip. The ground around
+the video takes the theme's deepest tone (the compositor reads it from the UI each frame). All
+drawn by the software renderer over the video in both themes. Slint notes: an `Image` inside a layout asks for
+the image's natural width even when only its height is set, so logos need both sides (in the
+SVG's aspect ratio); icons are single-ink SVGs tinted with `colorize`.
+
+Video area (T050): the UI exposes where the video goes (`video-area`: position, size, corner
+radius) and the loop letterboxes the video inside it; the shader rounds the corners. The video
+starts below the title bar and never sits behind it; in fullscreen the title bar hides and the
+video takes the whole screen. Keys: F11 toggles fullscreen, Esc leaves it and never quits
+(docs/product.md F8).
+
+Review (T033, maintainer, 2026-10-29): the Float direction with live video from the ezcap (PS5,
+1080p60) in both themes, windowed and fullscreen, chrome shown and hidden and each dropdown open
+(video, audio, mode). The maintainer is satisfied and found nothing wrong or not working.
+Screenshots: [measurements/screens/](measurements/screens/) (`<theme>-<windowed|fullscreen>-<state>.jpg`).
+The latency in the info overlay is still a sample value.
+
+## Decisions
+
+- **Slint is confirmed for the interface** (SC-002, constitution amendment in T041), on one
+  condition: the app owns the window (winit) and the GPU swap chain (wgpu) and presents each video
+  frame on arrival, from a thread of its own; Slint draws the whole UI with its software renderer
+  into a layer that the video thread composites over the video (research R13, R15). Video inside
+  Slint's own window stays 1.5 frames behind native whatever the renderer, so it is not used. The
+  software renderer sets the visual limits: no blur, no `drop-shadow`, no gradients or clipping on
+  rounded shapes; depth comes from tone steps and nine-slice shadows (R14).
+- **The video never waits for the UI or the window**: the UI renders on its own thread in the real
+  app and the compositor takes its last finished image; the window's thread can be held by the
+  system (window moves on Windows) without stopping the video.
+- **Preview path**: Direct3D 12 with Mailbox on Windows (Vulkan there goes through DWM and is
+  ≈ 15 ms slower); Vulkan with Mailbox on Linux. NV12 first in the format preference. Capture
+  through `mfvideosrc` on Windows and `v4l2src` on Linux, as used here; PipeWire's camera was not
+  compared.
+- **Preview audio on Windows**: WASAPI directly, not the GStreamer elements; every input and
+  output can be shared or exclusive, off by default (docs/product.md F47). GStreamer still carries
+  audio for recording and streaming. On Linux the spike used `pulsesrc` → `pulsesink` because
+  `pipewiresink` hangs on stop; the real app's Linux audio is for the preview audio spec.
+- **Visual direction**: Float, laid out as the previous app, with the T027 theme (cool neutral in
+  four tones, orange accent, Inter, WCAG contrast in both themes); Frame and Rail dropped.
+  Only panels are semi-transparent; menus, buttons and icons are opaque.
+- **Not reopened**: a browser preview or an HTML UI over the native video, although the browser
+  matched native latency (maintainer, 2026-10-29).
+- **Color range**: the ezcap declares limited range and sends full, so the app needs a color range
+  setting (Auto, Full, Limited).
+- **Spike code**: kept in the tag `spike/stack-20261026` and removed from the branch (research
+  R11). This spec adopts only the latency measurement tools (`flash.html`, `analyze.py`,
+  `make_sync_video.py`) into [tools/latency/](../../tools/latency/README.md), since every
+  preview spec must measure its latency (constitution principle I); `analyze.py` now takes the
+  spec's measurements folder as `--measurements`.
+
+## Open questions for later specs
+
+Grouped by the roadmap spec (docs/roadmap.md) expected to answer them.
+
+- **App shell (#2)**
+  - In a small window the dock covers the info bubbles' hover, and dropdown menus are cut off at
+    the window's edge (seen on Linux, same code on Windows).
+  - Fast window moves drop the video to 40–50 fps on Windows (likely DWM, not confirmed).
+  - The snap layouts flyout on the maximize button needs `HTMAXBUTTON`, not reachable through
+    winit.
+  - Nine-slice shadows need a @2x set above 100% display scale.
+- **Device preview (#3)**
+  - Linux GPU power state: the RTX 3050 steps down to P8 under the preview's light load
+    (≈ 4.6 ms median, ≈ 9 ms p95); how to keep it awake without root. Not checked on Windows.
+  - Linux capture: `v4l2src` against PipeWire's camera (`pipewiresrc`, needed in a sandboxed
+    package) not compared for latency; KWin direct scanout not checked separately.
+  - Capturing a 60 Hz signal in the 1080p120 mode costs every path 3–5 ms; the Auto source mode
+    (F3) and how to read the incoming signal per platform.
+  - Latency levers not tested: a 120 Hz source, VRR, PresentMon to confirm independent flip,
+    zero-copy upload (DMA-BUF import on Linux).
+  - The color range setting; the maintainer will also compare the image with the passthrough again
+    with `--range full`.
+  - Proposal awaiting the maintainer: the device dropdown detail shows the last mode used for that
+    device, else the default automatic mode (F2/F3).
+- **Preview audio (#4)**
+  - Drift over 30 minutes with the WASAPI engine, and the delay with a hardware output instead of
+    Voicemeeter, not measured (SC-005 open on drift).
+  - Linux audio path and its measurement (only heard through VBAN here).
+- **Preview extras (#6)**: the ambient light's GPU time was not measured.
+- **Recording (#9)**: recording and streaming with separate sources (and setup windows) again;
+  noted in docs/product.md "To reconsider", to decide before the Record / Stream window spec.

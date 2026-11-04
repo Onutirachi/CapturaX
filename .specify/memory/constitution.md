@@ -1,3 +1,16 @@
+<!--
+Sync Impact Report
+- Version: 1.0.0 -> 1.1.0 (MINOR: guidance materially expanded after the stack spike)
+- Modified: III. One Native Media Pipeline (the app may render the preview and play preview
+  audio itself; preview video and audio are not held to one clock); Technology and Product
+  Constraints (Slint confirmed, with the render architecture it requires)
+- Added sections: none. Removed sections: none.
+- Templates: plan-template.md, spec-template.md, tasks-template.md need no change.
+- Follow-up: docs/roadmap.md updated (stack spike done; app shell, device preview, preview
+  audio and preview extras entries revised).
+- Source: specs/20261026-154808-stack-spike/findings.md "Decisions".
+-->
+
 # CapturaX Constitution
 
 CapturaX is a desktop app for Windows and Linux to watch and hear capture cards with the lowest
@@ -44,7 +57,12 @@ Rationale: the previous version grew verbose and cluttered; simplicity is a feat
 - Media is built on GStreamer. Custom media code (muxers, protocols, codecs) is written only
   when GStreamer cannot do the job, and the plan MUST justify it.
 - The UI never handles raw media: it controls the pipeline and displays the rendered preview.
-- Audio and video share one clock; synchronization is automatic, not a user setting.
+- The preview may leave GStreamer at its last step when a measurement shows it is faster: the
+  app presents preview frames with its own GPU renderer, and on Windows plays preview audio
+  through WASAPI directly. Capture, encoding, recording and streaming stay in GStreamer.
+- Recordings and streams keep audio and video on one clock; synchronization is automatic, not
+  a user setting. The preview plays each frame and each sound as soon as it arrives, so its
+  audio and video are kept close by low latency on both sides, not by a shared clock.
 - Hardware encoders are preferred; a software fallback MUST exist.
 
 Rationale: the previous version split the pipeline between a WebView and native code, which
@@ -109,8 +127,11 @@ starting from a fresh context.
 
 ## Technology and Product Constraints
 
-- App: Rust. Media: GStreamer, bundled with the app. UI: Slint, pending confirmation by the
-  first spike spec; replacing it afterwards requires an amendment.
+- App: Rust. Media: GStreamer, bundled with the app. UI: Slint, confirmed by the stack spike
+  on one condition: the app owns the window and the GPU swap chain and presents video from a
+  thread of its own, never waiting for the UI or the window, and Slint draws the UI as a layer
+  composited over the video. Replacing Slint, or putting the video inside Slint's own window,
+  requires an amendment.
 - Viewer page: HTML and TypeScript without a heavy framework, served both by the app (direct
   link) and by the server.
 - Server: Rust, distributed as a container image with a compose file, keeping all its data in
@@ -164,4 +185,4 @@ starting from a fresh context.
 - Every plan MUST include a constitution check, and every pull request review MUST verify
   compliance. Deviations MUST be documented in the plan with a justification.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-10-26
+**Version**: 1.1.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-11-04

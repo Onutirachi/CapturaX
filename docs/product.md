@@ -30,8 +30,8 @@ The **Spec** column is filled in when a spec covers the feature.
 | ID | Feature | Spec |
 |---|---|---|
 | F1 | List capture cards and webcams; the list updates when a device is plugged in or removed. | |
-| F2 | Open a device in a native mode (resolution × frame rate × format reported by the driver), with no software scaling. One **Mode** list shows only the modes the device really supports. | |
-| F3 | **Auto** mode (default): the largest resolution that keeps about 60 fps, at its highest frame rate. **Smoothest** mode: the highest frame rate from 720p up, shown only when it differs from Auto. | |
+| F2 | Open a device in a native mode (resolution × frame rate × format reported by the driver), with no software scaling. One **Mode** list shows only the modes the device really supports. A **color range** setting (Auto, Full, Limited) corrects devices that declare the wrong range; Auto infers it from the video levels. | |
+| F3 | Automatic modes next to the manual ones: **Auto source** follows the signal the device is receiving (resolution and frame rate), shown only when the device reports it; **Auto max resolution**: the largest resolution at about 60 fps; **Auto max FPS**: the highest frame rate at 1080p (or the largest resolution below it). An automatic mode that resolves to the same mode as another is not shown. Default: Auto source when available, otherwise Auto max resolution. | |
 | F4 | When a device disconnects, show it; when it comes back, reopen it automatically. | |
 | F5 | Screens and windows as a source for recording and streaming, with the cursor and without a capture border. On Windows the app lists them (screens named like "Screen 2 - 27G2G4"); on Linux Wayland the system picker chooses them. | |
 
@@ -43,12 +43,12 @@ streaming), and a **View output** action shows the output in the preview.
 | ID | Feature | Spec |
 |---|---|---|
 | F6 | Preview the device with the lowest possible latency. | |
-| F7 | Measured latency and frame rate, updated live. | |
-| F8 | Frameless window with its own title bar; fullscreen with F11, leave with Esc. | |
+| F7 | Measured latency and frame rate, updated live. Its spec defines which frame rate is shown (what the source delivers, what reaches the app or what is presented) and whether dropped frames are shown. | |
+| F8 | Frameless window with its own title bar; fullscreen with F11. Esc closes an open menu first, then leaves fullscreen; it never quits the app. In small windows the main screen switches to a compact layout instead of overlapping its controls (the stack spike's Float needs 800 × 520 without it). | |
 | F9 | Optional ambient light: the area around the video glows with the video's colors. | |
 | F10 | Hide the preview to save resources; recording and streaming continue. | |
-| F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected. Never an empty list. | |
-| F42 | Capture info overlay (source, mode, measured FPS and latency, recording/live status) over the video, pinnable; can be detached as a floating window that stays on top. | |
+| F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected, black image while a signal is present (likely HDCP: suggest turning it off on the console). Never an empty list. | |
+| F42 | Capture info overlay (source, mode, measured FPS and latency, recording/live status) over the video, as bubbles: each can be pinned, moved in the order and anchored to any of the four corners; with the controls hidden only the pinned ones show, packed against their corner. | |
 | F43 | Resolution badges (for example HD, Full HD, QHD, 4K) in device and mode lists. | |
 
 ### C. Listening (preview audio)
@@ -58,6 +58,7 @@ streaming), and a **View output** action shows the output in the preview.
 | F12 | Play an audio input on a chosen output with the lowest possible latency. The main use is hearing the console through the capture card while playing. | |
 | F13 | By default the input is the audio of the same device as the video (paired automatically); the user can choose another. | |
 | F14 | Volume and mute. This audio is only for the user and never goes into recordings or streams. | |
+| F47 | Settings list every audio input and output with an **Exclusive mode** checkbox each (off by default). Exclusive skips the system mixer for the lowest delay, but no other app can use that device meanwhile; the list says so. Windows only (WASAPI); measured on the spike against the monitor's own audio: 59 ms shared, 46 ms with the input exclusive, 18 ms with both. | |
 
 ### D. Output audio (recording and streaming)
 
@@ -122,6 +123,7 @@ streaming), and a **View output** action shows the output in the preview.
 | ID | Feature | Spec |
 |---|---|---|
 | F39 | English and Portuguese (Brazil), automatic from the system language or chosen in the settings, switching without restart. | |
+| F46 | Dark and light themes, chosen in the settings. | |
 | F40 | Persistent settings. Categories are defined in their own spec. | |
 | F41 | Portable: settings, keys and state next to the executable; if that folder is not writable, warn and use the per-user configuration folder. The installer copies files and configures the firewall; the app has a **Configure firewall** action for restored backups. GStreamer ships with the app. | |
 | F44 | Updates: check GitHub Releases, notify about a new version, install it automatically when the user agrees. The check can be turned off. | |
@@ -131,15 +133,23 @@ streaming), and a **View output** action shows the output in the preview.
 
 | ID | Feature | Reason |
 |---|---|---|
-| part of F14 | Manual audio delay for lip-sync | Not needed in practice; the new pipeline keeps audio and video on one clock. Reconsider only if measurements show a need. |
+| part of F14 | Manual audio delay for lip-sync | Not needed in practice: recordings and streams keep audio and video on one clock, and the stack spike measured the preview's audio within the lip-sync limits of the video (12 ms ahead to 29 ms behind). Reconsider only if measurements show a need. |
 | F18 | Manual audio/video sync offset | Same reason as above. |
 | — | Peer-to-peer without a relay | Viewers behind restrictive NAT could not connect; replaced by F34 with a TURN fallback. |
+
+## To reconsider
+
+- F25/F26: separate sources for recording and streaming, back to separate setup windows. The
+  maintainer found a case (2026-11-04) where one shared source gets in the way. Decide before
+  the Record / Stream window spec; check it against the constitution's "one source at a time".
 
 ## Future ideas
 
 Not planned; listed so they are not lost.
 
 - Replay buffer: save the last N seconds.
+- For Voicemeeter users, suggest letting Voicemeeter read the capture card directly: the lowest
+  possible audio delay (measured ≈ 0, against ≈ 100 ms through its virtual input).
 - Server mode where the server distributes the stream (upload once, any number of viewers).
 - macOS.
 - Contributor License Agreement, when the first external contributor appears.
