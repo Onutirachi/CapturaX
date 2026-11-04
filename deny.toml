@@ -1,0 +1,37 @@
+# cargo deny check licenses bans (research R13, R14)
+
+[graph]
+all-features = false
+
+[licenses]
+# Licenses compatible with GPL-3.0-only.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "Unlicense",
+    "GPL-3.0-only",
+    "CC0-1.0",
+    "BSL-1.0",
+]
+confidence-threshold = 0.9
+# The list covers dependencies later specs bring in; not every entry is used yet.
+unused-allowed-license = "allow"
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+# OS crates only through the platform layer (constitution IV). windows-sys and zbus also come in
+# through winit, wgpu and Slint, so app/tests/platform_boundary.rs checks those instead.
+deny = [
+    { crate = "tray-icon", wrappers = ["capturax-platform"] },
+    { crate = "muda", wrappers = ["tray-icon"] },
+    { crate = "ksni", wrappers = ["capturax-platform"] },
+]

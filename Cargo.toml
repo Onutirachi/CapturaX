@@ -1,0 +1,53 @@
+[workspace]
+resolver = "3"
+members = ["app", "crates/settings", "crates/platform"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+
+# Versions and licenses: specs/20261104-112852-app-shell/research.md R1 and R14.
+[workspace.dependencies]
+# UI, window and GPU (versions validated by the stack spike)
+slint = "1.18.1"
+slint-build = "1.18.1"
+winit = "0.30"
+wgpu = { version = "30", default-features = false }
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "1"
+
+# Media (test video; spec #3 reuses it)
+gst = { package = "gstreamer", version = "0.25" }
+gst-app = { package = "gstreamer-app", version = "0.25" }
+gst-video = { package = "gstreamer-video", version = "0.25" }
+
+# General
+clap = { version = "4", features = ["derive"] }
+log = { version = "0.4", features = ["std"] }
+toml = "1"
+tempfile = "3"
+sys-locale = "0.3"
+dirs = "7"
+anyhow = "1"
+
+# Build time
+resvg = "0.49"
+
+# OS crates: only crates/platform may depend on these (constitution IV, research R2, R13)
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Pipes",
+    "Win32_System_Registry",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+tray-icon = "0.26"
+zbus = "5"
+ksni = { version = "0.3", features = ["blocking"] }
+
+[profile.release]
+debug = "line-tables-only"

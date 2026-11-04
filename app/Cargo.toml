@@ -1,0 +1,15 @@
+[package]
+name = "capturax"
+description = "Watch and hear capture cards with the lowest possible latency"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "capturax"
+path = "src/main.rs"
+
+[dependencies]
+settings = { package = "capturax-settings", path = "../crates/settings" }
+platform = { package = "capturax-platform", path = "../crates/platform" }

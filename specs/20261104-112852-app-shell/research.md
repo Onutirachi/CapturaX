@@ -9,7 +9,8 @@ reopened here; entries below say how the shell builds it.
 
 - **Decision**: Rust 1.99 (pinned in `rust-toolchain.toml`, edition 2024), Slint 1.18 (at least
   1.18.1, the version the spike measured; the first task moves to the newest 1.x patch if one
-  exists and re-runs the render test screen), winit 0.30, wgpu 30, gstreamer-rs 0.25 against
+  exists and re-runs the render test screen; checked 2026-11-04: 1.18.1 is still the newest
+  1.x), winit 0.30, wgpu 30, gstreamer-rs 0.25 against
   GStreamer 1.28 on developer machines (the spike's versions, research R1 of the spike).
 - **Rationale**: the spike validated exactly this set on both platforms; the latency budget
   (SC-001) is stated against its numbers.

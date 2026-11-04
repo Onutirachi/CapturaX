@@ -4,12 +4,11 @@
 
 ## State
 
-Spec approved by the maintainer (2026-11-04). `/speckit-plan` done: plan.md, research.md
-(R1–R14), data-model.md, contracts/ (cli, settings-file, stats, single-instance, platform),
-quickstart.md. Committed as `docs: add app shell plan` (unmerged). The maintainer accepted fast-move
-frame drops on Windows as a known limit (spec Edge Cases, SC-003). `/speckit-tasks` done:
-tasks.md (T001–T066, 8 phases), committed as `docs: add app shell tasks`. `/speckit-analyze`
-found no critical issue; its fixes are applied (see Decisions), not yet committed.
+Spec, plan and tasks approved and committed (`docs: add app shell spec`, `plan`, `tasks`; the
+`/speckit-analyze` fixes are folded into the tasks commit). Implementation approved by the
+maintainer (2026-11-04). Phase 1 (T001–T006) done and checked on Windows (`cargo build`,
+`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo deny check licenses
+bans`), waiting for the maintainer's validation before the commit `build: add cargo workspace`.
 
 ## Done in the last sessions
 
@@ -30,6 +29,11 @@ found no critical issue; its fixes are applied (see Decisions), not yet committe
 
 ## Decisions
 
+- Phase 1: Slint 1.18.1 is still the newest 1.x (research R1). `zbus = "5"` because ksni 0.3
+  uses zbus 5 (one copy in the build; zbus 6 exists). `windows-sys` 0.61 with the features the
+  platform tasks need, declared once in the workspace. `deny.toml` has
+  `unused-allowed-license = "allow"` because later specs bring the remaining licenses; the
+  `tray-icon` ban was checked by adding it to `app` (fails as expected).
 - While writing the tasks: `cargo deny` cannot ban `windows-sys` and `zbus` by name (winit, wgpu
   and Slint pull them in), so a test `app/tests/platform_boundary.rs` checks the direct
   dependencies of `app` and `settings` instead (research R2, R13 and plan updated).
@@ -55,5 +59,4 @@ found no critical issue; its fixes are applied (see Decisions), not yet committe
 
 ## Next step
 
-Maintainer validates the analyze fixes; fold them into `docs: add app shell tasks`; then
-implementation from T001 after explicit approval (`/speckit-implement`).
+Maintainer validates Phase 1; commit `build: add cargo workspace`; then Phase 2 (T007–T020).
