@@ -244,9 +244,9 @@ change that only breaks one platform's build; each is reported and blocks the me
   dark theme and `CapturaX-dark.svg` (black text) in the light theme; the window, taskbar and tray
   icon comes from `brand/X.svg`; move by dragging the title bar, maximize by double click, resize from
   every edge and corner, and system snapping by dragging and keyboard.
-- **FR-007**: F11 MUST toggle fullscreen; Esc MUST close an open menu first and otherwise leave
-  fullscreen, and MUST never quit the app (F8). In fullscreen the title bar hides and the video
-  takes the whole screen.
+- **FR-007**: F11 MUST toggle fullscreen; Esc MUST close, in this order, an open menu, else the
+  settings panel, else leave fullscreen, and MUST never quit the app (F8). In fullscreen the
+  title bar hides and the video takes the whole screen.
 - **FR-008**: The chrome (toolbar over the top of the video, left and right docks, overlay) MUST
   hide 2 s after the pointer leaves the video area and show again when the pointer reaches the top
   of the video, as in the spike's Float direction.

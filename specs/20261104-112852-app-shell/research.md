@@ -27,7 +27,8 @@ reopened here; entries below say how the shell builds it.
     single instance, autostart, tray, system theme on Linux, system message box, Windows snap
     layouts flyout). The only crate that depends on `windows-sys`, `tray-icon`, `zbus` or `ksni`.
 - **Rationale**: principle IV is enforced by the dependency graph: `app` cannot call an OS API
-  that `platform` does not expose, and CI checks that no other crate depends on the OS crates.
+  that `platform` does not expose, and CI checks that no other crate depends directly on the OS
+  crates (R13).
   `settings` is the logic with the most edge cases (US3, SC-007) and gets its own test suite.
 - **Alternatives**: one crate with modules — principle IV would rest on review only; a crate per
   concern (render, i18n, theme) — more boundaries than the shell's size justifies.
@@ -222,7 +223,10 @@ reopened here; entries below say how the shell builds it.
 - **Decision**: GitHub Actions, one workflow `.github/workflows/ci.yml` on pull requests and
   pushes to `main`:
   - `checks` (Ubuntu): `cargo fmt --check`, `cargo deny check licenses bans` (GPL-3.0
-    compatibility, OS crates only under `platform`).
+    compatibility; `tray-icon`, `muda` and `ksni` reachable only through `platform`).
+    `windows-sys` and `zbus` also arrive transitively through winit, wgpu and Slint, so
+    `cargo deny` cannot ban them by name; the test `app/tests/platform_boundary.rs` fails when
+    `app` or `settings` lists an OS crate as a direct dependency.
   - `build-test` matrix `windows-latest`, `ubuntu-24.04`: install GStreamer (Ubuntu: apt
     `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` plus the window system headers;
     Windows: the 1.28 MSVC development installer, cached), `cargo clippy --all-targets -- -D

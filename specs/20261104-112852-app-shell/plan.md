@@ -57,7 +57,7 @@ UI structure below).
 | I. Preview latency | Render loop from the spike's fastest path (DX12/Vulkan + Mailbox); latency budget SC-001 measured by the app's own stats (contracts/stats.md, quickstart.md); UI never on the video thread (R3) |
 | II. Simple by default | Defaults need no configuration (Automatic language and theme); settings panel has only the five spec'd settings; explicit "no source" state and notices with next action (data-model.md) |
 | III. One native pipeline | One process; the test video goes through GStreamer and an appsink into the app's own GPU presenter, as the constitution allows for the preview |
-| IV. Platform layer | `crates/platform` is the only crate with OS APIs and OS crates; `cargo deny` bans them elsewhere (R2, R13); degraded behavior defined for Wayland raise, no tray, no theme portal, Linux window icon |
+| IV. Platform layer | `crates/platform` is the only crate with OS APIs and OS crates; `cargo deny` and a boundary test keep them out of the other crates (R2, R13); degraded behavior defined for Wayland raise, no tray, no theme portal, Linux window icon |
 | V. Private and safe | No network code; the log is local; the single-instance channel is local and accepts one fixed request (contracts/single-instance.md) |
 | VI. Portable | Settings and log next to the executable (AppImage folder on Linux), per-user fallback with a notice, memory-only last resort (R6) |
 | VII. Spec-driven, tested | Spec approved; unit and integration tests for all pure logic; manual acceptance listed; every dependency justified (R14); spike code adopted only where this plan names it |
@@ -154,19 +154,23 @@ app/                       # binary `capturax`
 │   ├── i18n.rs            # language list and resolution (pure)
 │   ├── theme.rs           # theme resolution (pure)
 │   ├── shadows.rs         # nine-slice shadow generation at scale (pure)
+│   ├── icon.rs            # app icon sizes rasterized by build.rs
+│   ├── notices.rs         # notice queue, each id once per run
 │   └── log.rs             # size-limited file logger
-├── ui/                    # .slint files and assets (Inter, Tabler icons)
+├── ui/                    # .slint files and assets (Inter, Tabler icons); previews/ for slint-viewer
 ├── lang/pt-BR/LC_MESSAGES/capturax.po
 └── tests/
     ├── i18n.rs            # catalog completeness, no untranslated literals (FR-039)
-    └── contrast.rs        # 4.5:1 text pairs in both themes (FR-018)
+    ├── contrast.rs        # 4.5:1 text pairs in both themes (FR-018)
+    └── platform_boundary.rs   # no OS crate or cfg outside platform (R13)
 
 crates/settings/           # format, lenient load, unknown values, atomic save, location
 ├── src/lib.rs
 └── tests/interrupted_save.rs   # SC-007
 
 crates/platform/           # OS-specific code only (contracts/platform.md)
-└── src/{lib.rs, windows/, linux/}
+├── src/{lib.rs, windows/, linux/}
+└── tests/single_instance.rs
 
 brand/                     # logos and app icon (existing)
 tools/latency/             # spike measurement tools (existing)
