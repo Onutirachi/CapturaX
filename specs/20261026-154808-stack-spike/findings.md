@@ -16,12 +16,54 @@ See [measurements/environment.md](measurements/environment.md).
 - Reference: 27G2G4 on the card's HDMI passthrough. Preview: C24FG7x, 1920x1080 @ 144 Hz,
   DisplayPort on the RTX 5070 Ti, fullscreen.
 - Camera: Galaxy S23 FE at 240 fps (one camera frame ≈ 4.17 ms).
-- Counting: **by hand**, camera frames between the flash on the reference and on the preview,
-  in After Effects, across several clips per path.
+- Counting: first **by hand**, camera frames between the flash on the reference and on the
+  preview, in After Effects, across several clips per path. The formal results come from one
+  25 s clip per path and mode analyzed by `analyze.py video` (data-model.md): brightness change
+  per screen region, each change timed at its halfway brightness crossing (sub-frame), each
+  reference flash paired with the next preview flash, and a pair whose reference switches within
+  one camera frame excluded as a camera skip (5 of 286 pairs). The maintainer's own count on one
+  clip (8 camera frames) matched the script (6.4–8.1) within one camera frame (T018).
 
-## Video latency — preliminary (Windows, 1080p, PS5 at 60 Hz)
+## Video latency (Windows, 1080p, PS5 at 60 Hz)
 
-Delay of the preview relative to the passthrough reference.
+Delay of the preview relative to the passthrough reference, from
+[measurements/summary.md](measurements/summary.md) (T020). One frame is 16.7 ms at 60 fps and
+8.3 ms at 120 fps.
+
+| Path | Variant | 1080p60 median (p95) | 1080p120 median (p95) |
+|---|---|---|---|
+| native (`d3d12videosink`) | Direct3D 12 | 28.6 (31.2) | 31.4 (36.1) |
+| **slint-layered** (chosen) | Direct3D 12, Mailbox, software UI layer | **30.4 (32.9)** | 35.0 (39.4) |
+| slint-layered with encoder | same, plus `nvh264enc` | 31.5 (34.0) | — |
+| browser (Edge, `getUserMedia`) | | 28.5 (31.9) | 32.5 (37.6) |
+| OBS (fullscreen projector) | | 39.7 (61.1) | 57.4 (69.5) |
+| slint-cpu (Slint's own window) | femtovg, bare | 53.2 (66.5) | 51.8 (61.6) |
+
+21–26 samples per row; no path dropped a frame. slint-gpu was not built (T014 was redirected to
+the own render loop). The source runs at 60 Hz in both modes, so the 120 mode only shows the cost
+of capturing a 60 Hz signal in it (about 111 fps delivered): every path is 3–5 ms slower there,
+OBS 18 ms; the cause was not investigated, and the capture spec's Auto source mode (below) avoids
+the mismatch.
+
+### Reading against the success criteria
+
+- **SC-001** (20 samples, median and p95, one method): **passes** for every path measured, on
+  Windows in both modes and on Linux at 1080p60 (21–26 samples). Linux measured only the native
+  path and slint-layered, as planned in T021.
+- **SC-002** (Slint within one frame of native): **passes** with the own render loop
+  (slint-layered): 1.8 ms behind native at 1080p60 (0.1 frame), 3.6 ms at 1080p120 (0.4 frame);
+  on Linux 2.3 ms behind with the driver's default clocks and 2.3 ms ahead with the clocks locked.
+  **Fails** with Slint's own window (slint-cpu: 24.6 ms behind, 1.5 frames), whatever the renderer
+  (T014). Slint is confirmed for the interface only on the condition that the app presents the
+  video itself and Slint draws a layer over it (research R13).
+- **SC-003** (chosen path no more than one frame slower than OBS at 1080p60): **passes**:
+  slint-layered is 9.3 ms faster than OBS at the median and 28 ms at p95.
+- **SC-004** (encoder adds under one frame and at most 1% dropped): **passes**: `nvh264enc` at
+  12 Mbps added 1.1 ms at the median (0.07 frame) and no frame was dropped, by the preview or by
+  the encoder.
+- The browser matched native (28.5 ms). It does not reopen the UI choice (Decisions).
+
+### First hand counts (superseded by the table above)
 
 | Path | 1080p60 | 1080p120 | Notes |
 |---|---|---|---|
@@ -34,19 +76,9 @@ Delay of the preview relative to the passthrough reference.
 | slint-layered, Vulkan Immediate | 10 frames ≈ **42 ms** | — | |
 | slint-layered, Vulkan Mailbox | 9–10 frames ≈ **38–42 ms** | — | |
 
-The maintainer reports consistent values across several clips per path. These results are
-**preliminary** until the analysis script (T016–T018) produces at least 20 samples per path and
-mode with median and 95th percentile (FR-002).
-
-### Reading against the success criteria (preliminary)
-
-- **SC-002** (Slint within one frame of native): **fails** for the CPU-copy variant: ≈ 25 ms more
-  than native, 1.5 frames at 60 fps. **Passes** for slint-layered on DX12 (T047), on par with
-  native.
-- **SC-003** (chosen path no more than one frame slower than OBS): slint-cpu is on par with OBS;
-  native is ≈ 25 ms faster than OBS.
-- 60 and 120 fps capture give the same delay because the source runs at 60 Hz; the mode only
-  matters with a 120 Hz source (a PS5 game with 120 Hz output).
+The hand counts ordered the paths as the script does and guided the work below. They read 3–4 ms
+lower than the script on native and slint-layered, since they took each screen's first lit frame
+instead of the halfway crossing; OBS varied the most (the script's p95 is 61 ms).
 
 ### Where slint-cpu spends its time (T046)
 
@@ -120,8 +152,8 @@ without the encoder.
 | without encoder | 5–6 | — | 0 | ≈ 1.1 ms |
 | with encoder | 5–6 | 60 fps | 0 | ≈ 1.1 ms |
 
-**SC-004 passes** (preliminary, counted by hand): no measurable added latency and no dropped
-frames.
+No measurable added latency and no dropped frames by hand; the formal clips confirm it (1.1 ms,
+SC-004 above).
 
 ### Remaining latency levers (not yet tested)
 
@@ -300,6 +332,26 @@ Earlier hand measurements in FL Studio (2026-10-27), same reference, mixed to on
 
 - Playing with `layered-preview --audio` (GStreamer path, ≈ 105 ms), the maintainer noticed no
   offset; the difference was audible only with the passthrough sound playing at the same time.
+
+### Reading against SC-005
+
+SC-005 asks for three things: audio within 45 ms ahead and 125 ms behind the video, no offset the
+maintainer notices while playing, and under 10 ms of drift over 30 minutes.
+
+- **Offset: passes** on the WASAPI engine in every setting: against slint-layered (30.4 ms) the
+  audio is 29 ms behind shared, 16 ms behind with the card exclusive, 12 ms ahead with both
+  exclusive. Both references come from the same monitor, whose audio is about 26 ms behind the
+  card (above) and whose own image delay was not measured; for any image delay between 0 and
+  26 ms every setting stays within the limits.
+- **By ear: passes**: no offset noticed while playing (GStreamer path, the slowest), and both
+  exclusive heard as the closest of all.
+- **Drift: open** for the chosen engine (not measured over 30 minutes); **fails** on the GStreamer
+  path (+63 ms in 30 minutes), which is why it was replaced. The engine's rate correction stayed
+  within ±170 ppm, so it holds the audio waiting in the app steady, but whatever the output device
+  adds after the app is not seen by it. The audio spec must measure it before release, ideally
+  also with a hardware output.
+- Measured only through Voicemeeter on Windows; Linux audio was checked by ear only (through
+  VBAN), not measured.
 
 ## Image
 

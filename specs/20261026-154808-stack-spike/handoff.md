@@ -243,4 +243,5 @@ Command (from `spike/`):
 ## Next step
 
 1. Optional: check the no-device message (T032) running.
-2. Findings for video and audio (T022, T026) and wrap-up (T040–T044).
+2. Wrap-up (T040–T044): T022 and T026 are written in findings.md (uncommitted until the
+   maintainer validates).
