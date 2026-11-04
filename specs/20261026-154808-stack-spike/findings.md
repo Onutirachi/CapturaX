@@ -9,7 +9,7 @@ See [measurements/environment.md](measurements/environment.md).
 
 ## Method (as run)
 
-- Source: [spike/tools/flash.html](../../spike/tools/flash.html) served from the Windows PC
+- Source: [tools/latency/flash.html](../../tools/latency/flash.html) served from the Windows PC
   (`live-server`) and opened in the PS5 browser through a link sent by e-mail (the browser has no
   address bar, and the PS5 media gallery did not list MP4 files from the USB drive). The page
   flashes white for 50 ms once per second.
@@ -660,6 +660,11 @@ The latency in the info overlay is still a sample value.
   matched native latency (maintainer, 2026-10-29).
 - **Color range**: the ezcap declares limited range and sends full, so the app needs a color range
   setting (Auto, Full, Limited).
+- **Spike code**: kept in the tag `spike/stack-20261026` and removed from the branch (research
+  R11). This spec adopts only the latency measurement tools (`flash.html`, `analyze.py`,
+  `make_sync_video.py`) into [tools/latency/](../../tools/latency/README.md), since every
+  preview spec must measure its latency (constitution principle I); `analyze.py` now takes the
+  spec's measurements folder as `--measurements`.
 
 ## Open questions for later specs
 

@@ -7,7 +7,7 @@
 1080p60 MP4 (H.264 + AAC, plays in the PS5 media gallery): black screen with a full-screen white
 flash during the first 3 frames (50 ms) of every second, and a 1 kHz beep during the same 50 ms.
 
-Usage: uv run tools/make_sync_video.py [--seconds 120] [--out ../clips/sync-test.mp4]
+Usage, from the repository root: uv run tools/latency/make_sync_video.py [--seconds 120] [--out clips/sync-test.mp4]
 Copy the file to a USB drive (exFAT or FAT32) and open it from the PS5 media gallery.
 """
 

@@ -73,13 +73,17 @@ measured frame rate, skipped frames and, when the browser reports a capture time
 display. F or double click toggles fullscreen, S hides the stats. The last device and mode are
 remembered.
 
-## tools/analyze.py
+## tools/latency/analyze.py
+
+Adopted into the repository at the end of the spike (it was `spike/tools/analyze.py`). Every
+command takes `--measurements <dir>` first, the measurements folder of the spec that owns the
+samples; for this spike `specs/20261026-154808-stack-spike/measurements`.
 
 | Command | Meaning |
 |---|---|
-| `uv run tools/analyze.py video <clip> --path <p> --variant <v> --mode <m> --platform <os>` | detect flashes and append video samples |
-| `uv run tools/analyze.py audio <clip> --platform <os> --output <device> --minute <n>` | detect beep pairs and append audio samples |
-| `uv run tools/analyze.py summary` | write summary tables (markdown) from all samples |
+| `uv run tools/latency/analyze.py --measurements <dir> video <clip> --path <p> --variant <v> --mode <m> --platform <os>` | detect flashes and append video samples |
+| `uv run tools/latency/analyze.py --measurements <dir> audio <clip> --platform <os> --output <device> --minute <n>` | detect beep pairs and append audio samples |
+| `uv run tools/latency/analyze.py --measurements <dir> summary` | write summary tables (markdown) from all samples |
 
 On the first run of a clip the script asks the user to mark the TV and preview regions once (two
 rectangles, on the brightest of the first frames) and remembers them per clip in
@@ -96,4 +100,5 @@ rectangles, on the brightest of the first frames) and remembers them per clip in
 | `audio --rise <dB>` | how far a sound must rise over the 30 ms before it (default 12) |
 | `audio --min-gap <ms>` | after an onset, how long further onsets are the same sound (default 20) |
 | `audio --stereo` | reference on the left channel and preview on the right (a Voicemeeter recording with the two panned apart); each left onset is paired with the nearest right one, so the preview may come first |
+| `summary --paths "a,b,c"` | video paths always listed, in this order, measured or not (this spike: `native,slint-cpu,slint-gpu,slint-layered,browser,obs`) |
 | `summary --av-reference "<path>,<variant>,<mode>"` | the video run whose median the audio offset is measured against |

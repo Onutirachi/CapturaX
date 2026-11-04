@@ -1,6 +1,7 @@
 # Contract: Measurement Files
 
-Written by `tools/analyze.py` into `specs/20261026-154808-stack-spike/measurements/`.
+Written by `tools/latency/analyze.py` into the folder given by `--measurements`; for this spike
+`specs/20261026-154808-stack-spike/measurements/`.
 Fields are defined in [data-model.md](../data-model.md).
 
 ## video-samples.csv

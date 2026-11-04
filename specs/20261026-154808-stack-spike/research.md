@@ -38,7 +38,7 @@ alternatives considered.
   of them, the sync test video is played from a USB drive in the PS5 media gallery instead. CapturaX
   never tries to bypass HDCP.
 - **Source used in practice**: the PS5 media gallery did not list MP4 files from the maintainer's USB
-  drive, so the video test runs from a page (spike/tools/flash.html) opened in the PS5 browser,
+  drive, so the video test runs from a page (spike/tools/flash.html, now [tools/latency/flash.html](../../tools/latency/flash.html)) opened in the PS5 browser,
   flashing white for 50 ms once per second, without sound. Source timing jitter does not affect the
   result, since both displays show the same console frame. Audio uses the menu clicks below.
 - **Fallback source**: if no test video can be played, the maintainer moves back and forth between
