@@ -50,7 +50,7 @@ Run from a writable folder with the release build: `target/release/capturax`.
 | 15 | Second start while open: running window comes to the front (Wayland: message "already open") | FR-013 |
 | 16 | 150% or 200% scale, and moving between monitors of different scale: shadows, icons, logo, text sharp | FR-019 |
 | 17 | Disconnect the monitor the window was on, start: opens fully visible on the primary | FR-012 |
-| 18 | Tab through every control: focus ring visible, all usable by keyboard | FR-020 |
+| 18 | Tab through every control except the title bar's window buttons: focus ring visible, all usable by keyboard | FR-020 |
 
 Do 1–18 on Windows 11 and on CachyOS KDE Plasma Wayland, at 100% and at 150% or 200%.
 

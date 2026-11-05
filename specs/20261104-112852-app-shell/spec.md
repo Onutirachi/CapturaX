@@ -303,7 +303,9 @@ change that only breaks one platform's build; each is reported and blocks the me
 - **FR-019**: The interface MUST stay sharp at display scales from 100% to 200%, including when
   the window moves to a monitor with another scale.
 - **FR-020**: Every interactive control MUST be reachable and usable with the keyboard and show
-  the focus ring when focused by keyboard.
+  the focus ring when focused by keyboard. The title bar's window buttons (minimize, maximize or
+  restore, close) are the exception: as in native apps they are not in the Tab order, and the
+  system keys cover them (Win+arrows, Alt+F4; F11 for fullscreen).
 
 **Language**
 

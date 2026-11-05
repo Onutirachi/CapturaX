@@ -25,7 +25,17 @@ Windows by the maintainer with a temporary demo in main.slint (removed): hover, 
 button; tooltip after 500 ms, padded, kept inside the window near the right edge; a select at the
 bottom right opens above and aligned to its right; Tab order with the ring, the ring hides after a
 click; menu keys. Menu scrolling was not exercised (14 items fit at 1280 × 720): check it at
-640 × 360 once the settings panel exists (T033). fmt, clippy, 72 tests pass. Not committed yet.
+640 × 360 once the settings panel exists (T033). fmt, clippy, 72 tests pass. Committed
+(`feat: add focus ring, icon button, tooltip, menu, select and toggle`).
+
+T028 (title bar) done and checked on Windows by the maintainer (logo, buttons, drag, double
+click, Tab and Enter with the ring and tooltips, dimmed icons when inactive); fmt, clippy, 72
+tests pass; committed (`feat: add title bar`). `components/title-bar.slint` calls `WindowState` itself (no
+callbacks to forward); the 4 px drag threshold is in Slint, Rust only calls `drag_window`. Window
+buttons are focusable (ring drawn inside, the bar's edge would clip it) with tooltips below
+(Minimize, Maximize/Restore, Close) and icons dimmed while the window is inactive. Placed in
+main.slint's chrome layer; T029 puts the toolbar before it so the hidden toolbar slides under the
+bar. `AppWindow` exposes `max-button-x/y/width/height` (physical px, via `1phx`) for T040.
 
 ## Done in the last sessions
 
@@ -121,4 +131,4 @@ click; menu keys. Menu scrolling was not exercised (14 items fit at 1280 × 720)
 
 ## Next step
 
-T028 (title bar), then T029 (dock and chrome layer) (tasks.md, US1).
+T029 (dock and chrome layer) (tasks.md, US1).

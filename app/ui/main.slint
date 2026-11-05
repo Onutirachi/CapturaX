@@ -10,6 +10,7 @@ import { Notice, NoticeKind } from "components/notice.slint";
 import { Input } from "components/focus-ring.slint";
 import { Menus, MenuLayer } from "components/menu.slint";
 import { Tooltips, TooltipLayer } from "components/tooltip.slint";
+import { TitleBar } from "components/title-bar.slint";
 
 export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, Tooltips }
 
@@ -39,7 +40,20 @@ export component AppWindow inherits Window {
 
     // State message layer (no source, spec FR-035): filled by the state message task.
 
-    // Chrome layer (title bar, toolbar slot, docks): filled by the chrome tasks.
+    // Chrome layer (toolbar slot, docks): filled by the chrome tasks.
+
+    // The title bar's maximize button in physical pixels, for the snap layouts flyout (T040).
+    out property <int> max-button-x: title-bar.max-button-x;
+    out property <int> max-button-y: title-bar.max-button-y;
+    out property <int> max-button-width: title-bar.max-button-width;
+    out property <int> max-button-height: title-bar.max-button-height;
+
+    title-bar := TitleBar {
+        x: 0;
+        y: 0;
+        width: root.width;
+        visible: !WindowState.fullscreen;
+    }
 
     // Notices layer.
     if root.notice-visible: Notice {
