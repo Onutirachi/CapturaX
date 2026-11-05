@@ -81,6 +81,12 @@ reopened here; entries below say how the shell builds it.
   edges and corners sets the resize cursor and starts `drag_resize_window` (off when maximized or
   fullscreen); fullscreen is borderless on the current monitor (DXGI flip model gets independent
   flip there, spike T047). Minimum inner size 640 × 360 logical (FR-009).
+- **Shadow off in fullscreen (Windows)**: for the undecorated shadow, winit moves the client area
+  down 1 px in `WM_NCCALCSIZE` (`top += 1`), so a 1 px strip painted by the system stays along
+  the top, also in fullscreen; after a snap it keeps the snapped window's old pixels (a white line
+  as wide as the snapped window, found in T029's check). `platform::set_fullscreen_frame` turns
+  the shadow off before entering fullscreen and back on after leaving it. Windowed, the 1 px strip
+  stays (winit's own trade-off for the shadow).
 - **Snap layouts flyout (FR-011, best effort)**: in `platform::windows::snap`, subclass the winit
   window (`SetWindowSubclass`) and answer `WM_NCHITTEST` with `HTMAXBUTTON` inside the maximize
   button's rectangle, which the UI reports in physical pixels on each layout change. Because the

@@ -8,8 +8,8 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling, SetProcessInformation,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MessageBoxW};
-use winit::platform::windows::WindowAttributesExtWindows;
-use winit::window::WindowAttributes;
+use winit::platform::windows::{WindowAttributesExtWindows, WindowExtWindows};
+use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
 pub mod instance;
@@ -79,4 +79,9 @@ impl Drop for TimerGuard {
 pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
     // Keeps the system shadow (and the rounded corners on Windows 11) without the frame.
     attrs.with_undecorated_shadow(true)
+}
+
+pub fn set_fullscreen_frame(window: &Window, fullscreen: bool) {
+    // Without the shadow, winit no longer moves the client area 1 px down (WM_NCCALCSIZE).
+    window.set_undecorated_shadow(!fullscreen);
 }

@@ -2,6 +2,7 @@
 
 mod app;
 mod cli;
+mod frame;
 mod icon;
 mod log;
 mod notices;

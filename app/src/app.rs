@@ -7,16 +7,18 @@ use std::time::{Duration, Instant};
 use slint::{ComponentHandle, Global};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
+use winit::keyboard::{Key, NamedKey};
 use winit::monitor::MonitorHandle;
-use winit::window::{Fullscreen, Window, WindowId};
+use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
 
 use crate::cli::StartupOptions;
+use crate::frame::{self, Escape};
 use crate::notices::{Kind, Notices};
 use crate::render::{Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
-use crate::ui::{NoticeKind, Texts, Ui, WindowState};
+use crate::ui::{Menus, NoticeKind, Texts, Ui, WindowState};
 
 /// Exit code when no renderer could start (contracts/cli.md).
 pub const EXIT_NO_RENDERER: i32 = 2;
@@ -57,6 +59,8 @@ pub struct App {
     refresh: Duration,
     /// The monitor the refresh interval was read from.
     monitor: Option<MonitorHandle>,
+    /// The edge or corner under the pointer, where a press resizes the window.
+    resize: Option<ResizeDirection>,
     pub exit_code: i32,
 }
 
@@ -96,6 +100,7 @@ impl App {
             last_ui: Instant::now(),
             refresh: Duration::from_millis(16),
             monitor: None,
+            resize: None,
             exit_code: 0,
         }
     }
@@ -178,18 +183,62 @@ impl App {
             WindowAction::Close => event_loop.exit(),
             WindowAction::Minimize => w.set_minimized(true),
             WindowAction::ToggleMaximize => w.set_maximized(!w.is_maximized()),
-            WindowAction::ToggleFullscreen => {
-                let on = w.fullscreen().is_none();
-                w.set_fullscreen(on.then_some(Fullscreen::Borderless(None)));
-                self.ui.app.global::<WindowState>().set_fullscreen(on);
-            }
+            WindowAction::ToggleFullscreen => self.set_fullscreen(&w, w.fullscreen().is_none()),
             WindowAction::StartMove => {
+                // A maximized window restores under the pointer: the system does it.
                 if let Err(err) = w.drag_window() {
                     log::warn!("window move: {err}");
                 }
             }
         }
         self.request_redraw();
+    }
+
+    /// Borderless fullscreen on the monitor the window is on (research R5); leaving it returns to
+    /// the window's state before, maximized or not.
+    fn set_fullscreen(&mut self, w: &Window, on: bool) {
+        if on {
+            platform::set_fullscreen_frame(w, true);
+        }
+        w.set_fullscreen(on.then_some(Fullscreen::Borderless(None)));
+        if !on {
+            platform::set_fullscreen_frame(w, false);
+        }
+        self.ui.app.global::<WindowState>().set_fullscreen(on);
+        self.set_resize(w, None);
+    }
+
+    fn set_resize(&mut self, w: &Window, direction: Option<ResizeDirection>) {
+        if direction != self.resize {
+            self.resize = direction;
+            w.set_cursor(frame::cursor(direction));
+        }
+    }
+
+    /// The window's own keys, before Slint sees them: F11 and Esc (FR-007). Returns true when the
+    /// key was used here.
+    fn window_key(&mut self, w: &Window, key: &Key) -> bool {
+        match key {
+            Key::Named(NamedKey::F11) => {
+                self.set_fullscreen(w, w.fullscreen().is_none());
+                true
+            }
+            Key::Named(NamedKey::Escape) => {
+                let open = self.ui.app.global::<Menus>().get_open();
+                match frame::escape(open, self.ui.app.get_settings_open(), w.fullscreen().is_some()) {
+                    Escape::ToSlint | Escape::Nothing => false,
+                    Escape::CloseSettings => {
+                        self.ui.app.set_settings_open(false);
+                        true
+                    }
+                    Escape::LeaveFullscreen => {
+                        self.set_fullscreen(w, false);
+                        true
+                    }
+                }
+            }
+            _ => false,
+        }
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<Arc<Window>> {
@@ -292,6 +341,37 @@ impl ApplicationHandler<UserEvent> for App {
                 }
             }
             WindowEvent::RedrawRequested => self.update_ui(),
+            WindowEvent::KeyboardInput { ref event, .. }
+                if event.state == ElementState::Pressed
+                    && !event.repeat
+                    && self
+                        .window
+                        .clone()
+                        .is_some_and(|w| self.window_key(&w, &event.logical_key)) =>
+            {
+                self.request_redraw();
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                if let Some(w) = self.window.clone() {
+                    let resizable = !w.is_maximized() && w.fullscreen().is_none();
+                    let direction = frame::resize_direction(w.inner_size(), w.scale_factor(), position, resizable);
+                    self.set_resize(&w, direction);
+                }
+                if self.ui.window_event(&event) {
+                    self.request_redraw();
+                }
+            }
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+                ..
+            } if self.resize.is_some() => {
+                if let (Some(w), Some(direction)) = (&self.window, self.resize)
+                    && let Err(err) = w.drag_resize_window(direction)
+                {
+                    log::warn!("window resize: {err}");
+                }
+            }
             other => {
                 if self.ui.window_event(&other) {
                     self.request_redraw();

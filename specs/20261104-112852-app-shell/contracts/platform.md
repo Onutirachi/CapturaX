@@ -8,6 +8,7 @@ are indicative; tasks fix the exact signatures.
 |---|---|---|---|
 | `app_folder() -> PathBuf` | executable's folder | `$APPIMAGE`'s folder, else executable's | FR-026 |
 | `window_attributes(attrs) -> attrs` | `with_undecorated_shadow(true)` | app id `capturax` (`with_name`, Wayland and X11) | FR-006, research R5, R12 |
+| `set_fullscreen_frame(window, fullscreen)` | `set_undecorated_shadow(!fullscreen)` | no-op | FR-007, research R5 |
 | `user_config_folder() -> Option<PathBuf>` | `%APPDATA%\CapturaX` | `$XDG_CONFIG_HOME/capturax`, `~/.config/capturax` | FR-027 |
 | `is_writable(folder) -> bool` | probe file create + remove | same | FR-026 |
 | `claim_instance(name) -> Claim` | named pipe | abstract socket | FR-013, [single-instance.md](single-instance.md) |
@@ -21,7 +22,7 @@ are indicative; tasks fix the exact signatures.
 | `snap::attach(window, max_button_rect)` | subclass + `HTMAXBUTTON` (best effort) | no-op | FR-011 |
 | `precise_timers() -> TimerGuard` | `timeBeginPeriod(1)` until the guard drops | no-op | FR-004, research R9 |
 
-`platform` depends on winit for `window_attributes` and `snap::attach`; it is the only crate that
+`platform` depends on winit for `window_attributes`, `set_fullscreen_frame` and `snap::attach`; it is the only crate that
 uses winit's platform extension traits.
 
 Events from the platform (tray Open / Quit, theme changed, single-instance `show`, snap button

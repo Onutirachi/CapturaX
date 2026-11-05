@@ -67,6 +67,25 @@ Open from that check:
   the system keys cover them (Win+arrows, Alt+F4, F11). FR-020 and quickstart row 18 updated;
   `WindowButton` has no `FocusScope` or ring now, its tooltip shows on hover only. Checked.
 
+T030 (window actions) done and checked on Windows by the maintainer; fmt, clippy, 77 tests
+pass; committed (`feat: add window actions`). New `app/src/frame.rs` (pure, tested): 6 px resize band scaled by the
+window's scale, its cursor, and the Esc order (`frame::escape`). `app.rs`: F11 and Esc are handled
+before Slint (key repeats ignored); Esc with a menu open goes to Slint, else closes
+`AppWindow.settings-open`, else leaves fullscreen, never quits; a left press inside the band calls
+`drag_resize_window` and does not reach Slint; no band while maximized or fullscreen; the cursor
+resets when fullscreen toggles. A maximized window restoring under the pointer is the system's
+own `drag_window` behavior (nothing in our code).
+First check by the maintainer: F11, resize band, restore under the pointer, minimum size and the
+Esc order ok. The white top line came back after a mouse snap to a top corner and was reproduced
+by script (drag the bar to the corner, F11, read the screen with `CopyFromScreen`): a 1 px white
+line as wide as the snapped window. Cause: winit moves the client area 1 px down for the
+undecorated shadow (`WM_NCCALCSIZE`, `top += 1`); the system-painted strip keeps old pixels.
+Hiding the DWM border did not help. Fix: new `platform::set_fullscreen_frame(window, on)`
+(Windows: `set_undecorated_shadow(!on)`, Linux no-op), called before entering and after leaving
+fullscreen; contracts/platform.md and research R5 updated. Script after the fix: black top edge
+after snapping to either top corner. Windowed, the 1 px strip stays (winit's trade-off). Second
+check by the maintainer: ok.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -161,5 +180,4 @@ Open from that check:
 
 ## Next step
 
-T030 (window actions) (tasks.md, US1): includes F11 and the white line along the top in fullscreen
-after a quarter snap (see T029 above).
+T031 (scene and scale changes) (tasks.md, US1).

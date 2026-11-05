@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 
 use winit::platform::wayland::WindowAttributesExtWayland;
 use winit::platform::x11::WindowAttributesExtX11;
-use winit::window::WindowAttributes;
+use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
 pub mod instance;
@@ -52,3 +52,5 @@ pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
     let attrs = WindowAttributesExtWayland::with_name(attrs, APP_ID, APP_ID);
     WindowAttributesExtX11::with_name(attrs, APP_ID, APP_ID)
 }
+
+pub fn set_fullscreen_frame(_window: &Window, _fullscreen: bool) {}

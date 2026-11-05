@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use winit::window::WindowAttributes;
+use winit::window::{Window, WindowAttributes};
 
 #[cfg(windows)]
 mod windows;
@@ -35,6 +35,13 @@ pub fn show_system_message(title: &str, text: &str) {
 /// on Windows, the app id on Linux (contracts/platform.md).
 pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
     os::window_attributes(attrs)
+}
+
+/// Prepares the frameless window's frame for fullscreen or for leaving it: on Windows the shadow's
+/// 1 px top strip is removed while fullscreen (research R5). Call before entering fullscreen and
+/// after leaving it. Nothing to do on Linux.
+pub fn set_fullscreen_frame(window: &Window, fullscreen: bool) {
+    os::set_fullscreen_frame(window, fullscreen);
 }
 
 /// Keeps the system's timers precise while it lives: Windows wakes sleeping threads every 15.6 ms
