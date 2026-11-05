@@ -4,5 +4,8 @@ export global Texts {
     out property <string> app-name: @tr("CapturaX");
     // System message `already-open`: a second start found CapturaX open, but the platform did not
     // let the window come to the front (Wayland).
+    // Tray menu (FR-014a).
+    out property <string> tray-open: @tr("Open");
+    out property <string> tray-quit: @tr("Quit");
     out property <string> already-open: @tr("CapturaX is already open. Its window is shown, but the system did not let it come to the front.");
 }

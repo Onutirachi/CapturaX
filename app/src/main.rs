@@ -74,6 +74,7 @@ fn run() -> i32 {
     if write_now {
         store.save_soon();
     }
+    follow_autostart();
 
     let code = match start(options, process_start, store, instance) {
         Ok(code) => code,
@@ -85,6 +86,30 @@ fn run() -> i32 {
     };
     ::log::logger().flush();
     code
+}
+
+/// With Start with the system on, points the entry to this executable when it starts another one,
+/// so a moved portable folder keeps starting (FR-014b). An entry turned off in the system's own
+/// tools is left as it is.
+fn follow_autostart() {
+    use platform::autostart;
+    if !autostart::state() {
+        return;
+    }
+    let exe = match autostart::executable() {
+        Ok(exe) => exe,
+        Err(err) => {
+            ::log::warn!("start with the system: {err}");
+            return;
+        }
+    };
+    if autostart::target().as_deref() == Some(exe.as_path()) {
+        return;
+    }
+    match autostart::set(true, &exe) {
+        Ok(()) => ::log::info!("start with the system: entry now points to {}", exe.display()),
+        Err(err) => ::log::warn!("start with the system: {err}"),
+    }
 }
 
 /// A second start: asks the running instance to show its window (contracts/single-instance.md).

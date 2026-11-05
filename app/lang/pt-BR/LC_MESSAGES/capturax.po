@@ -14,5 +14,11 @@ msgstr "CapturaX"
 msgid "CapturaX is already open. Its window is shown, but the system did not let it come to the front."
 msgstr "O CapturaX já está aberto. A janela foi mostrada, mas o sistema não deixou que ela viesse para a frente."
 
+msgid "Open"
+msgstr "Abrir"
+
+msgid "Quit"
+msgstr "Sair"
+
 msgid "Dismiss"
 msgstr "Dispensar"

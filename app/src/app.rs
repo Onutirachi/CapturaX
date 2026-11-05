@@ -15,11 +15,14 @@ use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
 
 use crate::cli::StartupOptions;
 use crate::frame::{self, Escape};
+use crate::icon;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
 use crate::render::{Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
 use crate::ui::{Menus, NoticeKind, Prefs, Texts, Ui, WindowState};
+use platform::autostart;
+use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
 
 /// Exit code when no renderer could start (contracts/cli.md).
 pub const EXIT_NO_RENDERER: i32 = 2;
@@ -34,6 +37,8 @@ pub enum UserEvent {
     Setting(SettingChange),
     /// Another start asked for the window (FR-013): show it, also from the tray, and focus it.
     ShowWindow,
+    /// A click or a menu entry of the tray icon (FR-014a).
+    Tray(TrayEvent),
 }
 
 /// A change made in the settings panel.
@@ -77,6 +82,11 @@ pub struct App {
     placement_changed: bool,
     /// The single-instance listener; dropped in the quit sequence, which releases the name.
     instance: Option<platform::Serving>,
+    /// The tray icon, while Keep in tray is on and the desktop has a tray (FR-014a): closing the
+    /// window then hides it instead of quitting.
+    tray: Option<Tray>,
+    tray_available: bool,
+    proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
 
@@ -90,6 +100,9 @@ impl App {
         instance: Option<platform::Serving>,
     ) -> Self {
         let state = ui.app.global::<WindowState>();
+        let tray_available = tray::available();
+        ui.app.global::<Prefs>().set_tray_available(tray_available);
+        let sender = proxy.clone();
         let send = move |event: UserEvent| {
             let _ = proxy.send_event(event);
         };
@@ -122,8 +135,62 @@ impl App {
             resize: None,
             placement_changed: false,
             instance,
+            tray: None,
+            tray_available,
+            proxy: sender,
             exit_code: 0,
         }
+    }
+
+    /// Shows or removes the tray icon to match Keep in tray (FR-014a). Called on the main thread
+    /// once the event loop runs (the Windows tray needs its message pump).
+    fn sync_tray(&mut self) {
+        let wanted = self.tray_available && self.store.get().general.keep_in_tray;
+        if wanted == self.tray.is_some() {
+            return;
+        }
+        if !wanted {
+            self.tray = None;
+            return;
+        }
+        let icons: Vec<IconImage<'_>> = icon::ICONS
+            .iter()
+            .map(|i| IconImage {
+                size: i.size,
+                rgba: i.rgba,
+            })
+            .collect();
+        let proxy = self.proxy.clone();
+        match tray::create(&icons, &self.tray_labels(), move |event| {
+            let _ = proxy.send_event(UserEvent::Tray(event));
+        }) {
+            Ok(tray) => self.tray = Some(tray),
+            // Without the icon, closing quits: nothing would bring the window back.
+            Err(err) => log::warn!("tray: {err}"),
+        }
+    }
+
+    fn tray_labels(&self) -> Labels {
+        let texts = Texts::get(&self.ui.app);
+        Labels {
+            title: texts.get_app_name().into(),
+            open: texts.get_tray_open().into(),
+            quit: texts.get_tray_quit().into(),
+        }
+    }
+
+    /// Closing the window: hidden in the tray while there is one, else the app quits (FR-014,
+    /// FR-014a). Hidden, the video thread stops presenting.
+    fn close(&mut self, event_loop: &ActiveEventLoop) {
+        let (Some(window), Some(_)) = (&self.window, &self.tray) else {
+            event_loop.exit();
+            return;
+        };
+        window.set_visible(false);
+        if let Some(video) = &self.video {
+            video.set_visible(false);
+        }
+        log::info!("window hidden in the tray");
     }
 
     /// The command line this run started with.
@@ -217,7 +284,7 @@ impl App {
     fn act(&mut self, event_loop: &ActiveEventLoop, action: WindowAction) {
         let Some(w) = self.window.clone() else { return };
         match action {
-            WindowAction::Close => event_loop.exit(),
+            WindowAction::Close => self.close(event_loop),
             WindowAction::Minimize => w.set_minimized(true),
             WindowAction::ToggleMaximize => w.set_maximized(!w.is_maximized()),
             WindowAction::ToggleFullscreen => self.set_fullscreen(&w, w.fullscreen().is_none()),
@@ -348,6 +415,14 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     let general = store.get().general;
     prefs.set_start_fullscreen(general.start_fullscreen);
     prefs.set_keep_in_tray(general.keep_in_tray);
+    // Read from the system each time the panel opens: the user may change it in the system's
+    // own tools (FR-014b).
+    let app = ui.app.as_weak();
+    prefs.on_opened(move || {
+        if let Some(app) = app.upgrade() {
+            app.global::<Prefs>().set_start_with_system(autostart::state());
+        }
+    });
     prefs.set_version(env!("CARGO_PKG_VERSION").into());
     let on = send.clone();
     prefs.on_start_fullscreen_changed(move |v| on(UserEvent::Setting(SettingChange::StartFullscreen(v))));
@@ -420,6 +495,16 @@ impl ApplicationHandler<UserEvent> for App {
         }
         self.video = Some(video);
         self.window = Some(window.clone());
+        self.sync_tray();
+        // Started by the system with Keep in tray on: only the tray icon, whatever Start in
+        // fullscreen says (FR-014b). Without a tray the window opens as usual.
+        if self.options.autostart && self.tray.is_some() {
+            if let Some(video) = &self.video {
+                video.set_visible(false);
+            }
+            log::info!("started hidden in the tray");
+            return;
+        }
         // The start mode (FR-012a): fullscreen on the monitor the window was placed on; leaving it
         // returns to that placement. The command line's choice is not saved.
         if self
@@ -445,17 +530,27 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::Setting(change) => match change {
                 SettingChange::StartFullscreen(on) => self.store.update(|s| s.general.start_fullscreen = on),
-                SettingChange::KeepInTray(on) => self.store.update(|s| s.general.keep_in_tray = on),
-                // The system's autostart entry holds it, not the settings file (T039).
-                SettingChange::StartWithSystem(on) => log::info!("start with the system: {on} (not wired yet)"),
+                SettingChange::KeepInTray(on) => {
+                    self.store.update(|s| s.general.keep_in_tray = on);
+                    self.sync_tray();
+                }
+                // The system's autostart entry holds it, not the settings file (FR-014b).
+                SettingChange::StartWithSystem(on) => {
+                    let set = autostart::executable().and_then(|exe| autostart::set(on, &exe));
+                    if let Err(err) = set {
+                        log::warn!("start with the system: {err}");
+                    }
+                    self.ui.app.global::<Prefs>().set_start_with_system(autostart::state());
+                }
             },
-            UserEvent::ShowWindow => self.show_window(),
+            UserEvent::ShowWindow | UserEvent::Tray(TrayEvent::Open) => self.show_window(),
+            UserEvent::Tray(TrayEvent::Quit) => event_loop.exit(),
         }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => self.close(event_loop),
             WindowEvent::Resized(_) => {
                 if let Some(w) = self.window.clone() {
                     self.ui.set_size(platform::drawn_size(&w));
@@ -555,8 +650,9 @@ impl ApplicationHandler<UserEvent> for App {
             video.stop();
         }
         self.store.flush();
-        // The tray goes here too (T039). Releasing the name before the window is destroyed lets a
-        // start during the rest of the quit become the new instance.
+        // Releasing the name before the window is destroyed lets a start during the rest of the
+        // quit become the new instance.
+        self.tray = None;
         self.instance = None;
         self.window = None;
         log::info!("quit");

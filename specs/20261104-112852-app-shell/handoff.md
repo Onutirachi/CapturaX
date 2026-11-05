@@ -250,6 +250,33 @@ New `autostart::executable()` holds the `$APPIMAGE` rule so T039 compares `targe
 state true and the target read back; a Task Manager disabled mark (03…) → state false; on again
 clears the mark; a 02… mark → true; off → both values gone (registry left clean).
 
+T039 (tray and autostart wired) done, checked by the maintainer (all manual rows, also a
+restart with and without the tray) and committed (`feat: wire tray and start with the system`); fmt, clippy (Windows), 99 tests pass.
+- Choice (kept after the maintainer's check): the tray icon is shown whenever Keep in tray is on and the desktop has a
+  tray (created at start and when the row is turned on, removed when it is turned off), not only
+  while the window is hidden; F51 later shows recording and streaming status on it.
+- `App::sync_tray` (main thread, after the event loop runs), icons from `icon::ICONS`, labels from
+  `Texts` (`app-name`, new `tray-open` "Open" / `tray-quit` "Quit", pt-BR "Abrir" / "Sair").
+  A tray that fails to create is logged and closing then quits. `Prefs.tray-available` from
+  `tray::available()` once at start.
+- `App::close` (title bar close and `CloseRequested`): with a tray, hides the window and calls the
+  video thread's `set_visible(false)`; else quits. Tray Open and a click → `show_window` (the
+  single instance's path); Quit → the quit sequence, where the tray drops before the
+  single-instance listener.
+- `--autostart` with a tray: the window is created and placed but never shown, the video thread
+  hidden, Start in fullscreen ignored.
+- Start with the system: `Prefs.start-with-system` read from `autostart::state()` at start and in
+  `Prefs.opened()` (the `SettingsPanel`'s `init`, run each time it opens); a change calls
+  `autostart::set(on, executable())` and reads the state back (a failure is logged and the row
+  shows the real state). `main.rs::follow_autostart` (first instance only, after the claim):
+  when the state is on and `target()` is not `executable()`, rewrites the entry; a disabled entry
+  is left alone.
+- Scripted checks (Windows, release, settings file backed up and restored, registry cleaned):
+  Keep in tray on, `WM_CLOSE` → process alive, window hidden; a second start → shown and in the
+  foreground; a Run value pointing to `D:\Old Place\capturax.exe` and `--autostart` → started
+  hidden in the tray, the value rewritten to this executable; a second start showed the window.
+  Not scripted (manual): tray click, Open and Quit from the menu, the panel's rows.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -387,4 +414,4 @@ clears the mark; a 02… mark → true; off → both values gone (registry left 
 
 ## Next step
 
-T039: wire tray and autostart into app/src/app.rs and main.rs.
+T040 (Windows 11 snap layouts flyout, best effort, timeboxed to one day), then T041 (the maintainer runs the latency budget of quickstart.md on Windows and CachyOS).
