@@ -1,0 +1,116 @@
+// A select: an opaque control showing the chosen item and a chevron that opens a menu of the
+// items in the top layer (menu.slint), ported from the stack spike's `dropdown.slint`. Enter,
+// Space, Up or Down opens it from the keyboard; the focus comes back here when it closes (FR-020).
+import { Theme } from "../theme.slint";
+import { FocusRing } from "focus-ring.slint";
+import { Menus, MenuItem } from "menu.slint";
+
+export component Select inherits Rectangle {
+    in property <[MenuItem]> items;
+    in-out property <int> current;
+    in property <bool> enabled: true;
+    // The setting's name, for screen readers.
+    in property <string> label;
+    out property <bool> has-focus: focus.has-focus;
+    callback selected(int);
+
+    property <int> id;
+    init => { self.id = Menus.new-id(); }
+    property <bool> open: self.id != 0 && Menus.owner == self.id;
+    // Changes on each pick from this select's menu.
+    property <int> picks: Menus.picked-owner == self.id ? Menus.picks : 0;
+    changed picks => {
+        if (self.picks != 0) {
+            self.current = Menus.picked-index;
+            self.selected(self.current);
+        }
+    }
+    // Closed (not replaced by another menu): the keyboard comes back here.
+    changed open => {
+        if (!self.open && !Menus.open) {
+            focus.focus();
+        }
+    }
+
+    function open-menu() {
+        if (root.enabled && root.items.length > 0) {
+            Menus.show(root.id, root.items, root.current, root.absolute-position.x, root.absolute-position.y,
+                root.width, root.height);
+        }
+    }
+
+    min-width: 120px;
+    height: 36px;
+    border-radius: Theme.radius-s;
+    background: Theme.c.top;
+    opacity: root.enabled ? 1 : 0.35;
+
+    accessible-role: combobox;
+    accessible-label: root.label;
+    accessible-value: root.current >= 0 && root.current < root.items.length ? root.items[root.current].text : "";
+    accessible-enabled: root.enabled;
+    accessible-expandable: true;
+    accessible-expanded: root.open;
+    accessible-action-default => { root.open-menu(); }
+    accessible-action-expand => { root.open-menu(); }
+
+    forward-focus: focus;
+
+    // Hover and open tint over the fill.
+    Rectangle {
+        border-radius: root.border-radius;
+        background: area.pressed ? Theme.c.press : area.has-hover || root.open ? Theme.c.hover : transparent;
+        animate background { duration: Theme.quick; }
+    }
+
+    area := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.open-menu(); }
+    }
+
+    focus := FocusScope {
+        enabled: root.enabled;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow
+                || event.text == Key.UpArrow) {
+                root.open-menu();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.gap-m;
+        padding-right: Theme.gap-s + 4px;
+        spacing: Theme.gap-s;
+
+        Text {
+            text: root.current >= 0 && root.current < root.items.length ? root.items[root.current].text : "";
+            color: Theme.c.text;
+            font-size: Theme.text-m;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Image {
+                source: @image-url("../assets/icons/chevron.svg");
+                width: 16px;
+                height: 16px;
+                colorize: Theme.c.text-muted;
+                transform-rotation: root.open ? 180deg : 0deg;
+                animate transform-rotation { duration: Theme.quick; }
+            }
+        }
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: root.border-radius;
+    }
+}

@@ -20,6 +20,13 @@ and shadow images`). fmt, clippy (Windows), 72 tests pass; the app starts with t
 (not drawn until a component uses them, T029). The soft and tight images match the spike's PNGs
 (mean alpha difference below 1 level; the hole edge is now antialiased).
 
+T026 (focus ring, icon button, tooltip) and T027 (menu, select, toggle) done and checked on
+Windows by the maintainer with a temporary demo in main.slint (removed): hover, also on a toggled
+button; tooltip after 500 ms, padded, kept inside the window near the right edge; a select at the
+bottom right opens above and aligned to its right; Tab order with the ring, the ring hides after a
+click; menu keys. Menu scrolling was not exercised (14 items fit at 1280 × 720): check it at
+640 × 360 once the settings panel exists (T033). fmt, clippy, 72 tests pass. Not committed yet.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -38,6 +45,14 @@ and shadow images`). fmt, clippy (Windows), 72 tests pass; the app starts with t
   icon and taskbar badge showing recording and streaming status (F51). Not pushed.
 
 ## Decisions
+
+- T026/T027: menus and tooltips go through the globals `Menus` and `Tooltips` and are drawn by
+  `MenuLayer` and `TooltipLayer` in main.slint's top layer; a select gets its owner id from
+  `Menus.new-id()` in `init` and learns its pick from `Menus.picks`. A menu takes every click
+  while open (a click outside only closes it). The focus ring follows the global `Input.keyboard`,
+  set by Rust (ui.rs). New `components/raised.slint` (shadows under menus and tooltips). The menu
+  handles Esc itself, so T030 must read `Menus.open` before dispatching Esc to Slint. Recorded in
+  plan.md (UI structure) and T030.
 
 - T025 (maintainer, 2026-11-04): shadows are generated in Rust at 1×, once at start, not at the
   window's scale. Slint 1.18 draws a nine-slice corner at its edge size in image pixels times
@@ -106,4 +121,4 @@ and shadow images`). fmt, clippy (Windows), 72 tests pass; the app starts with t
 
 ## Next step
 
-The UI components T026–T029 (tasks.md, US1).
+T028 (title bar), then T029 (dock and chrome layer) (tasks.md, US1).

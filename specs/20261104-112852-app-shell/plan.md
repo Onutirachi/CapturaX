@@ -97,7 +97,12 @@ and the single-instance listener → destroy the window.
   `window-state.slint` (window actions and state between Rust and the UI).
 - `components/`: `title-bar`, `dock`, `icon-button`, `menu` (flips side when it does not fit,
   above), `tooltip`, `state-message`, `notice`, `settings-panel`,
-  `toggle`, `select`, `focus-ring`.
+  `toggle`, `select`, `focus-ring`, `raised` (opaque surface over the two shadow images).
+- Top layer: controls do not hold their menu or tooltip. They call the globals `Menus.show` and
+  `Tooltips.show` with their rectangle in window coordinates, and `MenuLayer` and
+  `TooltipLayer`, drawn last in `main.slint`, place them. The focus ring shows only while the
+  last input was the keyboard: Rust sets the global `Input.keyboard` on a non-modifier key
+  press and clears it on a mouse button press (as `:focus-visible` in browsers).
 - Layout: Float at 800 × 520 and above; compact below it (docks stack into the toolbar's row, no
   overlaps, FR-009). Chrome hide timer 2 s (FR-008). Keyboard focus order and focus ring on every
   control (FR-020).

@@ -109,6 +109,10 @@ impl Ui {
                     _ => PointerEventButton::Other,
                 };
                 let position = self.cursor;
+                // The focus ring shows only while the last input was the keyboard (FR-020).
+                if *state == ElementState::Pressed {
+                    self.app.global::<Input>().set_keyboard(false);
+                }
                 match state {
                     ElementState::Pressed => SlintEvent::PointerPressed { position, button },
                     ElementState::Released => SlintEvent::PointerReleased { position, button },
@@ -128,6 +132,13 @@ impl Ui {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let Some(text) = slint_key(event) else { return false };
+                let modifier = matches!(
+                    event.logical_key,
+                    Key::Named(NamedKey::Shift | NamedKey::Control | NamedKey::Alt | NamedKey::Super)
+                );
+                if event.state == ElementState::Pressed && !modifier {
+                    self.app.global::<Input>().set_keyboard(true);
+                }
                 match event.state {
                     ElementState::Pressed => SlintEvent::KeyPressed { text },
                     ElementState::Released => SlintEvent::KeyReleased { text },

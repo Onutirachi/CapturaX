@@ -1,0 +1,108 @@
+// Tooltips live in the window's top layer (plan, UI structure): a control asks `Tooltips` to show
+// its text next to its rectangle, and `TooltipLayer`, drawn last in main.slint, places it. Drawn
+// last, no dock or panel covers it, and it stays inside the window (FR-010).
+import { Theme } from "../theme.slint";
+import { Raised } from "raised.slint";
+
+// The side a tooltip prefers; it moves to the opposite side when it does not fit there.
+export enum Side { top, bottom, left, right }
+
+export global Tooltips {
+    out property <bool> shown: self.owner != 0;
+    out property <string> text;
+    out property <Side> side;
+    // The control's rectangle in window coordinates.
+    out property <length> anchor-x;
+    out property <length> anchor-y;
+    out property <length> anchor-width;
+    out property <length> anchor-height;
+    // Who shows the tooltip now: a token from `show`, 0 for nobody.
+    out property <int> owner;
+    property <int> tokens;
+
+    // Shows `text` next to the rectangle and returns a token for `hide`.
+    public function show(text: string, side: Side, x: length, y: length, width: length, height: length) -> int {
+        self.tokens += 1;
+        self.owner = self.tokens;
+        self.text = text;
+        self.side = side;
+        self.anchor-x = x;
+        self.anchor-y = y;
+        self.anchor-width = width;
+        self.anchor-height = height;
+        return self.owner;
+    }
+
+    // Hides the tooltip if `token` still owns it, so a control never hides another's tooltip.
+    public function hide(token: int) {
+        if (token != 0 && token == self.owner) {
+            self.owner = 0;
+        }
+    }
+
+    // Hides whatever tooltip shows (the window's size changed, so its anchor moved).
+    public function dismiss() {
+        self.owner = 0;
+    }
+}
+
+// The tooltip itself: opaque, 15 px text, placed by `TooltipLayer`.
+export component Tooltip inherits Raised {
+    in property <string> text;
+    // The size the text asks for with its padding; the layer may make it narrower.
+    out property <length> natural-width: label.preferred-width + 2 * Theme.gap-m;
+    out property <length> natural-height: label.preferred-height + 2 * Theme.gap-s + 2px;
+    fill: Theme.c.top;
+    width: self.natural-width;
+    height: self.natural-height;
+
+    label := Text {
+        x: Theme.gap-m;
+        width: parent.width - 2 * Theme.gap-m;
+        text: root.text;
+        color: Theme.c.text;
+        // 15 px, between the type steps: the software renderer has no gamma or hinting, so smaller
+        // light text on dark reads thin and blurred at 100% (maintainer's comparison of sizes and
+        // weights).
+        font-size: 15px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+// Fills the window; place it in the top layer with the window's size.
+export component TooltipLayer inherits Rectangle {
+    // Space between the tooltip and the window's edges.
+    property <length> gap: 8px;
+    // Space between the control and the tooltip: controls sit 8 px inside their dock, so this
+    // leaves 8 px clear past the dock's edge.
+    property <length> offset: 16px;
+    property <length> ax: Tooltips.anchor-x;
+    property <length> ay: Tooltips.anchor-y;
+    property <length> aw: Tooltips.anchor-width;
+    property <length> ah: Tooltips.anchor-height;
+    property <length> tw: min(tip.natural-width, root.width - 2 * root.gap);
+    property <length> th: tip.natural-height;
+    property <bool> vertical: Tooltips.side == Side.top || Tooltips.side == Side.bottom;
+    // Whether the preferred side has room; if not, the opposite side.
+    property <bool> fits: Tooltips.side == Side.top ? root.ay - root.offset - root.th >= root.gap
+        : Tooltips.side == Side.bottom ? root.ay + root.ah + root.offset + root.th <= root.height - root.gap
+        : Tooltips.side == Side.left ? root.ax - root.offset - root.tw >= root.gap
+        : root.ax + root.aw + root.offset + root.tw <= root.width - root.gap;
+    property <bool> above: Tooltips.side == Side.top ? root.fits : Tooltips.side == Side.bottom && !root.fits;
+    property <bool> on-left: Tooltips.side == Side.left ? root.fits : Tooltips.side == Side.right && !root.fits;
+
+    tip := Tooltip {
+        text: Tooltips.text;
+        visible: Tooltips.shown && Tooltips.text != "";
+        width: root.tw;
+        // Centered on the control along its side, clamped inside the window.
+        x: root.vertical
+            ? clamp(root.ax + (root.aw - root.tw) / 2, root.gap, max(root.gap, root.width - root.gap - root.tw))
+            : root.on-left ? root.ax - root.offset - root.tw : root.ax + root.aw + root.offset;
+        y: root.vertical
+            ? (root.above ? root.ay - root.offset - root.th : root.ay + root.ah + root.offset)
+            : clamp(root.ay + (root.ah - root.th) / 2, root.gap, max(root.gap, root.height - root.gap - root.th));
+    }
+}

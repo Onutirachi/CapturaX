@@ -7,8 +7,11 @@ import { Theme, Palette } from "theme.slint";
 import { Texts } from "texts.slint";
 import { WindowState } from "window-state.slint";
 import { Notice, NoticeKind } from "components/notice.slint";
+import { Input } from "components/focus-ring.slint";
+import { Menus, MenuLayer } from "components/menu.slint";
+import { Tooltips, TooltipLayer } from "components/tooltip.slint";
 
-export { Theme, Palette, Texts, WindowState, NoticeKind }
+export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, Tooltips }
 
 export component AppWindow inherits Window {
     background: transparent;
@@ -50,5 +53,19 @@ export component AppWindow inherits Window {
 
     // Settings panel layer: filled by the settings panel task.
 
-    // Top layer (menus, dropdowns, tooltips): filled by the menu and tooltip tasks.
+    // Top layer (menus, dropdowns, tooltips): drawn last, so nothing covers them (FR-010). A menu
+    // takes every click while open; a click outside it closes it.
+    if Menus.open: MenuLayer {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+    }
+
+    TooltipLayer {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+    }
 }
