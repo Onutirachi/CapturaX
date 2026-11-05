@@ -37,6 +37,36 @@ buttons are focusable (ring drawn inside, the bar's edge would clip it) with too
 main.slint's chrome layer; T029 puts the toolbar before it so the hidden toolbar slides under the
 bar. `AppWindow` exposes `max-button-x/y/width/height` (physical px, via `1phx`) for T040.
 
+T029 (dock and chrome layer) done and checked on Windows by the maintainer; fmt, clippy, 72
+tests pass; committed (`feat: add docks and chrome layer`; the window buttons' Tab change and
+FR-020 were folded into `feat: add title bar`). Choices: the chrome is a `Rectangle` over the video
+area with `clip: true`, so the hidden toolbar slides under the title bar without drawing the bar
+last; Tab goes left dock → right dock. The toolbar slot is an empty `TouchArea` with no panel (an
+empty bar over the video looked wrong; spec #3 gives it its panel). `components/dock.slint` is a
+column only: each dock has one button, a row layout comes when a dock gets more. Compact layout
+(`AppWindow.compact`, below 800 × 520): docks centered in the toolbar's 88 px row, the slot takes
+the space between them, tooltips open below. The chrome also stays shown while a dock button has
+keyboard focus. The settings button toggles `AppWindow.settings-open` (in-out, shown as active);
+T033 draws the panel and T030 reads it for Esc.
+
+First check of T029 by the maintainer: docks and sliding in ok, no shadow while hidden ok,
+compact layout ok. Fixed after it, waiting for a second check:
+- The chrome hid only on the next mouse move, without sliding: a Slint timer firing inside
+  `update_ui` starts an animation after `about_to_wait` read `has_active_animations()`, so the
+  loop went back to `ControlFlow::Wait`. It now reads the flag again after the update.
+- Tab never reached the hidden docks: Slint's focus chain skips items outside their clip
+  (`ItemRc::is_visible`, geometry based). `ui.rs` calls `AppWindow.reveal-chrome()` before
+  dispatching Tab, which shows the chrome at once (no slide) so the docks are in place.
+Open from that check:
+- F11 does nothing: expected, it is T030.
+- Snapped to a quarter of the screen with Windows snap, then fullscreen: a white line along the
+  top. Look at it in T030 (fullscreen on the current monitor) and T031 (resizes).
+- Second check: the chrome slides out after 2 s and Tab brings the docks back, ok. The white
+  line is a 1 px light line along the whole top edge in fullscreen (maintainer's screenshot).
+- Maintainer (2026-11-04): the title bar's window buttons leave the Tab order, as in native apps;
+  the system keys cover them (Win+arrows, Alt+F4, F11). FR-020 and quickstart row 18 updated;
+  `WindowButton` has no `FocusScope` or ring now, its tooltip shows on hover only. Checked.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -131,4 +161,5 @@ bar. `AppWindow` exposes `max-button-x/y/width/height` (physical px, via `1phx`)
 
 ## Next step
 
-T029 (dock and chrome layer) (tasks.md, US1).
+T030 (window actions) (tasks.md, US1): includes F11 and the white line along the top in fullscreen
+after a quarter snap (see T029 above).

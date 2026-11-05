@@ -304,9 +304,12 @@ impl ApplicationHandler<UserEvent> for App {
         // Keep Slint timers and animations running between video frames, so they do not step at
         // the video's frame rate. Read before updating: an update clears the flag until the next
         // draw reads the animated properties again.
-        let animating = self.ui.has_active_animations();
+        let mut animating = self.ui.has_active_animations();
         if !animating || Instant::now() >= self.last_ui + self.refresh {
             self.update_ui();
+            // A timer fired in this update may have started an animation (the chrome hiding):
+            // its first frame was just drawn, so the flag is set again.
+            animating |= self.ui.has_active_animations();
         }
         let mut wake = self.ui.next_timer();
         if animating {

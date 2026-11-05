@@ -138,6 +138,11 @@ impl Ui {
                 );
                 if event.state == ElementState::Pressed && !modifier {
                     self.app.global::<Input>().set_keyboard(true);
+                    // Slint's focus chain skips controls outside the window, as the hidden docks:
+                    // show the chrome at once, before the key moves the focus.
+                    if event.logical_key == Key::Named(NamedKey::Tab) {
+                        self.app.invoke_reveal_chrome();
+                    }
                 }
                 match event.state {
                     ElementState::Pressed => SlintEvent::KeyPressed { text },

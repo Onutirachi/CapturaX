@@ -9,8 +9,10 @@ import { WindowState } from "window-state.slint";
 import { Notice, NoticeKind } from "components/notice.slint";
 import { Input } from "components/focus-ring.slint";
 import { Menus, MenuLayer } from "components/menu.slint";
-import { Tooltips, TooltipLayer } from "components/tooltip.slint";
+import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
 import { TitleBar } from "components/title-bar.slint";
+import { Dock } from "components/dock.slint";
+import { IconButton } from "components/icon-button.slint";
 
 export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, Tooltips }
 
@@ -40,7 +42,8 @@ export component AppWindow inherits Window {
 
     // State message layer (no source, spec FR-035): filled by the state message task.
 
-    // Chrome layer (toolbar slot, docks): filled by the chrome tasks.
+    // Chrome layer: the title bar (its window buttons are not in the Tab order, FR-020), then the
+    // toolbar slot and the docks over the video; the keyboard focus goes left dock, right dock.
 
     // The title bar's maximize button in physical pixels, for the snap layouts flyout (T040).
     out property <int> max-button-x: title-bar.max-button-x;
@@ -53,6 +56,129 @@ export component AppWindow inherits Window {
         y: 0;
         width: root.width;
         visible: !WindowState.fullscreen;
+    }
+
+    // The settings panel is open; its button is in the right dock, the panel comes with T033.
+    in-out property <bool> settings-open;
+
+    // Float at 800 × 520 and above; below it the compact layout puts the docks in the toolbar's
+    // row, so nothing overlaps (FR-009).
+    out property <bool> compact: root.width < 800px || root.height < 520px;
+
+    // A size change moves the controls: an open tooltip or menu would stay where its control was,
+    // so both close, as in native apps.
+    changed width => { Tooltips.dismiss(); Menus.close(); }
+    changed height => { Tooltips.dismiss(); Menus.close(); }
+    // The chrome shows while the pointer is on the top of the video, the toolbar or a dock, while a
+    // menu is open, or while a chrome control has the keyboard focus; it hides 2 s after (FR-008).
+    out property <bool> chrome-shown: true;
+    property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
+        || right-area.has-hover || Menus.open || fullscreen-button.has-focus
+        || settings-button.has-focus;
+    changed engaged => {
+        if (self.engaged) {
+            self.chrome-shown = true;
+        }
+    }
+
+    // The chrome moves without sliding: set when the keyboard brings it back.
+    property <bool> instant;
+    property <duration> slide: root.instant ? 0ms : 300ms;
+    // 0 shown, 1 hidden. Only this slides: positions follow the window's size at once, so the
+    // docks do not glide into place during a resize.
+    property <float> hidden: root.chrome-shown ? 0 : 1;
+    animate hidden { duration: root.slide; easing: ease-out; }
+
+    // Called by Rust before a Tab reaches Slint: the focus chain skips controls outside the window,
+    // so the hidden docks must be in place before the key moves the focus (FR-020).
+    public function reveal-chrome() {
+        if (!root.chrome-shown) {
+            root.instant = true;
+            root.chrome-shown = true;
+        }
+    }
+
+    Timer {
+        interval: 2s;
+        running: root.chrome-shown && !root.engaged;
+        triggered => {
+            root.instant = false;
+            root.chrome-shown = false;
+        }
+    }
+
+    // Over the video area and clipped to it, so the hidden toolbar slides under the title bar.
+    chrome := Rectangle {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+        clip: true;
+
+        property <length> edge: 12px;
+        // The toolbar's height; in the compact layout the docks sit centered in its row.
+        property <length> toolbar-height: 88px;
+        // Off the edge by more than the shadows reach, so no shadow shows while hidden.
+        property <length> away: 40px;
+
+        // Reaching the top of the video brings the chrome back.
+        top-zone := TouchArea {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: 100px;
+        }
+
+        // The toolbar slot: no content and no panel in this spec; spec #3 fills it (FR-015). In the
+        // compact layout it takes the space between the docks.
+        toolbar-area := TouchArea {
+            x: root.compact ? left-area.width + 2 * chrome.edge : 0;
+            y: -(self.height + chrome.away) * root.hidden;
+            width: root.compact ? parent.width - 2 * (left-area.width + 2 * chrome.edge) : parent.width;
+            height: chrome.toolbar-height;
+        }
+
+        // Float: slides out to the left; compact: up with the toolbar's row.
+        left-area := TouchArea {
+            x: root.compact ? chrome.edge
+                : chrome.edge - (chrome.edge + self.width + chrome.away) * root.hidden;
+            y: !root.compact ? (parent.height - self.height) / 2
+                : (chrome.toolbar-height - self.height) / 2
+                    - ((chrome.toolbar-height + self.height) / 2 + chrome.away) * root.hidden;
+            width: left-dock.width;
+            height: left-dock.height;
+
+            left-dock := Dock {
+                fullscreen-button := IconButton {
+                    icon: WindowState.fullscreen ? @image-url("assets/icons/fullscreen_exit.svg")
+                        : @image-url("assets/icons/fullscreen.svg");
+                    tooltip: WindowState.fullscreen ? @tr("Exit fullscreen (F11)") : @tr("Fullscreen (F11)");
+                    tooltip-side: root.compact ? Side.bottom : Side.right;
+                    clicked => { WindowState.toggle-fullscreen(); }
+                }
+            }
+        }
+
+        // Float: slides out to the right; compact: up with the toolbar's row.
+        right-area := TouchArea {
+            x: root.compact ? parent.width - self.width - chrome.edge
+                : parent.width - self.width - chrome.edge + (self.width + chrome.edge + chrome.away) * root.hidden;
+            y: !root.compact ? (parent.height - self.height) / 2
+                : (chrome.toolbar-height - self.height) / 2
+                    - ((chrome.toolbar-height + self.height) / 2 + chrome.away) * root.hidden;
+            width: right-dock.width;
+            height: right-dock.height;
+
+            right-dock := Dock {
+                settings-button := IconButton {
+                    icon: @image-url("assets/icons/settings.svg");
+                    tooltip: @tr("Settings");
+                    tooltip-side: root.compact ? Side.bottom : Side.left;
+                    active: root.settings-open;
+                    clicked => { root.settings-open = !root.settings-open; }
+                }
+            }
+        }
     }
 
     // Notices layer.
