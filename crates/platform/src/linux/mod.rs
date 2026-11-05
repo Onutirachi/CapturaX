@@ -24,6 +24,12 @@ pub fn app_folder() -> Option<PathBuf> {
     }
 }
 
+/// winit picks Wayland whenever a Wayland display is set, and X11 otherwise.
+pub fn can_raise_window() -> bool {
+    let set = |var| std::env::var_os(var).is_some_and(|v| !v.is_empty());
+    !(set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET"))
+}
+
 pub fn show_system_message(title: &str, text: &str) {
     let shown = run("kdialog", &["--title", title, "--error", text])
         || run("zenity", &["--error", "--title", title, "--text", text]);

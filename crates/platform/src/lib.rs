@@ -18,12 +18,22 @@ mod linux;
 #[cfg(target_os = "linux")]
 use linux as os;
 
-pub use os::{autostart, instance, tray};
+pub use os::{autostart, tray};
+
+mod single_instance;
+pub use single_instance::{Answer, Claim, Client, Listener, Serving, claim_instance, instance_name};
 
 /// The folder the app's settings and log go to first (FR-026): the executable's folder, or on
 /// Linux the folder of the AppImage when running from one.
 pub fn app_folder() -> PathBuf {
     os::app_folder().unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// Whether a window of this app may bring itself to the front when another start asks it to
+/// (FR-013): true on Windows and X11, false on Wayland, where only the user's action raises a
+/// window.
+pub fn can_raise_window() -> bool {
+    os::can_raise_window()
 }
 
 /// Shows a blocking error message outside the window (FR-036), for problems the window cannot

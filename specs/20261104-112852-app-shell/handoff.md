@@ -190,6 +190,21 @@ open as expected and leave `start_fullscreen` unchanged; started with `--fullscr
 to the saved window. (Scripted keys need a click on the window first: Windows does not let a
 script bring it to the front.)
 
+T035 (single instance) done, reviewed by the maintainer and committed (`feat: add single instance channel`; nothing
+to see in the app until T036 wires it); fmt, clippy (Windows; `platform` also for Linux), 93
+tests pass (Linux tests run in CI only). Shared part in `crates/platform/src/single_instance.rs`
+(name, protocol, listener thread), OS parts in `windows/instance.rs` and `linux/instance.rs`;
+`instance` is no longer a public module, the items are at the crate root. API for T036:
+`instance_name(path)`, `claim_instance(name) -> Claim::{First(Listener), Running(Client)}`,
+`Listener::serve(on_show: Fn() -> bool) -> Serving` (dropping `Serving` stops the thread and
+releases the name: quit sequence), `Client::show() -> Option<Answer>`, `can_raise_window()`.
+`on_show` runs on the listener thread: T036 sends a user event through the `EventLoopProxy` and
+returns `can_raise_window()`. Choices recorded in contracts/single-instance.md: the path's folder
+is canonicalized and lowercased on Windows before hashing; one pipe instance, remote clients
+rejected, client opens with identification-only security; Windows pipe reads have no timeout,
+so a stalled client blocks the listener (later starts get no answer and exit 0) and the stop
+gives up after 1 s. `Win32_System_IO` added to the `windows-sys` features (`ConnectNamedPipe`).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -327,4 +342,4 @@ script bring it to the front.)
 
 ## Next step
 
-T035 (single instance).
+T036: wire the single instance into app/src/main.rs.

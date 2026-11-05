@@ -27,6 +27,10 @@ pub fn app_folder() -> Option<PathBuf> {
     super::exe_folder()
 }
 
+pub fn can_raise_window() -> bool {
+    true
+}
+
 pub fn show_system_message(title: &str, text: &str) {
     let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
     let (title, text) = (wide(title), wide(text));
