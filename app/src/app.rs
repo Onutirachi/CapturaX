@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use slint::{ComponentHandle, Global};
 use winit::application::ApplicationHandler;
-use winit::dpi::{LogicalSize, PhysicalPosition};
+use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{Key, NamedKey};
@@ -22,6 +22,7 @@ use crate::render::{Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
 use crate::ui::{Menus, NoticeKind, Prefs, Texts, Ui, WindowState};
 use platform::autostart;
+use platform::snap::{self, ButtonRect, Snap, SnapEvent};
 use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
 
 /// Exit code when no renderer could start (contracts/cli.md).
@@ -39,6 +40,8 @@ pub enum UserEvent {
     ShowWindow,
     /// A click or a menu entry of the tray icon (FR-014a).
     Tray(TrayEvent),
+    /// The pointer on the maximize button while the system owns it (FR-011).
+    Snap(SnapEvent),
 }
 
 /// A change made in the settings panel.
@@ -86,6 +89,10 @@ pub struct App {
     /// window then hides it instead of quitting.
     tray: Option<Tray>,
     tray_available: bool,
+    /// The snap layouts flyout's hold on the window (FR-011, Windows 11) and the maximize button's
+    /// rectangle it was last given.
+    snap: Option<Snap>,
+    snap_button: Option<ButtonRect>,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -137,6 +144,8 @@ impl App {
             instance,
             tray: None,
             tray_available,
+            snap: None,
+            snap_button: None,
             proxy: sender,
             exit_code: 0,
         }
@@ -278,6 +287,37 @@ impl App {
             video.inbox().send_ui(image, scene);
             self.scene = Some(scene);
             self.last_ui = Instant::now();
+        }
+        self.sync_snap_button();
+    }
+
+    /// Hands the maximize button's rectangle, as just laid out, to the snap layouts flyout
+    /// (FR-011). None in fullscreen (no title bar) and while a menu is open (it takes every click).
+    fn sync_snap_button(&mut self) {
+        let (Some(snap), Some(w)) = (&self.snap, &self.window) else {
+            return;
+        };
+        let app = &self.ui.app;
+        let shown = w.fullscreen().is_none() && !app.global::<Menus>().get_open();
+        let button = shown
+            .then(|| {
+                let position = PhysicalPosition::new(app.get_max_button_x(), app.get_max_button_y());
+                let size = PhysicalSize::new(
+                    u32::try_from(app.get_max_button_width()).unwrap_or(0),
+                    u32::try_from(app.get_max_button_height()).unwrap_or(0),
+                );
+                frame::snap_button(position, size, w.scale_factor(), !w.is_maximized())
+            })
+            .flatten();
+        if button == self.snap_button {
+            return;
+        }
+        snap.set_button(button);
+        self.snap_button = button;
+        if button.is_none() {
+            let state = app.global::<WindowState>();
+            state.set_max_hover(false);
+            state.set_max_pressed(false);
         }
     }
 
@@ -465,6 +505,10 @@ impl ApplicationHandler<UserEvent> for App {
         self.ui.set_scale(window.scale_factor() as f32);
         self.ui.set_size(platform::drawn_size(&window));
         platform::follow_dpi_rect(&window);
+        let proxy = self.proxy.clone();
+        self.snap = Some(snap::attach(&window, move |event| {
+            let _ = proxy.send_event(UserEvent::Snap(event));
+        }));
         self.update_refresh(&window);
         let presentation = Presentation {
             backend: self.options.backend,
@@ -545,6 +589,15 @@ impl ApplicationHandler<UserEvent> for App {
             },
             UserEvent::ShowWindow | UserEvent::Tray(TrayEvent::Open) => self.show_window(),
             UserEvent::Tray(TrayEvent::Quit) => event_loop.exit(),
+            UserEvent::Snap(event) => {
+                let state = self.ui.app.global::<WindowState>();
+                match event {
+                    SnapEvent::Hover(on) => state.set_max_hover(on),
+                    SnapEvent::Press(on) => state.set_max_pressed(on),
+                    SnapEvent::Click => self.act(event_loop, WindowAction::ToggleMaximize),
+                }
+                self.request_redraw();
+            }
         }
     }
 
@@ -654,6 +707,7 @@ impl ApplicationHandler<UserEvent> for App {
         // quit become the new instance.
         self.tray = None;
         self.instance = None;
+        self.snap = None;
         self.window = None;
         log::info!("quit");
     }

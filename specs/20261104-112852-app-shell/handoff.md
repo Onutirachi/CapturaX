@@ -277,6 +277,34 @@ restart with and without the tray) and committed (`feat: wire tray and start wit
   hidden in the tray, the value rewritten to this executable; a second start showed the window.
   Not scripted (manual): tray click, Open and Quit from the menu, the panel's rows.
 
+T040 (snap layouts flyout) done, checked by the maintainer and committed
+(`feat: add snap layouts flyout`). fmt, clippy
+(Windows; `platform` also for Linux), 100 tests pass. New shared `crates/platform/src/snap.rs`
+(`SnapEvent::{Hover, Press, Click}`, `ButtonRect`, `attach(window, on_event) -> Snap`,
+`Snap::set_button(Option<rect>)`), Windows `windows/snap.rs`, Linux no-op; `windows-sys` features
+`Win32_Graphics_Dwm` and `Win32_UI_Controls`. App: `UserEvent::Snap`, `App::sync_snap_button`
+after each `update_ui` (button from `AppWindow.max-button-*`, the top resize band cut off by the
+pure `frame::snap_button`, tested; None in fullscreen or with a menu open), hover and press into
+the new `WindowState.max-hover` / `max-pressed`, click → toggle maximize. `WindowButton` has
+`system-hover` / `system-pressed`; no tooltip under system hover (the flyout takes its place).
+- Found while doing it (research R5 updated): `HTMAXBUTTON` alone gave no flyout. The system
+  took the caption to be winit's 1 px shadow strip (`GetTitleBarInfoEx`: maximize button 1 px
+  tall), even with the system frame on; the system's own maximize button of our window did open
+  it. `DwmExtendFrameIntoClientArea` with a top margin down to the button's bottom makes it open
+  (1 px is not enough). Also: our own `TrackMouseEvent` is not needed, the system tracks the
+  leave.
+- The maintainer found the top strip ugly (checked with temporary light-theme builds, deleted). It was
+  see-through, not black. Now the subclass undoes winit's 1 px strip in `WM_NCCALCSIZE` once the
+  frame is extended (research R5); the frame stays extended without a button. Scripted: client
+  1280 × 720 (no hidden row), the background meets the bar directly, flyout still opens; click
+  maximizes and restores, the shadow is there, F11 and back returns to 1280 × 720.
+- Scripted checks (Windows, release, 100 %, `scratchpad` snap.ps1 / click.ps1-style, injected
+  mouse input; `SetCursorPos` alone is not enough for the flyout): hit test 9 only inside the
+  button and below the 6 px band; the flyout opens over our button; click maximizes, second click
+  restores; press then release over the video does nothing; highlight clears on leave.
+- Checked by the maintainer: the strip is gone and the flyout opens. Not checked by hand: 125 % /
+  150 %, and the system setting for the flyout turned off; look at them in T041's runs.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -414,4 +442,4 @@ restart with and without the tray) and committed (`feat: wire tray and start wit
 
 ## Next step
 
-T040 (Windows 11 snap layouts flyout, best effort, timeboxed to one day), then T041 (the maintainer runs the latency budget of quickstart.md on Windows and CachyOS).
+T041 (the maintainer runs the latency budget of quickstart.md on Windows and CachyOS).

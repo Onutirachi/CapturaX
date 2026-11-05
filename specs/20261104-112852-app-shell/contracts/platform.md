@@ -24,7 +24,7 @@ are indicative; tasks fix the exact signatures.
 | `tray::create(icons, labels, on_event) -> Tray` | `tray-icon`, created on the event loop's thread, icon size from `SM_CXSMICON` at the system DPI | `ksni` on its own thread, every size as pixmaps | FR-014a |
 | `system_theme_watch(sender)` | not used (winit reports it) | XDG Settings portal | FR-017 |
 | `show_system_message(title, text)` | `MessageBoxW` | `kdialog`, `zenity`, else stderr | FR-036, FR-013 |
-| `snap::attach(window, max_button_rect)` | subclass + `HTMAXBUTTON` (best effort) | no-op | FR-011 |
+| `snap::attach(window, on_event) -> Snap`, `Snap::set_button(Option<rect>)` | subclass + `HTMAXBUTTON`, DWM frame extended down to the button (best effort, research R5) | no-op | FR-011 |
 | `precise_timers() -> TimerGuard` | `timeBeginPeriod(1)` until the guard drops | no-op | FR-004, research R9 |
 
 `platform` depends on winit for `window_attributes`, `set_fullscreen_frame`, `drawn_size`, `follow_dpi_rect`, `work_area` and `snap::attach`; it is the only crate that

@@ -114,11 +114,27 @@ reopened here; entries below say how the shell builds it.
   stays.
 - **Snap layouts flyout (FR-011, best effort)**: in `platform::windows::snap`, subclass the winit
   window (`SetWindowSubclass`) and answer `WM_NCHITTEST` with `HTMAXBUTTON` inside the maximize
-  button's rectangle, which the UI reports in physical pixels on each layout change. Because the
-  system then sends non-client messages over the button, the subclass turns `WM_NCMOUSEMOVE`,
-  `WM_NCMOUSELEAVE`, `WM_NCLBUTTONDOWN` and `WM_NCLBUTTONUP` into the button's hover, press and
-  click. Timeboxed to one day; dropped and recorded as a known limit if moving, resizing or the
-  button's own hover and click break (spec FR-011).
+  button's rectangle, which the app reports in physical pixels whenever the laid-out rectangle
+  changes (none in fullscreen or while a menu is open; the top resize band is left out of it).
+  Because the system then sends non-client messages over the button, the subclass turns
+  `WM_NCMOUSEMOVE`, `WM_NCMOUSELEAVE`, `WM_NCLBUTTONDOWN` and `WM_NCLBUTTONUP` into the button's
+  hover, press and click; presses are not passed on (no classic caption button), moves are (they
+  start the flyout and the system's own leave tracking, so no `TrackMouseEvent` of ours).
+  Found in T040: the hit test alone is not enough. The system took the caption to be the 1 px
+  strip winit leaves above the client for the shadow (`GetTitleBarInfoEx`: a maximize button
+  1 px tall) and opened no flyout over our button, even with the system frame turned on and
+  `HTMAXBUTTON` in the client area. The system's own maximize button of the same window did open
+  it. Extending the DWM frame into the client down to the button's bottom edge
+  (`DwmExtendFrameIntoClientArea`, top margin only; 1 px is not enough) makes the flyout open.
+  The video covers the extended area with opaque pixels: the title bar's pixels are unchanged.
+  The 1 px strip above it, though, became see-through (the desktop behind showed; black over a
+  dark background), which the maintainer found ugly; `DWMWA_CAPTION_COLOR` does not change it.
+  So once the frame is extended, the subclass undoes winit's strip in `WM_NCCALCSIZE` (client =
+  the whole window while not maximized; maximized keeps winit's work area): the extension now
+  gives the shadow, the usual frameless-with-shadow technique. `drawn_size` then finds no hidden
+  row. The frame stays extended when the button goes away (fullscreen, a menu open); only the hit
+  test stops. Timeboxed to one day; dropped and recorded as a known limit if moving, resizing or
+  the button's own hover and click break (spec FR-011).
 - **Fast moves at 40–50 fps on Windows (spec edge case)**: accepted as a known limit and not
   investigated (maintainer, 2026-11-04). The acceptance checks only that the window moves
   smoothly and the video never stalls (SC-003); the stats' `gap_ms` shows a stall if one returns.

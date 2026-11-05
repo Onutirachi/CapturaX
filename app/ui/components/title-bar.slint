@@ -11,6 +11,10 @@ component WindowButton inherits Rectangle {
     in property <string> tooltip;
     // Close: red on hover, as the system's close button.
     in property <bool> danger;
+    // Hover and press reported by the system (the maximize button under the snap layouts flyout,
+    // FR-011). No tooltip then: the flyout takes its place.
+    in property <bool> system-hover;
+    in property <bool> system-pressed;
     callback clicked();
 
     // The token of the tooltip this button shows, 0 when none (-1: hidden until the pointer
@@ -19,8 +23,8 @@ component WindowButton inherits Rectangle {
 
     width: 44px;
     border-radius: 6px;
-    background: area.pressed ? (root.danger ? #a32417 : Theme.c.press)
-        : area.has-hover ? (root.danger ? #c42b1c : Theme.c.hover)
+    background: root.pressed ? (root.danger ? #a32417 : Theme.c.press)
+        : root.hovered ? (root.danger ? #c42b1c : Theme.c.hover)
         : transparent;
     animate background { duration: Theme.quick; }
 
@@ -39,20 +43,22 @@ component WindowButton inherits Rectangle {
             root.absolute-position.x, root.absolute-position.y, root.width, root.height);
     }
 
-    changed hovered => {
-        if (!self.hovered) {
+    changed own-hover => {
+        if (!self.own-hover) {
             Tooltips.hide(root.tip);
             root.tip = 0;
         }
     }
-    property <bool> hovered: area.has-hover;
+    property <bool> own-hover: area.has-hover;
+    property <bool> hovered: area.has-hover || root.system-hover;
+    property <bool> pressed: area.pressed || root.system-pressed;
 
     Image {
         source: root.icon;
         width: 15px;
         height: 15px;
         // Dimmer while the window is inactive, as system title bars.
-        colorize: root.danger && area.has-hover ? #ffffff
+        colorize: root.danger && root.hovered ? #ffffff
             : WindowState.active ? Theme.c.text-muted
             : Theme.c.text-faint;
     }
@@ -125,6 +131,8 @@ export component TitleBar inherits Rectangle {
             icon: WindowState.maximized ? @image-url("../assets/icons/unmaximize.svg")
                 : @image-url("../assets/icons/maximize.svg");
             tooltip: WindowState.maximized ? @tr("Restore") : @tr("Maximize");
+            system-hover: WindowState.max-hover;
+            system-pressed: WindowState.max-pressed;
             clicked => { WindowState.toggle-maximize(); }
         }
 

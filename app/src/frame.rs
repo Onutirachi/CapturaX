@@ -46,6 +46,29 @@ pub fn cursor(direction: Option<ResizeDirection>) -> CursorIcon {
     }
 }
 
+/// The part of the maximize button that the system treats as its own for the snap layouts flyout
+/// (FR-011): the button's rectangle without the top resize band, so a press there still resizes.
+/// `None` when the band covers all of it.
+pub fn snap_button(
+    position: PhysicalPosition<i32>,
+    size: PhysicalSize<u32>,
+    scale: f64,
+    resizable: bool,
+) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    let top = if resizable {
+        position.y.max((RESIZE_BAND * scale).ceil() as i32)
+    } else {
+        position.y
+    };
+    let bottom = position.y + size.height as i32;
+    (size.width > 0 && bottom > top).then(|| {
+        (
+            PhysicalPosition::new(position.x, top),
+            PhysicalSize::new(size.width, (bottom - top) as u32),
+        )
+    })
+}
+
 /// What one Esc press does (FR-007): it never quits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Escape {
@@ -116,6 +139,25 @@ mod tests {
         assert_eq!(cursor(Some(ResizeDirection::West)), CursorIcon::EwResize);
         assert_eq!(cursor(Some(ResizeDirection::SouthEast)), CursorIcon::NwseResize);
         assert_eq!(cursor(Some(ResizeDirection::NorthEast)), CursorIcon::NeswResize);
+    }
+
+    #[test]
+    fn snap_button_leaves_the_band() {
+        let at = |y, height, scale, resizable| {
+            snap_button(
+                PhysicalPosition::new(900, y),
+                PhysicalSize::new(44, height),
+                scale,
+                resizable,
+            )
+        };
+        let rect = |y, height| Some((PhysicalPosition::new(900, y), PhysicalSize::new(44, height)));
+        assert_eq!(at(4, 24, 1.0, true), rect(6, 22));
+        assert_eq!(at(4, 24, 1.0, false), rect(4, 24));
+        assert_eq!(at(6, 36, 1.5, true), rect(9, 33));
+        assert_eq!(at(8, 48, 2.0, true), rect(12, 44));
+        assert_eq!(at(0, 6, 1.0, true), None);
+        assert_eq!(at(10, 20, 1.0, true), rect(10, 20));
     }
 
     #[test]

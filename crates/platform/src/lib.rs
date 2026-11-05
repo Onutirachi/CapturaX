@@ -20,6 +20,7 @@ use linux as os;
 
 pub use os::autostart;
 
+pub mod snap;
 pub mod tray;
 
 mod single_instance;

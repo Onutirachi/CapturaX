@@ -21,6 +21,7 @@ use winit::window::{Window, WindowAttributes};
 pub mod autostart;
 mod dpi_rect;
 pub mod instance;
+pub mod snap;
 pub mod tray;
 
 pub fn app_folder() -> Option<PathBuf> {
