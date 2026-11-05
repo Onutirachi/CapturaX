@@ -18,7 +18,9 @@ mod linux;
 #[cfg(target_os = "linux")]
 use linux as os;
 
-pub use os::{autostart, tray};
+pub use os::autostart;
+
+pub mod tray;
 
 mod single_instance;
 pub use single_instance::{Answer, Claim, Client, Listener, Serving, claim_instance, instance_name};

@@ -222,6 +222,20 @@ Portuguese (Slint picked the system language) and exited 0. A window hidden from
 `ShowWindow(SW_HIDE)` stays hidden (winit still thinks it is visible): not the real case, T039
 hides through winit; check showing from the tray there.
 
+T037 (tray) done, checked by the maintainer with a temporary example (checker icon: click,
+menu, relabel, Quit; deleted) and committed (`feat: add tray icon`); fmt, clippy (Windows and Linux), `cargo deny check bans` ok, platform
+tests pass. New shared `crates/platform/src/tray.rs` (`TrayEvent`, `Labels { title, open, quit }`,
+`IconImage { size, rgba }`, `available`, `create`, `Tray::set_labels`, pure `pick` and `argb`,
+tested); `tray` is no longer an OS module re-export. Windows: `tray-icon` 0.26 (its own `muda`
+0.21; Slint's is 0.19); the library keeps its event handlers in set-once cells, so they are
+installed once per process and forward to a static slot the current `Tray` fills and its drop
+clears; left click up → Open, menu Open / separator / Quit, the menu only on right click; icon
+size `GetSystemMetricsForDpi(SM_CXSMICON, GetDpiForSystem())` (new `windows-sys` feature
+`Win32_UI_HiDpi`); `&` escaped in menu texts. The tray must be created on the main thread once
+the event loop exists (T039). Linux: `ksni` blocking, id `capturax`, all icon sizes as ARGB
+pixmaps, `activate` → Open, `_` escaped; drop waits for its shutdown. Contract row and T037
+updated to the real signature.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -359,4 +373,4 @@ hides through winit; check showing from the tray there.
 
 ## Next step
 
-T037: implement the tray in crates/platform.
+T038: implement autostart in crates/platform.

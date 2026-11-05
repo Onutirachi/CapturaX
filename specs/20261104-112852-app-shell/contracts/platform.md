@@ -19,7 +19,7 @@ are indicative; tasks fix the exact signatures.
 | `autostart::state() -> bool` | Run key and StartupApproved | `autostart/capturax.desktop` | FR-014b |
 | `autostart::set(on, exe)` | write or remove the Run value | write or remove the `.desktop` | FR-014b |
 | `tray::available() -> bool` | true | StatusNotifierWatcher on the session bus | FR-014a |
-| `tray::create(icon, labels, sender) -> Tray` | `tray-icon` | `ksni` | FR-014a |
+| `tray::create(icons, labels, on_event) -> Tray` | `tray-icon`, created on the event loop's thread, icon size from `SM_CXSMICON` at the system DPI | `ksni` on its own thread, every size as pixmaps | FR-014a |
 | `system_theme_watch(sender)` | not used (winit reports it) | XDG Settings portal | FR-017 |
 | `show_system_message(title, text)` | `MessageBoxW` | `kdialog`, `zenity`, else stderr | FR-036, FR-013 |
 | `snap::attach(window, max_button_rect)` | subclass + `HTMAXBUTTON` (best effort) | no-op | FR-011 |
