@@ -2,13 +2,16 @@
 
 use std::path::PathBuf;
 
+use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFO};
 use windows_sys::Win32::Media::{TIMERR_NOERROR, timeBeginPeriod, timeEndPeriod};
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION,
     PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling, SetProcessInformation,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MessageBoxW};
-use winit::platform::windows::{WindowAttributesExtWindows, WindowExtWindows};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::monitor::MonitorHandle;
+use winit::platform::windows::{MonitorHandleExtWindows, WindowAttributesExtWindows, WindowExtWindows};
 use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
@@ -87,4 +90,22 @@ pub use dpi_rect::follow_dpi_rect;
 pub fn set_fullscreen_frame(window: &Window, fullscreen: bool) {
     // Without the shadow, winit no longer moves the client area 1 px down (WM_NCCALCSIZE).
     window.set_undecorated_shadow(!fullscreen);
+}
+
+pub fn work_area(monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: the handle comes from winit's monitor list (a stale one makes the call fail), and
+    // `info` is a MONITORINFO with its size set that outlives the call.
+    if unsafe { GetMonitorInfoW(monitor.hmonitor() as HMONITOR, &raw mut info) } == 0 {
+        return None;
+    }
+    let r = info.rcWork;
+    let size = (
+        u32::try_from(r.right - r.left).ok()?,
+        u32::try_from(r.bottom - r.top).ok()?,
+    );
+    Some((PhysicalPosition::new(r.left, r.top), PhysicalSize::new(size.0, size.1)))
 }

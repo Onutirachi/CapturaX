@@ -38,6 +38,7 @@ resvg = "0.49"
 # OS crates: only crates/platform may depend on these (constitution IV, research R2, R13)
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Gdi",
     "Win32_Media",
     "Win32_Security",
     "Win32_Storage_FileSystem",

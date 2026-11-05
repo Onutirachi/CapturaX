@@ -3,6 +3,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::monitor::MonitorHandle;
 use winit::platform::wayland::WindowAttributesExtWayland;
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{Window, WindowAttributes};
@@ -56,3 +58,8 @@ pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
 pub fn set_fullscreen_frame(_window: &Window, _fullscreen: bool) {}
 
 pub fn follow_dpi_rect(_window: &Window) {}
+
+/// Wayland does not tell clients about panels; X11's `_NET_WORKAREA` covers all monitors at once.
+pub fn work_area(_monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    None
+}

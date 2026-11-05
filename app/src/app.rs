@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use slint::{ComponentHandle, Global};
 use winit::application::ApplicationHandler;
-use winit::dpi::LogicalSize;
+use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{Key, NamedKey};
@@ -16,6 +16,7 @@ use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
 use crate::cli::StartupOptions;
 use crate::frame::{self, Escape};
 use crate::notices::{Kind, Notices};
+use crate::placement::{self, Rect};
 use crate::render::{Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
 use crate::ui::{Menus, NoticeKind, Texts, Ui, WindowState};
@@ -61,6 +62,8 @@ pub struct App {
     monitor: Option<MonitorHandle>,
     /// The edge or corner under the pointer, where a press resizes the window.
     resize: Option<ResizeDirection>,
+    /// The window moved or resized since the placement was last saved.
+    placement_changed: bool,
     pub exit_code: i32,
 }
 
@@ -101,6 +104,7 @@ impl App {
             refresh: Duration::from_millis(16),
             monitor: None,
             resize: None,
+            placement_changed: false,
             exit_code: 0,
         }
     }
@@ -241,16 +245,84 @@ impl App {
         }
     }
 
+    /// Saves where the window is (FR-012, data-model.md "Window placement"): not while fullscreen
+    /// or minimized; while maximized only the flag, so the size to restore to is kept. Called once
+    /// the events of a change are handled: on Windows, maximizing sends `Moved` before winit's
+    /// `is_maximized` turns true.
+    fn save_placement(&mut self, w: &Window) {
+        let size = w.inner_size();
+        if w.fullscreen().is_some() || w.is_minimized() == Some(true) || size.width == 0 || size.height == 0 {
+            return;
+        }
+        self.update_refresh(w);
+        let monitor = self.monitor.as_ref().and_then(MonitorHandle::name);
+        let maximized = w.is_maximized();
+        let scale = w.scale_factor();
+        // None where the OS does not give it (Wayland).
+        let position = w.outer_position().ok();
+        let logical = |physical: u32| (f64::from(physical) / scale).round() as u32;
+        self.store.update(|s| {
+            let saved = &mut s.window;
+            saved.maximized = maximized;
+            if maximized {
+                // Maximized on another monitor: restore centered there.
+                if monitor != saved.monitor {
+                    saved.monitor = monitor;
+                    saved.x = None;
+                    saved.y = None;
+                }
+                return;
+            }
+            saved.width = logical(size.width).max(settings::MIN_WIDTH);
+            saved.height = logical(size.height).max(settings::MIN_HEIGHT);
+            saved.x = position.map(|p| p.x);
+            saved.y = position.map(|p| p.y);
+            saved.monitor = monitor;
+        });
+    }
+
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<Arc<Window>> {
-        let saved = self.store.get().window;
-        let attrs = Window::default_attributes()
+        let handles: Vec<MonitorHandle> = event_loop.available_monitors().collect();
+        let primary = event_loop
+            .primary_monitor()
+            .and_then(|p| handles.iter().position(|m| *m == p))
+            .unwrap_or(0);
+        let monitors: Vec<placement::Monitor> = handles.iter().map(describe).collect();
+        let placed = placement::fit(&self.store.get().window, &monitors, primary);
+        log::info!("window placement {placed:?}");
+        // Logical size at the chosen monitor's scale: winit converts it with the scale of the
+        // monitor the window is created on, also on Wayland where the scale is not known yet.
+        let scale = placed.monitor.map_or(1.0, |i| monitors[i].scale);
+        let size = LogicalSize::new(f64::from(placed.size.0) / scale, f64::from(placed.size.1) / scale);
+        let mut attrs = Window::default_attributes()
             .with_title(Texts::get(&self.ui.app).get_app_name().as_str())
             .with_visible(false)
             .with_decorations(false)
-            .with_inner_size(LogicalSize::new(saved.width, saved.height))
+            .with_inner_size(size)
+            .with_maximized(placed.maximized)
             .with_min_inner_size(LogicalSize::new(settings::MIN_WIDTH, settings::MIN_HEIGHT))
             .with_window_icon(crate::icon::window_icon());
+        if let Some((x, y)) = placed.position {
+            attrs = attrs.with_position(PhysicalPosition::new(x, y));
+        }
         Ok(Arc::new(event_loop.create_window(platform::window_attributes(attrs))?))
+    }
+}
+
+/// A connected monitor for [`placement::fit`].
+fn describe(m: &MonitorHandle) -> placement::Monitor {
+    let rect = |p: PhysicalPosition<i32>, s: winit::dpi::PhysicalSize<u32>| Rect {
+        x: p.x,
+        y: p.y,
+        width: s.width,
+        height: s.height,
+    };
+    let bounds = rect(m.position(), m.size());
+    placement::Monitor {
+        name: m.name(),
+        bounds,
+        work_area: platform::work_area(m).map_or(bounds, |(p, s)| rect(p, s)),
+        scale: m.scale_factor(),
     }
 }
 
@@ -324,9 +396,10 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
                 self.ui.set_size(size);
-                if let Some(w) = &self.window {
+                if let Some(w) = self.window.clone() {
                     self.ui.app.global::<WindowState>().set_maximized(w.is_maximized());
                 }
+                self.placement_changed = true;
                 self.update_ui();
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
@@ -340,6 +413,7 @@ impl ApplicationHandler<UserEvent> for App {
                 if let Some(window) = self.window.clone() {
                     self.update_refresh(&window);
                 }
+                self.placement_changed = true;
             }
             WindowEvent::RedrawRequested => self.update_ui(),
             WindowEvent::KeyboardInput { ref event, .. }
@@ -382,6 +456,11 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if std::mem::take(&mut self.placement_changed)
+            && let Some(w) = self.window.clone()
+        {
+            self.save_placement(&w);
+        }
         // Keep Slint timers and animations running between video frames, so they do not step at
         // the video's frame rate. Read before updating: an update clears the flag until the next
         // draw reads the animated properties again.

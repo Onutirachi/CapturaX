@@ -4,6 +4,8 @@
 
 use std::path::PathBuf;
 
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::monitor::MonitorHandle;
 use winit::window::{Window, WindowAttributes};
 
 #[cfg(windows)]
@@ -48,6 +50,12 @@ pub fn follow_dpi_rect(window: &Window) {
 /// after leaving it. Nothing to do on Linux.
 pub fn set_fullscreen_frame(window: &Window, fullscreen: bool) {
     os::set_fullscreen_frame(window, fullscreen);
+}
+
+/// The part of `monitor` not taken by the taskbar or panels, physical pixels in desktop
+/// coordinates (FR-012). None where the OS does not say (Linux): use the monitor's bounds.
+pub fn work_area(monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    os::work_area(monitor)
 }
 
 /// Keeps the system's timers precise while it lives: Windows wakes sleeping threads every 15.6 ms

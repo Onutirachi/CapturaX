@@ -70,10 +70,13 @@ start ─► app folder writable? ── yes ─► AppFolder
   scale); move the window so it is fully visible; without a saved position, or when the saved
   monitor is not connected, center on the chosen monitor (FR-012, edge cases). The size is
   returned in physical pixels at the chosen monitor's scale. No monitor known → the OS places
-  the window. winit does not report work areas: the caller gives the monitor's bounds where the
-  platform has no work area to offer (T032).
+  the window. winit does not report work areas: `platform::work_area` gives it on Windows, and
+  the caller uses the monitor's bounds where it gives none (Linux).
 - Saved when the window moves, resizes or changes maximized (debounced as any setting); not while
-  fullscreen (the window state to return to is kept).
+  fullscreen (the window state to return to is kept) nor minimized. While maximized only
+  `maximized` changes, so the size and position to restore to are kept; maximized on another
+  monitor saves that monitor and clears the position (the restored window opens centered there).
+  Where the OS gives no window position (Wayland), the position is not saved.
 
 ## Window mode (state)
 

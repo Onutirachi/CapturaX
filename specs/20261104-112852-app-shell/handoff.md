@@ -1,6 +1,6 @@
 # Handoff: App Shell
 
-**Updated**: 2026-11-04 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261104-112852-app-shell`
+**Updated**: 2026-11-05 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261104-112852-app-shell`
 
 ## State
 
@@ -142,9 +142,28 @@ Text at 100 % read darker and blurrier than at 125 %.
   pursued.
 - The tooltip's 32 px minimum height was removed: per-size images have no nine-slice limit.
 
-The dock corners are confirmed fine. fmt, clippy (Windows, Linux), 80 tests pass. Not
-committed. `target/release/capturax-white.exe` is the current code with a white test video
-(local only).
+The dock corners are confirmed fine. fmt, clippy (Windows, Linux), 80 tests pass. Committed
+(`feat: handle scale changes`; the tooltip changes folded into the tooltip commit).
+
+T032 (window placement) done and checked on Windows by the maintainer; fmt, clippy (Windows;
+`platform` also for Linux), 80 tests pass; committed (`feat: save and restore window placement`). New `platform::work_area(monitor)`
+(Windows `GetMonitorInfoW` `rcWork`, Linux none → the monitor's bounds; contracts/platform.md
+updated, `windows-sys` feature `Win32_Graphics_Gdi`). At start `placement::fit` with winit's
+monitors; the window is created with the position (outer, physical), the size as logical at the
+chosen monitor's scale and `with_maximized`. Saved once per main loop turn after `Moved` or
+`Resized` (`about_to_wait`): on Windows, maximizing sends `Moved` before winit's `is_maximized`
+turns true, and saving inside the event stored the maximized size as the normal one. Not saved
+while fullscreen or minimized; while maximized only the flag (on another monitor: that monitor and
+no position). Rules added to data-model.md "Window placement".
+Scripted checks (`scratchpad/place.ps1`-style SetWindowPos / ShowWindow, close, reopen, on this
+machine's five 1920 × 1080 monitors at 100 %, 125 % and 150 %): first start centered on the
+primary's work area; reopened at the same place and size on 100 % and 125 % monitors and on the
+monitor at negative x; 1920 × 1080 on the 150 % monitor reduced to its 993 px work area; maximized
+reopens maximized and restores to the size before; minimized then closed keeps the last normal
+placement. A script's `WM_CLOSE` to a minimized window misses it (.NET's `MainWindowHandle` points
+elsewhere then): close from the taskbar while minimized is in the manual check.
+Also fixed: in `platform/src/lib.rs` the `set_fullscreen_frame` doc comment sat on
+`follow_dpi_rect`; folded into `feat: handle scale changes`.
 
 ## Done in the last sessions
 
@@ -240,9 +259,4 @@ committed. `target/release/capturax-white.exe` is the current code with a white 
 
 ## Next step
 
-All T031 checks passed (dragging between monitors confirmed by the maintainer). After the
-maintainer approves the commits:
-- fold the tooltip changes into a192d43 (`tooltip.slint`: 15 px text, 16 px from the control);
-- commit T031 with `follow_dpi_rect` and the R8 fallback;
-- go to T032
-(save and restore the window placement) (tasks.md, US1).
+T033 (settings panel; check menu scrolling at 640 × 360 there), then T034 (start mode).
