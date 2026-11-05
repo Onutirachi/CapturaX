@@ -180,6 +180,16 @@ scrolling at 640 × 360 still needs a select in the panel: check it in T046.
 Scripted checks (screenshots at 1280 × 720, 900 × 600 and 640 × 360; clicks on two rows saved
 `start_fullscreen` and `keep_in_tray` as true).
 
+T034 (start mode) done and checked on Windows by the maintainer; fmt, clippy, 81 tests pass;
+committed (`feat: apply start mode`). `StartupOptions::starts_fullscreen(saved)` (cli.rs, tested): `--fullscreen` or
+`--windowed` win over Start in fullscreen for this start, never saved. Applied in `resumed` after
+the placement and before the window is shown, through the same `set_fullscreen` as F11, so it is
+borderless on the monitor the window was placed on and Esc or F11 returns to that placement.
+Scripted checks: the six combinations of saved on/off × no option, `--fullscreen`, `--windowed`
+open as expected and leave `start_fullscreen` unchanged; started with `--fullscreen`, Esc returns
+to the saved window. (Scripted keys need a click on the window first: Windows does not let a
+script bring it to the front.)
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -269,9 +279,24 @@ Scripted checks (screenshots at 1280 × 720, 900 × 600 and 640 × 360; clicks o
 
 ## Open questions
 
+- Text sharpness (maintainer, 2026-11-05): text in menus and dock tooltips still reads worse than
+  in the title bar's tooltips, although all use the same `Tooltip` component and font (15 px).
+  Snapping positions to whole physical pixels did not help (T031). After this spec, a dedicated
+  investigation to fix it for good: find what differs (glyph position, background under the
+  text), then compare Slint's software renderer against a renderer with gamma and hinting
+  (Skia), or drawing the UI at 2× (about 4× the drawing cost). Decide with the maintainer.
+  The maintainer wants this right after T034, and suspects the popovers' transparency, though at
+  125 % it reads well. Check also the path of the UI image: menus and tooltips are opaque
+  (`Raised`, fill drawn in the Rust image), but the whole UI is composited over the video by the
+  video thread, so any resampling or alpha handling there would blur only some text.
+- Settings panel shape (maintainer, 2026-11-05): beside the dock as now, or a central panel as in
+  the original CapturaX. The maintainer decides once the future settings are listed; decide
+  before T046 adds the language and theme rows.
+
 - The record / stream only mode may change the product's main scenario and the roadmap's order;
   product.md asks to decide it before spec #3 starts.
 
 ## Next step
 
-T034 (start mode).
+Investigate the text sharpness (Open questions, the maintainer asked for it next), then T035
+(single instance).

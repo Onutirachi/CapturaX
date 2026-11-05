@@ -398,6 +398,14 @@ impl ApplicationHandler<UserEvent> for App {
         }
         self.video = Some(video);
         self.window = Some(window.clone());
+        // The start mode (FR-012a): fullscreen on the monitor the window was placed on; leaving it
+        // returns to that placement. The command line's choice is not saved.
+        if self
+            .options
+            .starts_fullscreen(self.store.get().general.start_fullscreen)
+        {
+            self.set_fullscreen(&window, true);
+        }
         self.update_ui();
         window.set_visible(true);
         log::info!(

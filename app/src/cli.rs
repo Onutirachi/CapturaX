@@ -86,6 +86,18 @@ pub struct StartupOptions {
     pub lang: Option<String>,
 }
 
+impl StartupOptions {
+    /// Whether this start opens in fullscreen: `--fullscreen` or `--windowed` win over the saved
+    /// Start in fullscreen setting, for this start only (FR-012a).
+    pub fn starts_fullscreen(&self, saved: bool) -> bool {
+        match self.start_mode {
+            Some(StartMode::Fullscreen) => true,
+            Some(StartMode::Windowed) => false,
+            None => saved,
+        }
+    }
+}
+
 /// The command line could not be used: show `message` and exit with `code`.
 #[derive(Debug)]
 pub struct CliExit {
@@ -176,6 +188,15 @@ mod tests {
         assert_eq!(run(&["--fullscreen"]).unwrap().start_mode, Some(StartMode::Fullscreen));
         assert_eq!(run(&["--windowed"]).unwrap().start_mode, Some(StartMode::Windowed));
         assert!(run(&["--autostart"]).unwrap().autostart);
+    }
+
+    #[test]
+    fn start_options_override_the_saved_setting() {
+        for saved in [false, true] {
+            assert_eq!(run(&[]).unwrap().starts_fullscreen(saved), saved);
+            assert!(run(&["--fullscreen"]).unwrap().starts_fullscreen(saved));
+            assert!(!run(&["--windowed"]).unwrap().starts_fullscreen(saved));
+        }
     }
 
     #[test]
