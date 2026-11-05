@@ -391,19 +391,23 @@ measured by the app itself (FR-005) with the test video at 1080p60, Windows with
 Mailbox and Linux with Vulkan + Mailbox. Glass-to-glass latency with a real card is measured in
 spec #3 against the spike's 30.4 ms median; this spec only must not add to it.
 
-- **SC-001**: Frame ready → presented has a median of at most 1.5 ms and a per-second maximum of
-  at most 3 ms, with the 1080p60 test video on a 1080p screen and on a 1440p screen (NVIDIA DSR,
+- **SC-001**: Frame ready → presented has a median of at most 1.5 ms in every second, and a
+  per-second maximum of at most 3 ms in at least 95% of the seconds, with the 1080p60 test video on a 1080p screen and on a 1440p screen (NVIDIA DSR,
   as in the spike; the maintainer has no native 1440p monitor), windowed and fullscreen, in every
   interface state: idle, chrome showing and hiding, a menu opening and closing, language and
   theme switching (spike T049 and T051: 0.8–1.1 ms median, 1080p frames from the card; the
   3.4 ms worst case came from the interface drawing on the video's thread, which FR-001 removes).
-  A 1440p video is measured with a real card in spec #3 if the card captures it.
+  A 1440p video is measured with a real card in spec #3 if the card captures it. Stalls at a
+  change of the system's presentation mode (focus change, entering fullscreen) are recorded
+  apart and do not count (maintainer, 2026-11-05: on Windows they come from the system and the
+  driver, 50–400 ms, research R4; their investigation is planned for spec #3).
 - **SC-002**: With the test video at 60 fps and the window still, at least 99% of the seconds
   present 59–61 frames, in every interface state of SC-001.
-- **SC-003**: While the window is held still mid-drag, or resized slowly, the video keeps
-  presenting at the source's rate (spike before T052: one frame per second). During fast moves the
-  window moves smoothly and the video keeps updating; a frame rate below the source's during the
-  move is accepted (Edge Cases).
+- **SC-003**: While the window is held still mid-drag, the video keeps presenting at the source's
+  rate (spike before T052: one frame per second). While the window moves or is resized, the video
+  keeps updating, with no stall of hundreds of milliseconds; a frame rate below the source's and
+  short hitches of the video and the window are accepted (Edge Cases; maintainer, 2026-11-05:
+  only a still window matters).
 - **SC-004**: The window appears with the empty state within 2 s of starting the app on the
   maintainer's machines (findings, environment).
 - **SC-005**: Language and theme switches complete in under 100 ms, and no text is left in the

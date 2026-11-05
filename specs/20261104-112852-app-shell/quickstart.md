@@ -61,14 +61,21 @@ capturax --test-video 1080p60 --stats
 ```
 
 On a 1080p screen and on a 1440p screen (NVIDIA DSR 1.78x on a 1080p monitor), windowed and
-fullscreen, in each interface state (idle, chrome showing and hiding, a
-menu opening and closing, language switch, theme switch), record about 30 s of `[loop]` lines:
+fullscreen, in each interface state (idle, chrome showing and hiding, the
+settings panel and a menu opening and closing, language switch, theme switch), record about 30 s of `[loop]` lines:
 
-- SC-001: `ready_ms` median ≤ 1.5 ms and max ≤ 3 ms in every line.
+- SC-001: `ready_ms` median ≤ 1.5 ms in every line and max ≤ 3 ms in at least 95% of the lines.
+  Skip the first 3 seconds (start) and the last line (closing); note any stall at a focus change
+  or on entering fullscreen apart (research R4).
 - SC-002: at least 99% of lines with `pres` between 59 and 61 (window still).
-- SC-003: hold the window still mid-drag and resize slowly → `pres` stays 59–61, `gap_ms` near
-  16.7. Fast moves: the window moves smoothly and the video never stalls (no `gap_ms` of hundreds
-  of ms); a lower `pres` during the move is accepted.
+- SC-003: hold the window still mid-drag → `pres` stays 59–61. Moving and resizing (slowly and
+  fast): the video never stalls (no `gap_ms` of hundreds of ms); a lower `pres` and short hitches
+  are accepted.
+- On a variable refresh monitor (G-SYNC, FreeSync) with it on (even for full screen only), the windowed
+  runs are taken twice: with the app focused (the monitor follows the video) and with another
+  window focused and the app still visible (the compositor at the monitor's rate, as a monitor
+  without variable refresh). Note the monitor's refresh rate and its variable refresh state
+  (research R4).
 - The `[present]` header shows `dx12 mailbox` on Windows and `vulkan mailbox` on Linux (FR-003).
 - On Linux, note the GPU clock state (`nvidia-smi -q -d PERFORMANCE`): the spike saw the RTX 3050
   power state add up to 6 ms; keeping the GPU awake belongs to spec #3, but the readings must say

@@ -100,6 +100,14 @@ reopened here; entries below say how the shell builds it.
   max while the driver switches; T041 measures both. A setting to present at the monitor's
   refresh instead, keeping the cursor smooth at some latency cost, is F52 in docs/product.md,
   for spec #3.
+- **Stalls at presentation mode changes (T041, 2026-11-05)**: on the native 1080p 144 Hz monitor
+  a focus change stalls the video 229–401 ms, and fullscreen gives one 51–73 ms stall about
+  18–20 s after the window enters it (only when the UI is idle); dragging waits about 30 ms per
+  present. On the same monitor at 1440p through DSR the focus change and the drag do not stall.
+  Likely cause, not confirmed: the window's swap chain moves in and out of its own hardware plane
+  (independent flip / multiplane overlay), which DSR's scaling prevents. Not fixed here (SC-001
+  counts them apart); spec #3 investigates with PresentMon, G-SYNC off and MPO off (roadmap #3).
+  One 625 ms stall in a windowed run was not reproduced in 140 s with per-stage timing.
 
 ## R5. Frameless window on Windows and Linux
 
@@ -166,6 +174,14 @@ reopened here; entries below say how the shell builds it.
 - **Fast moves at 40–50 fps on Windows (spec edge case)**: accepted as a known limit and not
   investigated (maintainer, 2026-11-04). The acceptance checks only that the window moves
   smoothly and the video never stalls (SC-003); the stats' `gap_ms` shows a stall if one returns.
+- **Hitches while moving and resizing (T041, 2026-11-05)**: measured on Windows at 144 Hz:
+  dragging, each present waits about 30 ms for the compositor (`pres` 36–53, `gap_ms` 50–80 ms at
+  the start and end of a drag); resizing slowly, every new size reconfigures the swap chain
+  (`ready_ms` median about 4 ms, `gap_ms` 35–95 ms, `pres` 52–61). Pacing the resize's UI images
+  to the refresh (from up to 264 to about 90 a second) did not change the gaps. The maintainer
+  sees short hitches of the video and the window and accepts them: only a still window matters
+  (SC-003 relaxed). Hiding the video during a move was considered and not done: the presents and
+  their waits stay, and the image disappears while the user places the window.
 - **Alternatives**: a system frame — not the Float look; drawing our own non-client area through
   `WM_NCCALCSIZE` — more Windows code for what winit already does.
 

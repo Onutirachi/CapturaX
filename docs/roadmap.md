@@ -69,7 +69,9 @@ from docs/product.md. Device list with hot plug, native modes, the automatic mod
 latency and FPS measurement, explicit empty and error states (including a hint to turn off
 HDCP on the console when the image is black while a signal is present). Must state a latency budget and
 how it is measured (constitution principle I); the stack spike measured 30.4 ms median at 1080p60
-on Windows with Direct3D 12 + Mailbox, and lists the open questions this spec inherits.
+on Windows with Direct3D 12 + Mailbox, and lists the open questions this spec inherits. Also
+investigate the Windows stalls at presentation mode changes the app shell measured (focus change
+229-401 ms, entering fullscreen 51-73 ms; app shell research R4).
 ```
 
 ### 4. Preview audio

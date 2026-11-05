@@ -305,6 +305,30 @@ the new `WindowState.max-hover` / `max-pressed`, click → toggle maximize. `Win
 - Checked by the maintainer: the strip is gone and the flyout opens. Not checked by hand: 125 % /
   150 %, and the system setting for the flyout turned off; look at them in T041's runs.
 
+T041 (latency budget) Windows part done: 18 runs on the 1080p 144 Hz monitor and at 1440p through
+DSR, results and verdicts in [measurements/latency.md](measurements/latency.md) (SC-001, SC-002
+and SC-003 met with the relaxed texts, maintainer 2026-11-05), raw logs in `measurements/raw/`
+(earlier logs from before the fixes in `raw/before/`). Committed (`docs: relax latency criteria
+after the Windows measurements`, `docs: add Windows latency measurements`). CachyOS runs pending, and quickstart checks 2–6 and 12–18 of T041 not run formally (most were
+checked task by task). Found and fixed during the run, all checked by the maintainer and folded
+into their commits (rebased):
+- `perf: keep UI updates off the video frame's path` (new commit, after T040): every UI image was
+  presented on its own and the next video frame waited for the compositor's vsync (up to 14 ms).
+  UI changes now ride on the next video frame (presented alone only when no frame came for
+  50 ms), a UI image is uploaded as it arrives, and UI drawing is paced to the monitor's refresh
+  also for input and resizes (pointer moves gave up to 413 images a second). Research R3.
+- Folded into `feat: add docks and chrome layer`: the docks glided into place during a resize
+  (their x/y were animated); now only a `hidden` factor is animated. A size change closes an open
+  tooltip and menu (they stayed where their control had been).
+- Folded into `feat: add focus ring, icon button, tooltip, menu, select and toggle`: the focus
+  ring was a dot in the control's middle (a plain component has no size; it now inherits
+  `Rectangle`). `Tooltips.dismiss()` added.
+- `docs: add presentation setting for variable refresh monitors (F52)`.
+Measuring notes: the agent launches each run in the background
+(`capturax.exe --test-video 1080p60 --stats --windowed|--fullscreen | Out-File ...`) and the
+maintainer acts and closes with Alt+F4; the window reopens where it was last closed (check the
+monitor first); a click to focus changes the readings (focus = variable refresh on).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -439,7 +463,16 @@ the new `WindowState.max-hover` / `max-pressed`, click → toggle maximize. `Win
 
 - The record / stream only mode may change the product's main scenario and the roadmap's order;
   product.md asks to decide it before spec #3 starts.
+- Windows stalls at presentation mode changes (T041): a focus change stalls the video 229–401 ms
+  on the native 1080p monitor, fullscreen gives one 51–73 ms stall about 18–20 s after entering it,
+  and one unexplained 625 ms stall happened once. At 1440p through DSR the focus change and drags
+  do not stall. Hypothesis: the swap chain moving in and out of its own hardware plane (MPO /
+  independent flip). Planned for spec #3 (roadmap #3, research R4); the temporary per-stage
+  timing used to look for the 625 ms stall was not kept.
+- G-SYNC: with G-SYNC set to full screen only, the focused windowed app still makes the monitor
+  follow it (cursor at about 60 Hz). Kept; F52 (spec #3) adds a "follow the monitor" mode.
 
 ## Next step
 
-T041 (the maintainer runs the latency budget of quickstart.md on Windows and CachyOS).
+The CachyOS part of T041 (same runs as measurements/latency.md, with the GPU clock state), and
+quickstart checks 2–6 and 12–18 if the maintainer wants them run formally; then US2 (T042).
