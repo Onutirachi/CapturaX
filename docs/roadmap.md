@@ -10,7 +10,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 |---|---|---|---|---|
 | 1 | [Stack spike](#1-stack-spike) ([spec](../specs/20261026-154808-stack-spike/spec.md)) | — | — | done |
 | 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | in progress |
-| 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43 | 2 | |
+| 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43, F52 | 2 | |
 | 4 | [Preview audio](#4-preview-audio) | F12–F14, F47 | 3 | |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
@@ -64,7 +64,7 @@ the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
 ### 3. Device preview
 
 ```text
-/speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11 and F43
+/speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11, F43 and F52
 from docs/product.md. Device list with hot plug, native modes, the automatic modes (source, max resolution, max FPS), reconnect,
 latency and FPS measurement, explicit empty and error states (including a hint to turn off
 HDCP on the console when the image is black while a signal is present). Must state a latency budget and

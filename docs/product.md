@@ -50,6 +50,7 @@ streaming), and a **View output** action shows the output in the preview.
 | F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected, black image while a signal is present (likely HDCP: suggest turning it off on the console). Never an empty list. | |
 | F42 | Capture info overlay (source, mode, measured FPS and latency, recording/live status) over the video, as bubbles: each can be pinned, moved in the order and anchored to any of the four corners; with the controls hidden only the pinned ones show, packed against their corner. | |
 | F43 | Resolution badges (for example HD, Full HD, QHD, 4K) in device and mode lists. | |
+| F52 | Presentation setting with two modes. **Lowest latency** (default): one present per video frame; on a variable refresh monitor (G-SYNC, FreeSync) the monitor follows the video, so frames show at once and evenly, but while the app has focus the whole desktop, cursor included, runs at the video's rate (60 Hz). **Follow the monitor**: present at every monitor refresh, repeating the last frame, so the cursor stays smooth; each new frame waits for the next refresh (up to 6.9 ms at 144 Hz) and the cadence is uneven (2 or 3 refreshes per frame at 60 fps on 144 Hz). Only matters with variable refresh; the setting says so. Found in the app shell's latency run (its research R4). | |
 
 ### C. Listening (preview audio)
 
