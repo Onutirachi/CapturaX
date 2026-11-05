@@ -3,6 +3,7 @@
 mod app;
 mod cli;
 mod frame;
+mod i18n;
 mod icon;
 mod log;
 mod notices;
@@ -17,9 +18,6 @@ use std::time::Instant;
 
 use slint::Global;
 use winit::event_loop::EventLoop;
-
-/// Language codes the app has; replaced by the language list of the languages task (spec US2).
-const KNOWN_LANGUAGES: &[&str] = &["en", "pt-BR"];
 
 fn main() {
     std::process::exit(run());
@@ -70,7 +68,7 @@ fn run() -> i32 {
             None
         }
     };
-    let store = settings::Store::new(table, Some(path), KNOWN_LANGUAGES);
+    let store = settings::Store::new(table, Some(path), &i18n::codes());
     if write_now {
         store.save_soon();
     }

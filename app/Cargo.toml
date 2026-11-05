@@ -21,6 +21,7 @@ clap.workspace = true
 log.workspace = true
 toml.workspace = true
 anyhow.workspace = true
+sys-locale.workspace = true
 gst.workspace = true
 gst-app.workspace = true
 gst-video.workspace = true

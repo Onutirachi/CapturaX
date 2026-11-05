@@ -329,6 +329,13 @@ Measuring notes: the agent launches each run in the background
 maintainer acts and closes with Alt+F4; the window reopens where it was last closed (check the
 monitor first); a click to focus changes the readings (focus = variable refresh on).
 
+T042 (`app/src/i18n.rs`) done, waiting for the maintainer's check before its commit: `LANGUAGES`,
+`codes()` (now passed to `settings::Store`, replacing main.rs's temporary `KNOWN_LANGUAGES`),
+`resolve` and `system_locale` (`sys-locale`; marked dead code until T044 uses them). Portuguese is
+matched by the locale's language subtag (`pt`, `pt-PT`, `pt_BR.UTF-8`, any case; not `ptx`);
+codes are exact (`pt-br` is unknown, so automatic). fmt, clippy, cargo-deny, 107 tests pass.
+The CachyOS part of T041 is postponed to one Linux session with T045 (Linux) and T050.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -475,4 +482,5 @@ monitor first); a click to focus changes the readings (focus = variable refresh 
 ## Next step
 
 The CachyOS part of T041 (same runs as measurements/latency.md, with the GPU clock state), and
-quickstart checks 2–6 and 12–18 if the maintainer wants them run formally; then US2 (T042).
+quickstart checks 2–6 and 12–18 if the maintainer wants them run formally, in one Linux session with
+T045's Linux part and T050; meanwhile US2 on Windows: commit T042 once checked, then T043.
