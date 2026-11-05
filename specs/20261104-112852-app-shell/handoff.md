@@ -165,6 +165,21 @@ elsewhere then): close from the taskbar while minimized is in the manual check.
 Also fixed: in `platform/src/lib.rs` the `set_fullscreen_frame` doc comment sat on
 `follow_dpi_rect`; folded into `feat: handle scale changes`.
 
+T033 (settings panel) done and checked on Windows by the maintainer; fmt, clippy, 80 tests
+pass; committed (`feat: add settings panel`). New `components/settings-panel.slint`: `SettingsPanel` (a `Raised` surface, title,
+close button with tooltip "Close (Esc)", rows in a `Flickable`, version at the bottom) and the
+global `Prefs` (values set by Rust, one `*-changed` callback per row). Placed in main.slint's
+settings layer: beside the right dock and centered on it, 360 px wide (less in a narrow window);
+in the compact layout right-aligned below the toolbar's 88 px row; taller than the room, the rows
+scroll. The chrome stays shown while the panel is open (so its anchor, the dock, does not slide
+away). Each row is a `ToggleRow` (a click on the row flips it). Changes reach `App` as
+`UserEvent::Setting` (the `Store` is not `Clone`) and go through `store.update`. Not wired yet,
+by design: Start with the system only logs (the system's entry holds it, T039), and
+`Prefs.tray-available` stays true until T039 sets it from `platform::tray::available()`. Menu
+scrolling at 640 × 360 still needs a select in the panel: check it in T046.
+Scripted checks (screenshots at 1280 × 720, 900 × 600 and 640 × 360; clicks on two rows saved
+`start_fullscreen` and `keep_in_tray` as true).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -259,4 +274,4 @@ Also fixed: in `platform/src/lib.rs` the `set_fullscreen_frame` doc comment sat 
 
 ## Next step
 
-T033 (settings panel; check menu scrolling at 640 × 360 there), then T034 (start mode).
+T034 (start mode).

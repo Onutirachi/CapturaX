@@ -13,8 +13,9 @@ import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
 import { TitleBar } from "components/title-bar.slint";
 import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
+import { SettingsPanel, Prefs } from "components/settings-panel.slint";
 
-export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, Tooltips }
+export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, Tooltips, Prefs }
 
 export component AppWindow inherits Window {
     background: transparent;
@@ -58,7 +59,8 @@ export component AppWindow inherits Window {
         visible: !WindowState.fullscreen;
     }
 
-    // The settings panel is open; its button is in the right dock, the panel comes with T033.
+    // The settings panel is open; its button is in the right dock, Esc and its close control close
+    // it (FR-025).
     in-out property <bool> settings-open;
 
     // Float at 800 × 520 and above; below it the compact layout puts the docks in the toolbar's
@@ -70,10 +72,11 @@ export component AppWindow inherits Window {
     changed width => { Tooltips.dismiss(); Menus.close(); }
     changed height => { Tooltips.dismiss(); Menus.close(); }
     // The chrome shows while the pointer is on the top of the video, the toolbar or a dock, while a
-    // menu is open, or while a chrome control has the keyboard focus; it hides 2 s after (FR-008).
+    // menu or the settings panel is open, or while a chrome control has the keyboard focus; it
+    // hides 2 s after (FR-008).
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || right-area.has-hover || Menus.open || fullscreen-button.has-focus
+        || right-area.has-hover || Menus.open || root.settings-open || fullscreen-button.has-focus
         || settings-button.has-focus;
     changed engaged => {
         if (self.engaged) {
@@ -191,7 +194,20 @@ export component AppWindow inherits Window {
         dismiss => { root.dismiss-notice(); }
     }
 
-    // Settings panel layer: filled by the settings panel task.
+    // Settings panel layer: beside the right dock, centered on it; in the compact layout below the
+    // toolbar's row. Taller than the video area allows, its rows scroll.
+    if root.settings-open: SettingsPanel {
+        property <length> edge: 12px;
+        property <length> room: root.compact ? root.video-height - 88px - self.edge : root.video-height - 2 * self.edge;
+        width: min(360px, root.video-width - 2 * self.edge);
+        height: min(self.wanted-height, self.room);
+        x: root.video-x + (root.compact ? root.video-width - self.width - self.edge
+            : right-area.x - self.width - self.edge);
+        y: root.video-y + (root.compact ? 88px
+            : max(self.edge, min(root.video-height - self.height - self.edge,
+                right-area.y + (right-area.height - self.height) / 2)));
+        close => { root.settings-open = false; }
+    }
 
     // Top layer (menus, dropdowns, tooltips): drawn last, so nothing covers them (FR-010). A menu
     // takes every click while open; a click outside it closes it.

@@ -19,7 +19,7 @@ use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
 use crate::render::{Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
-use crate::ui::{Menus, NoticeKind, Texts, Ui, WindowState};
+use crate::ui::{Menus, NoticeKind, Prefs, Texts, Ui, WindowState};
 
 /// Exit code when no renderer could start (contracts/cli.md).
 pub const EXIT_NO_RENDERER: i32 = 2;
@@ -31,6 +31,15 @@ pub const EXIT_NO_TEST_VIDEO: i32 = 69;
 pub enum UserEvent {
     Window(WindowAction),
     DismissNotice,
+    Setting(SettingChange),
+}
+
+/// A change made in the settings panel.
+#[derive(Debug, Clone, Copy)]
+pub enum SettingChange {
+    StartFullscreen(bool),
+    KeepInTray(bool),
+    StartWithSystem(bool),
 }
 
 /// What the UI asks the window to do.
@@ -89,7 +98,9 @@ impl App {
         state.on_toggle_fullscreen(move || on(UserEvent::Window(WindowAction::ToggleFullscreen)));
         let on = send.clone();
         state.on_start_move(move || on(UserEvent::Window(WindowAction::StartMove)));
-        ui.app.on_dismiss_notice(move || send(UserEvent::DismissNotice));
+        let on = send.clone();
+        ui.app.on_dismiss_notice(move || on(UserEvent::DismissNotice));
+        bind_prefs(&ui, &store, send);
         Self {
             options,
             process_start,
@@ -309,6 +320,20 @@ impl App {
     }
 }
 
+/// Shows the saved settings in the settings panel and saves each change from it (FR-025, FR-029).
+fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone + 'static) {
+    let prefs = ui.app.global::<Prefs>();
+    let general = store.get().general;
+    prefs.set_start_fullscreen(general.start_fullscreen);
+    prefs.set_keep_in_tray(general.keep_in_tray);
+    prefs.set_version(env!("CARGO_PKG_VERSION").into());
+    let on = send.clone();
+    prefs.on_start_fullscreen_changed(move |v| on(UserEvent::Setting(SettingChange::StartFullscreen(v))));
+    let on = send.clone();
+    prefs.on_keep_in_tray_changed(move |v| on(UserEvent::Setting(SettingChange::KeepInTray(v))));
+    prefs.on_start_with_system_changed(move |v| send(UserEvent::Setting(SettingChange::StartWithSystem(v))));
+}
+
 /// A connected monitor for [`placement::fit`].
 fn describe(m: &MonitorHandle) -> placement::Monitor {
     let rect = |p: PhysicalPosition<i32>, s: winit::dpi::PhysicalSize<u32>| Rect {
@@ -388,6 +413,12 @@ impl ApplicationHandler<UserEvent> for App {
                 self.notices.dismiss();
                 self.show_notice();
             }
+            UserEvent::Setting(change) => match change {
+                SettingChange::StartFullscreen(on) => self.store.update(|s| s.general.start_fullscreen = on),
+                SettingChange::KeepInTray(on) => self.store.update(|s| s.general.keep_in_tray = on),
+                // The system's autostart entry holds it, not the settings file (T039).
+                SettingChange::StartWithSystem(on) => log::info!("start with the system: {on} (not wired yet)"),
+            },
         }
     }
 

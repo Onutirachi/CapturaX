@@ -1,0 +1,137 @@
+// The settings panel (FR-025): a raised panel over the video, opened from the dock's settings
+// button and closed with Esc or its close control; the video keeps playing behind it. Each change
+// is reported to Rust, which saves it at once (FR-029). The values live in the global `Prefs`, set
+// by Rust. The language and theme rows come with the languages and themes work (spec US2).
+import { Theme } from "../theme.slint";
+import { Toggle } from "toggle.slint";
+import { IconButton } from "icon-button.slint";
+import { Side } from "tooltip.slint";
+import { Raised } from "raised.slint";
+
+export global Prefs {
+    in-out property <bool> start-fullscreen;
+    in-out property <bool> keep-in-tray;
+    in-out property <bool> start-with-system;
+    // Keep in tray shows only where the desktop has a tray (FR-014a).
+    in property <bool> tray-available: true;
+    in property <string> version;
+    callback start-fullscreen-changed(bool);
+    callback keep-in-tray-changed(bool);
+    callback start-with-system-changed(bool);
+}
+
+// One setting: its name and a switch; a click anywhere on the row flips it.
+component ToggleRow inherits Rectangle {
+    in property <string> text;
+    in-out property <bool> checked;
+    callback toggled(bool);
+
+    height: max(48px, label.preferred-height + 2 * Theme.gap-m);
+    border-radius: Theme.radius-s;
+    background: area.has-hover ? Theme.c.top : Theme.c.base;
+    animate background { duration: Theme.quick; }
+
+    area := TouchArea {
+        clicked => { toggle.flip(); }
+    }
+
+    label := Text {
+        x: Theme.gap-m;
+        width: parent.width - toggle.width - 3 * Theme.gap-m;
+        height: parent.height;
+        text: root.text;
+        color: Theme.c.text;
+        font-size: Theme.text-m;
+        wrap: word-wrap;
+        vertical-alignment: center;
+    }
+
+    toggle := Toggle {
+        x: parent.width - self.width - Theme.gap-m;
+        y: (parent.height - self.height) / 2;
+        label: root.text;
+        checked <=> root.checked;
+        toggled(on) => { root.toggled(on); }
+    }
+}
+
+export component SettingsPanel inherits Raised {
+    callback close();
+
+    property <length> pad: Theme.gap-l;
+    property <length> header: 52px;
+    // The height the panel wants; the caller limits its height and the rows scroll.
+    out property <length> wanted-height: root.header + content.preferred-height;
+
+    fill: Theme.c.raised;
+    accessible-role: groupbox;
+    accessible-label: @tr("Settings");
+
+    // Clicks on the panel stay on it.
+    TouchArea { }
+
+    title := Text {
+        x: root.pad;
+        y: 0;
+        height: root.header;
+        text: @tr("Settings");
+        color: Theme.c.text;
+        font-size: Theme.text-l;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+
+    IconButton {
+        x: root.width - self.width - Theme.gap-s;
+        y: (root.header - self.height) / 2;
+        size: 36px;
+        icon-size: 18px;
+        icon: @image-url("../assets/icons/close.svg");
+        tooltip: @tr("Close (Esc)");
+        tooltip-side: Side.bottom;
+        clicked => { root.close(); }
+    }
+
+    Flickable {
+        x: 0;
+        y: root.header;
+        width: root.width;
+        height: root.height - root.header;
+        content-height: max(self.height, content.preferred-height);
+
+        content := VerticalLayout {
+            padding-left: root.pad;
+            padding-right: root.pad;
+            padding-bottom: root.pad;
+            spacing: Theme.gap-s;
+
+            ToggleRow {
+                text: @tr("Start in fullscreen");
+                checked <=> Prefs.start-fullscreen;
+                toggled(on) => { Prefs.start-fullscreen-changed(on); }
+            }
+
+            if Prefs.tray-available: ToggleRow {
+                text: @tr("Keep in tray when closed");
+                checked <=> Prefs.keep-in-tray;
+                toggled(on) => { Prefs.keep-in-tray-changed(on); }
+            }
+
+            ToggleRow {
+                text: @tr("Start with the system");
+                checked <=> Prefs.start-with-system;
+                toggled(on) => { Prefs.start-with-system-changed(on); }
+            }
+
+            Text {
+                text: @tr("Version {}", Prefs.version);
+                color: Theme.c.text-faint;
+                font-size: Theme.text-s;
+                horizontal-alignment: center;
+                // Space above it, apart from the rows.
+                height: self.preferred-height + Theme.gap-m;
+                vertical-alignment: bottom;
+            }
+        }
+    }
+}
