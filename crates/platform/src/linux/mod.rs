@@ -59,6 +59,10 @@ pub fn set_fullscreen_frame(_window: &Window, _fullscreen: bool) {}
 
 pub fn follow_dpi_rect(_window: &Window) {}
 
+pub fn drawn_size(window: &Window) -> PhysicalSize<u32> {
+    window.inner_size()
+}
+
 /// Wayland does not tell clients about panels; X11's `_NET_WORKAREA` covers all monitors at once.
 pub fn work_area(_monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
     None

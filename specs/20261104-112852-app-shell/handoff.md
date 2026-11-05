@@ -279,7 +279,7 @@ script bring it to the front.)
 
 ## Open questions
 
-- Text sharpness (maintainer, 2026-11-05): text in menus and dock tooltips still reads worse than
+- Resolved, kept for the record: text sharpness (maintainer, 2026-11-05): text in menus and dock tooltips still reads worse than
   in the title bar's tooltips, although all use the same `Tooltip` component and font (15 px).
   Snapping positions to whole physical pixels did not help (T031). After this spec, a dedicated
   investigation to fix it for good: find what differs (glyph position, background under the
@@ -289,6 +289,35 @@ script bring it to the front.)
   125 % it reads well. Check also the path of the UI image: menus and tooltips are opaque
   (`Raised`, fill drawn in the Rust image), but the whole UI is composited over the video by the
   video thread, so any resampling or alpha handling there would blur only some text.
+  Findings (2026-11-05): the composite is 1:1 (full-surface quad, texture the surface's size), not
+  the cause. Slint 1.18's text path (`draw_glyph_run` in i-slint-renderer-software, parley) puts
+  each glyph at a quarter-pixel x and rasterizes it there with swash, unhinted, no gamma; the
+  baseline is snapped to a whole pixel. Inter's 15 px advances are fractional, so inside one word
+  some letters land on the pixel grid (sharp stems) and others half a pixel off (stems smeared
+  over two columns): measured in offscreen renders, the two `l` of "Fullscreen" have different
+  pixels. Which letters blur depends on the word and its x, so "Close" happened to be sharp and
+  snapping the tooltip did not help. The bundled Inter (variable) has no hinting program (`fpgm`).
+  The maintainer then saw that text is very good in fullscreen and poor only in a window. Real
+  cause, measured (screen captures against offscreen renders, Windows, 100 %): winit's undecorated
+  shadow (`WM_NCCALCSIZE`: `top += 1; bottom += 1` when not maximized) leaves 719 visible rows of
+  the 720-row client, and Windows squeezes the 720-row swapchain into them. Near the top the shift
+  is about 0 (title bar sharp), mid-window about half a pixel (docks, panel, menus blurred).
+  Without the shadow, or with the surface and UI drawn 1 row shorter (719), the screen equals
+  the render exactly (difference 0). Maximized (client = work area) and fullscreen (shadow off,
+  `set_fullscreen_frame`) are not affected.
+  The maintainer checked a 719-row test build by eye: fixed. Implemented (research R5,
+  contracts/platform.md and T031 updated first): `platform::drawn_size(window)`, on Windows
+  measured from the rectangles (client rows and columns past `GetWindowRect`), not from winit's
+  flags; Linux returns the inner size. `app.rs` uses it at start, on `Resized` and again in
+  `about_to_wait` after a move or resize; the resize band uses `ui.size()`. Screen capture of the
+  windowed app with the panel open equals the exact reference (difference 0 at the top, the panel
+  and lower). fmt, clippy (Windows; `platform` also for Linux), 81 tests pass. Checked by the
+  maintainer (windowed, maximized, restored, snapped, fullscreen) and committed on its own
+  (`fix: draw at the window's visible size`): it uses T032's code, so it could not be folded
+  into `feat: handle scale changes` without rewriting the later commits (maintainer's choice).
+  The quarter-pixel glyph placement remains, but the maintainer finds fullscreen text very good,
+  so patching Slint is not pursued. The test binaries and the offscreen render example were
+  deleted. Closed.
 - Settings panel shape (maintainer, 2026-11-05): beside the dock as now, or a central panel as in
   the original CapturaX. The maintainer decides once the future settings are listed; decide
   before T046 adds the language and theme rows.
@@ -298,5 +327,4 @@ script bring it to the front.)
 
 ## Next step
 
-Investigate the text sharpness (Open questions, the maintainer asked for it next), then T035
-(single instance).
+T035 (single instance).

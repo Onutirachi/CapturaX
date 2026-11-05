@@ -87,6 +87,18 @@ reopened here; entries below say how the shell builds it.
   as wide as the snapped window, found in T029's check). `platform::set_fullscreen_frame` turns
   the shadow off before entering fullscreen and back on after leaving it. Windowed, the 1 px strip
   stays (winit's own trade-off for the shadow).
+- **One row less while windowed (Windows)**: winit also moves the client's bottom down 1 px
+  (`bottom += 1`) when the window is not maximized, so only 719 of a 720-row client are inside
+  the window, and the system squeezes a 720-row swapchain into those 719 rows. Everything is
+  resampled vertically: about 0 px of shift at the top, half a pixel mid-window, so text in the
+  docks, panels and menus reads blurred while the title bar stays sharp (found while
+  investigating text sharpness, measured by screen captures against offscreen renders: no
+  whole-row shift matched). Drawing the UI and the surface 1 row shorter makes the screen equal
+  the render exactly. `platform::drawn_size(window)` gives that size: the inner size minus one
+  row while the window is neither maximized (winit sets the client to the work area then) nor
+  fullscreen (shadow off); the inner size otherwise and on Linux. The app uses it for the UI,
+  the surface and the resize band, and reads it again once the events of a change are handled,
+  because `is_maximized` turns true after the first events of a maximize (T032).
 - **Dragging across monitor scales (Windows)**: on `WM_DPICHANGED` during a drag, winit keeps
   the size the system suggests but moves the window so that the pointer keeps its place along the
   title bar. That can put the window's center back on the old monitor (from 100 % to 150 % it

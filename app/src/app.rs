@@ -366,7 +366,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
         };
         self.ui.set_scale(window.scale_factor() as f32);
-        self.ui.set_size(window.inner_size());
+        self.ui.set_size(platform::drawn_size(&window));
         platform::follow_dpi_rect(&window);
         self.update_refresh(&window);
         let presentation = Presentation {
@@ -433,9 +433,9 @@ impl ApplicationHandler<UserEvent> for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => {
-                self.ui.set_size(size);
+            WindowEvent::Resized(_) => {
                 if let Some(w) = self.window.clone() {
+                    self.ui.set_size(platform::drawn_size(&w));
                     self.ui.app.global::<WindowState>().set_maximized(w.is_maximized());
                 }
                 self.placement_changed = true;
@@ -468,7 +468,7 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::CursorMoved { position, .. } => {
                 if let Some(w) = self.window.clone() {
                     let resizable = !w.is_maximized() && w.fullscreen().is_none();
-                    let direction = frame::resize_direction(w.inner_size(), w.scale_factor(), position, resizable);
+                    let direction = frame::resize_direction(self.ui.size(), w.scale_factor(), position, resizable);
                     self.set_resize(&w, direction);
                 }
                 if self.ui.window_event(&event) {
@@ -498,6 +498,9 @@ impl ApplicationHandler<UserEvent> for App {
         if std::mem::take(&mut self.placement_changed)
             && let Some(w) = self.window.clone()
         {
+            // Read again once the change's events are handled: the shadow's hidden row comes and
+            // goes with a maximize after its `Resized` (research R5).
+            self.ui.set_size(platform::drawn_size(&w));
             self.save_placement(&w);
         }
         // Keep Slint timers and animations running between video frames, so they do not step at

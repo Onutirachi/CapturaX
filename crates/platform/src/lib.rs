@@ -52,6 +52,14 @@ pub fn set_fullscreen_frame(window: &Window, fullscreen: bool) {
     os::set_fullscreen_frame(window, fullscreen);
 }
 
+/// The size to draw the window's content at, physical pixels: on Windows the inner size without
+/// the row the undecorated shadow pushes below the window, while neither maximized nor
+/// fullscreen; drawn at the full inner size, the system would squeeze it into the visible rows
+/// and blur everything (research R5). The inner size elsewhere.
+pub fn drawn_size(window: &Window) -> PhysicalSize<u32> {
+    os::drawn_size(window)
+}
+
 /// The part of `monitor` not taken by the taskbar or panels, physical pixels in desktop
 /// coordinates (FR-012). None where the OS does not say (Linux): use the monitor's bounds.
 pub fn work_area(monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {

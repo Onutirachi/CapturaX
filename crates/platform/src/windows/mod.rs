@@ -2,16 +2,20 @@
 
 use std::path::PathBuf;
 
-use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFO};
+use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
+use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, GetMonitorInfoW, HMONITOR, MONITORINFO};
 use windows_sys::Win32::Media::{TIMERR_NOERROR, timeBeginPeriod, timeEndPeriod};
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION,
     PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling, SetProcessInformation,
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MessageBoxW};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetClientRect, GetWindowRect, MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MessageBoxW,
+};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::monitor::MonitorHandle;
 use winit::platform::windows::{MonitorHandleExtWindows, WindowAttributesExtWindows, WindowExtWindows};
+use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
@@ -90,6 +94,39 @@ pub use dpi_rect::follow_dpi_rect;
 pub fn set_fullscreen_frame(window: &Window, fullscreen: bool) {
     // Without the shadow, winit no longer moves the client area 1 px down (WM_NCCALCSIZE).
     window.set_undecorated_shadow(!fullscreen);
+}
+
+/// The client area minus what lies past the window's rectangle: for the undecorated shadow winit
+/// moves the client 1 px down without shrinking it (WM_NCCALCSIZE), so its last row is outside
+/// the window. Measured from the rectangles rather than from winit's flags, which follow a
+/// maximize late.
+pub fn drawn_size(window: &Window) -> PhysicalSize<u32> {
+    let size = window.inner_size();
+    let Ok(handle) = window.window_handle() else {
+        return size;
+    };
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return size;
+    };
+    let hwnd = handle.hwnd.get() as HWND;
+    let mut outer = RECT::default();
+    let mut client = RECT::default();
+    let mut origin = POINT::default();
+    // SAFETY: the handle is valid for the window's life; the out pointers are to locals.
+    let ok = unsafe {
+        GetWindowRect(hwnd, &mut outer) != 0
+            && GetClientRect(hwnd, &mut client) != 0
+            && ClientToScreen(hwnd, &mut origin) != 0
+    };
+    if !ok {
+        return size;
+    }
+    let hidden_right = (origin.x + client.right - outer.right).max(0) as u32;
+    let hidden_below = (origin.y + client.bottom - outer.bottom).max(0) as u32;
+    PhysicalSize::new(
+        size.width.saturating_sub(hidden_right),
+        size.height.saturating_sub(hidden_below),
+    )
 }
 
 pub fn work_area(monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
