@@ -610,7 +610,12 @@ impl ApplicationHandler<UserEvent> for App {
                     self.ui.app.global::<WindowState>().set_maximized(w.is_maximized());
                 }
                 self.placement_changed = true;
-                self.update_ui();
+                // Paced as other UI images: each size is a new image, texture and surface setup.
+                if Instant::now() >= self.last_ui + self.refresh {
+                    self.update_ui();
+                } else {
+                    self.request_redraw();
+                }
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.ui.set_scale(scale_factor as f32);
@@ -625,7 +630,12 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.placement_changed = true;
             }
-            WindowEvent::RedrawRequested => self.update_ui(),
+            // Paced to the refresh as in `about_to_wait`, which draws it later when not due yet.
+            WindowEvent::RedrawRequested => {
+                if Instant::now() >= self.last_ui + self.refresh {
+                    self.update_ui();
+                }
+            }
             WindowEvent::KeyboardInput { ref event, .. }
                 if event.state == ElementState::Pressed
                     && !event.repeat
@@ -678,14 +688,17 @@ impl ApplicationHandler<UserEvent> for App {
         // the video's frame rate. Read before updating: an update clears the flag until the next
         // draw reads the animated properties again.
         let mut animating = self.ui.has_active_animations();
-        if !animating || Instant::now() >= self.last_ui + self.refresh {
+        // At most one UI image per refresh (research R3), also for input: each image is uploaded
+        // by the video thread, and pointer moves alone asked for hundreds a second.
+        let due = Instant::now() >= self.last_ui + self.refresh;
+        if due {
             self.update_ui();
             // A timer fired in this update may have started an animation (the chrome hiding):
             // its first frame was just drawn, so the flag is set again.
             animating |= self.ui.has_active_animations();
         }
         let mut wake = self.ui.next_timer();
-        if animating {
+        if animating || !due {
             let next = (self.last_ui + self.refresh).max(Instant::now() + Duration::from_millis(1));
             wake = Some(wake.map_or(next, |w| w.min(next)));
         }

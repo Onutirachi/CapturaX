@@ -161,6 +161,16 @@ impl Drop for VideoThread {
     }
 }
 
+/// How long the video may go without a frame and still count as flowing: while it flows, a UI or
+/// scene change waits for the next video frame instead of being presented on its own (research R3).
+const FLOWING: Duration = Duration::from_millis(50);
+
+/// When a UI or scene change with no video frame may be presented on its own: at once (`None`)
+/// unless the video is flowing, else when it stops flowing.
+fn ui_deadline(last_frame: Option<Instant>, now: Instant) -> Option<Instant> {
+    last_frame.map(|t| t + FLOWING).filter(|deadline| *deadline > now)
+}
+
 fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
     let mut stats = stats.then(|| {
         print_stats(&gpu.header());
@@ -168,28 +178,46 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
     });
     let mut scene: Option<Scene> = None;
     let mut first_present = true;
+    // When the last video frame was taken from the inbox.
+    let mut last_frame: Option<Instant> = None;
     loop {
-        let (frame, ui) = {
+        let (frame, ui, present) = {
             let mut state = inbox.lock();
-            loop {
+            let present = loop {
+                let now = Instant::now();
                 if let Some(stats) = &mut stats {
                     stats.received(std::mem::take(&mut state.received));
                     stats.replaced(std::mem::take(&mut state.replaced));
                     stats.window_moved(std::mem::take(&mut state.moves));
-                    if let Some(line) = stats.report(Instant::now()) {
+                    if let Some(line) = stats.report(now) {
                         print_stats(&line);
                     }
                 }
-                if state.stop || !(state.hidden || (state.frame.is_none() && !state.changed)) {
-                    break;
+                let deadline = if state.changed {
+                    ui_deadline(last_frame, now)
+                } else {
+                    None
+                };
+                let ready = state.frame.is_some() || (state.changed && deadline.is_none());
+                if state.stop || (!state.hidden && ready) {
+                    break ready;
                 }
-                state = match &stats {
-                    // Wake for the next line even when nothing arrives.
-                    Some(stats) => {
-                        let timeout = stats
-                            .next_report()
-                            .saturating_duration_since(Instant::now())
-                            .max(Duration::from_millis(1));
+                // A UI image is uploaded as soon as it arrives, so the next video frame's way to
+                // the screen does not include it (SC-001).
+                if !state.hidden && state.ui.is_some() {
+                    break false;
+                }
+                // Wake for the next stats line and for a waiting change, even when nothing arrives.
+                let wake_at = [
+                    stats.as_ref().map(Stats::next_report),
+                    deadline.filter(|_| !state.hidden),
+                ]
+                .into_iter()
+                .flatten()
+                .min();
+                state = match wake_at {
+                    Some(at) => {
+                        let timeout = at.saturating_duration_since(now).max(Duration::from_millis(1));
                         inbox
                             .wake
                             .wait_timeout(state, timeout)
@@ -198,23 +226,33 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
                     }
                     None => inbox.wake.wait(state).unwrap_or_else(|e| e.into_inner()),
                 };
-            }
+            };
             if state.stop {
                 return;
             }
-            state.changed = false;
-            scene = state.scene.or(scene);
-            (state.frame.take(), state.ui.take())
+            let frame = if present {
+                state.changed = false;
+                scene = state.scene.or(scene);
+                state.frame.take()
+            } else {
+                None
+            };
+            if frame.is_some() {
+                last_frame = Some(Instant::now());
+            }
+            (frame, state.ui.take(), present)
         };
-        // Nothing to draw until the main thread has handed over the first scene.
-        let Some(scene) = scene else { continue };
-        gpu.resize(scene.size.0, scene.size.1);
         if let Some(ui) = ui {
             gpu.set_ui(&ui);
             if let Some(stats) = &mut stats {
                 stats.ui_image(ui.draw_ms);
             }
         }
+        // Nothing to draw until the main thread has handed over the first scene.
+        let Some(scene) = scene.filter(|_| present) else {
+            continue;
+        };
+        gpu.resize(scene.size.0, scene.size.1);
         let ready = frame.map(|frame| {
             gpu.set_video(&frame);
             frame.ready
@@ -238,4 +276,22 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
 fn print_stats(line: &str) {
     println!("{line}");
     log::info!("{line}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ui_changes_wait_only_while_the_video_flows() {
+        let now = Instant::now();
+        // No video yet: at once.
+        assert_eq!(ui_deadline(None, now), None);
+        // A frame 10 ms ago: wait for the next one, at most until the video counts as stopped.
+        let last = now - Duration::from_millis(10);
+        assert_eq!(ui_deadline(Some(last), now), Some(last + FLOWING));
+        // No frame for longer than that: at once.
+        assert_eq!(ui_deadline(Some(now - FLOWING), now), None);
+        assert_eq!(ui_deadline(Some(now - Duration::from_millis(200)), now), None);
+    }
 }

@@ -43,7 +43,9 @@ reopened here; entries below say how the shell builds it.
     refresh, and hands the finished image to the video thread.
   - **Video thread** (`video`): owns the wgpu device, surface and layers; keeps only the newest
     video frame, UI image and scene in an inbox (mutex + condvar); composites and presents when a
-    frame or a UI image arrives; counts the stats (R9).
+    video frame arrives; counts the stats (R9). A UI image or scene change is presented on its
+    own only while the video is not flowing (no frame yet, the window was hidden, or no frame for
+    50 ms); while it flows, the change rides on the next video frame (see below).
   - **Test video**: a GStreamer pipeline whose appsink callback (GStreamer's streaming thread)
     puts each frame in the inbox and wakes the video thread.
   - **Settings saver**: a thread that writes the file 300 ms after the last change (R6).
@@ -51,6 +53,18 @@ reopened here; entries below say how the shell builds it.
   thread is the main thread, and the video thread never waits for it; it composites the last
   finished UI image (FR-001, FR-002). A video frame arriving while the UI draws is presented at
   once with the previous UI image.
+- **UI presents ride on video frames** (T041, 2026-11-05): presenting every UI image on its own
+  failed SC-001 while the chrome animated. The surface keeps one present in flight
+  (`desired_maximum_frame_latency = 1`), so after a UI-only present the next acquire waits for
+  the compositor's vsync, and a video frame arriving then waited up to 13–14 ms (median up to
+  8 ms in seconds with 80–90 UI images; idle stayed 1.2 / 1.6 ms). Measured in
+  measurements/raw/win-1080-win-chrome.txt. Cost of the change: the UI shows at most one video
+  frame later (≤ 16.7 ms at 60 fps) and animates at the video's frame rate. Rejected: a deeper
+  swap chain queue (the measured time improves but the frame reaches the screen a vsync later);
+  predicting the vsync to fit a UI-only present before the next frame (fragile, little gain).
+  With that alone, opening the settings panel still gave one second at 3.5 ms max: the UI image
+  was uploaded between the frame's arrival and its present. The video thread now uploads a UI
+  image as soon as it arrives, while it waits for the next frame.
 - Slint timers and animations run from the main loop (`update_timers_and_animations`, winit
   `ControlFlow::WaitUntil` the next Slint timer). They pause while Windows holds the main thread
   during a window move (expected, spike T052); the video does not.
@@ -72,6 +86,20 @@ reopened here; entries below say how the shell builds it.
   tear and matched Immediate on DX12.
 - **Alternatives**: Immediate first — tears with no measured gain on DX12; letting wgpu pick the
   backend — on Windows it may pick Vulkan, ≈ 15 ms slower through DWM.
+- **Variable refresh (found in T041, 2026-11-05)**: on the maintainer's 144 Hz G-SYNC monitor,
+  with G-SYNC set to full screen only, the monitor follows the windowed app's presents while
+  CapturaX has focus, so the whole desktop, cursor included, runs at about 60 Hz (also while
+  other windows animate); without focus, or with G-SYNC off, the compositor runs at 144 Hz.
+  Likely cause, not confirmed: Windows promotes the window's DX12 flip-model swap chain to its
+  own hardware plane (independent flip), which the driver treats as full screen; PresentMon's
+  present mode would confirm it. Kept on purpose: with variable refresh each video frame shows
+  at once and evenly. There is no public Windows API for a window to refuse it (only NVIDIA's
+  NVAPI driver profiles); users can turn it off for `capturax.exe` in the NVIDIA Control Panel
+  (Manage 3D settings → Program settings → Monitor Technology: fixed refresh). Measured `ready_ms` differs between the two (median about
+  1.0–1.2 ms with focus, 1.4–1.6 ms without), and a focus change gives one second with a 13–19 ms
+  max while the driver switches; T041 measures both. A setting to present at the monitor's
+  refresh instead, keeping the cursor smooth at some latency cost, is F52 in docs/product.md,
+  for spec #3.
 
 ## R5. Frameless window on Windows and Linux
 

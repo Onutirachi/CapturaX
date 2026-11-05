@@ -9,7 +9,8 @@
 The first application code: the CapturaX window every later feature lives in. It ports the stack
 spike's validated render architecture (tag `spike/stack-20261026`, `layered-preview`) into a
 maintained structure: a winit window and the Slint UI on the main thread, a video thread that owns
-wgpu and presents each frame on arrival, compositing the last finished UI image (research R3).
+wgpu and presents each frame on arrival, compositing the last finished UI image; UI changes ride
+on the next video frame while the video flows (research R3).
 Around it: the Float frameless window and chrome, the theme and both languages switching live,
 the portable settings file with fallbacks, single instance, tray and autostart, the empty and
 error state components, a test video with presentation statistics for the latency budget, and CI
