@@ -37,6 +37,12 @@ pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
     os::window_attributes(attrs)
 }
 
+/// Keeps a window that is being dragged or resized onto another monitor's scale on the
+/// rectangle the system suggests (Windows; research R5). Call once after creating the window.
+pub fn follow_dpi_rect(window: &Window) {
+    os::follow_dpi_rect(window);
+}
+
 /// Prepares the frameless window's frame for fullscreen or for leaving it: on Windows the shadow's
 /// 1 px top strip is removed while fullscreen (research R5). Call before entering fullscreen and
 /// after leaving it. Nothing to do on Linux.

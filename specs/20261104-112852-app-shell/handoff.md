@@ -86,6 +86,66 @@ fullscreen; contracts/platform.md and research R5 updated. Script after the fix:
 after snapping to either top corner. Windowed, the 1 px strip stays (winit's trade-off). Second
 check by the maintainer: ok.
 
+T031 (scene and scale changes): most of it came with Phase 2 (the scene, in physical pixels, is
+sent on every update where it changed; the surface follows `scene.size`; `ScaleFactorChanged`
+reaches Slint and the `Resized` after it resizes the buffer). Added: `Ui` forces one whole repaint
+after a size or scale change (`full_repaint`: `NewBuffer` for that draw, then back to
+`ReusedBuffer`). Slint's partial renderer tracks changes in logical pixels, so after moving to a
+monitor with another scale (new physical size, same logical size) nothing was dirty and the new,
+empty buffer could stay empty or keep the old scale.
+
+T031 first check (maintainer): dragging to a monitor with another scale shrank the window while
+dragging and it left the pointer, and coming back was hard. Reproduced with
+`scratchpad/dpidrag.ps1`-style scripted drags across this machine's 100 % and 150 % monitors and
+a message log. Cause: winit's `WM_DPICHANGED` repositioning (research R5, "Dragging across
+monitor scales"). Fixed by `platform::follow_dpi_rect` (`crates/platform/src/windows/dpi_rect.rs`,
+contract updated). Scripted drags now keep 1280 × 720 at 100 % and 1920 × 1080 at 150 %, both ways,
+under the pointer. The maintainer could not judge the shadows over the dark test video (the
+`ball` pattern is black). Screenshots over a temporary local `pattern=white` build (not kept)
+showed soft shadows without steps at 100 %, 125 % and 150 %. They also showed a dark horizontal
+line out of the tooltip's middle at every scale: the tooltip was about 30 px tall, under twice the
+shadow radius, so the nine-slice corners overlapped. The tooltip is now at least
+2 × `radius-m` tall (`tooltip.slint`; the rule is noted in `raised.slint`). This is a fix to the
+tooltip commit (a192d43), to be folded into it.
+
+T031 second check (maintainer, using a local `target/release/capturax-white.exe` built with
+`pattern=white`, never committed): the docks looked low resolution and at other scales the
+shadow started 1 px outside the surface. Pixel measurements agreed: at 125 % and 150 % one side
+had a light pixel between the surface and its shadow, and the other side a dark one. Switched to
+research R8's fallback (research R8 and the plan updated first). `Theme.shadow(width, height,
+scale)` is a pure callback that Rust implements: `shadows::make` draws one image per surface size
+in physical pixels (two layers, three box blurs, cut-out 1 px inside the surface), cached in
+`Ui` by size and scale. `Raised` uses one image, drawn 1:1.
+
+Third check (maintainer): better, but a black outline around the buttons. Tooltips read better
+at 125 % than at 100 %, and the tooltip sat too close to the button. Changes:
+- The cut-out is now the surface's exact shape (research R8 updated). At 150 % the edge goes
+  171 → 81 with no outline and no gap.
+- Tooltip text is `text-m` (14 px) instead of `text-s`.
+- `TooltipLayer` keeps 16 px from the control (`offset`; 8 px clear past the dock's edge) and
+  8 px from the window's edges (`gap`).
+
+Fourth check (maintainer): no outline and a good tooltip distance. There were small "teeth" at
+the bottom corners: Slint's anti-aliased fill and the image's cut-out disagreed on the curve.
+Text at 100 % read darker and blurrier than at 125 %.
+- The image now holds the fill too: `Theme.surface(width, height, scale, fill, shadow)`, with
+  one coverage per pixel for the fill and the cut-out. The theme's shadow strength is in the
+  image, not in the element's opacity. `Raised.fill` is a `color`; research R8 updated. At 100 %
+  the dock's corner now goes 81 → shadow monotonically.
+- Text: Slint's software renderer has no gamma or hinting, so light text on dark looks thin at
+  12–14 px. Weights 500, 550 and 600 and 15 px were compared with local test copies. Snapping
+  the tooltip and dock positions to whole physical pixels was also tried, for the maintainer's
+  observation that the title bar's tooltips read better; it did not help and was removed.
+  Then a local test copy with a grid of tooltips was built (12–16 px × weights 400–700). The
+  maintainer chose 15 px at weight 400: acceptable at 100 %, very good at 125 %. Rendering the
+  UI at double resolution would make 100 % as smooth, at about 4× the drawing cost, and was not
+  pursued.
+- The tooltip's 32 px minimum height was removed: per-size images have no nine-slice limit.
+
+The dock corners are confirmed fine. fmt, clippy (Windows, Linux), 80 tests pass. Not
+committed. `target/release/capturax-white.exe` is the current code with a white test video
+(local only).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -180,4 +240,9 @@ check by the maintainer: ok.
 
 ## Next step
 
-T031 (scene and scale changes) (tasks.md, US1).
+All T031 checks passed (dragging between monitors confirmed by the maintainer). After the
+maintainer approves the commits:
+- fold the tooltip changes into a192d43 (`tooltip.slint`: 15 px text, 16 px from the control);
+- commit T031 with `follow_dpi_rect` and the R8 fallback;
+- go to T032
+(save and restore the window placement) (tasks.md, US1).

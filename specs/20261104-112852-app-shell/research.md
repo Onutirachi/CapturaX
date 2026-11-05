@@ -87,6 +87,19 @@ reopened here; entries below say how the shell builds it.
   as wide as the snapped window, found in T029's check). `platform::set_fullscreen_frame` turns
   the shadow off before entering fullscreen and back on after leaving it. Windowed, the 1 px strip
   stays (winit's own trade-off for the shadow).
+- **Dragging across monitor scales (Windows)**: on `WM_DPICHANGED` during a drag, winit keeps
+  the size the system suggests but moves the window so that the pointer keeps its place along the
+  title bar. That can put the window's center back on the old monitor (from 100 % to 150 % it
+  landed exactly on the edge), and the system sends the opposite `WM_DPICHANGED` at once.
+  After that nested change the system's move loop keeps a wrong size: on every mouse move it
+  set the window to 853 × 480 instead of 1280 × 720, so the window shrank (or grew the other way)
+  and left the pointer. This was found in T031's check, reproduced with a script and the message
+  log. `platform::follow_dpi_rect` subclasses the window: during a move or resize loop
+  (`WM_ENTERSIZEMOVE` to `WM_EXITSIZEMOVE`), the `WM_WINDOWPOSCHANGING` that winit's handler
+  sends while answering `WM_DPICHANGED` gets the suggested rectangle. The suggested rectangle
+  keeps the window on the new monitor and in step with the move loop. Outside a loop (keyboard
+  moves, a scale changed in the system settings, maximized, fullscreen) winit's own handling
+  stays.
 - **Snap layouts flyout (FR-011, best effort)**: in `platform::windows::snap`, subclass the winit
   window (`SetWindowSubclass`) and answer `WM_NCHITTEST` with `HTMAXBUTTON` inside the maximize
   button's rectangle, which the UI reports in physical pixels on each layout change. Because the
@@ -169,13 +182,34 @@ reopened here; entries below say how the shell builds it.
   edges (`Image::set_nine_slice_edges`). Slint 1.18 draws a nine-slice corner at its edge size
   in image pixels times the window's scale (`fit9slice`), so an image made at the window's scale
   would be enlarged twice; and the software renderer scales images by nearest pixel, not
-  smoothly. A Gaussian shadow is smooth enough that this is expected to show no steps; checked
-  at 125%, 150% and 200% in T031 (quickstart 16). Maintainer decision, 2026-11-04.
-- **Alternatives**: images generated at the window's scale — nine-slice enlarges them again
-  (above); one shadow image per surface at its exact physical size, regenerated on every size
-  or scale change — sharp at any scale, more code and work on every resize, kept as the fallback
-  if T031 shows steps; @1x and @2x image sets — wrong at 125% and 150% for the same reason;
-  theme values in Rust pushed into Slint — the `.slint` preview loses them.
+  smoothly. Maintainer decision, 2026-11-04. **Replaced after T031's check (2026-11-05)**: at
+  125% and 150%, the nearest-pixel enlargement made the shadows look low resolution. It also put
+  the cut-out 1 px off the surface: a light pixel between the surface and its shadow on one side,
+  and a dark one on the other. Screenshots over a white test video measured it.
+- **Shadows, current decision: one image per surface at its exact physical size.**
+  `Theme.surface` is a pure callback that Rust implements. `Raised` calls it with its size, the
+  window's scale (`1px / 1phx`), its fill and the theme's shadow strength, so the binding runs
+  again on a resize, a scale change or a theme change.
+  - For each size, Rust draws the two layers (soft and tight) into one image, in physical
+    pixels. The Gaussian is approximated by three box blurs, which cost O(n) whatever the sigma,
+    so even a large menu at 150 % takes a few milliseconds. Images are cached by size and
+    scale.
+  - Slint draws the image at its own size (1:1), so nothing is enlarged. The element sits 36 px
+    out from the surface, the soft layer's margin; 36 × each Windows scale step (25%) is a whole
+    number of physical pixels.
+  - The image also holds the surface's fill, as `Theme.surface(width, height, scale, fill,
+    shadow)`. Fill and cut-out share one coverage per pixel, so the edge and the shadow always
+    meet. Two earlier tries failed the maintainer's check. With Slint drawing the fill and the
+    cut-out on the surface's shape, the two anti-aliasings disagreed on the curves and left small
+    dark or light "teeth" at the bottom corners. With the cut-out 1 px inside, the dense shadow
+    under the edge made a dark outline. The shadow is still cut out under the fill, so a
+    semi-transparent fill (`panel`) does not darken. The theme's shadow strength goes into the
+    image, not the element's opacity, which would fade the fill too.
+- **Alternatives**: images generated at the window's scale with nine-slice — Slint enlarges them
+  again (above); an exact Gaussian per surface size — the same look, but tens of milliseconds
+  for a large menu at 150 %; one blurred nine-slice source per scale, copied out to each size
+  — its middle is uniform only past 3 sigma from the corners, too large for a 56 px dock; @1x and @2x image sets — wrong at 125% and 150% for the same
+  reason; theme values in Rust pushed into Slint — the `.slint` preview loses them.
 
 ## R9. Test video and statistics
 

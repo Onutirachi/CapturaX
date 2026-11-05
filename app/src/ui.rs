@@ -2,6 +2,8 @@
 //! window whose pixels the video thread composites over the video, the forwarding of winit events
 //! to Slint, and the UI image handed to the video thread when Slint reports a change.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -49,6 +51,10 @@ pub struct Ui {
     size: PhysicalSize<u32>,
     scale: f32,
     cursor: slint::LogicalPosition,
+    /// The next draw repaints the whole buffer: Slint repaints only what changed in logical
+    /// pixels, but after a resize the buffer is new and after a scale change every physical pixel
+    /// moved (moving between monitors changes both, the logical size staying the same).
+    full_repaint: bool,
 }
 
 impl Ui {
@@ -62,9 +68,30 @@ impl Ui {
         }))
         .map_err(|e| anyhow::anyhow!("Slint platform: {e:?}"))?;
         let app = AppWindow::new()?;
-        let theme = app.global::<Theme>();
-        theme.set_shadow_soft(shadows::make(shadows::SOFT).image());
-        theme.set_shadow_tight(shadows::make(shadows::TIGHT).image());
+        // Surface images by physical size, scale, fill and shadow strength; a few surfaces, so
+        // the cache stays small, and it is dropped when it grows (tooltips vary with their text).
+        let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32), slint::Image>::new());
+        app.global::<Theme>()
+            .on_surface(move |width, height, scale, fill, strength| {
+                let (w, h) = shadows::image_size(width, height, scale);
+                let fill = slint::RgbaColor::<u8>::from(fill);
+                let fill = slint::Rgba8Pixel::new(fill.red, fill.green, fill.blue, fill.alpha);
+                let key = (
+                    w,
+                    h,
+                    (scale * 100.0).round() as u32,
+                    u32::from_be_bytes([fill.r, fill.g, fill.b, fill.a]),
+                    strength.to_bits(),
+                );
+                let mut cache = cache.borrow_mut();
+                if cache.len() > 64 {
+                    cache.clear();
+                }
+                cache
+                    .entry(key)
+                    .or_insert_with(|| slint::Image::from_rgba8(shadows::make(width, height, scale, fill, strength)))
+                    .clone()
+            });
         app.show()?;
         Ok(Self {
             window,
@@ -73,10 +100,14 @@ impl Ui {
             size: PhysicalSize::new(0, 0),
             scale: 1.0,
             cursor: slint::LogicalPosition::new(0.0, 0.0),
+            full_repaint: true,
         })
     }
 
     pub fn set_size(&mut self, size: PhysicalSize<u32>) {
+        if size != self.size {
+            self.full_repaint = true;
+        }
         self.size = size;
         self.window.set_size(slint::PhysicalSize::new(size.width, size.height));
     }
@@ -86,6 +117,9 @@ impl Ui {
     }
 
     pub fn set_scale(&mut self, scale: f32) {
+        if scale != self.scale {
+            self.full_repaint = true;
+        }
         self.scale = scale;
         self.window
             .window()
@@ -181,8 +215,20 @@ impl Ui {
         }
         let started = Instant::now();
         let buffer = &mut self.buffer;
+        let full = std::mem::take(&mut self.full_repaint);
+        if full {
+            self.window.request_redraw();
+        }
         let drawn = self.window.draw_if_needed(|renderer| {
-            renderer.render(buffer, w as usize);
+            if full {
+                // A new buffer is repainted whole; going back to a reused buffer clears Slint's
+                // cache, so the next draw is whole too (one frame, after a resize or scale change).
+                renderer.set_repaint_buffer_type(RepaintBufferType::NewBuffer);
+                renderer.render(buffer, w as usize);
+                renderer.set_repaint_buffer_type(RepaintBufferType::ReusedBuffer);
+            } else {
+                renderer.render(buffer, w as usize);
+            }
         });
         drawn.then(|| UiImage {
             pixels: Arc::from(bytemuck::cast_slice::<_, u8>(&self.buffer)),

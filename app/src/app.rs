@@ -270,6 +270,7 @@ impl ApplicationHandler<UserEvent> for App {
         };
         self.ui.set_scale(window.scale_factor() as f32);
         self.ui.set_size(window.inner_size());
+        platform::follow_dpi_rect(&window);
         self.update_refresh(&window);
         let presentation = Presentation {
             backend: self.options.backend,

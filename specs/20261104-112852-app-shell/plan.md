@@ -158,7 +158,7 @@ app/                       # binary `capturax`
 │   ├── placement.rs       # window placement fit (pure)
 │   ├── i18n.rs            # language list and resolution (pure)
 │   ├── theme.rs           # theme resolution (pure)
-│   ├── shadows.rs         # nine-slice shadow generation at 1× (pure)
+│   ├── shadows.rs         # shadow images per surface size at the physical scale (pure)
 │   ├── icon.rs            # app icon sizes rasterized by build.rs
 │   ├── notices.rs         # notice queue, each id once per run
 │   └── log.rs             # size-limited file logger

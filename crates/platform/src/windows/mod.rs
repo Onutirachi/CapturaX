@@ -12,6 +12,7 @@ use winit::platform::windows::{WindowAttributesExtWindows, WindowExtWindows};
 use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
+mod dpi_rect;
 pub mod instance;
 pub mod tray;
 
@@ -80,6 +81,8 @@ pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
     // Keeps the system shadow (and the rounded corners on Windows 11) without the frame.
     attrs.with_undecorated_shadow(true)
 }
+
+pub use dpi_rect::follow_dpi_rect;
 
 pub fn set_fullscreen_frame(window: &Window, fullscreen: bool) {
     // Without the shadow, winit no longer moves the client area 1 px down (WM_NCCALCSIZE).

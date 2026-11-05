@@ -87,9 +87,10 @@ export global Theme {
     in property <bool> dark: true;
     out property <Palette> c: dark ? Palettes.dark : Palettes.light;
 
-    // Nine-slice shadow images generated in Rust at 1×; Slint scales them (research R8).
-    in property <image> shadow-soft;
-    in property <image> shadow-tight;
+    // A raised surface of this logical size at the window's scale: its fill over its shadow at
+    // `shadow` strength, made in Rust in physical pixels so it is drawn 1:1 (research R8). Empty
+    // in the preview.
+    pure callback surface(width: length, height: length, scale: float, fill: color, shadow: float) -> image;
 
     out property <string> font: "Inter";
     out property <length> text-s: 12px;

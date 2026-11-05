@@ -54,3 +54,5 @@ pub fn window_attributes(attrs: WindowAttributes) -> WindowAttributes {
 }
 
 pub fn set_fullscreen_frame(_window: &Window, _fullscreen: bool) {}
+
+pub fn follow_dpi_rect(_window: &Window) {}
