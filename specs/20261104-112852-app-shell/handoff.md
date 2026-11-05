@@ -236,6 +236,20 @@ the event loop exists (T039). Linux: `ksni` blocking, id `capturax`, all icon si
 pixmaps, `activate` → Open, `_` escaped; drop waits for its shutdown. Contract row and T037
 updated to the real signature.
 
+T038 (autostart) done, reviewed by the maintainer and committed
+(`feat: add start with the system`); fmt, clippy (Windows and Linux), platform tests pass.
+Windows (`windows/autostart.rs`): `RegGetValueW` / `RegSetKeyValueW` / `RegDeleteKeyValueW` on
+HKCU, no key handles. `set(true)` writes `"<exe>" --autostart` and removes Task Manager's
+StartupApproved mark (so turning it on in the app wins); `set(false)` removes both. Linux
+(`linux/autostart.rs`): `$XDG_CONFIG_HOME` (absolute) or `~/.config`, entry rewritten whole on
+`set(true)`, removed on `set(false)`; `Exec` quoted per the Desktop Entry spec (`"`, `` ` ``, `$`,
+`\` escaped, then backslashes doubled as a string value, `%` doubled), `program` reverses it.
+New `autostart::executable()` holds the `$APPIMAGE` rule so T039 compares `target()` with it
+(contract and T038/T039 updated). Checks: the Linux tests ran on Windows through a scratch crate
+(`#[path]` to the file; WSL has no Rust); a scratch program against the real registry: on →
+state true and the target read back; a Task Manager disabled mark (03…) → state false; on again
+clears the mark; a 02… mark → true; off → both values gone (registry left clean).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -373,4 +387,4 @@ updated to the real signature.
 
 ## Next step
 
-T038: implement autostart in crates/platform.
+T039: wire tray and autostart into app/src/app.rs and main.rs.

@@ -16,8 +16,10 @@ are indicative; tasks fix the exact signatures.
 | `is_writable(folder) -> bool` | probe file create + remove | same | FR-026 |
 | `claim_instance(name) -> Claim` | named pipe | abstract socket | FR-013, [single-instance.md](single-instance.md) |
 | `can_raise_window() -> bool` | true | false on Wayland, true on X11 | FR-013 |
-| `autostart::state() -> bool` | Run key and StartupApproved | `autostart/capturax.desktop` | FR-014b |
-| `autostart::set(on, exe)` | write or remove the Run value | write or remove the `.desktop` | FR-014b |
+| `autostart::state() -> bool` | Run value present and not disabled in StartupApproved (first byte odd) | `autostart/capturax.desktop` present, not `Hidden=true` nor `X-GNOME-Autostart-enabled=false` | FR-014b |
+| `autostart::set(on, exe)` | write or remove the Run value; both also remove the StartupApproved mark, so the app's switch wins | write or remove the `.desktop` | FR-014b |
+| `autostart::target() -> Option<PathBuf>` | program in the Run value | program in the entry's `Exec` | FR-014b |
+| `autostart::executable() -> PathBuf` | this executable | `$APPIMAGE` when set, else this executable | FR-014b |
 | `tray::available() -> bool` | true | StatusNotifierWatcher on the session bus | FR-014a |
 | `tray::create(icons, labels, on_event) -> Tray` | `tray-icon`, created on the event loop's thread, icon size from `SM_CXSMICON` at the system DPI | `ksni` on its own thread, every size as pixmaps | FR-014a |
 | `system_theme_watch(sender)` | not used (winit reports it) | XDG Settings portal | FR-017 |
