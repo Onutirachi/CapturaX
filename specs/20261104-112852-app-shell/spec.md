@@ -193,8 +193,9 @@ change that only breaks one platform's build; each is reported and blocks the me
 - The saved window size is larger than the current screen: it is reduced to fit.
 - The window is dragged between monitors with different display scales or refresh rates: the
   interface stays sharp at the new scale and the video presents at the new monitor's rate.
-- Display scale above 100% (125%, 150%, 200%): shadows, icons, logo and text are sharp, not
-  stretched (spike open question: shadows need a @2x set).
+- Display scale above 100% (125%, 150%, 200%): icons, logo and text are sharp, not stretched;
+  shadows, soft by nature, scale with the window and show no visible steps or seams (spike open
+  question: shadows need a @2x set; research R8).
 - The app is started a second time: the running window comes to the front and the second start
   exits, so two instances never write the same settings file or open the same device. Where the
   platform does not allow raising another app's window (Wayland), the second start exits after

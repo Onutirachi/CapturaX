@@ -44,7 +44,7 @@ no OS call outside `crates/platform`; every user-facing text in the catalogs; CI
 **Scale/Scope**: one window, one settings panel, ~10 Slint components, two languages, two themes
 
 No NEEDS CLARIFICATION remains: research.md resolves every open point, including the spike's four
-open questions for this spec (R5 snap flyout, fast moves accepted as a known limit, R8 shadows at scale, and the small
+open questions for this spec (R5 snap flyout, fast moves accepted as a known limit, R8 shadows above 100%, and the small
 window bugs: hover buttons and menus in a top layer, menus flipping side when they do not fit,
 UI structure below).
 
@@ -153,7 +153,7 @@ app/                       # binary `capturax`
 │   ├── placement.rs       # window placement fit (pure)
 │   ├── i18n.rs            # language list and resolution (pure)
 │   ├── theme.rs           # theme resolution (pure)
-│   ├── shadows.rs         # nine-slice shadow generation at scale (pure)
+│   ├── shadows.rs         # nine-slice shadow generation at 1× (pure)
 │   ├── icon.rs            # app icon sizes rasterized by build.rs
 │   ├── notices.rs         # notice queue, each id once per run
 │   └── log.rs             # size-limited file logger

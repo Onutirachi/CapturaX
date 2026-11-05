@@ -158,11 +158,18 @@ reopened here; entries below say how the shell builds it.
   checks a declared list of text-on-surface pairs at 4.5:1 in both themes; for semi-transparent
   panels over the video it checks against a white and a black video behind them.
 - **Shadows above 100% (spike open question)**: the nine-slice shadow images are generated in
-  Rust at the window's scale factor (a port of the spike's `tools/make_shadow.py`: rounded
-  rectangle, two Gaussian layers, hollow centre) and handed to Slint as images, regenerated when
-  the scale changes. Sharp at 125%, 150% and 200% without asset sets.
-- **Alternatives**: @1x and @2x image sets — blurry or wrong at 125% and 150%; theme values in
-  Rust pushed into Slint — the `.slint` preview loses them.
+  Rust at 1× (a port of the spike's `tools/make_shadow.py`: rounded rectangle, two Gaussian
+  layers, hollow centre), once at start, and handed to Slint as images with their nine-slice
+  edges (`Image::set_nine_slice_edges`). Slint 1.18 draws a nine-slice corner at its edge size
+  in image pixels times the window's scale (`fit9slice`), so an image made at the window's scale
+  would be enlarged twice; and the software renderer scales images by nearest pixel, not
+  smoothly. A Gaussian shadow is smooth enough that this is expected to show no steps; checked
+  at 125%, 150% and 200% in T031 (quickstart 16). Maintainer decision, 2026-11-04.
+- **Alternatives**: images generated at the window's scale — nine-slice enlarges them again
+  (above); one shadow image per surface at its exact physical size, regenerated on every size
+  or scale change — sharp at any scale, more code and work on every resize, kept as the fallback
+  if T031 shows steps; @1x and @2x image sets — wrong at 125% and 150% for the same reason;
+  theme values in Rust pushed into Slint — the `.slint` preview loses them.
 
 ## R9. Test video and statistics
 

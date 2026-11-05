@@ -5,7 +5,10 @@ mod cli;
 mod icon;
 mod log;
 mod notices;
+#[cfg_attr(not(test), expect(dead_code, reason = "the window placement task wires it (T032)"))]
+mod placement;
 mod render;
+mod shadows;
 mod stats;
 mod test_video;
 mod ui;

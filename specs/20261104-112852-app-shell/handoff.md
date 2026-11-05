@@ -15,6 +15,11 @@ repl 0, ready_ms 1.1–1.2 median / 1.3–1.8 max, gap_ms 18–19 (first second 
 1440p60 video: ready_ms 1.6–1.7 median (not part of SC-001 any more). fmt, clippy (Windows;
 `platform` and `settings` also for Linux), 54 tests pass.
 
+T024 (placement) and T025 (shadows) done, checked and committed (`feat: add window placement
+and shadow images`). fmt, clippy (Windows), 72 tests pass; the app starts with the shadows set in `Theme`
+(not drawn until a component uses them, T029). The soft and tight images match the spike's PNGs
+(mean alpha difference below 1 level; the hole edge is now antialiased).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -34,6 +39,18 @@ repl 0, ready_ms 1.1–1.2 median / 1.3–1.8 max, gap_ms 18–19 (first second 
 
 ## Decisions
 
+- T025 (maintainer, 2026-11-04): shadows are generated in Rust at 1×, once at start, not at the
+  window's scale. Slint 1.18 draws a nine-slice corner at its edge size in image pixels times
+  the window's scale (`fit9slice`), so an image made at 150% would be enlarged to 225%; the
+  software renderer scales images by nearest pixel. T031 checks 125%, 150% and 200% for steps;
+  if they show, the fallback is one shadow per surface at its exact size (research R8). spec.md
+  (edge case on scale), research R8, plan, T025 and T031 updated.
+- T024: when the saved monitor is not connected, the window is centered on the primary (the
+  saved position is not reused); the size never goes below 640 × 360 logical at the monitor's
+  scale; `Placement.size` is physical; `Monitor` has `bounds` instead of `position` + `size`;
+  no monitor known → the OS places the window. winit does not report work areas, so T032 must
+  give the bounds, or add a platform function for the work area (Windows `GetMonitorInfoW`
+  `rcWork`). Recorded in data-model.md "Window placement".
 - T022/T023: a frame is "ready" when the appsink hands it to the inbox, after its copy, as the
   spike measured (before the copy, 1080p read 2.3 ms). While the test video plays,
   `platform::precise_timers()` holds 1 ms timer resolution on Windows and opts out of Windows
@@ -89,4 +106,4 @@ repl 0, ready_ms 1.1–1.2 median / 1.3–1.8 max, gap_ms 18–19 (first second 
 
 ## Next step
 
-T024 (placement) and T025 (shadows), then the UI components T026–T029 (tasks.md, US1).
+The UI components T026–T029 (tasks.md, US1).

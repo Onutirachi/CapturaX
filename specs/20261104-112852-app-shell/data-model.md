@@ -66,8 +66,12 @@ start ─► app folder writable? ── yes ─► AppFolder
   monitor.
 - Output: position, size, maximized, monitor.
 - Rules: prefer the saved monitor if connected, else the primary; reduce the size to fit the
-  monitor's work area; move the window so it is fully visible; without a saved position, center
-  on the chosen monitor (FR-012, edge cases).
+  monitor's work area (never below the minimum window size, 640 × 360 logical at that monitor's
+  scale); move the window so it is fully visible; without a saved position, or when the saved
+  monitor is not connected, center on the chosen monitor (FR-012, edge cases). The size is
+  returned in physical pixels at the chosen monitor's scale. No monitor known → the OS places
+  the window. winit does not report work areas: the caller gives the monitor's bounds where the
+  platform has no work area to offer (T032).
 - Saved when the window moves, resizes or changes maximized (debounced as any setting); not while
   fullscreen (the window state to return to is kept).
 

@@ -13,6 +13,8 @@ use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
+use crate::shadows;
+
 slint::include_modules!();
 
 /// A finished UI image: premultiplied RGBA, rows packed, the size of the surface it was drawn for.
@@ -60,6 +62,9 @@ impl Ui {
         }))
         .map_err(|e| anyhow::anyhow!("Slint platform: {e:?}"))?;
         let app = AppWindow::new()?;
+        let theme = app.global::<Theme>();
+        theme.set_shadow_soft(shadows::make(shadows::SOFT).image());
+        theme.set_shadow_tight(shadows::make(shadows::TIGHT).image());
         app.show()?;
         Ok(Self {
             window,

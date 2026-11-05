@@ -87,7 +87,7 @@ export global Theme {
     in property <bool> dark: true;
     out property <Palette> c: dark ? Palettes.dark : Palettes.light;
 
-    // Nine-slice shadow images generated in Rust at the window's scale (research R8).
+    // Nine-slice shadow images generated in Rust at 1×; Slint scales them (research R8).
     in property <image> shadow-soft;
     in property <image> shadow-tight;
 
