@@ -2,4 +2,7 @@
 // never builds user-facing text: it reads these, so every text has one catalog.
 export global Texts {
     out property <string> app-name: @tr("CapturaX");
+    // System message `already-open`: a second start found CapturaX open, but the platform did not
+    // let the window come to the front (Wayland).
+    out property <string> already-open: @tr("CapturaX is already open. Its window is shown, but the system did not let it come to the front.");
 }

@@ -134,7 +134,6 @@ impl VideoThread {
         &self.inbox
     }
 
-    #[expect(dead_code, reason = "the tray hides the window (spec US1)")]
     /// Stops or resumes presenting (the window is hidden in the tray).
     pub fn set_visible(&self, visible: bool) {
         let mut state = self.inbox.lock();

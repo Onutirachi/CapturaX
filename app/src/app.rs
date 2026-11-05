@@ -32,6 +32,8 @@ pub enum UserEvent {
     Window(WindowAction),
     DismissNotice,
     Setting(SettingChange),
+    /// Another start asked for the window (FR-013): show it, also from the tray, and focus it.
+    ShowWindow,
 }
 
 /// A change made in the settings panel.
@@ -73,6 +75,8 @@ pub struct App {
     resize: Option<ResizeDirection>,
     /// The window moved or resized since the placement was last saved.
     placement_changed: bool,
+    /// The single-instance listener; dropped in the quit sequence, which releases the name.
+    instance: Option<platform::Serving>,
     pub exit_code: i32,
 }
 
@@ -83,6 +87,7 @@ impl App {
         store: settings::Store,
         ui: Ui,
         proxy: EventLoopProxy<UserEvent>,
+        instance: Option<platform::Serving>,
     ) -> Self {
         let state = ui.app.global::<WindowState>();
         let send = move |event: UserEvent| {
@@ -116,6 +121,7 @@ impl App {
             monitor: None,
             resize: None,
             placement_changed: false,
+            instance,
             exit_code: 0,
         }
     }
@@ -153,6 +159,22 @@ impl App {
         if let Some(w) = &self.window {
             w.request_redraw();
         }
+    }
+
+    /// Shows the window for another start (FR-013): out of the tray or the taskbar, then to the
+    /// front where the platform allows it (winit's focus needs a visible, restored window). Before
+    /// the window exists there is nothing to do: it is about to be shown.
+    fn show_window(&mut self) {
+        let Some(window) = self.window.clone() else {
+            return;
+        };
+        if let Some(video) = &self.video {
+            video.set_visible(true);
+        }
+        window.set_visible(true);
+        window.set_minimized(false);
+        window.focus_window();
+        self.request_redraw();
     }
 
     /// Reads the refresh interval of the monitor the window is on, when it is another monitor:
@@ -427,6 +449,7 @@ impl ApplicationHandler<UserEvent> for App {
                 // The system's autostart entry holds it, not the settings file (T039).
                 SettingChange::StartWithSystem(on) => log::info!("start with the system: {on} (not wired yet)"),
             },
+            UserEvent::ShowWindow => self.show_window(),
         }
     }
 
@@ -532,6 +555,9 @@ impl ApplicationHandler<UserEvent> for App {
             video.stop();
         }
         self.store.flush();
+        // The tray goes here too (T039). Releasing the name before the window is destroyed lets a
+        // start during the rest of the quit become the new instance.
+        self.instance = None;
         self.window = None;
         log::info!("quit");
     }

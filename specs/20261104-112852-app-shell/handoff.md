@@ -205,6 +205,23 @@ rejected, client opens with identification-only security; Windows pipe reads hav
 so a stalled client blocks the listener (later starts get no answer and exit 0) and the stop
 gives up after 1 s. `Win32_System_IO` added to the `windows-sys` features (`ConnectNamedPipe`).
 
+T036 (single instance wired) done, checked by the maintainer and committed
+(`feat: wire single instance`); fmt, clippy (Windows), 93 tests pass. `main.rs` claims after the
+settings load and before `save_soon`, so a second start writes nothing; a claim error is logged
+and the app starts without it (contract updated). The listener serves from `start()` once the
+event loop exists: `on_show` sends `UserEvent::ShowWindow` and returns `can_raise_window()`.
+`App::show_window`: video thread `set_visible(true)`, window `set_visible(true)`,
+`set_minimized(false)`, winit's `focus_window` (it needs a visible, restored window; on Windows it
+uses the Alt key trick). The `Serving` is dropped in `exiting` after the settings flush, before
+the window. On `shown-not-raised` the second start creates the `Ui` only to read `Texts`
+(`app-name` as title, new `already-open`, pt-BR in the `.po`). Scripted checks (Windows, release):
+second start with the first minimized or behind Notepad → first restored and in the foreground,
+second exits 0 in about 105 ms in all (the exchange 0.4 ms; `Start-Process -Wait` adds about
+1 s of its own); a temporary build answering `shown-not-raised` showed the message box in
+Portuguese (Slint picked the system language) and exited 0. A window hidden from outside with
+`ShowWindow(SW_HIDE)` stays hidden (winit still thinks it is visible): not the real case, T039
+hides through winit; check showing from the tray there.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -342,4 +359,4 @@ gives up after 1 s. `Win32_System_IO` added to the `windows-sys` features (`Conn
 
 ## Next step
 
-T036: wire the single instance into app/src/main.rs.
+T037: implement the tray in crates/platform.

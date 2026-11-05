@@ -27,6 +27,10 @@ UTF-8 lines, one request and one answer, 1 s timeout on the second start's side.
 | `show` | `shown-not-raised` | Shows the window; the platform did not let it take focus (Wayland) | Shows system message `already-open`, exits 0 |
 | (no answer) | — | — | Logs it and exits 0 (never starts a second instance) |
 
+The second start hands over before it writes anything (no settings file is created or saved).
+If the channel cannot be created for another reason than a running instance, the app logs it and
+starts without the single instance.
+
 The listener accepts only these lines; anything else closes the connection. It never acts on any
 other input (constitution V: no remote control, and this channel is local only).
 

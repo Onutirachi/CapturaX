@@ -15,6 +15,7 @@ mod ui;
 
 use std::time::Instant;
 
+use slint::Global;
 use winit::event_loop::EventLoop;
 
 /// Language codes the app has; replaced by the language list of the languages task (spec US2).
@@ -55,12 +56,26 @@ fn run() -> i32 {
         // The damaged-file notice comes with spec US3.
         settings::LoadOutcome::NoFile | settings::LoadOutcome::Damaged { .. } => (Default::default(), true),
     };
+    // One instance per settings location (FR-013): a later start hands over and exits before it
+    // writes anything. The in-memory location (spec US3) names it from the executable instead.
+    let instance = match platform::claim_instance(&platform::instance_name(&path)) {
+        Ok(platform::Claim::First(listener)) => Some(listener),
+        Ok(platform::Claim::Running(client)) => {
+            hand_over(&client);
+            ::log::logger().flush();
+            return 0;
+        }
+        Err(err) => {
+            ::log::warn!("single instance: cannot claim the channel, starting anyway: {err}");
+            None
+        }
+    };
     let store = settings::Store::new(table, Some(path), KNOWN_LANGUAGES);
     if write_now {
         store.save_soon();
     }
 
-    let code = match start(options, process_start, store) {
+    let code = match start(options, process_start, store, instance) {
         Ok(code) => code,
         Err(err) => {
             ::log::error!("{err:#}");
@@ -72,10 +87,51 @@ fn run() -> i32 {
     code
 }
 
-fn start(options: cli::StartupOptions, process_start: Instant, store: settings::Store) -> anyhow::Result<i32> {
+/// A second start: asks the running instance to show its window (contracts/single-instance.md).
+fn hand_over(client: &platform::Client) {
+    match client.show() {
+        Some(platform::Answer::Raised) => ::log::info!("already running: its window was brought to the front"),
+        Some(platform::Answer::ShownNotRaised) => {
+            ::log::info!("already running: its window was shown but could not come to the front");
+            show_already_open();
+        }
+        // `show` logged why.
+        None => {}
+    }
+}
+
+/// The system message `already-open`, its text read from `Texts` (research R7).
+fn show_already_open() {
+    match ui::Ui::new() {
+        Ok(ui) => {
+            let texts = ui::Texts::get(&ui.app);
+            platform::show_system_message(&texts.get_app_name(), &texts.get_already_open());
+        }
+        Err(err) => ::log::warn!("already-open message: {err:#}"),
+    }
+}
+
+fn start(
+    options: cli::StartupOptions,
+    process_start: Instant,
+    store: settings::Store,
+    instance: Option<platform::Listener>,
+) -> anyhow::Result<i32> {
     let ui = ui::Ui::new()?;
     let event_loop = EventLoop::<app::UserEvent>::with_user_event().build()?;
-    let mut app = app::App::new(options, process_start, store, ui, event_loop.create_proxy());
+    // The listener thread hands `show` to the main loop and answers whether the platform lets the
+    // window come to the front.
+    let instance = instance.and_then(|listener| {
+        let proxy = event_loop.create_proxy();
+        listener
+            .serve(move || {
+                let _ = proxy.send_event(app::UserEvent::ShowWindow);
+                platform::can_raise_window()
+            })
+            .inspect_err(|err| ::log::warn!("single instance: cannot listen: {err}"))
+            .ok()
+    });
+    let mut app = app::App::new(options, process_start, store, ui, event_loop.create_proxy(), instance);
     ::log::debug!("options: {:?}", app.options());
     event_loop.run_app(&mut app)?;
     Ok(app.exit_code)
