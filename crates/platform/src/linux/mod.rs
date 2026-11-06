@@ -12,6 +12,7 @@ use winit::window::{Window, WindowAttributes};
 pub mod autostart;
 pub mod instance;
 pub mod snap;
+pub mod theme;
 pub mod tray;
 
 /// The app id: matches the `.desktop` file the packaged app installs (research R12).

@@ -355,6 +355,22 @@ then `language switch <code> <ms> ms` logged when the next UI image goes to the 
 `fn(&Texts) -> SharedString`, so a notice is re-read after a switch. Not checkable before T046:
 the switch and its log line.
 
+T045 (follow the system theme) done, checked by the maintainer and committed
+(`feat: follow the system theme`); fmt,
+clippy (Windows; `platform` also for Linux), 111 tests pass on Windows (the 2 new Linux tests of
+`linux/theme.rs` run in CI). winit 0.30.13 does not report the theme on Wayland or X11 (its docs),
+so the portal code is in: new `platform::theme::{current, watch, Theme}` (research R8 outcome,
+contract rows replace `system_theme_watch`). App: `App.system_theme` read in `resumed` right
+after the window is created and before the first draw, `App::apply_theme` sets `Theme.dark`
+(logo, shadows and backdrop follow it) from `theme::resolve(setting, system)`; changes come from
+`WindowEvent::ThemeChanged` (Windows) and `UserEvent::SystemTheme` (Linux watch), each logged as
+`system theme ...`; a change after the start logs `theme switch <dark|light> <ms> ms` with the
+next UI image (through `App.switch`, shared with the language). `SettingChange::Theme` is dead
+code until T046. `theme::SystemTheme` converts from winit's `Theme`. Start on this machine: log
+`system theme Some(Dark)`, matching `AppsUseLightTheme = 0`. To check: switching Windows between
+dark and light while the app runs: checked (Windows 11, release, 1080p60 test video), log
+`theme switch light 60.9 ms`, `theme switch dark 38.2 ms` (SC-005 under 100 ms).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).

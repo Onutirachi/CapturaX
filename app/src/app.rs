@@ -21,7 +21,8 @@ use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
 use crate::render::{Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
-use crate::ui::{Menus, NoticeKind, Prefs, Texts, Ui, WindowState};
+use crate::theme::{self, SystemTheme};
+use crate::ui::{Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
 use platform::autostart;
 use platform::snap::{self, ButtonRect, Snap, SnapEvent};
 use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
@@ -43,6 +44,8 @@ pub enum UserEvent {
     Tray(TrayEvent),
     /// The pointer on the maximize button while the system owns it (FR-011).
     Snap(SnapEvent),
+    /// The system's theme changed where winit does not report it (FR-017, Linux).
+    SystemTheme(Option<platform::theme::Theme>),
 }
 
 /// A change made in the settings panel.
@@ -51,6 +54,8 @@ pub enum SettingChange {
     /// `auto` or a code from `i18n::LANGUAGES`.
     #[expect(dead_code, reason = "the settings panel's Language row sends it (T046)")]
     Language(&'static str),
+    #[expect(dead_code, reason = "the settings panel's Theme row sends it (T046)")]
+    Theme(settings::ThemeSetting),
     StartFullscreen(bool),
     KeepInTray(bool),
     StartWithSystem(bool),
@@ -100,6 +105,8 @@ pub struct App {
     /// A language or theme switch waiting for its first UI image (SC-005): the log line's label
     /// and when the switch started.
     switch: Option<(String, Instant)>,
+    /// The system's theme, for the Automatic setting (FR-017).
+    system_theme: Option<SystemTheme>,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -154,6 +161,7 @@ impl App {
             snap: None,
             snap_button: None,
             switch: None,
+            system_theme: None,
             proxy: sender,
             exit_code: 0,
         }
@@ -253,6 +261,30 @@ impl App {
         self.show_notice();
         self.switch = Some((format!("language switch {language}"), started));
         self.request_redraw();
+    }
+
+    /// Shows the dark or light theme the setting and the system's theme give (FR-016, FR-017);
+    /// the logo, shadows and backdrop follow `Theme.dark`. A change after the start is logged as
+    /// `theme switch` when its first UI image goes to the video thread (SC-005).
+    fn apply_theme(&mut self) {
+        let dark = theme::resolve(self.store.get().general.theme, self.system_theme);
+        let tokens = self.ui.app.global::<UiTheme>();
+        if tokens.get_dark() == dark {
+            return;
+        }
+        let started = Instant::now();
+        tokens.set_dark(dark);
+        if self.window.is_some() {
+            let name = if dark { "dark" } else { "light" };
+            self.switch = Some((format!("theme switch {name}"), started));
+        }
+        self.request_redraw();
+    }
+
+    fn system_theme_changed(&mut self, system: Option<SystemTheme>) {
+        log::info!("system theme {system:?}");
+        self.system_theme = system;
+        self.apply_theme();
     }
 
     fn request_redraw(&self) {
@@ -531,6 +563,13 @@ impl ApplicationHandler<UserEvent> for App {
                 return;
             }
         };
+        self.system_theme = platform::theme::current(&window).map(SystemTheme::from);
+        log::info!("system theme {:?}", self.system_theme);
+        self.apply_theme();
+        let proxy = self.proxy.clone();
+        platform::theme::watch(move |theme| {
+            let _ = proxy.send_event(UserEvent::SystemTheme(theme));
+        });
         self.ui.set_scale(window.scale_factor() as f32);
         self.ui.set_size(platform::drawn_size(&window));
         platform::follow_dpi_rect(&window);
@@ -606,6 +645,10 @@ impl ApplicationHandler<UserEvent> for App {
                     self.store.update(|s| s.general.language = i18n::to_setting(choice));
                     self.apply_language(i18n::resolve(choice, i18n::system_locale().as_deref()));
                 }
+                SettingChange::Theme(theme) => {
+                    self.store.update(|s| s.general.theme = theme);
+                    self.apply_theme();
+                }
                 SettingChange::StartFullscreen(on) => self.store.update(|s| s.general.start_fullscreen = on),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);
@@ -622,6 +665,7 @@ impl ApplicationHandler<UserEvent> for App {
             },
             UserEvent::ShowWindow | UserEvent::Tray(TrayEvent::Open) => self.show_window(),
             UserEvent::Tray(TrayEvent::Quit) => event_loop.exit(),
+            UserEvent::SystemTheme(theme) => self.system_theme_changed(theme.map(SystemTheme::from)),
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();
                 match event {
@@ -650,6 +694,7 @@ impl ApplicationHandler<UserEvent> for App {
                     self.request_redraw();
                 }
             }
+            WindowEvent::ThemeChanged(theme) => self.system_theme_changed(Some(theme.into())),
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.ui.set_scale(scale_factor as f32);
                 self.request_redraw();

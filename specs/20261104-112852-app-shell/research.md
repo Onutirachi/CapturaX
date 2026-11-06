@@ -245,6 +245,14 @@ reopened here; entries below say how the shell builds it.
   `color-scheme`) with `zbus` (blocking API) and listens to `SettingChanged` on a thread. If no
   portal answers, Automatic resolves to Dark. The first Linux task checks whether winit already
   reports it; if it does, the portal code is dropped.
+- **Outcome (T045)**: winit 0.30.13 documents `ThemeChanged` as unsupported on Wayland and X11,
+  and on Wayland `Window::theme()` returns only the app's own override; the portal is kept.
+  `platform::theme::current(window)` (Windows `Window::theme()`; Linux `ReadOne`, falling back
+  to the older `Read`, on a session connection with a 500 ms method timeout, because the bus may
+  start a missing portal and the window waits for the answer) and `platform::theme::watch` (Linux:
+  a thread on `SettingChanged`, for the process's life; Windows: nothing, `ThemeChanged` arrives).
+  `color-scheme` 1 → dark, 2 → light, 0 (no preference) → unknown, so Automatic gives dark. Not
+  yet run on CachyOS: checked in its Linux session (T050).
 - **Contrast (FR-018)**: `app/tests/contrast.rs` reads the color tokens from `theme.slint` and
   checks a declared list of text-on-surface pairs at 4.5:1 in both themes; for semi-transparent
   panels over the video it checks against a white and a black video behind them.
