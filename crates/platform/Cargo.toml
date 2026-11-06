@@ -18,3 +18,4 @@ tray-icon.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus.workspace = true
 ksni.workspace = true
+libloading.workspace = true

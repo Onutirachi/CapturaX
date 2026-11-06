@@ -744,6 +744,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytemuck",
+ "capturax-capture",
  "capturax-platform",
  "capturax-settings",
  "clap",
@@ -763,11 +764,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "capturax-capture"
+version = "0.1.0"
+dependencies = [
+ "gstreamer",
+ "gstreamer-app",
+ "gstreamer-video",
+ "log",
+]
+
+[[package]]
 name = "capturax-platform"
 version = "0.1.0"
 dependencies = [
  "dirs",
  "ksni",
+ "libloading 0.8.9",
  "log",
  "tray-icon",
  "windows-sys 0.61.2",

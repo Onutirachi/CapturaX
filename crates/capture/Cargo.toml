@@ -1,0 +1,13 @@
+[package]
+name = "capturax-capture"
+description = "CapturaX capture: devices, modes and sessions through GStreamer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+gst.workspace = true
+gst-app.workspace = true
+gst-video.workspace = true
+log.workspace = true

@@ -1,0 +1,39 @@
+Device found:
+
+	name  : ezcap Live GAMER ULTRA: ezcap L
+	class : Video/Source
+	caps  : video/x-raw(memory:DMABuf), format=DMA_DRM, drm-format=YUYV, width=2560, height=1440, pixel-aspect-ratio=1/1, framerate=50/1
+	        video/x-raw(memory:DMABuf), format=DMA_DRM, drm-format={ (string)YUYV, (string)P010 }, width=1920, height=1080, pixel-aspect-ratio=1/1, framerate=60/1
+	        video/x-raw(memory:DMABuf), format=DMA_DRM, drm-format={ (string)YUYV, (string)NV12, (string)XR24, (string)P010 }, width=1280, height=720, pixel-aspect-ratio=1/1, framerate=60/1
+	        video/x-raw(memory:DMABuf), format=DMA_DRM, drm-format=NV12, width=3840, height=2160, pixel-aspect-ratio=1/1, framerate=30/1
+	        video/x-raw(memory:DMABuf), format=DMA_DRM, drm-format=NV12, width=2560, height=1440, pixel-aspect-ratio=1/1, framerate=60/1
+	        video/x-raw(memory:DMABuf), format=DMA_DRM, drm-format=NV12, width=1920, height=1080, pixel-aspect-ratio=1/1, framerate={ (fraction)120/1, (fraction)60/1 }
+	        video/x-raw(memory:DMABuf), format=DMA_DRM, drm-format=XR24, width=1920, height=1080, pixel-aspect-ratio=1/1, framerate=30/1
+	        video/x-raw, format=YUY2, width=2560, height=1440, pixel-aspect-ratio=1/1, framerate=50/1
+	        video/x-raw, format={ (string)YUY2, (string)P010_10LE }, width=1920, height=1080, pixel-aspect-ratio=1/1, framerate=60/1
+	        video/x-raw, format={ (string)YUY2, (string)NV12, (string)BGRx, (string)P010_10LE }, width=1280, height=720, pixel-aspect-ratio=1/1, framerate=60/1
+	        video/x-raw, format=NV12, width=3840, height=2160, pixel-aspect-ratio=1/1, framerate=30/1
+	        video/x-raw, format=NV12, width=2560, height=1440, pixel-aspect-ratio=1/1, framerate=60/1
+	        video/x-raw, format=NV12, width=1920, height=1080, pixel-aspect-ratio=1/1, framerate={ (fraction)120/1, (fraction)60/1 }
+	        video/x-raw, format=BGRx, width=1920, height=1080, pixel-aspect-ratio=1/1, framerate=30/1
+	properties:
+		udev-probed = true (gboolean)
+		device.bus_path = pci-0000:03:00.0-usb-0:3:1.0
+		sysfs.path = /sys/devices/pci0000:00/0000:00:1c.6/0000:03:00.0/usb4/4-3/4-3:1.0/video4linux/video0
+		device.bus = usb
+		device.subsystem = video4linux
+		device.vendor.id = 32ed
+		device.vendor.name = ezcap
+		device.product.id = 3201
+		device.product.name = ezcap Live GAMER ULTRA: ezcap L
+		device.serial = ezcap_ezcap_Live_GAMER_ULTRA_00000001
+		device.capabilities = :capture:
+		device.api = v4l2
+		device.path = /dev/video0
+		v4l2.device.driver = uvcvideo
+		v4l2.device.card = ezcap Live GAMER ULTRA: ezcap L
+		v4l2.device.bus_info = usb-0000:03:00.0-3
+		v4l2.device.version = 459521 (0x00070301) (guint)
+		v4l2.device.capabilities = 2225078273 (0x84a00001) (guint)
+		v4l2.device.device_caps = 69206017 (0x04200001) (guint)
+	gst-launch-1.0 v4l2src ! ...

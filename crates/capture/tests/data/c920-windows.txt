@@ -1,0 +1,345 @@
+Device found:
+
+	name  : HD Pro Webcam C920
+	class : Source/Video
+	caps  : video/x-raw, format=NV12, width=1920, height=1080, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1600, height=896, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1600, height=896, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1600, height=896, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1600, height=896, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1600, height=896, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1600, height=896, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1600, height=896, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=960, height=720, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=960, height=720, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=960, height=720, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=960, height=720, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=960, height=720, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=960, height=720, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=960, height=720, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1024, height=576, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1024, height=576, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1024, height=576, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1024, height=576, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1024, height=576, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1024, height=576, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=1024, height=576, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=600, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=600, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=600, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=600, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=600, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=600, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=600, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=864, height=480, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=864, height=480, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=864, height=480, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=864, height=480, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=864, height=480, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=864, height=480, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=864, height=480, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=448, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=448, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=448, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=448, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=448, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=448, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=800, height=448, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=480, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=480, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=480, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=480, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=480, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=480, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=480, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=360, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=360, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=360, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=360, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=360, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=360, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=640, height=360, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=432, height=240, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=432, height=240, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=432, height=240, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=432, height=240, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=432, height=240, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=432, height=240, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=432, height=240, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=352, height=288, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=352, height=288, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=352, height=288, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=352, height=288, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=352, height=288, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=352, height=288, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=352, height=288, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=240, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=240, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=240, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=240, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=240, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=240, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=240, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=180, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=180, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=180, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=180, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=180, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=180, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=320, height=180, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=176, height=144, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=176, height=144, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=176, height=144, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=176, height=144, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=176, height=144, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=176, height=144, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=176, height=144, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=120, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=120, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=120, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=120, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=120, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=120, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=120, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=90, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=90, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=90, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=90, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=90, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=90, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=NV12, width=160, height=90, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        video/x-raw, format=YUY2, width=2304, height=1536, framerate=5000000/2499999, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=2304, height=1296, framerate=5000000/2499999, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1920, height=1080, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1600, height=896, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1600, height=896, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1280, height=720, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1280, height=720, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1280, height=720, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=960, height=720, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=960, height=720, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=960, height=720, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=960, height=720, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1024, height=576, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1024, height=576, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1024, height=576, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1024, height=576, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=600, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=600, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=600, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=600, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=600, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=600, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=864, height=480, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=864, height=480, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=864, height=480, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=864, height=480, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=864, height=480, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=864, height=480, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=448, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=448, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=448, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=448, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=448, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=448, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=800, height=448, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=480, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=480, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=480, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=480, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=480, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=480, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=480, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=360, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=360, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=360, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=360, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=360, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=360, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=640, height=360, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=432, height=240, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=432, height=240, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=432, height=240, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=432, height=240, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=432, height=240, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=432, height=240, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=432, height=240, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=352, height=288, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=352, height=288, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=352, height=288, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=352, height=288, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=352, height=288, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=352, height=288, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=352, height=288, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=240, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=240, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=240, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=240, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=240, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=240, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=240, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=180, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=180, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=180, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=180, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=180, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=180, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=320, height=180, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=176, height=144, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=176, height=144, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=176, height=144, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=176, height=144, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=176, height=144, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=176, height=144, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=176, height=144, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=120, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=120, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=120, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=120, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=120, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=120, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=120, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=90, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=90, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=90, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=90, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=90, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=90, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=160, height=90, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=2:4:0:1, chroma-site=dv
+	        image/jpeg, width=1920, height=1080, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1920, height=1080, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1920, height=1080, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1920, height=1080, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1920, height=1080, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1920, height=1080, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1920, height=1080, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1600, height=896, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1600, height=896, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1600, height=896, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1600, height=896, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1600, height=896, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1600, height=896, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1600, height=896, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1280, height=720, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1280, height=720, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1280, height=720, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1280, height=720, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1280, height=720, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1280, height=720, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1280, height=720, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=960, height=720, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=960, height=720, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=960, height=720, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=960, height=720, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=960, height=720, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=960, height=720, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=960, height=720, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1024, height=576, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1024, height=576, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1024, height=576, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1024, height=576, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1024, height=576, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1024, height=576, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=1024, height=576, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=600, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=600, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=600, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=600, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=600, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=600, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=600, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=864, height=480, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=864, height=480, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=864, height=480, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=864, height=480, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=864, height=480, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=864, height=480, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=864, height=480, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=448, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=448, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=448, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=448, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=448, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=448, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=800, height=448, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=480, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=480, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=480, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=480, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=480, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=480, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=480, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=360, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=360, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=360, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=360, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=360, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=360, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=640, height=360, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=432, height=240, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=432, height=240, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=432, height=240, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=432, height=240, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=432, height=240, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=432, height=240, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=432, height=240, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=352, height=288, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=352, height=288, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=352, height=288, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=352, height=288, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=352, height=288, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=352, height=288, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=352, height=288, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=240, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=240, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=240, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=240, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=240, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=240, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=240, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=180, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=180, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=180, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=180, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=180, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=180, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=320, height=180, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=176, height=144, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=176, height=144, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=176, height=144, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=176, height=144, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=176, height=144, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=176, height=144, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=176, height=144, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=120, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=120, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=120, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=120, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=120, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=120, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=120, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=90, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=90, framerate=24/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=90, framerate=20/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=90, framerate=15/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=90, framerate=10/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=90, framerate=10000000/1333333, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	        image/jpeg, width=160, height=90, framerate=5/1, pixel-aspect-ratio=1/1, colorimetry=1:4:0:1
+	properties:
+		device.api = mediafoundation
+		device.path = \\?\usb#vid_046d&pid_082d&mi_00#d&41d17f6&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\global
+		device.name = HD Pro Webcam C920
+	gst-launch-1.0 mfvideosrc device-path='\\\\?\\usb#vid_046d&pid_082d&mi_00#d&41d17f6&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\\global' ! ...

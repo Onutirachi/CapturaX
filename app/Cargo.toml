@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 settings = { package = "capturax-settings", path = "../crates/settings" }
 platform = { package = "capturax-platform", path = "../crates/platform" }
+capture = { package = "capturax-capture", path = "../crates/capture" }
 slint.workspace = true
 winit.workspace = true
 bytemuck.workspace = true
