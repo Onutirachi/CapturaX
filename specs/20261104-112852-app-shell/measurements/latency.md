@@ -144,7 +144,109 @@ switch 2.9–27.8 ms from the panel (321) and 34.6–37.0 ms following a Windows
   with the theme on Automatic, the app follows Windows to light and back. Checked by the
   maintainer.
 
-## CachyOS KDE Plasma Wayland
+## CachyOS KDE Plasma Wayland — 2026-11-06
 
-Pending: the same runs on the maintainer's CachyOS PC, with the NVIDIA GPU clock state
-(`nvidia-smi -q -d PERFORMANCE`) noted for each.
+**Environment**: CachyOS (kernel 7.3.1-1-cachyos), KDE Plasma Wayland, NVIDIA GeForce RTX 3050
+(driver 615.78.08), release build of `fix: build the Linux tray without tokio`, test video
+`1080p60`. One monitor, 1920 × 1080 at 120 Hz, scale 100%, no variable refresh (`Vrr:
+incapable`), so the unfocused runs of the variable refresh case do not apply and there is no
+1440p run (DSR is Windows only). Header in every run: `[present] backend=vulkan mode=mailbox
+adapter="NVIDIA GeForce RTX 3050"` (FR-003). Window 1280 × 720 at 320,157.
+
+The runs were driven over SSH by the agent: `ydotool` for pointer and keys (real input through
+uinput, flat acceleration), KWin scripting to read the window's geometry, `spectacle` for
+screenshots (none during the measured runs). Same actions as on Windows: chrome shown from the
+top of the video and left every 5 s, the panel opened with the gear and closed with Esc every
+3 s, a select's menu opened and closed every 2.5 s, language English ↔ Português and theme
+Claro ↔ Escuro every 2 s. GPU clock state from `nvidia-smi -q -d PERFORMANCE` before and after
+each run: P8 or P5 (idle clocks) in every run; the driver never raised the clocks for this load.
+
+### Interface states, window still
+
+| Run | Seconds | UI active | `ready_ms` median | Max > 3 ms | `pres` 59–61 | Highest max | GPU |
+|---|---|---|---|---|---|---|---|
+| 1080 window idle | 37 | 0 | 3.1–6.2 | 37 | 37 | 7.0 | P8 → P8 |
+| 1080 window chrome | 38 | 20 | 1.7–6.3 | 38 | 38 | 8.8 | P5 → P8 |
+| 1080 window panel | 37 | 26 | 3.1–6.3 | 37 | 37 | 8.1 | P8 → P8 |
+| 1080 window menu | 37 | 29 | 3.2–6.3 | 37 | 37 | 7.2 | P8 → P8 |
+| 1080 window language | 38 | 33 | 3.1–6.3 | 38 | 38 | 8.4 | P8 → P8 |
+| 1080 window theme | 37 | 33 | 1.7–6.2 | 37 | 37 | 8.4 | P8 → P5 |
+| 1080 window unfocused | 38 | 1 | 1.7–6.2 | 38 | 38 | 6.9 | P8 → P8 |
+| 1080 fullscreen idle | 37 | 0 | 3.3–6.2 | 37 | 36 | 38.6 | P8 → P5 |
+| 1080 fullscreen chrome | 37 | 20 | 3.1–35.4 | 37 | 28 | 43.8 | P8 → P8 |
+| 1080 fullscreen panel | 37 | 27 | 1.7–34.5 | 34 | 24 | 42.9 | P8 → P5 |
+| 1080 fullscreen menu | 37 | 28 | 3.2–20.0 | 37 | 37 | 20.2 | P8 → P8 |
+| 1080 fullscreen language | 37 | 31 | 3.3–34.3 | 37 | 29 | 42.7 | P5 → P5 |
+| 1080 fullscreen theme | 37 | 31 | 1.7–25.6 | 37 | 31 | 42.3 | P8 → P5 |
+| **Window** | **262** | | **0 ≤ 1.5** | **262 (100%)** | **262 (100%)** | | |
+| **Fullscreen** | **222** | | **0 ≤ 1.5** | **219 (98.6%)** | **185 (83.3%)** | | |
+
+"Unfocused": a click on the desktop at t≈8 took the focus, the app stayed visible: no stall at
+the focus change (highest max 6.9 ms), unlike Windows.
+
+**`ready_ms` follows the GPU's idle clocks.** The median steps between about 1.7, 3.1 and 6.0 ms
+within a run with nothing changing, the steps of the GPU's clock levels. In fullscreen there are
+also stretches of 3–5 s at about 40 presents a second (`repl` about 20, median 27–35 ms, gaps of
+25 ms), 37 seconds in all. Three runs repeated with the graphics clock locked
+(`sudo nvidia-smi -lgc 1800,1800`, reset with `-rgc` afterwards):
+
+| Run, clock locked | Seconds | `ready_ms` median | Max > 3 ms | `pres` 59–61 | Highest max |
+|---|---|---|---|---|---|
+| 1080 window idle | 37 | 3.1 | 37 | 37 | 3.3 |
+| 1080 fullscreen chrome | 38 | 1.6–1.7 | 36 | 38 | 4.3 |
+| 1080 fullscreen panel | 37 | 1.6–1.7 | 33 | 37 | 5.7 |
+
+With the clock locked the 40-presents stretches are gone and the fullscreen median is
+1.6–1.7 ms; windowed stays at 3.1 ms, about 1.4 ms more than fullscreen. The memory clock was not
+locked (P5 during these runs). Keeping the GPU awake is planned for spec #3 (quickstart); the
+windowed difference is new and goes with it.
+
+### Moving and resizing (SC-003)
+
+Real drags with `ydotool` (pointer held down on the title bar or the bottom-right corner), checked
+in KWin's window geometry:
+
+| Run | Held still mid-drag | Slow | Fast | Longest gap |
+|---|---|---|---|---|
+| 1080 window move | `pres` 60, median 6.0–6.2 ms | `pres` 60 (t=4–8) | `pres` 60–61 (t=14–17, 10 strokes of 400–500 px) | 19.7 ms |
+| 1080 window resize | — | `pres` 60–61, 1280 × 720 ↔ 983 × 546 (t=5–14) | `pres` 60 (t=14–17) | 19.6 ms |
+
+`moves` stays 0 on Wayland: the compositor moves the window without telling the client.
+
+### Settings states (T050)
+
+- **Language** (SC-005): `language switch` 16.7–21.6 ms windowed (15 switches), 17.2–29.2 ms
+  fullscreen (15). No stall at a switch: the Windows language stalls do not happen here.
+- **Theme** (SC-005): `theme switch` 20.3–80.4 ms windowed (14), 23.9–72.7 ms fullscreen (14)
+  from the panel; 8.0–64.2 ms following a Plasma color scheme change (6, T045 below).
+
+### Theme Automatic follows Plasma (T045)
+
+Theme and language on Automatic, settings panel open; `plasma-apply-colorscheme BreezeLight` then
+`BreezeDark`, three times 2 s apart: the portal's `color-scheme` changes, the app logs `system
+theme Some(Light)` / `Some(Dark)` (two or three times per change: the portal signals it more than
+once, one switch follows) and `theme switch light|dark` each time, and the panel is light then
+dark in the screenshots (`raw/linux-1080-win-system-theme-log.txt`). Before the run the session
+had no scheme set explicitly (`plasma-apply-colorscheme` called BreezeLight current while the
+portal said dark, value 1); it ended on BreezeDark, the same colors.
+
+### Quickstart checks 1 and 7 (Linux)
+
+- **1**: window shown 250 ms after start, in pt-BR (system language) and dark (system theme),
+  "Nenhuma fonte" state without a source.
+- **7**: language and theme switch at once from the panel's menus (each switch made through an
+  open menu); Automatic follows Plasma (T045). The tooltip case was not driven.
+
+### Verdicts (Linux)
+
+- **SC-001**: not met. No second has a median ≤ 1.5 ms: with the GPU at idle clocks (P8/P5) the
+  median is 1.7–6.3 ms windowed and up to 35 ms in fullscreen's 40-presents stretches. With the
+  graphics clock locked, fullscreen gets 1.6–1.7 ms and windowed 3.1 ms. The cause is the GPU's
+  power management, which the quickstart leaves to spec #3. Accepted for the shell
+  (2026-11-06, the maintainer left the call to the agent): recorded here, fixed with keeping the
+  GPU awake in spec #3, together with the windowed 3.1 ms.
+- **SC-002**: met windowed (100%), not met in fullscreen (83.3%): the 40-presents stretches,
+  gone with the clock locked.
+- **SC-003**: met. The video keeps 60 presents while moving and resizing, slow, fast and held
+  still; the longest gap is 19.7 ms.
+- **SC-005**: met (all switches under 100 ms).

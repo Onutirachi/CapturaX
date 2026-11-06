@@ -510,14 +510,50 @@ renderer failure message`). T059 unchecked until the Linux part (`--backend dx12
   device and shows a "preview hidden" state, whether it also stops listening is open. The term
   "preview" stays (maintainer: it tells at once what it is); do not propose renaming it.
 
-T063 and T064 done (2026-11-06), waiting for the maintainer's review before the commit
-(`docs: add build instructions and check dependencies`). README: Building section (prerequisites,
+T063 and T064 done (2026-11-06) and committed (`docs: add build instructions and check
+dependencies`). README: Building section (prerequisites,
 `cargo run`, `--test-video`, `--stats`, the checks); AGENTS.md status names the shell. quickstart.md
 prerequisites corrected: GStreamer is needed to build and to start (not only for `--test-video`),
 plus the Ubuntu packages of R13. T064: `toml` in `app` is used only by the platform boundary test,
 moved to `[dev-dependencies]`; research R14's `resvg` license corrected (MIT / Apache-2.0, not
 MPL-2.0); no unused direct dependency, Linux deps checked with `--target x86_64-unknown-linux-gnu`.
 fmt, clippy, tests, `cargo deny check licenses bans` pass.
+
+Linux session (2026-11-06), driven by the agent over SSH from Windows, the maintainer only
+unlocking the screen. Setup on the CachyOS PC (kept for later sessions):
+- Clone `~/Projetos/CapturaX` on this branch, origin `/tmp/capturax.bundle` (the old spike clone
+  was deleted, maintainer's call); update it by copying a new bundle (`git bundle create ... main
+  feat/...`) to `/tmp/capturax.bundle`, then `git pull`.
+- `ydotool` installed; daemon run as root with `sudo systemd-run --unit=ydotoold-capturax
+  /usr/bin/ydotoold --socket-path=/run/user/1000/.ydotool_socket --socket-own=1000:1000` (gone
+  after a reboot); its virtual device needs flat acceleration through KWin's D-Bus
+  (`busctl --user set-property org.kde.KWin /org/kde/KWin/InputDevice/eventN
+  org.kde.KWin.InputDevice pointerAccelerationProfileFlat b true`), and `--absolute` moves do
+  not land: go to 0,0 once, then relative moves (helpers in `~/capx/lib.sh`: `home`, `mv_`,
+  `glide`, `click`, `key`, `shot`, `kjs` for KWin scripts; run scripts `runs.sh`, `move.sh`,
+  `t055.sh`, analyzer `analyze.sh`).
+- The chrome returns only from the top of the video; a click on a hidden dock does nothing.
+Found and fixed: the Linux build failed (`ksni` refuses its default `tokio` together with the
+`async-io` Slint's `system-tray` enables); committed `fix: build the Linux tray without tokio`
+(research R11 updated). fmt, clippy, 127 tests pass on Linux, 125 on Windows, `cargo deny` on
+Windows.
+Results (measurements/latency.md "CachyOS KDE Plasma Wayland", raw logs `raw/linux-*`):
+- T041 / T050 Linux runs done: SC-003 and SC-005 met; SC-002 met windowed, 83.3% in fullscreen;
+  **SC-001 not met**: the RTX 3050 stays at idle clocks (P8/P5) and `ready_ms` follows them
+  (1.7–6.3 ms windowed; 3–5 s stretches at about 40 presents in fullscreen). With the graphics
+  clock locked fullscreen gets 1.6–1.7 ms and no stretches; windowed stays 3.1 ms. Accepted for
+  the shell (2026-11-06, maintainer left the call to the agent); GPU awake and the windowed
+  difference go to spec #3. No focus-change stall and no language-switch stall on Linux.
+- T045 Linux: Automatic follows Plasma's color scheme through the portal, both ways.
+- T055 Linux: quickstart 8–11 and `$APPIMAGE` pass (copies in `~/capx/t055`, screenshots checked):
+  settings next to the exe and kept; copied folder used; read-only folder → notice naming
+  `/home/clandini/.config/capturax`, change kept there; garbage file → damaged notice,
+  `.damaged-<s>` kept, stale `.capturax-*.tmp` removed; `$APPIMAGE` → settings beside the
+  AppImage file. `~/.config/capturax` removed afterwards.
+- T059 Linux: "No source" / "Nenhuma fonte"; the fallback notice closed with its control does not
+  return in the run; `--backend dx12` shows the kdialog message in English and pt-BR, exit 2.
+  Scenario 2 (a state with actions) has no real case in this spec, as on Windows.
+Not done: quickstart 2–6 and 12–18 on Linux (T065), the tooltip case of check 7.
 
 ## Done in the last sessions
 
@@ -669,17 +705,11 @@ fmt, clippy, tests, `cargo deny check licenses bans` pass.
 
 ## Next step
 
-One CachyOS KDE Plasma Wayland session (maintainer's PC), release build, test video
-`1080p60`, results into measurements/latency.md "CachyOS KDE Plasma Wayland", raw logs
-`measurements/raw/linux-*.txt`, GPU clock state (`nvidia-smi -q -d PERFORMANCE`) per run:
-1. T041 Linux: the runs of the Windows table (idle, chrome, panel; window and fullscreen; 1080p
-   and 1440p; unfocused if the monitor has variable refresh) and SC-003 moving and resizing.
-2. T045 Linux: Theme Automatic follows a Plasma color scheme change (portal), `theme switch`
-   logged.
-3. T050 Linux: quickstart 1 and 7, then menu, language and theme runs as on Windows.
-4. T055 Linux: quickstart 8–11 (read-only folder with `chmod a-w`; also with `$APPIMAGE` set to
-   a file in another folder).
-5. Quickstart 2–6 and 12–18 if wanted formally.
-6. T059 Linux: US4 scenarios, renderer message with `--backend dx12`, in both languages.
-Then T041, T050, T055 and T059 are checked. T065 (full acceptance, both platforms, 100 % and
-150 %/200 %) can share that session; T062 (push, PR, CI) and T066 when the maintainer asks.
+Order chosen by the agent (maintainer, 2026-11-06: "follow what you consider best"):
+1. T065 on Linux through the SSH setup: quickstart 2–6, 12, 15, 18 by input, 16 with
+   `kscreen-doctor output.HDMI-A-1.scale.1.5`, the tooltip case of check 7; 13–14 (tray,
+   autostart, sign-out) and 17 (a second monitor) with the maintainer. That also completes T041
+   (its quickstart 2–6, 12–18) and T050 (check 7), which stay unchecked until then. Then the
+   Windows part of T065 (at 150%/200%), with the maintainer.
+2. T062: push, PR, first CI run (the workflow has never run), repository rule.
+3. T066: handoff, roadmap, PR description. Then spec #3 (GPU awake on Linux, Windows stalls).
