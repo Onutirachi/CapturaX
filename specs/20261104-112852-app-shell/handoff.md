@@ -396,6 +396,24 @@ Theme: items inline in Slint (`@tr` Automatic, Dark, Light). Indexes ↔ setting
 code shows Automatic). Menu scrolling at 640 × 360 cannot be exercised: the menus have 2–3 items.
 New texts (Language, Theme, Automatic, Dark, Light) wait for T049.
 
+T048 (`app/tests/contrast.rs`) done and committed (`test: add text contrast check`): reads the
+`Palettes` tokens of theme.slint and checks a declared pair list at 4.5:1 for text and 3:1 for
+control icons (FR-018 extended by the maintainer, 2026-11-06), with hover and press tints blended
+and the dock's panel over a white and a black video. The test found the toggled dock tool's icon
+(`accent-icon` on `panel + accent-soft`) at 1.94-3.24:1 depending on the video. Fixed (folded into
+the icon button and central panel commits): a toggled tool sits on an opaque chip (`raised` under
+`accent-soft`); the `accent-icon` token is gone, toggled tool and chosen category icons use
+`accent-text` like the category name (light theme #9e4500: 5.14 / 4.60 / 4.21:1 at rest, hover,
+press). Tried and refused by the maintainer, compared side by side: a deeper orange `#c25000`,
+a white chip without tint, a dark chip, a solid orange chip (reads as record / live).
+
+T047 (`app/tests/i18n.rs`) and T049 (pt-BR catalog, 20 texts added; no contrast fix needed) done,
+fmt, clippy (Windows), 118 tests pass; Portuguese texts checked in the app by the maintainer;
+committed (`feat: complete the Portuguese catalog`, `test: add translation check`). The test extracts `@tr` literals (escapes, `{}`,
+struct literal fields; fails on `@tr` contexts or plurals, which the catalogs do not use),
+reads the `.po` files (fuzzy counts as untranslated) and fails on a non-empty literal in a
+property named `text`, `title`, `tooltip`, `label` or ending in `-label` etc. without `@tr`.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -542,7 +560,6 @@ New texts (Language, Theme, Automatic, Dark, Light) wait for T049.
 
 ## Next step
 
-T047 (i18n test) and T048 (contrast test), in parallel; then T049 (pt-BR catalog and contrast
-fixes; the category's `accent-text` on `accent-soft` over `base` is a new pair for T048). The CachyOS part of T041 (same runs as
-measurements/latency.md, with the GPU clock state), and quickstart checks 2–6 and 12–18 if the
-maintainer wants them run formally, stay for one Linux session with T045's Linux part and T050.
+T050 (needs CachyOS for its Linux part), or US3 (T051–T054) on Windows first. The CachyOS part
+of T041, quickstart checks 2–6 and 12–18 if wanted formally, T045's Linux part and T050 stay for
+one Linux session.
