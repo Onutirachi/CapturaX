@@ -273,3 +273,11 @@ mod tests {
         drop(store);
     }
 }
+
+#[cfg(test)]
+mod ci_failure_check {
+    #[test]
+    fn fails_on_purpose() {
+        assert_eq!(std::hint::black_box(2), 3);
+    }
+}
