@@ -9,6 +9,9 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
 - **Phase 1 (T001–T004)** committed: `build: add capture crate` (38c843d).
 - **Phase 2 (T005–T016)** validated by the maintainer (test video and `--list-devices` on
   Windows) and committed: `feat: add capture crate and yuv render path`.
+- **Phase 3**: T017 (pure preview state machine, `app/src/preview.rs`) committed after the
+  checks (`feat: add the preview state machine`); not wired yet (`#[allow(dead_code)]` on the
+  module in main.rs until T018).
 
 Nothing pushed.
 
@@ -37,6 +40,11 @@ Nothing pushed.
   timer (T042) starts there; `Device` has `base_name` (for renumbering) and `gst:
   Option<gst::Device>` (`None` only in tests); a decoded MJPG mode goes through `videoconvert`
   (passthrough when the decoder gives an uploaded format).
+- T017 notes: `Preview::handle(event, &Settings)` reads the stored device choices from the
+  settings passed in (no copy kept); events cover monitor, session, device choice, Try again,
+  hidden/shown (minimized sends nothing); the mode and range choice events come with their
+  tasks (T022, T031) so no unused variant exists. Removing the open device already gives
+  `Disconnected` + `Close` (reconnect is US4).
 - The Linux clone (`~/Projetos/CapturaX`) is on a detached commit made from the working tree
   (`refs/tmp/wip`); its old app-shell copies were stashed ("pre-device-preview copies").
 
@@ -90,5 +98,5 @@ Nothing pushed.
 
 ## Next step
 
-1. `/speckit-implement` from T017 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
+1. `/speckit-implement` from T018 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
    system notifications (R15) at T061, each before it is wired in.
