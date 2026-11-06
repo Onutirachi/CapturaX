@@ -768,8 +768,9 @@ T066's roadmap entry and the PR description are done; PR #3 is open
 in acceptance.md, SC-008 met); run 1 found a racy settings test, fixed in its own commit
 (`test: wait for the debounced save before reading the file`, the original commit is pushed).
 
-1. T062 rest: the rule on `main` (required checks `checks`, `build-test (ubuntu-24.04)`,
-   `build-test (windows-latest)`), then the Independent Test's failures on throwaway branches
-   (formatting, failing test, one platform's build, a text outside the locale files), each
-   reported and blocking the merge; record them in acceptance.md, check T061 and T062.
-2. Merge PR #3 when the maintainer says so; then spec #3. Then spec #3 (GPU awake on Linux, Windows stalls).
+T062 done (2026-11-06): ruleset `main: CI must pass` (id 26717654) requires `checks`,
+`build-test (ubuntu-24.04)` and `build-test (windows-latest)`; the four failures of the
+Independent Test failed where expected and were blocked (PRs #4–#7, closed, branches deleted);
+CI run 3 took 3:47 at most with warm caches. T061, T062 and T066 checked: every task is done.
+
+1. Merge PR #3 when the maintainer says so; then spec #3 (GPU awake on Linux, Windows stalls).

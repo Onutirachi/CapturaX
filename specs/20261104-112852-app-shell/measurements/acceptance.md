@@ -119,10 +119,26 @@ the pull request started it.
 |---|---|---|---|---|
 | 1, empty caches | 0:56 | 12:14 | 7:32 (failed) | `store::tests::several_updates_make_one_save` read the file before the debounced write ended (the count goes up first); test fixed with a flush |
 | 2, warm Linux cache | 1:14 | 1:47 | 15:13 | Pass |
+| 3, the docs commit (both caches warm) | 0:53 | 3:47 | 3:11 | Pass |
 
 SC-008 (under 20 minutes): met, 15:13 for the slowest job. The Windows job had no Rust cache yet
-(`Swatinem/rust-cache` saves only after a job that passes, and run 1 failed), so later runs
-should be shorter; it is the job to watch, the one near the limit.
+(`Swatinem/rust-cache` saves only after a job that passes, and run 1 failed); with both caches
+warm (run 3) no job takes 4 minutes.
 
 Rule on `main`: in a ruleset, a matrix job reports one check per entry, so the required checks
 are `checks`, `build-test (ubuntu-24.04)` and `build-test (windows-latest)`.
+
+The rule was created with the maintainer's go-ahead (ruleset `main: CI must pass`, id 26717654,
+active on the default branch, the three checks above, no bypass).
+
+### Independent Test (US5)
+
+Four throwaway draft pull requests to `main` (#4–#7), from branches on top of this one; each
+failed where expected and GitHub showed the merge as blocked. Closed and their branches deleted.
+
+| PR | Change | Failed | Passed |
+|---|---|---|---|
+| #4 | Extra spaces in a `fn` signature (`app/src/ui.rs`) | `checks` (Format: `Diff in app/src/ui.rs`) | both `build-test` |
+| #5 | A test asserting 2 = 3 (`crates/settings`) | both `build-test` (Test: `fails_on_purpose ... FAILED`) | `checks` |
+| #6 | `compile_error!` in `crates/platform/src/windows` | `build-test (windows-latest)` (Clippy) | `checks`, `build-test (ubuntu-24.04)` |
+| #7 | The Settings tooltip as a literal without `@tr` (`main.slint`) | both `build-test` (Test: `user_facing_properties_use_tr ... FAILED`) | `checks` |
