@@ -436,7 +436,18 @@ T052 done and committed (`feat: add per-user settings folder and write probe`):
 `platform`) and `platform::is_writable(folder)` in lib.rs (shared: creates the folder, then
 creates with truncate, not `create_new`, so a probe left by a killed start does not count, and
 removes `.capturax-write-probe`). fmt, clippy (Windows; `platform` also for Linux), cargo-deny ok,
-tests pass. Next: T053 (wiring, visible: notices), T054 (interrupted save test).
+tests pass.
+T054 (`crates/settings/tests/interrupted_save.rs`) done and committed (`test: add interrupted save
+check`): the child is the test `child_saves` of the same binary, selected by
+`CAPTURAX_INTERRUPTED_SAVE_FOLDER`; it writes `
+saving
+` straight to stdout (libtest leaves
+"test child_saves ... " open on the line). Kill after 0–20 ms (xorshift, no `rand`). Windows run:
+100 kills in 4.4 s, A 54 / B 46, file always valid. 124 tests pass in the workspace.
+Found: a kill leaves the save's `.capturax-*.tmp` beside the file (78 of 100 kills). Harmless to
+loading, but they pile up in the folder; real saves are rare and short, so it needs a crash or
+power loss during one. Open: remove stale `.capturax-*.tmp` at start in T053 (spec/data-model
+first), maintainer to decide. Next: T053 (wiring, visible: notices).
 
 ## Done in the last sessions
 
