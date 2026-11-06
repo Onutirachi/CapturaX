@@ -204,7 +204,7 @@ export component AppWindow inherits Window {
             right-dock := Dock {
                 settings-button := IconButton {
                     icon: @image-url("assets/icons/settings.svg");
-                    tooltip: @tr("Settings");
+                    tooltip: "Settings";
                     tooltip-side: root.compact ? Side.bottom : Side.left;
                     active: root.settings-open;
                     focusable: !root.settings-open;
