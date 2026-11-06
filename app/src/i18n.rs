@@ -3,6 +3,8 @@
 //! is tested without a system. Adding a language is its `.po` catalog and one line in
 //! `LANGUAGES`.
 
+use settings::LanguageSetting;
+
 /// A language the app has a catalog for (English is the source and has none).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Language {
@@ -32,10 +34,25 @@ pub fn codes() -> Vec<&'static str> {
     LANGUAGES.iter().map(|language| language.code).collect()
 }
 
+/// The saved language as `resolve` takes it: `auto` or a code.
+pub fn setting(language: &LanguageSetting) -> &str {
+    match language {
+        LanguageSetting::Auto => "auto",
+        LanguageSetting::Code(code) => code,
+    }
+}
+
+/// The saved language for a choice of the settings panel: `auto` or a code.
+pub fn to_setting(choice: &str) -> LanguageSetting {
+    match choice {
+        "auto" => LanguageSetting::Auto,
+        code => LanguageSetting::Code(code.to_string()),
+    }
+}
+
 /// The language to show: `setting` is `auto` or a code (from the settings or `--lang`);
 /// `system_locale` is the system's locale, if known. `auto`, and a code not in `LANGUAGES`,
 /// follow the system: any Portuguese locale gives `pt-BR`, anything else, or none, gives `en`.
-#[cfg_attr(not(test), expect(dead_code, reason = "the language selection uses it (T044)"))]
 pub fn resolve(setting: &str, system_locale: Option<&str>) -> &'static str {
     if let Some(language) = LANGUAGES.iter().find(|language| language.code == setting) {
         return language.code;
@@ -53,7 +70,6 @@ fn is_portuguese(locale: &str) -> bool {
 }
 
 /// The system's locale as a BCP 47 tag (`pt-BR`), if the system reports one.
-#[expect(dead_code, reason = "the language selection uses it (T044)")]
 pub fn system_locale() -> Option<String> {
     sys_locale::get_locale()
 }
@@ -99,6 +115,13 @@ mod tests {
         assert_eq!(resolve("pt", None), "en");
         // Codes are exact: the settings and `--lang` use the list's spelling.
         assert_eq!(resolve("pt-br", Some("en-US")), "en");
+    }
+
+    #[test]
+    fn the_setting_round_trips() {
+        for language in [LanguageSetting::Auto, LanguageSetting::Code("pt-BR".into())] {
+            assert_eq!(to_setting(setting(&language)), language);
+        }
     }
 
     #[test]

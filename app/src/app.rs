@@ -15,6 +15,7 @@ use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
 
 use crate::cli::StartupOptions;
 use crate::frame::{self, Escape};
+use crate::i18n;
 use crate::icon;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
@@ -47,6 +48,9 @@ pub enum UserEvent {
 /// A change made in the settings panel.
 #[derive(Debug, Clone, Copy)]
 pub enum SettingChange {
+    /// `auto` or a code from `i18n::LANGUAGES`.
+    #[expect(dead_code, reason = "the settings panel's Language row sends it (T046)")]
+    Language(&'static str),
     StartFullscreen(bool),
     KeepInTray(bool),
     StartWithSystem(bool),
@@ -93,6 +97,9 @@ pub struct App {
     /// rectangle it was last given.
     snap: Option<Snap>,
     snap_button: Option<ButtonRect>,
+    /// A language or theme switch waiting for its first UI image (SC-005): the log line's label
+    /// and when the switch started.
+    switch: Option<(String, Instant)>,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -146,6 +153,7 @@ impl App {
             tray_available,
             snap: None,
             snap_button: None,
+            switch: None,
             proxy: sender,
             exit_code: 0,
         }
@@ -223,11 +231,27 @@ impl App {
                     Kind::Info => NoticeKind::Info,
                     Kind::Warning => NoticeKind::Warning,
                 });
-                app.set_notice_text(n.text.as_str().into());
+                app.set_notice_text((n.text)(&Texts::get(app)));
                 app.set_notice_visible(true);
             }
             None => app.set_notice_visible(false),
         }
+        self.request_redraw();
+    }
+
+    /// Shows the interface in `language` within this main loop turn (FR-022): Slint's texts and
+    /// the ones Rust handed out (tray menu, window title, the notice on screen).
+    fn apply_language(&mut self, language: &str) {
+        let started = Instant::now();
+        crate::ui::select_language(language);
+        if let Some(tray) = &self.tray {
+            tray.set_labels(&self.tray_labels());
+        }
+        if let Some(window) = &self.window {
+            window.set_title(Texts::get(&self.ui.app).get_app_name().as_str());
+        }
+        self.show_notice();
+        self.switch = Some((format!("language switch {language}"), started));
         self.request_redraw();
     }
 
@@ -284,6 +308,11 @@ impl App {
             size: (size.width, size.height),
         };
         if image.is_some() || self.scene != Some(scene) {
+            if image.is_some()
+                && let Some((label, started)) = self.switch.take()
+            {
+                log::info!("{label} {:.1} ms", started.elapsed().as_secs_f64() * 1e3);
+            }
             video.inbox().send_ui(image, scene);
             self.scene = Some(scene);
             self.last_ui = Instant::now();
@@ -573,6 +602,10 @@ impl ApplicationHandler<UserEvent> for App {
                 self.show_notice();
             }
             UserEvent::Setting(change) => match change {
+                SettingChange::Language(choice) => {
+                    self.store.update(|s| s.general.language = i18n::to_setting(choice));
+                    self.apply_language(i18n::resolve(choice, i18n::system_locale().as_deref()));
+                }
                 SettingChange::StartFullscreen(on) => self.store.update(|s| s.general.start_fullscreen = on),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);

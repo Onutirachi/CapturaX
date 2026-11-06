@@ -341,6 +341,20 @@ T043 (`app/src/theme.rs`) done and committed (`feat: add theme resolution`; noth
 `color-scheme` into it) and `resolve(ThemeSetting, Option<SystemTheme>) -> bool` (dark), both
 marked dead code until T045. fmt, clippy, 110 tests pass.
 
+T044 (apply the language) done and committed (`feat: apply the language`); fmt,
+clippy, 111 tests pass. `main.rs` reads the saved language from the table before the
+single-instance claim (`Settings::read`), so the second start's `already-open` message is in the
+same language; `--lang` wins for this start and is never saved; logged as `language <code>`.
+`Ui::new(language)` calls `ui::select_language` right after creating the component (Slint
+requires a component, and otherwise keeps its own pick from the system locale). New
+`i18n::setting` / `to_setting` (saved value ↔ `auto` or a code). The switch from the panel:
+`SettingChange::Language(&'static str)` (dead code until T046 sends it) → `store.update` and
+`App::apply_language`: select, tray `set_labels`, window title, the notice on screen read again,
+then `language switch <code> <ms> ms` logged when the next UI image goes to the video thread
+(`App.switch`, which T045 reuses for `theme switch`). `Notice.text` is now a
+`fn(&Texts) -> SharedString`, so a notice is re-read after a switch. Not checkable before T046:
+the switch and its log line.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).

@@ -58,9 +58,10 @@ pub struct Ui {
 }
 
 impl Ui {
-    /// Installs the Slint platform and creates the window's component. Must run once, on the main
-    /// thread, before any other Slint call.
-    pub fn new() -> anyhow::Result<Self> {
+    /// Installs the Slint platform, creates the window's component and selects `language` (a
+    /// code from `i18n::LANGUAGES`). Must run once, on the main thread, before any other Slint
+    /// call.
+    pub fn new(language: &str) -> anyhow::Result<Self> {
         let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
         slint::platform::set_platform(Box::new(Platform {
             window: window.clone(),
@@ -68,6 +69,9 @@ impl Ui {
         }))
         .map_err(|e| anyhow::anyhow!("Slint platform: {e:?}"))?;
         let app = AppWindow::new()?;
+        // Slint picks a catalog from the system's locale when the component is created; the
+        // app's own rule (setting, `--lang`, system) replaces that choice.
+        select_language(language);
         // Surface images by physical size, scale, fill and shadow strength; a few surfaces, so
         // the cache stays small, and it is dropped when it grows (tooltips vary with their text).
         let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32), slint::Image>::new());
@@ -255,6 +259,14 @@ impl Ui {
     pub fn backdrop(&self) -> [f64; 3] {
         let deep = self.app.global::<Theme>().get_c().deep;
         [deep.red(), deep.green(), deep.blue()].map(|v| f64::from(v) / 255.0)
+    }
+}
+
+/// Selects the bundled catalog for `language` (FR-022); every `@tr` text, `Texts` included, is
+/// evaluated again on its next read. Needs the component to exist.
+pub fn select_language(language: &str) {
+    if let Err(err) = slint::select_bundled_translation(language) {
+        log::warn!("language {language}: {err}");
     }
 }
 

@@ -55,12 +55,20 @@ fn run() -> i32 {
         // The damaged-file notice comes with spec US3.
         settings::LoadOutcome::NoFile | settings::LoadOutcome::Damaged { .. } => (Default::default(), true),
     };
+    // The language for this start (FR-022): `--lang` (never saved), else the saved one; automatic
+    // follows the system.
+    let saved = settings::Settings::read(&table, &i18n::codes()).general.language;
+    let language = i18n::resolve(
+        options.lang.as_deref().unwrap_or(i18n::setting(&saved)),
+        i18n::system_locale().as_deref(),
+    );
+    ::log::info!("language {language}");
     // One instance per settings location (FR-013): a later start hands over and exits before it
     // writes anything. The in-memory location (spec US3) names it from the executable instead.
     let instance = match platform::claim_instance(&platform::instance_name(&path)) {
         Ok(platform::Claim::First(listener)) => Some(listener),
         Ok(platform::Claim::Running(client)) => {
-            hand_over(&client);
+            hand_over(&client, language);
             ::log::logger().flush();
             return 0;
         }
@@ -75,7 +83,7 @@ fn run() -> i32 {
     }
     follow_autostart();
 
-    let code = match start(options, process_start, store, instance) {
+    let code = match start(options, process_start, store, instance, language) {
         Ok(code) => code,
         Err(err) => {
             ::log::error!("{err:#}");
@@ -112,12 +120,12 @@ fn follow_autostart() {
 }
 
 /// A second start: asks the running instance to show its window (contracts/single-instance.md).
-fn hand_over(client: &platform::Client) {
+fn hand_over(client: &platform::Client, language: &str) {
     match client.show() {
         Some(platform::Answer::Raised) => ::log::info!("already running: its window was brought to the front"),
         Some(platform::Answer::ShownNotRaised) => {
             ::log::info!("already running: its window was shown but could not come to the front");
-            show_already_open();
+            show_already_open(language);
         }
         // `show` logged why.
         None => {}
@@ -125,8 +133,8 @@ fn hand_over(client: &platform::Client) {
 }
 
 /// The system message `already-open`, its text read from `Texts` (research R7).
-fn show_already_open() {
-    match ui::Ui::new() {
+fn show_already_open(language: &str) {
+    match ui::Ui::new(language) {
         Ok(ui) => {
             let texts = ui::Texts::get(&ui.app);
             platform::show_system_message(&texts.get_app_name(), &texts.get_already_open());
@@ -140,8 +148,9 @@ fn start(
     process_start: Instant,
     store: settings::Store,
     instance: Option<platform::Listener>,
+    language: &'static str,
 ) -> anyhow::Result<i32> {
-    let ui = ui::Ui::new()?;
+    let ui = ui::Ui::new(language)?;
     let event_loop = EventLoop::<app::UserEvent>::with_user_event().build()?;
     // The listener thread hands `show` to the main loop and answers whether the platform lets the
     // window come to the front.

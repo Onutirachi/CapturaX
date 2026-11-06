@@ -3,6 +3,8 @@
 
 use std::collections::{HashSet, VecDeque};
 
+use crate::ui::Texts;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     not(test),
@@ -13,12 +15,13 @@ pub enum Kind {
     Warning,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Notice {
-    /// Identifier, for example `settings-damaged`; the text comes from `Texts` (research R7).
+    /// Identifier, for example `settings-damaged`.
     pub id: &'static str,
     pub kind: Kind,
-    pub text: String,
+    /// Reads the text from `Texts` (research R7), again after a language change (FR-022).
+    pub text: fn(&Texts<'_>) -> slint::SharedString,
 }
 
 #[derive(Default)]
@@ -62,7 +65,7 @@ mod tests {
         Notice {
             id,
             kind,
-            text: format!("text of {id}"),
+            text: |texts| texts.get_app_name(),
         }
     }
 
