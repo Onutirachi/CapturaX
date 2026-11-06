@@ -11,7 +11,6 @@ mod placement;
 mod render;
 mod shadows;
 mod stats;
-mod test_video;
 mod theme;
 mod ui;
 
@@ -38,6 +37,9 @@ fn run() -> i32 {
             return exit.code;
         }
     };
+    if options.list_devices {
+        return list_devices();
+    }
 
     // Plan step 2: where settings and log are kept (FR-026–FR-028), then the settings (FR-030).
     let location = settings_location();
@@ -231,4 +233,45 @@ fn start(
         platform::show_system_message(platform::MessageKind::Error, &title, &text);
     }
     Ok(app.exit_code)
+}
+
+/// `--list-devices` (contracts/cli.md): every device with its id, the automatic modes it shows and
+/// what they open, and its modes; exit 69 when GStreamer cannot start.
+fn list_devices() -> i32 {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let sender = std::sync::Mutex::new(sender);
+    let monitor = capture::Monitor::start(move |event| {
+        if let capture::MonitorEvent::Listed(devices) = event
+            && let Ok(sender) = sender.lock()
+        {
+            let _ = sender.send(devices);
+        }
+    });
+    let mut monitor = match monitor {
+        Ok(monitor) => monitor,
+        Err(err) => {
+            eprintln!("devices unavailable: {err}");
+            return app::EXIT_NO_TEST_VIDEO;
+        }
+    };
+    let devices = receiver
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .unwrap_or_default();
+    monitor.stop();
+    if devices.is_empty() {
+        println!("No capture device found.");
+    }
+    for device in &devices {
+        println!("{}", device.name);
+        println!("  id: {}", device.id);
+        println!("  automatic:");
+        for (choice, mode) in capture::mode::shown_automatic(&device.modes, device.signal) {
+            println!("    {choice} -> {} {}", mode.label(), mode.format.name());
+        }
+        println!("  modes:");
+        for mode in &device.modes {
+            println!("    {} {}", mode.label(), mode.format.name());
+        }
+    }
+    0
 }

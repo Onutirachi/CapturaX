@@ -1,5 +1,8 @@
 // Draws one textured rectangle; used for each layer per present: the video (letterboxed, corners
-// rounded) then the UI. Textures hold premultiplied RGBA, blended with (One, OneMinusSrcAlpha).
+// rounded) then the UI. The UI texture holds premultiplied RGBA, blended with (One,
+// OneMinusSrcAlpha). The video arrives in the device's own format and is converted to RGB here
+// (device preview research R4): `to_r`, `to_g`, `to_b` hold the matrix and the range, so
+// `rgb = rows · (y, u, v, 1)`; `yuv_to_rgb` in gpu.rs mirrors it for the tests.
 
 struct Rect {
     // Left, top, right, bottom in clip space.
@@ -8,11 +11,19 @@ struct Rect {
     size: vec2<f32>,
     radius: f32,
     opacity: f32,
+    // Layer kind, then the picture's width and height in pixels. Kinds: 0 premultiplied RGBA
+    // (UI), 1 opaque RGB, 2 NV12, 3 I420, 4 YUY2, 5 UYVY.
+    picture: vec4<f32>,
+    to_r: vec4<f32>,
+    to_g: vec4<f32>,
+    to_b: vec4<f32>,
 };
 
-@group(0) @binding(0) var tex: texture_2d<f32>;
+@group(0) @binding(0) var tex0: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var<uniform> rect: Rect;
+@group(0) @binding(3) var tex1: texture_2d<f32>;
+@group(0) @binding(4) var tex2: texture_2d<f32>;
 
 struct VertexOut {
     @builtin(position) position: vec4<f32>,
@@ -31,9 +42,61 @@ fn vs(@builtin(vertex_index) index: u32) -> VertexOut {
     return out;
 }
 
+fn convert(yuv: vec3<f32>) -> vec4<f32> {
+    let p = vec4<f32>(yuv, 1.0);
+    let rgb = vec3<f32>(dot(rect.to_r, p), dot(rect.to_g, p), dot(rect.to_b, p));
+    return vec4<f32>(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
+}
+
+// One pixel of a packed 4:2:2 picture: each texel holds two pixels, Y0 U Y1 V (YUY2) or U Y0 V Y1
+// (UYVY).
+fn packed_pixel(p: vec2<i32>, uyvy: bool) -> vec3<f32> {
+    let last = vec2<i32>(i32(rect.picture.y) - 1, i32(rect.picture.z) - 1);
+    let q = clamp(p, vec2<i32>(0), last);
+    let t = textureLoad(tex0, vec2<i32>(q.x / 2, q.y), 0);
+    let odd = (q.x & 1) == 1;
+    if uyvy {
+        return vec3<f32>(select(t.g, t.a, odd), t.r, t.b);
+    }
+    return vec3<f32>(select(t.r, t.b, odd), t.g, t.a);
+}
+
+// Packed pixels filtered by hand (the sampler would blend neighbouring pairs).
+fn packed(uv: vec2<f32>, uyvy: bool) -> vec3<f32> {
+    let pos = uv * rect.picture.yz - vec2<f32>(0.5);
+    let base = floor(pos);
+    let f = pos - base;
+    let p = vec2<i32>(base);
+    let top = mix(packed_pixel(p, uyvy), packed_pixel(p + vec2<i32>(1, 0), uyvy), f.x);
+    let bottom = mix(packed_pixel(p + vec2<i32>(0, 1), uyvy), packed_pixel(p + vec2<i32>(1, 1), uyvy), f.x);
+    return mix(top, bottom, f.y);
+}
+
 @fragment
 fn fs(in: VertexOut) -> @location(0) vec4<f32> {
-    let color = textureSample(tex, samp, in.uv);
+    // Every plane is sampled before branching, so the samples stay in uniform control flow.
+    let s0 = textureSample(tex0, samp, in.uv);
+    let s1 = textureSample(tex1, samp, in.uv);
+    let s2 = textureSample(tex2, samp, in.uv);
+    let kind = u32(rect.picture.x + 0.5);
+    var color: vec4<f32>;
+    switch kind {
+        case 0u: {
+            color = s0;
+        }
+        case 1u: {
+            color = vec4<f32>(s0.rgb, 1.0);
+        }
+        case 2u: {
+            color = convert(vec3<f32>(s0.r, s1.r, s1.g));
+        }
+        case 3u: {
+            color = convert(vec3<f32>(s0.r, s1.r, s2.r));
+        }
+        default: {
+            color = convert(packed(in.uv, kind == 5u));
+        }
+    }
     // Signed distance to the rounded rectangle, in pixels; one pixel of anti-aliased edge.
     let half_size = rect.size * 0.5;
     let q = abs(in.uv * rect.size - half_size) - (half_size - vec2<f32>(rect.radius));

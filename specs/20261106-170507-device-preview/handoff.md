@@ -4,18 +4,41 @@
 
 ## State
 
-Spec and plan approved by the maintainer and committed (`docs: add device preview spec`, `docs:
-add device preview plan`; plan.md, research.md R1–R15, data-model.md, contracts/,
-quickstart.md). tasks.md (63 tasks, T001–T063; T060–T063 added for device notices) validated and committed (`docs: add device preview tasks`). Nothing pushed. No code.
+Spec, plan and tasks approved and committed. Implementation started (2026-11-06):
+
+- **Phase 1 (T001–T004)** committed: `build: add capture crate` (38c843d).
+- **Phase 2 (T005–T016)** validated by the maintainer (test video and `--list-devices` on
+  Windows) and committed: `feat: add capture crate and yuv render path`.
+
+Nothing pushed.
 
 ## Done in the last session
 
-- `/speckit-specify`: spec with 5 stories; the maintainer chose: latency bubble with Measured /
-  Measured + estimated (default) / Total, frame rate bubble with Presented / Presented / nominal
-  (default) / Nominal, both chosen from a settings button on the bubble's hover; color range as
-  its own toolbar dropdown.
-- `/speckit-plan`: research on the maintainer's machines (Windows with a C920, CachyOS with the
-  ezcap over SSH) and in the GStreamer 1.28.8 and wgpu 30 sources.
+- Phase 1: crate skeleton, boundary test over `crates/capture` (+ `libloading` forbidden outside
+  platform), CI installs `gstreamer1.0-plugins-base`; the libloading ban in deny.toml was left
+  out (wgpu-hal, ash, glutin, dlib already depend on it). Caps recorded:
+  `crates/capture/tests/data/c920-windows.txt`, `ezcap-linux.txt` (`ezcap-windows.txt` when the
+  ezcap is at the Windows PC).
+- Phase 2: `frame.rs` (planes, pool, `captured_at`), `mode.rs` (modes, automatic modes, choice
+  text, badges), `device.rs` (identity, numbering, start order), `analysis.rs` (range detector),
+  `monitor.rs`, `session.rs` + `test_source.rs` (appsink copying planes into pooled frames),
+  settings `[preview]`, `[overlay]`, `[devices."<id>"]`, YUV composite (NV12, I420, YUY2, UYVY,
+  BGRx, RGBA; matrix and range as uniform rows), the test video through the capture crate in
+  NV12 (`app/src/test_video.rs` deleted, `app` no longer depends on the gst crates),
+  `--list-devices`.
+- Checks: `cargo fmt`, `clippy -D warnings`, `cargo test` pass on Windows and on CachyOS.
+  `--list-devices` lists the C920 (Auto max resolution → 1080p30 NV12; YUY2 where it beats the
+  Frame Server's NV12) and the ezcap on Linux (Auto max FPS → 1080p120 NV12). Test video
+  1080p60: Windows `ready_ms` 0.6–0.7 median, max ≤ 1.1 after warm-up; Linux 0.7 at first, then
+  2.6 after a few idle seconds (GPU clocks dropping: what T024–T026 address).
+- Implementation notes (not spec changes): `modes_from_caps(caps, declared_full_nv12)` gets
+  `device.api == "mediafoundation" && nv12_declared_full(caps)` from the monitor; `Playing` is
+  sent when the appsink receives its caps (the device accepted the format), so the no-signal
+  timer (T042) starts there; `Device` has `base_name` (for renumbering) and `gst:
+  Option<gst::Device>` (`None` only in tests); a decoded MJPG mode goes through `videoconvert`
+  (passthrough when the decoder gives an uploaded format).
+- The Linux clone (`~/Projetos/CapturaX`) is on a detached commit made from the working tree
+  (`refs/tmp/wip`); its old app-shell copies were stashed ("pre-device-preview copies").
 
 ## Decisions
 
@@ -67,6 +90,5 @@ quickstart.md). tasks.md (63 tasks, T001–T063; T060–T063 added for device no
 
 ## Next step
 
-Optionally run `/speckit-analyze`; then ask the maintainer for explicit approval before
-`/speckit-implement` (starts at T001). Linux GPU power (R7) is validated early, at T025, before it
-is wired in.
+1. `/speckit-implement` from T017 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
+   system notifications (R15) at T061, each before it is wired in.

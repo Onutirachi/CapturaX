@@ -32,6 +32,10 @@ struct Args {
     #[arg(long)]
     stats: bool,
 
+    /// Developer: list the capture devices with their modes, then exit
+    #[arg(long)]
+    list_devices: bool,
+
     /// Developer: force the graphics backend
     #[arg(long, value_enum)]
     backend: Option<Backend>,
@@ -81,6 +85,7 @@ pub struct StartupOptions {
     pub autostart: bool,
     pub test_video: Option<VideoSize>,
     pub stats: bool,
+    pub list_devices: bool,
     pub backend: Option<Backend>,
     pub present: Option<PresentMode>,
     pub lang: Option<String>,
@@ -134,6 +139,7 @@ where
         autostart: args.autostart,
         test_video: args.test_video,
         stats: args.stats,
+        list_devices: args.list_devices,
         backend: args.backend,
         present: args.present,
         lang: args.lang,
@@ -219,6 +225,8 @@ mod tests {
         ])
         .unwrap();
         assert!(o.stats);
+        assert!(!o.list_devices);
+        assert!(run(&["--list-devices"]).unwrap().list_devices);
         assert_eq!(o.backend, Some(Backend::Dx12));
         assert_eq!(o.present, Some(PresentMode::Mailbox));
         assert_eq!(o.lang.as_deref(), Some("pt-BR"));

@@ -15,16 +15,8 @@ use crate::cli::{Backend, PresentMode};
 use crate::stats::Stats;
 use crate::ui::UiImage;
 
+pub use capture::Frame;
 pub use gpu::RendererError;
-
-/// One video frame: RGBA, rows packed.
-pub struct VideoFrame {
-    pub width: u32,
-    pub height: u32,
-    pub data: Vec<u8>,
-    /// When the source finished it (frame ready → present, SC-001).
-    pub ready: Instant,
-}
 
 /// What the video thread draws besides the layers.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -40,7 +32,7 @@ pub struct Scene {
 /// What waits for the video thread; only the newest of each is kept.
 #[derive(Default)]
 struct State {
-    frame: Option<VideoFrame>,
+    frame: Option<Frame>,
     ui: Option<UiImage>,
     scene: Option<Scene>,
     /// The UI or the scene changed since the video thread last looked.
@@ -79,7 +71,7 @@ impl Inbox {
     }
 
     /// From the source: replaces a frame not yet presented.
-    pub fn send_frame(&self, frame: VideoFrame) {
+    pub fn send_frame(&self, frame: Frame) {
         let mut state = self.lock();
         state.received += 1;
         if state.frame.replace(frame).is_some() {
@@ -358,12 +350,21 @@ mod tests {
     #[test]
     fn a_new_video_thread_keeps_only_the_newest_frame() {
         let inbox = Inbox::default();
-        inbox.send_frame(VideoFrame {
-            width: 2,
-            height: 2,
-            data: vec![0; 16],
-            ready: Instant::now(),
-        });
+        let plane = |len: usize| capture::Plane {
+            bytes: vec![0; len].into(),
+            stride: 2,
+        };
+        inbox.send_frame(Frame::new(
+            2,
+            2,
+            capture::PixelFormat::Nv12,
+            vec![plane(4), plane(2)],
+            capture::Matrix::Bt709,
+            capture::Range::Limited,
+            Instant::now(),
+            Instant::now(),
+            1,
+        ));
         inbox.send_ui(
             None,
             Scene {

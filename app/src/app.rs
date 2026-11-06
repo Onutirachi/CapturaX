@@ -20,7 +20,6 @@ use crate::icon;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
-use crate::test_video::TestVideo;
 use crate::theme::{self, SystemTheme};
 use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
 use platform::autostart;
@@ -85,7 +84,8 @@ pub struct App {
     /// fullscreen if it was (research R11).
     window_gone: bool,
     reopen_fullscreen: bool,
-    test_video: Option<TestVideo>,
+    /// The test video's session and the precise timers that pace it.
+    test_video: Option<(capture::Session, platform::TimerGuard)>,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
     /// When the UI was last handed over and the monitor's refresh interval: animations redraw at
@@ -728,16 +728,26 @@ impl ApplicationHandler<UserEvent> for App {
             let _ = proxy.send_event(UserEvent::SystemTheme(theme));
         });
         if let Some(size) = self.options.test_video {
-            match TestVideo::start(size, self.inbox.clone()) {
-                Ok(test_video) => self.test_video = Some(test_video),
-                Err(err) => {
-                    log::error!("{err}");
-                    eprintln!("{err}");
-                    self.exit_code = EXIT_NO_TEST_VIDEO;
-                    event_loop.exit();
-                    return;
-                }
+            if let Err(err) = capture::test_source::available() {
+                let err = format!("test video unavailable: {err}");
+                log::error!("{err}");
+                eprintln!("{err}");
+                self.exit_code = EXIT_NO_TEST_VIDEO;
+                event_loop.exit();
+                return;
             }
+            // Through the capture crate in NV12, like a device (contracts/cli.md).
+            let inbox = self.inbox.clone();
+            let session = capture::Session::test_video(
+                size.width,
+                size.height,
+                size.fps,
+                0,
+                move |frame| inbox.send_frame(frame),
+                |event| log::info!("test video: {event:?}"),
+            );
+            // Paces `videotestsrc` evenly on Windows (app shell research R9).
+            self.test_video = Some((session, platform::precise_timers()));
         }
         // Without a source the video area shows the `no-source` state (FR-035).
         self.ui.app.set_source_open(self.test_video.is_some());
@@ -931,8 +941,8 @@ impl ApplicationHandler<UserEvent> for App {
         // Quit sequence (FR-014): the test video stops first so no frame arrives during the stop;
         // the video thread holds the surface, so it stops while the window still exists; then the
         // settings are flushed and the window destroyed.
-        if let Some(mut test_video) = self.test_video.take() {
-            test_video.stop();
+        if let Some((test_video, _timers)) = self.test_video.take() {
+            test_video.close();
         }
         if let Some(mut video) = self.video.take() {
             video.stop();
