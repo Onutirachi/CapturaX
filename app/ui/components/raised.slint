@@ -1,0 +1,21 @@
+// Raised surface: its rounded fill and its shadow as one image from Rust (app/src/shadows.rs,
+// research R8), made for this size at the window's scale and drawn 1:1. The fill and the shadow
+// share one anti-aliased edge. The image reaches 36 px past the surface on every side and 10 px
+// more below. Ported from the stack spike's `surface.slint`.
+import { Theme } from "../theme.slint";
+
+export component Raised inherits Rectangle {
+    in property <color> fill: Theme.c.raised;
+
+    Image {
+        x: -36px;
+        y: -36px;
+        width: root.width + 72px;
+        height: root.height + 72px + 10px;
+        source: Theme.surface(root.width, root.height, 1px / 1phx, root.fill, Theme.c.shadow);
+    }
+
+    Rectangle {
+        @children
+    }
+}

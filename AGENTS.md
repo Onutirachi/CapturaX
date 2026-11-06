@@ -7,7 +7,9 @@ defines the principles, scope and workflow, and it overrides this guide.
 
 ## Status
 
-Early rewrite. There is no application code yet. The previous version lives in the
+Early rewrite. The application shell (spec `20261104-112852-app-shell`) is built: window,
+settings, tray, autostart, single instance and a test video, no capture source yet. Build and
+run instructions are in the [README](README.md). The previous version lives in the
 [CapturaX-old](https://github.com/Onutirachi/CapturaX-old) repository and is reference only.
 
 ## Starting a session

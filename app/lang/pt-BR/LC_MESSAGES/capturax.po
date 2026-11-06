@@ -1,0 +1,111 @@
+# Portuguese (Brazil) translation of CapturaX.
+# Bundled at build time (app/build.rs); msgid is the English source text, entries have no context.
+msgid ""
+msgstr ""
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "CapturaX"
+msgstr "CapturaX"
+
+msgid "CapturaX is already open."
+msgstr "O CapturaX já está aberto."
+
+msgid "Open"
+msgstr "Abrir"
+
+msgid "Quit"
+msgstr "Sair"
+
+msgid "Dismiss"
+msgstr "Dispensar"
+
+msgid "Minimize"
+msgstr "Minimizar"
+
+msgid "Maximize"
+msgstr "Maximizar"
+
+msgid "Restore"
+msgstr "Restaurar"
+
+msgid "Close"
+msgstr "Fechar"
+
+msgid "Fullscreen (F11)"
+msgstr "Tela cheia (F11)"
+
+msgid "Exit fullscreen (F11)"
+msgstr "Sair da tela cheia (F11)"
+
+msgid "Settings"
+msgstr "Configurações"
+
+msgid "Close (Esc)"
+msgstr "Fechar (Esc)"
+
+msgid "General"
+msgstr "Geral"
+
+msgid "Appearance"
+msgstr "Aparência"
+
+msgid "About"
+msgstr "Sobre"
+
+msgid "Start in fullscreen"
+msgstr "Iniciar em tela cheia"
+
+msgid "Keep in tray when closed"
+msgstr "Manter na bandeja ao fechar"
+
+msgid "Start with the system"
+msgstr "Iniciar com o sistema"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Theme"
+msgstr "Tema"
+
+msgid "Automatic"
+msgstr "Automático"
+
+msgid "Dark"
+msgstr "Escuro"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Version {}"
+msgstr "Versão {}"
+
+msgid "CapturaX cannot write to its own folder, so settings are kept in this folder:\n{}"
+msgstr "O CapturaX não consegue gravar na própria pasta, então as configurações ficam nesta pasta:\n{}"
+
+msgid "CapturaX cannot write its settings anywhere. Changes will be lost when it closes."
+msgstr "O CapturaX não consegue gravar as configurações em nenhum lugar. As mudanças serão perdidas ao fechar."
+
+msgid "The settings file was damaged. Default settings are in use; the old file was kept as {}."
+msgstr "O arquivo de configurações estava danificado. As configurações padrão estão em uso; o arquivo antigo foi guardado como {}."
+
+msgid "The settings file could not be read. Default settings are in use."
+msgstr "Não foi possível ler o arquivo de configurações. As configurações padrão estão em uso."
+
+msgid "Settings in another folder"
+msgstr "Configurações em outra pasta"
+
+msgid "Settings will not be kept"
+msgstr "Configurações não serão salvas"
+
+msgid "Settings damaged"
+msgstr "Configurações danificadas"
+
+msgid "No source"
+msgstr "Nenhuma fonte"
+
+msgid "CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again."
+msgstr "O CapturaX não pode iniciar porque nenhum renderizador gráfico funciona neste computador. Atualize o driver de vídeo e tente de novo."

@@ -1,0 +1,22 @@
+[present] backend=vulkan mode=mailbox adapter="NVIDIA GeForce RTX 3050" surface=1280x720
+[loop] t=1 recv=59 pres=59 repl=0 ready_ms=1.7/2.6 gap_ms=17.2 ui=1 ui_ms=3.2/3.2 moves=0
+[loop] t=2 recv=60 pres=60 repl=0 ready_ms=1.7/2.0 gap_ms=17.0 ui=14 ui_ms=0.5/1.5 moves=0
+[loop] t=3 recv=60 pres=60 repl=0 ready_ms=1.7/1.8 gap_ms=16.7 ui=7 ui_ms=0.4/0.4 moves=0
+[loop] t=4 recv=60 pres=60 repl=0 ready_ms=3.1/4.3 gap_ms=18.1 ui=2 ui_ms=1.5/2.3 moves=0
+[loop] t=5 recv=60 pres=59 repl=0 ready_ms=3.4/3.9 gap_ms=33.2 ui=0 ui_ms=-/- moves=0
+[loop] t=6 recv=60 pres=60 repl=0 ready_ms=3.9/3.9 gap_ms=16.7 ui=0 ui_ms=-/- moves=0
+[loop] t=7 recv=60 pres=60 repl=0 ready_ms=3.3/6.2 gap_ms=19.4 ui=2 ui_ms=2.7/4.2 moves=0
+[loop] t=8 recv=60 pres=60 repl=0 ready_ms=3.3/6.4 gap_ms=17.1 ui=0 ui_ms=-/- moves=0
+[loop] t=9 recv=61 pres=58 repl=2 ready_ms=28.7/37.3 gap_ms=25.5 ui=2 ui_ms=1.5/2.3 moves=0
+[loop] t=10 recv=60 pres=44 repl=16 ready_ms=28.9/37.3 gap_ms=25.1 ui=0 ui_ms=-/- moves=0
+[loop] t=11 recv=60 pres=53 repl=8 ready_ms=3.4/42.2 gap_ms=43.1 ui=1 ui_ms=0.7/0.7 moves=0
+[loop] t=12 recv=60 pres=60 repl=0 ready_ms=3.4/3.4 gap_ms=16.9 ui=0 ui_ms=-/- moves=0
+[loop] t=13 recv=61 pres=55 repl=5 ready_ms=6.3/45.4 gap_ms=46.7 ui=2 ui_ms=1.2/1.8 moves=0
+[loop] t=14 recv=61 pres=61 repl=0 ready_ms=28.8/28.9 gap_ms=16.7 ui=0 ui_ms=-/- moves=0
+[loop] t=15 recv=60 pres=56 repl=5 ready_ms=28.8/37.2 gap_ms=34.2 ui=1 ui_ms=0.7/0.7 moves=0
+[loop] t=16 recv=60 pres=60 repl=0 ready_ms=1.7/1.7 gap_ms=16.7 ui=0 ui_ms=-/- moves=0
+[loop] t=17 recv=61 pres=59 repl=1 ready_ms=1.7/37.2 gap_ms=25.1 ui=2 ui_ms=1.0/1.4 moves=0
+[loop] t=18 recv=61 pres=61 repl=0 ready_ms=28.8/28.9 gap_ms=16.7 ui=0 ui_ms=-/- moves=0
+[loop] t=19 recv=60 pres=61 repl=0 ready_ms=28.8/28.9 gap_ms=17.2 ui=2 ui_ms=1.9/2.8 moves=0
+[loop] t=20 recv=60 pres=60 repl=0 ready_ms=3.4/3.5 gap_ms=17.0 ui=0 ui_ms=-/- moves=0
+[loop] t=21 recv=60 pres=60 repl=0 ready_ms=3.3/3.4 gap_ms=16.9 ui=0 ui_ms=-/- moves=0

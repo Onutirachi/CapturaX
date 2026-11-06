@@ -1,0 +1,31 @@
+// The 2 px focus ring, the only outline in the theme (FR-020). It shows only while the last input
+// was the keyboard, as `:focus-visible` in browsers: Rust sets `Input.keyboard` on every key press
+// and clears it on every mouse button press, so a clicked control keeps its focus without a ring.
+import { Theme } from "../theme.slint";
+
+export global Input {
+    in property <bool> keyboard;
+}
+
+// Drawn around its parent, `offset` outside its edges (negative draws inside, for a clipped list).
+// A `Rectangle` (transparent) so it fills its parent: a plain component has its preferred size,
+// none, and the ring shrank to a dot in the control's middle.
+export component FocusRing inherits Rectangle {
+    // The control has the keyboard focus.
+    in property <bool> focused;
+    // The parent's corner radius; the ring follows it at its offset.
+    in property <length> radius: Theme.radius-m;
+    in property <length> offset: 2px;
+
+    visible: self.focused && Input.keyboard;
+
+    Rectangle {
+        x: -root.offset - Theme.focus-ring;
+        y: -root.offset - Theme.focus-ring;
+        width: root.width + 2 * (root.offset + Theme.focus-ring);
+        height: root.height + 2 * (root.offset + Theme.focus-ring);
+        border-radius: max(0px, root.radius + root.offset + Theme.focus-ring);
+        border-width: Theme.focus-ring;
+        border-color: Theme.c.accent-text;
+    }
+}

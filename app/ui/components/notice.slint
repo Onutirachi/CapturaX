@@ -1,0 +1,41 @@
+// One non-blocking, dismissible notice at the top of the video area (FR-034), in the shape of the
+// other small windows: a header with the kind's icon, the notice's title and the close control,
+// then the text, which may name a folder. Rust keeps the queue and shows each notice id at most
+// once per run.
+import { Theme } from "../theme.slint";
+import { PanelHeader } from "panel-header.slint";
+
+export enum NoticeKind { info, warning }
+
+export component Notice inherits Rectangle {
+    in property <NoticeKind> kind: NoticeKind.info;
+    in property <string> title;
+    in property <string> text;
+    callback dismiss();
+
+    background: Theme.c.raised;
+    border-radius: Theme.radius-m;
+    height: header.height + body.preferred-height + Theme.gap-l;
+
+    body := Text {
+        x: header.title-x;
+        y: header.height;
+        width: root.width - self.x - Theme.gap-l;
+        text: root.text;
+        color: Theme.c.text;
+        font-size: Theme.text-m;
+        wrap: word-wrap;
+    }
+
+    header := PanelHeader {
+        y: 0;
+        width: root.width;
+        icon: root.kind == NoticeKind.warning
+            ? @image-url("../assets/icons/alert_triangle.svg")
+            : @image-url("../assets/icons/info_circle.svg");
+        icon-color: root.kind == NoticeKind.warning ? Theme.c.warn : Theme.c.accent-text;
+        title: root.title;
+        close-tooltip: @tr("Dismiss");
+        close => { root.dismiss(); }
+    }
+}

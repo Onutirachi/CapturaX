@@ -1,0 +1,208 @@
+// Menus live in the window's top layer (plan, UI structure), ported from the stack spike's
+// `dropdown.slint`. A control opens one through `Menus.show` with its rectangle; `MenuLayer`,
+// drawn last in main.slint, places it: below the control and aligned to its left; if it does not
+// fit below, above; if it does not fit to the right, aligned to the control's right edge (plan,
+// Menu placement; FR-010). A menu taller than the room it gets scrolls. One menu is open at a time.
+// Keys: Up, Down, Home, End move; Enter or Space picks; Esc or Tab closes (FR-020).
+import { Theme } from "../theme.slint";
+import { Raised } from "raised.slint";
+import { FocusRing } from "focus-ring.slint";
+
+export struct MenuItem {
+    text: string,
+}
+
+export global Menus {
+    out property <bool> open: self.owner != 0;
+    // The control that opened the menu, by the id from `new-id`; 0 when closed.
+    out property <int> owner;
+    out property <[MenuItem]> items;
+    // The item marked as chosen, -1 for none.
+    out property <int> current;
+    // The item under the pointer or the keyboard.
+    in-out property <int> highlighted;
+    // The control's rectangle in window coordinates.
+    out property <length> anchor-x;
+    out property <length> anchor-y;
+    out property <length> anchor-width;
+    out property <length> anchor-height;
+    // The last pick: its owner, its item, and a count that changes on every pick.
+    out property <int> picked-owner;
+    out property <int> picked-index;
+    out property <int> picks;
+    property <int> ids;
+
+    // A new owner id for a control that opens menus; call it once, from `init`.
+    public function new-id() -> int {
+        self.ids += 1;
+        return self.ids;
+    }
+
+    public function show(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length, height: length) {
+        self.items = items;
+        self.current = current;
+        self.highlighted = max(0, current);
+        self.anchor-x = x;
+        self.anchor-y = y;
+        self.anchor-width = width;
+        self.anchor-height = height;
+        self.owner = owner;
+    }
+
+    public function pick(index: int) {
+        if (self.open && index >= 0 && index < self.items.length) {
+            self.picked-owner = self.owner;
+            self.picked-index = index;
+            self.picks += 1;
+            self.close();
+        }
+    }
+
+    public function close() {
+        self.owner = 0;
+    }
+}
+
+// Fills the window; place it in the top layer with the window's size, shown while `Menus.open`.
+export component MenuLayer inherits Rectangle {
+    // Between the window's edges and the menu, and between the control and the menu.
+    property <length> margin: 8px;
+    property <length> space: 4px;
+    property <length> pad: 6px;
+    property <length> item-height: 36px;
+    property <length> spacing: 2px;
+    property <int> count: Menus.items.length;
+    property <length> content-height: root.count * root.item-height + max(0, root.count - 1) * root.spacing;
+    property <length> natural-height: root.content-height + 2 * root.pad;
+    property <length> ax: Menus.anchor-x;
+    property <length> ay: Menus.anchor-y;
+    property <length> aw: Menus.anchor-width;
+    property <length> ah: Menus.anchor-height;
+    property <length> room-below: root.height - root.margin - (root.ay + root.ah + root.space);
+    property <length> room-above: root.ay - root.space - root.margin;
+    property <bool> below: root.natural-height <= root.room-below || root.room-below >= root.room-above;
+    property <length> menu-height: max(0px, min(root.natural-height, root.below ? root.room-below : root.room-above));
+    property <length> menu-width: min(max(root.aw, rows.preferred-width + 2 * root.pad, 160px), root.width - 2 * root.margin);
+    property <bool> right-aligned: root.ax + root.menu-width > root.width - root.margin;
+
+    // The menu takes the keyboard when it opens or another control's menu replaces it.
+    property <int> owner: Menus.owner;
+    changed owner => { keys.focus(); }
+    init => { keys.focus(); }
+
+    // Keeps the highlighted item inside the visible part of the list.
+    property <int> highlighted: Menus.highlighted;
+    changed highlighted => {
+        let top = self.highlighted * (self.item-height + self.spacing);
+        if (top < -scroller.content-y) {
+            scroller.content-y = -top;
+        } else if (top + self.item-height > -scroller.content-y + scroller.height) {
+            scroller.content-y = -(top + self.item-height - scroller.height);
+        }
+    }
+
+    // A click anywhere else closes the menu and goes no further.
+    TouchArea {
+        clicked => { Menus.close(); }
+    }
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.DownArrow) {
+                Menus.highlighted = min(root.count - 1, Menus.highlighted + 1);
+            } else if (event.text == Key.UpArrow) {
+                Menus.highlighted = max(0, Menus.highlighted - 1);
+            } else if (event.text == Key.Home) {
+                Menus.highlighted = 0;
+            } else if (event.text == Key.End) {
+                Menus.highlighted = root.count - 1;
+            } else if (event.text == Key.Return || event.text == Key.Space) {
+                Menus.pick(Menus.highlighted);
+            } else if (event.text == Key.Escape || event.text == Key.Tab || event.text == Key.Backtab) {
+                Menus.close();
+            } else {
+                return reject;
+            }
+            accept
+        }
+    }
+
+    menu := Raised {
+        fill: Theme.c.raised;
+        x: root.right-aligned ? max(root.margin, root.ax + root.aw - root.menu-width) : root.ax;
+        y: root.below ? root.ay + root.ah + root.space : root.ay - root.space - root.menu-height;
+        width: root.menu-width;
+        height: root.menu-height;
+        accessible-role: list;
+
+        property <bool> scrolls: root.content-height > scroller.height;
+        property <length> bar-width: 4px;
+
+        // Eats clicks between the items so they do not reach the layer behind.
+        TouchArea { }
+
+        // Inset by the padding so the clip stays inside the rounded corners.
+        scroller := Flickable {
+            x: root.pad;
+            y: root.pad;
+            width: parent.width - 2 * root.pad - (menu.scrolls ? menu.bar-width + root.pad : 0);
+            height: parent.height - 2 * root.pad;
+            content-height: root.content-height;
+
+            rows := VerticalLayout {
+                width: scroller.width;
+                spacing: root.spacing;
+
+                for item[i] in Menus.items: Rectangle {
+                    height: root.item-height;
+                    border-radius: Theme.radius-s;
+                    background: i == Menus.current ? Theme.c.press : i == Menus.highlighted ? Theme.c.hover : transparent;
+                    accessible-role: list-item;
+                    accessible-label: item.text;
+                    accessible-item-selected: i == Menus.current;
+                    accessible-item-index: i;
+                    accessible-action-default => { Menus.pick(i); }
+
+                    item-area := TouchArea {
+                        clicked => { Menus.pick(i); }
+                        changed has-hover => {
+                            if (self.has-hover) {
+                                Menus.highlighted = i;
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: Theme.gap-m;
+                        padding-right: Theme.gap-m;
+                        Text {
+                            text: item.text;
+                            color: Theme.c.text;
+                            font-size: Theme.text-m;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+
+                    FocusRing {
+                        focused: i == Menus.highlighted;
+                        radius: Theme.radius-s;
+                        // Inside the item, so the list's clip does not cut it.
+                        offset: -Theme.focus-ring;
+                    }
+                }
+            }
+        }
+
+        // Position indicator, only when the list scrolls.
+        if menu.scrolls: Rectangle {
+            property <length> track: menu.height - 2 * Theme.radius-m;
+            x: parent.width - root.pad - self.width;
+            y: Theme.radius-m + (self.track - self.height) * (-scroller.content-y / (root.content-height - scroller.height));
+            width: menu.bar-width;
+            height: max(24px, self.track * scroller.height / root.content-height);
+            border-radius: self.width / 2;
+            background: Theme.c.text-faint;
+        }
+    }
+}

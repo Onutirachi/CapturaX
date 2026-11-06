@@ -1,0 +1,53 @@
+2026-11-06T16:42:36.823Z INFO capturax CapturaX 0.1.0 starting, settings: AppFolder("/home/clandini/Projetos/CapturaX-shell/target/release")
+2026-11-06T16:42:36.823Z INFO capturax language pt-BR
+2026-11-06T16:42:36.849Z INFO capturax::app window placement Placement { position: Some((320, 180)), size: (1280, 720), maximized: false, monitor: Some(0) }
+2026-11-06T16:42:36.863Z WARN sctk_adwaita::buttons Ignoring unknown button type: icon
+2026-11-06T16:42:36.864Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:36.988Z INFO wgpu_hal::vulkan::adapter Found 6 cooperative matrix configurations supported by wgpu
+2026-11-06T16:42:37.059Z INFO capturax::render::gpu presentation: [present] backend=vulkan mode=mailbox adapter="NVIDIA GeForce RTX 3050" surface=1280x720
+2026-11-06T16:42:37.060Z INFO capturax::render [present] backend=vulkan mode=mailbox adapter="NVIDIA GeForce RTX 3050" surface=1280x720
+2026-11-06T16:42:37.074Z INFO capturax::test_video test video 1920x1080@60 playing
+2026-11-06T16:42:37.079Z INFO capturax::app window shown 256 ms after start
+2026-11-06T16:42:37.080Z INFO capturax::render first present 257 ms after start
+2026-11-06T16:42:38.060Z INFO capturax::render [loop] t=1 recv=59 pres=59 repl=0 ready_ms=1.7/2.6 gap_ms=17.3 ui=1 ui_ms=3.4/3.4 moves=0
+2026-11-06T16:42:39.060Z INFO capturax::render [loop] t=2 recv=60 pres=60 repl=0 ready_ms=1.7/2.0 gap_ms=17.0 ui=13 ui_ms=0.5/1.7 moves=0
+2026-11-06T16:42:40.060Z INFO capturax::render [loop] t=3 recv=60 pres=60 repl=0 ready_ms=1.7/1.8 gap_ms=16.9 ui=15 ui_ms=0.4/0.5 moves=0
+2026-11-06T16:42:41.060Z INFO capturax::render [loop] t=4 recv=60 pres=60 repl=0 ready_ms=1.8/3.4 gap_ms=18.1 ui=26 ui_ms=0.6/0.7 moves=0
+2026-11-06T16:42:42.060Z INFO capturax::render [loop] t=5 recv=60 pres=60 repl=0 ready_ms=3.2/3.4 gap_ms=18.4 ui=15 ui_ms=0.5/50.6 moves=0
+2026-11-06T16:42:42.732Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:42.732Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:42.796Z INFO capturax::app theme switch light 64.2 ms
+2026-11-06T16:42:42.796Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:43.060Z INFO capturax::render [loop] t=6 recv=60 pres=60 repl=0 ready_ms=3.3/3.9 gap_ms=18.7 ui=26 ui_ms=0.7/64.1 moves=0
+2026-11-06T16:42:44.060Z INFO capturax::render [loop] t=7 recv=60 pres=60 repl=0 ready_ms=3.3/3.4 gap_ms=16.9 ui=20 ui_ms=0.6/1.5 moves=0
+2026-11-06T16:42:45.060Z INFO capturax::render [loop] t=8 recv=60 pres=60 repl=0 ready_ms=6.3/7.0 gap_ms=19.5 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:42:45.170Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:45.170Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:45.187Z INFO capturax::app theme switch dark 17.7 ms
+2026-11-06T16:42:45.208Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:46.060Z INFO capturax::render [loop] t=9 recv=60 pres=60 repl=0 ready_ms=1.7/18.0 gap_ms=23.9 ui=2 ui_ms=9.3/17.7 moves=0
+2026-11-06T16:42:47.060Z INFO capturax::render [loop] t=10 recv=60 pres=60 repl=0 ready_ms=1.7/1.8 gap_ms=17.0 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:42:47.241Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:47.241Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:47.249Z INFO capturax::app theme switch light 8.0 ms
+2026-11-06T16:42:47.249Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:48.060Z INFO capturax::render [loop] t=11 recv=60 pres=60 repl=0 ready_ms=1.7/7.5 gap_ms=24.6 ui=2 ui_ms=4.3/8.0 moves=0
+2026-11-06T16:42:49.060Z INFO capturax::render [loop] t=12 recv=60 pres=60 repl=0 ready_ms=1.7/3.5 gap_ms=18.3 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:42:49.293Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:49.306Z INFO capturax::app theme switch dark 12.4 ms
+2026-11-06T16:42:49.306Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:49.306Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:50.060Z INFO capturax::render [loop] t=13 recv=60 pres=60 repl=0 ready_ms=3.3/10.2 gap_ms=23.7 ui=2 ui_ms=6.5/12.3 moves=0
+2026-11-06T16:42:51.061Z INFO capturax::render [loop] t=14 recv=60 pres=60 repl=0 ready_ms=3.3/3.4 gap_ms=17.0 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:42:51.352Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:51.363Z INFO capturax::app theme switch light 10.5 ms
+2026-11-06T16:42:51.363Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:51.365Z INFO capturax::app system theme Some(Light)
+2026-11-06T16:42:52.061Z INFO capturax::render [loop] t=15 recv=60 pres=60 repl=0 ready_ms=3.3/5.9 gap_ms=20.9 ui=2 ui_ms=5.5/10.4 moves=0
+2026-11-06T16:42:53.061Z INFO capturax::render [loop] t=16 recv=60 pres=60 repl=0 ready_ms=6.2/6.3 gap_ms=19.4 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:42:53.411Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:53.411Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:53.426Z INFO capturax::app theme switch dark 14.4 ms
+2026-11-06T16:42:53.426Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:42:54.061Z INFO capturax::render [loop] t=17 recv=60 pres=60 repl=0 ready_ms=6.0/12.0 gap_ms=23.7 ui=2 ui_ms=8.0/14.3 moves=0
+2026-11-06T16:42:55.061Z INFO capturax::render [loop] t=18 recv=60 pres=60 repl=0 ready_ms=3.3/3.6 gap_ms=17.3 ui=0 ui_ms=-/- moves=0

@@ -1,0 +1,69 @@
+// An on/off switch. A click, Enter or Space flips it (FR-020); `toggled` reports the new state.
+import { Theme } from "../theme.slint";
+import { FocusRing } from "focus-ring.slint";
+
+export component Toggle inherits Rectangle {
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    // The setting's name, for screen readers.
+    in property <string> label;
+    out property <bool> has-focus: focus.has-focus;
+    callback toggled(bool);
+
+    property <length> knob-gap: 3px;
+
+    width: 40px;
+    height: 22px;
+    border-radius: self.height / 2;
+    background: root.checked ? (area.has-hover ? Theme.c.accent-hover : Theme.c.accent) : Theme.c.text-faint;
+    animate background { duration: Theme.quick; }
+    opacity: root.enabled ? 1 : 0.35;
+
+    accessible-role: switch;
+    accessible-label: root.label;
+    accessible-checkable: true;
+    accessible-checked: root.checked;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.flip(); }
+
+    forward-focus: focus;
+
+    public function flip() {
+        if (root.enabled) {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+
+    knob := Rectangle {
+        width: root.height - 2 * root.knob-gap;
+        height: self.width;
+        x: root.checked ? root.width - self.width - root.knob-gap : root.knob-gap;
+        y: root.knob-gap;
+        border-radius: self.width / 2;
+        background: root.checked ? Theme.c.accent-ink : Theme.c.top;
+        animate x { duration: Theme.quick; easing: ease-out; }
+    }
+
+    area := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.flip(); }
+    }
+
+    focus := FocusScope {
+        enabled: root.enabled;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.flip();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: root.border-radius;
+    }
+}

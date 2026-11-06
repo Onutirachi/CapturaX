@@ -1,0 +1,268 @@
+// The window root (plan, UI structure). The UI is drawn into a transparent image that the video
+// thread composites over the video, so the window background stays transparent; the ground around
+// the video is the theme's deepest tone, read by Rust and cleared by the video thread.
+// Layers from bottom to top: video area, state message, chrome, notices, settings panel, then the
+// top layer for menus, dropdowns and tooltips.
+import { Theme, Palette } from "theme.slint";
+import { Texts } from "texts.slint";
+import { WindowState } from "window-state.slint";
+import { Notice, NoticeKind } from "components/notice.slint";
+import { StateMessage } from "components/state-message.slint";
+import { Input } from "components/focus-ring.slint";
+import { Menus, MenuItem, MenuLayer } from "components/menu.slint";
+import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
+import { TitleBar } from "components/title-bar.slint";
+import { Dock } from "components/dock.slint";
+import { IconButton } from "components/icon-button.slint";
+import { SettingsPanel, Prefs } from "components/settings-panel.slint";
+
+export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs }
+
+export component AppWindow inherits Window {
+    background: transparent;
+    default-font-family: Theme.font;
+    title: Texts.app-name;
+
+    // The title bar's height; it hides in fullscreen and the video starts below it, never behind.
+    property <length> bar: WindowState.fullscreen ? 0 : 32px;
+
+    // Where the video thread draws the video, in logical pixels: letterboxed inside, corners
+    // rounded in the shader (the UI layer cannot clip the video).
+    out property <length> video-x: 0;
+    out property <length> video-y: root.bar;
+    out property <length> video-width: root.width;
+    out property <length> video-height: root.height - root.bar;
+    out property <length> video-radius: 0;
+
+    // The notice shown, set by Rust from its queue (app/src/notices.rs).
+    in property <bool> notice-visible;
+    in property <NoticeKind> notice-kind;
+    in property <string> notice-title;
+    in property <string> notice-text;
+    callback dismiss-notice();
+
+    // A source is open (the test video in this spec); without one the video area shows the
+    // `no-source` state (FR-035).
+    in property <bool> source-open;
+    // An action of the state message, by id (none in this spec).
+    callback state-action(string /* action id */);
+
+    // Video area: drawn by the video thread, nothing here.
+
+    // State message layer: the `no-source` state fills the video area while nothing is open
+    // (FR-035), never a black or blank area.
+    if !root.source-open: StateMessage {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+        border-radius: root.video-radius;
+        icon: @image-url("assets/icons/device_tv_off.svg");
+        title: @tr("No source");
+        action(id) => { root.state-action(id); }
+    }
+
+    // Chrome layer: the title bar (its window buttons are not in the Tab order, FR-020), then the
+    // toolbar slot and the docks over the video; the keyboard focus goes left dock, right dock.
+
+    // The title bar's maximize button in physical pixels, for the snap layouts flyout (T040).
+    out property <int> max-button-x: title-bar.max-button-x;
+    out property <int> max-button-y: title-bar.max-button-y;
+    out property <int> max-button-width: title-bar.max-button-width;
+    out property <int> max-button-height: title-bar.max-button-height;
+
+    title-bar := TitleBar {
+        x: 0;
+        y: 0;
+        width: root.width;
+        visible: !WindowState.fullscreen;
+    }
+
+    // The settings panel is open; its button is in the right dock, Esc, its close control or a
+    // click outside it close it (FR-025). Closed from the keyboard, the focus goes back to its
+    // button.
+    in-out property <bool> settings-open;
+    changed settings-open => {
+        if (!self.settings-open && Input.keyboard) {
+            root.reveal-chrome();
+            settings-button.focus();
+        }
+    }
+
+    // Float at 800 × 520 and above; below it the compact layout puts the docks in the toolbar's
+    // row, so nothing overlaps (FR-009).
+    out property <bool> compact: root.width < 800px || root.height < 520px;
+
+    // A size change moves the controls: an open tooltip or menu would stay where its control was,
+    // so both close, as in native apps.
+    changed width => { Tooltips.dismiss(); Menus.close(); }
+    changed height => { Tooltips.dismiss(); Menus.close(); }
+    // The chrome shows while the pointer is on the top of the video, the toolbar or a dock, while a
+    // menu is open, or while a chrome control has the keyboard focus; it hides 2 s after (FR-008).
+    // The focus counts only while the keyboard is in use (its ring shows): a dock button keeps the
+    // focus after the mouse takes over, and the chrome would never hide.
+    out property <bool> chrome-shown: true;
+    property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
+        || right-area.has-hover || Menus.open
+        || ((fullscreen-button.has-focus || settings-button.has-focus) && Input.keyboard);
+    changed engaged => {
+        if (self.engaged) {
+            self.chrome-shown = true;
+        }
+    }
+
+    // The chrome moves without sliding: set when the keyboard brings it back.
+    property <bool> instant;
+    property <duration> slide: root.instant ? 0ms : 300ms;
+    // 0 shown, 1 hidden. Only this slides: positions follow the window's size at once, so the
+    // docks do not glide into place during a resize.
+    property <float> hidden: root.chrome-shown ? 0 : 1;
+    animate hidden { duration: root.slide; easing: ease-out; }
+
+    // Called by Rust before a Tab reaches Slint: the focus chain skips controls outside the window,
+    // so the hidden docks must be in place before the key moves the focus (FR-020). Not while the
+    // settings panel is open: the focus stays inside it.
+    public function reveal-chrome() {
+        if (!root.chrome-shown && !root.settings-open) {
+            root.instant = true;
+            root.chrome-shown = true;
+        }
+    }
+
+    Timer {
+        interval: 2s;
+        running: root.chrome-shown && !root.engaged;
+        triggered => {
+            root.instant = false;
+            root.chrome-shown = false;
+        }
+    }
+
+    // Over the video area and clipped to it, so the hidden toolbar slides under the title bar.
+    chrome := Rectangle {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+        clip: true;
+
+        property <length> edge: 12px;
+        // The toolbar's height; in the compact layout the docks sit centered in its row.
+        property <length> toolbar-height: 88px;
+        // Off the edge by more than the shadows reach, so no shadow shows while hidden.
+        property <length> away: 40px;
+
+        // Reaching the top of the video brings the chrome back.
+        top-zone := TouchArea {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: 100px;
+        }
+
+        // The toolbar slot: no content and no panel in this spec; spec #3 fills it (FR-015). In the
+        // compact layout it takes the space between the docks.
+        toolbar-area := TouchArea {
+            x: root.compact ? left-area.width + 2 * chrome.edge : 0;
+            y: -(self.height + chrome.away) * root.hidden;
+            width: root.compact ? parent.width - 2 * (left-area.width + 2 * chrome.edge) : parent.width;
+            height: chrome.toolbar-height;
+        }
+
+        // Float: slides out to the left; compact: up with the toolbar's row.
+        left-area := TouchArea {
+            x: root.compact ? chrome.edge
+                : chrome.edge - (chrome.edge + self.width + chrome.away) * root.hidden;
+            y: !root.compact ? (parent.height - self.height) / 2
+                : (chrome.toolbar-height - self.height) / 2
+                    - ((chrome.toolbar-height + self.height) / 2 + chrome.away) * root.hidden;
+            width: left-dock.width;
+            height: left-dock.height;
+
+            left-dock := Dock {
+                fullscreen-button := IconButton {
+                    icon: WindowState.fullscreen ? @image-url("assets/icons/fullscreen_exit.svg")
+                        : @image-url("assets/icons/fullscreen.svg");
+                    tooltip: WindowState.fullscreen ? @tr("Exit fullscreen (F11)") : @tr("Fullscreen (F11)");
+                    tooltip-side: root.compact ? Side.bottom : Side.right;
+                    focusable: !root.settings-open;
+                    clicked => { WindowState.toggle-fullscreen(); }
+                }
+            }
+        }
+
+        // Float: slides out to the right; compact: up with the toolbar's row.
+        right-area := TouchArea {
+            x: root.compact ? parent.width - self.width - chrome.edge
+                : parent.width - self.width - chrome.edge + (self.width + chrome.edge + chrome.away) * root.hidden;
+            y: !root.compact ? (parent.height - self.height) / 2
+                : (chrome.toolbar-height - self.height) / 2
+                    - ((chrome.toolbar-height + self.height) / 2 + chrome.away) * root.hidden;
+            width: right-dock.width;
+            height: right-dock.height;
+
+            right-dock := Dock {
+                settings-button := IconButton {
+                    icon: @image-url("assets/icons/settings.svg");
+                    tooltip: @tr("Settings");
+                    tooltip-side: root.compact ? Side.bottom : Side.left;
+                    active: root.settings-open;
+                    focusable: !root.settings-open;
+                    clicked => { root.settings-open = !root.settings-open; }
+                }
+            }
+        }
+    }
+
+    // Notices layer.
+    if root.notice-visible: Notice {
+        x: root.video-x + (root.video-width - self.width) / 2;
+        y: root.video-y + Theme.gap-l;
+        width: min(560px, root.video-width - 2 * Theme.gap-l);
+        kind: root.notice-kind;
+        title: root.notice-title;
+        text: root.notice-text;
+        dismiss => { root.dismiss-notice(); }
+    }
+
+    // Settings panel layer: a backdrop over the video area dims it and takes every click (a click
+    // on it closes the panel); the panel is centered on it, at most 760 × 520, 24 px from the
+    // edges (8 px in the compact layout). Taller than the room, its rows scroll.
+    if root.settings-open: Rectangle {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+        background: Theme.c.scrim;
+
+        TouchArea {
+            clicked => { root.settings-open = false; }
+        }
+
+        SettingsPanel {
+            property <length> margin: root.compact ? 8px : 24px;
+            width: min(760px, parent.width - 2 * self.margin);
+            height: min(520px, parent.height - 2 * self.margin);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            compact: root.compact;
+            close => { root.settings-open = false; }
+        }
+    }
+
+    // Top layer (menus, dropdowns, tooltips): drawn last, so nothing covers them (FR-010). A menu
+    // takes every click while open; a click outside it closes it.
+    if Menus.open: MenuLayer {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+    }
+
+    TooltipLayer {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+    }
+}

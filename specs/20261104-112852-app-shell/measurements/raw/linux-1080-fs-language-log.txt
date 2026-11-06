@@ -1,0 +1,67 @@
+2026-11-06T16:34:18.702Z INFO capturax CapturaX 0.1.0 starting, settings: AppFolder("/home/clandini/Projetos/CapturaX-shell/target/release")
+2026-11-06T16:34:18.702Z INFO capturax language pt-BR
+2026-11-06T16:34:18.728Z INFO capturax::app window placement Placement { position: Some((320, 180)), size: (1280, 720), maximized: false, monitor: Some(0) }
+2026-11-06T16:34:18.742Z WARN sctk_adwaita::buttons Ignoring unknown button type: icon
+2026-11-06T16:34:18.743Z INFO capturax::app system theme Some(Dark)
+2026-11-06T16:34:18.876Z INFO wgpu_hal::vulkan::adapter Found 6 cooperative matrix configurations supported by wgpu
+2026-11-06T16:34:18.943Z INFO capturax::render::gpu presentation: [present] backend=vulkan mode=mailbox adapter="NVIDIA GeForce RTX 3050" surface=1280x720
+2026-11-06T16:34:18.944Z INFO capturax::render [present] backend=vulkan mode=mailbox adapter="NVIDIA GeForce RTX 3050" surface=1280x720
+2026-11-06T16:34:18.951Z INFO capturax::test_video test video 1920x1080@60 playing
+2026-11-06T16:34:18.955Z INFO capturax::app window shown 253 ms after start
+2026-11-06T16:34:18.957Z INFO capturax::render first present 255 ms after start
+2026-11-06T16:34:19.946Z INFO capturax::render [loop] t=1 recv=60 pres=57 repl=1 ready_ms=17.6/34.4 gap_ms=33.3 ui=2 ui_ms=2.9/3.1 moves=0
+2026-11-06T16:34:20.946Z INFO capturax::render [loop] t=2 recv=60 pres=60 repl=0 ready_ms=17.6/18.0 gap_ms=17.0 ui=12 ui_ms=1.1/3.5 moves=0
+2026-11-06T16:34:21.962Z INFO capturax::render [loop] t=3 recv=61 pres=61 repl=0 ready_ms=17.6/17.7 gap_ms=16.7 ui=8 ui_ms=0.8/0.9 moves=0
+2026-11-06T16:34:22.962Z INFO capturax::render [loop] t=4 recv=60 pres=60 repl=0 ready_ms=17.6/17.7 gap_ms=16.8 ui=9 ui_ms=1.0/1.1 moves=0
+2026-11-06T16:34:23.971Z INFO capturax::render [loop] t=5 recv=60 pres=59 repl=1 ready_ms=17.7/34.3 gap_ms=33.3 ui=22 ui_ms=1.1/6.4 moves=0
+2026-11-06T16:34:24.971Z INFO capturax::render [loop] t=6 recv=60 pres=60 repl=0 ready_ms=26.0/26.2 gap_ms=16.8 ui=24 ui_ms=1.2/56.2 moves=0
+2026-11-06T16:34:25.979Z INFO capturax::render [loop] t=7 recv=61 pres=60 repl=1 ready_ms=17.7/34.4 gap_ms=25.1 ui=26 ui_ms=1.3/7.3 moves=0
+2026-11-06T16:34:26.309Z INFO capturax::app language switch en 18.4 ms
+2026-11-06T16:34:27.004Z INFO capturax::render [loop] t=8 recv=61 pres=52 repl=9 ready_ms=17.7/34.3 gap_ms=25.1 ui=12 ui_ms=1.4/6.4 moves=0
+2026-11-06T16:34:28.012Z INFO capturax::render [loop] t=9 recv=61 pres=40 repl=21 ready_ms=34.3/42.7 gap_ms=33.4 ui=7 ui_ms=7.1/9.4 moves=0
+2026-11-06T16:34:28.734Z INFO capturax::app language switch pt-BR 29.2 ms
+2026-11-06T16:34:29.012Z INFO capturax::render [loop] t=10 recv=60 pres=41 repl=19 ready_ms=26.1/34.4 gap_ms=33.4 ui=18 ui_ms=7.3/11.7 moves=0
+2026-11-06T16:34:30.029Z INFO capturax::render [loop] t=11 recv=61 pres=61 repl=0 ready_ms=17.6/17.7 gap_ms=16.7 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:34:31.031Z INFO capturax::render [loop] t=12 recv=60 pres=61 repl=0 ready_ms=17.6/26.1 gap_ms=25.2 ui=23 ui_ms=1.2/5.5 moves=0
+2026-11-06T16:34:31.136Z INFO capturax::app language switch en 18.6 ms
+2026-11-06T16:34:32.032Z INFO capturax::render [loop] t=13 recv=60 pres=60 repl=0 ready_ms=3.3/3.4 gap_ms=17.0 ui=12 ui_ms=1.0/2.5 moves=0
+2026-11-06T16:34:33.032Z INFO capturax::render [loop] t=14 recv=60 pres=60 repl=0 ready_ms=3.3/9.3 gap_ms=19.8 ui=22 ui_ms=1.2/2.9 moves=0
+2026-11-06T16:34:33.545Z INFO capturax::app language switch pt-BR 19.1 ms
+2026-11-06T16:34:34.037Z INFO capturax::render [loop] t=15 recv=60 pres=60 repl=0 ready_ms=3.5/9.4 gap_ms=19.5 ui=13 ui_ms=1.2/3.3 moves=0
+2026-11-06T16:34:35.037Z INFO capturax::render [loop] t=16 recv=60 pres=60 repl=0 ready_ms=9.2/9.3 gap_ms=19.3 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:34:35.952Z INFO capturax::app language switch en 18.4 ms
+2026-11-06T16:34:36.037Z INFO capturax::render [loop] t=17 recv=60 pres=60 repl=0 ready_ms=3.3/9.3 gap_ms=20.8 ui=29 ui_ms=1.2/3.3 moves=0
+2026-11-06T16:34:37.037Z INFO capturax::render [loop] t=18 recv=60 pres=60 repl=0 ready_ms=3.3/6.2 gap_ms=19.3 ui=6 ui_ms=1.0/1.1 moves=0
+2026-11-06T16:34:38.037Z INFO capturax::render [loop] t=19 recv=60 pres=60 repl=0 ready_ms=3.3/6.2 gap_ms=18.8 ui=22 ui_ms=1.1/2.9 moves=0
+2026-11-06T16:34:38.360Z INFO capturax::app language switch pt-BR 18.6 ms
+2026-11-06T16:34:39.037Z INFO capturax::render [loop] t=20 recv=60 pres=60 repl=0 ready_ms=3.3/3.5 gap_ms=18.4 ui=12 ui_ms=1.2/3.1 moves=0
+2026-11-06T16:34:40.038Z INFO capturax::render [loop] t=21 recv=60 pres=60 repl=0 ready_ms=5.9/6.2 gap_ms=19.4 ui=10 ui_ms=1.1/1.1 moves=0
+2026-11-06T16:34:40.768Z INFO capturax::app language switch en 18.4 ms
+2026-11-06T16:34:41.038Z INFO capturax::render [loop] t=22 recv=60 pres=60 repl=0 ready_ms=3.3/4.6 gap_ms=17.7 ui=25 ui_ms=1.2/3.2 moves=0
+2026-11-06T16:34:42.038Z INFO capturax::render [loop] t=23 recv=60 pres=60 repl=0 ready_ms=5.9/6.2 gap_ms=19.6 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:34:43.038Z INFO capturax::render [loop] t=24 recv=60 pres=60 repl=0 ready_ms=3.3/6.2 gap_ms=18.1 ui=23 ui_ms=1.2/3.9 moves=0
+2026-11-06T16:34:43.176Z INFO capturax::app language switch pt-BR 18.3 ms
+2026-11-06T16:34:44.038Z INFO capturax::render [loop] t=25 recv=60 pres=60 repl=0 ready_ms=3.3/6.2 gap_ms=19.7 ui=11 ui_ms=1.4/3.2 moves=0
+2026-11-06T16:34:45.046Z INFO capturax::render [loop] t=26 recv=61 pres=60 repl=0 ready_ms=6.0/17.7 gap_ms=24.9 ui=20 ui_ms=1.2/6.5 moves=0
+2026-11-06T16:34:45.586Z INFO capturax::app language switch en 19.7 ms
+2026-11-06T16:34:46.062Z INFO capturax::render [loop] t=27 recv=61 pres=61 repl=0 ready_ms=17.6/17.7 gap_ms=16.7 ui=15 ui_ms=1.0/3.3 moves=0
+2026-11-06T16:34:47.079Z INFO capturax::render [loop] t=28 recv=61 pres=50 repl=11 ready_ms=17.7/34.4 gap_ms=25.0 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:34:47.991Z INFO capturax::app language switch pt-BR 18.2 ms
+2026-11-06T16:34:48.079Z INFO capturax::render [loop] t=29 recv=60 pres=55 repl=5 ready_ms=17.6/34.4 gap_ms=25.2 ui=25 ui_ms=1.2/9.7 moves=0
+2026-11-06T16:34:49.096Z INFO capturax::render [loop] t=30 recv=61 pres=61 repl=0 ready_ms=17.6/17.7 gap_ms=16.7 ui=6 ui_ms=1.3/1.7 moves=0
+2026-11-06T16:34:50.112Z INFO capturax::render [loop] t=31 recv=61 pres=45 repl=16 ready_ms=26.0/34.4 gap_ms=25.1 ui=17 ui_ms=7.6/10.1 moves=0
+2026-11-06T16:34:50.403Z INFO capturax::app language switch en 20.0 ms
+2026-11-06T16:34:51.129Z INFO capturax::render [loop] t=32 recv=61 pres=61 repl=0 ready_ms=17.6/17.8 gap_ms=16.8 ui=13 ui_ms=1.0/3.7 moves=0
+2026-11-06T16:34:52.129Z INFO capturax::render [loop] t=33 recv=60 pres=52 repl=8 ready_ms=17.6/34.5 gap_ms=25.2 ui=8 ui_ms=7.2/10.2 moves=0
+2026-11-06T16:34:52.815Z INFO capturax::app language switch pt-BR 18.3 ms
+2026-11-06T16:34:53.131Z INFO capturax::render [loop] t=34 recv=60 pres=57 repl=4 ready_ms=25.9/34.4 gap_ms=25.1 ui=21 ui_ms=1.2/11.5 moves=0
+2026-11-06T16:34:54.134Z INFO capturax::render [loop] t=35 recv=60 pres=60 repl=0 ready_ms=3.3/6.2 gap_ms=19.5 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:34:55.134Z INFO capturax::render [loop] t=36 recv=60 pres=59 repl=1 ready_ms=6.0/33.6 gap_ms=25.0 ui=23 ui_ms=1.1/9.3 moves=0
+2026-11-06T16:34:55.228Z INFO capturax::app language switch en 19.2 ms
+2026-11-06T16:34:56.134Z INFO capturax::render [loop] t=37 recv=60 pres=60 repl=0 ready_ms=3.3/4.7 gap_ms=18.7 ui=12 ui_ms=1.1/3.2 moves=0
+2026-11-06T16:34:57.134Z INFO capturax::render [loop] t=38 recv=60 pres=60 repl=0 ready_ms=3.3/6.2 gap_ms=18.4 ui=22 ui_ms=1.1/3.2 moves=0
+2026-11-06T16:34:57.635Z INFO capturax::app language switch pt-BR 18.4 ms
+2026-11-06T16:34:58.134Z INFO capturax::render [loop] t=39 recv=60 pres=60 repl=0 ready_ms=3.3/3.4 gap_ms=17.0 ui=13 ui_ms=1.0/2.3 moves=0
+2026-11-06T16:34:59.134Z INFO capturax::render [loop] t=40 recv=60 pres=60 repl=0 ready_ms=5.9/6.2 gap_ms=18.4 ui=0 ui_ms=-/- moves=0
+2026-11-06T16:35:00.043Z INFO capturax::app language switch pt-BR 17.2 ms
+2026-11-06T16:35:00.135Z INFO capturax::render [loop] t=41 recv=60 pres=60 repl=0 ready_ms=3.3/5.3 gap_ms=19.5 ui=30 ui_ms=1.1/3.4 moves=0

@@ -1,0 +1,12 @@
+[package]
+name = "capturax-settings"
+description = "CapturaX settings file: format, lenient load, atomic save"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+toml.workspace = true
+tempfile.workspace = true
+log.workspace = true

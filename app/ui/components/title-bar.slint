@@ -1,0 +1,154 @@
+// The app's own title bar for the frameless window (FR-006), ported from the stack spike's
+// `title-bar.slint`: a thin opaque bar with the wordmark and the window controls. Hidden in
+// fullscreen by main.slint. As in native apps the window controls are not in the Tab order: the
+// system keys cover them (FR-020).
+import { Theme } from "../theme.slint";
+import { WindowState } from "../window-state.slint";
+import { Tooltips, Side } from "tooltip.slint";
+
+component WindowButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> tooltip;
+    // Close: red on hover, as the system's close button.
+    in property <bool> danger;
+    // Hover and press reported by the system (the maximize button under the snap layouts flyout,
+    // FR-011). No tooltip then: the flyout takes its place.
+    in property <bool> system-hover;
+    in property <bool> system-pressed;
+    callback clicked();
+
+    // The token of the tooltip this button shows, 0 when none (-1: hidden until the pointer
+    // leaves, after a click).
+    property <int> tip;
+
+    width: 44px;
+    border-radius: 6px;
+    background: root.pressed ? (root.danger ? #a32417 : Theme.c.press)
+        : root.hovered ? (root.danger ? #c42b1c : Theme.c.hover)
+        : transparent;
+    animate background { duration: Theme.quick; }
+
+    accessible-role: button;
+    accessible-label: root.tooltip;
+    accessible-action-default => { root.activate(); }
+
+    function activate() {
+        Tooltips.hide(root.tip);
+        root.tip = -1;
+        root.clicked();
+    }
+
+    function show-tip() {
+        root.tip = Tooltips.show(root.tooltip, Side.bottom,
+            root.absolute-position.x, root.absolute-position.y, root.width, root.height);
+    }
+
+    // A language switch, or maximize and restore, changes the text of a tooltip that shows
+    // (FR-024).
+    changed tooltip => {
+        if (root.tip > 0 && root.tip == Tooltips.owner) {
+            root.show-tip();
+        }
+    }
+
+    changed own-hover => {
+        if (!self.own-hover) {
+            Tooltips.hide(root.tip);
+            root.tip = 0;
+        }
+    }
+    property <bool> own-hover: area.has-hover;
+    property <bool> hovered: area.has-hover || root.system-hover;
+    property <bool> pressed: area.pressed || root.system-pressed;
+
+    Image {
+        source: root.icon;
+        width: 15px;
+        height: 15px;
+        // Dimmer while the window is inactive, as system title bars.
+        colorize: root.danger && root.hovered ? #ffffff
+            : WindowState.active ? Theme.c.text-muted
+            : Theme.c.text-faint;
+    }
+
+    area := TouchArea {
+        clicked => { root.activate(); }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: area.has-hover && root.tip == 0;
+        triggered => { root.show-tip(); }
+    }
+}
+
+export component TitleBar inherits Rectangle {
+    // The maximize button's rectangle in physical pixels, window coordinates, for the snap layouts
+    // flyout on Windows 11 (FR-011, T040).
+    out property <int> max-button-x: round(max-button.absolute-position.x / 1phx);
+    out property <int> max-button-y: round(max-button.absolute-position.y / 1phx);
+    out property <int> max-button-width: round(max-button.width / 1phx);
+    out property <int> max-button-height: round(max-button.height / 1phx);
+
+    height: 32px;
+    background: Theme.c.deep;
+
+    // The drag area: the window starts a system move once the pointer, pressed on the empty part
+    // of the bar, moves 4 px away from the press point. Not on the press itself, so a double
+    // click still reaches the bar.
+    TouchArea {
+        moved => {
+            if (self.pressed && (abs(self.mouse-x - self.pressed-x) > 4px || abs(self.mouse-y - self.pressed-y) > 4px)) {
+                WindowState.start-move();
+            }
+        }
+        double-clicked => { WindowState.toggle-maximize(); }
+    }
+
+    HorizontalLayout {
+        padding: 4px;
+        spacing: 4px;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            padding-left: 8px;
+            Image {
+                source: Theme.dark ? @image-url("../../../brand/CapturaX-light.svg")
+                    : @image-url("../../../brand/CapturaX-dark.svg");
+                // Both sides in the wordmark's aspect ratio (816 × 199.89): in a layout an image
+                // otherwise asks for its natural width, and a mismatched box stretches it.
+                width: 16px * 816 / 199.89;
+                height: 16px;
+                accessible-role: image;
+                accessible-label: @tr("CapturaX");
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        WindowButton {
+            icon: @image-url("../assets/icons/minimize.svg");
+            tooltip: @tr("Minimize");
+            clicked => { WindowState.minimize(); }
+        }
+
+        max-button := WindowButton {
+            icon: WindowState.maximized ? @image-url("../assets/icons/unmaximize.svg")
+                : @image-url("../assets/icons/maximize.svg");
+            tooltip: WindowState.maximized ? @tr("Restore") : @tr("Maximize");
+            system-hover: WindowState.max-hover;
+            system-pressed: WindowState.max-pressed;
+            clicked => { WindowState.toggle-maximize(); }
+        }
+
+        WindowButton {
+            icon: @image-url("../assets/icons/close.svg");
+            tooltip: @tr("Close");
+            danger: true;
+            clicked => { WindowState.close(); }
+        }
+    }
+}

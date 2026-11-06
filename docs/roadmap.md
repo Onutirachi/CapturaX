@@ -9,8 +9,8 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | # | Spec | Covers | Depends on | Status |
 |---|---|---|---|---|
 | 1 | [Stack spike](#1-stack-spike) ([spec](../specs/20261026-154808-stack-spike/spec.md)) | — | — | done |
-| 2 | [App shell](#2-app-shell) | F8, F11 (framework), F39, F40, F41 (settings storage), F46 | 1 | |
-| 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43 | 2 | |
+| 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
+| 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43, F52 | 2 | |
 | 4 | [Preview audio](#4-preview-audio) | F12–F14, F47 | 3 | |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
@@ -51,11 +51,18 @@ Linux checked too. Old implementation for reference: old/capturax-react.
 
 ### 2. App shell
 
+Done: [handoff](../specs/20261104-112852-app-shell/handoff.md),
+[latency](../specs/20261104-112852-app-shell/measurements/latency.md) and
+[acceptance](../specs/20261104-112852-app-shell/measurements/acceptance.md). Carried to spec #3:
+keeping the GPU awake on Linux (SC-001 not met there at idle clocks), the Windows stalls at
+presentation mode changes and language switches. Leaving fullscreen back to a snapped place
+on Windows goes to the next spec that touches the window.
+
 ```text
 /speckit-specify App shell (see docs/roadmap.md #2): the Rust + Slint application skeleton
 chosen by the stack spike: own winit + wgpu render loop with the video presented from its own
 thread and Slint drawn as a layer over it (stack spike findings, research R13 and R15), the Float
-direction's frameless window and chrome. Covers F8, F39, F40, F46, the settings storage part of F41, and a common
+direction's frameless window and chrome. Covers F8, F39, F40, F46, F48, F49, the settings storage part of F41, and a common
 way to show empty and error states (F11). Includes the theme tokens from the spike's chosen
 visual direction, i18n infrastructure (English and Portuguese), the portable settings file with
 the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
@@ -64,12 +71,14 @@ the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
 ### 3. Device preview
 
 ```text
-/speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11 and F43
+/speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11, F43 and F52
 from docs/product.md. Device list with hot plug, native modes, the automatic modes (source, max resolution, max FPS), reconnect,
 latency and FPS measurement, explicit empty and error states (including a hint to turn off
 HDCP on the console when the image is black while a signal is present). Must state a latency budget and
 how it is measured (constitution principle I); the stack spike measured 30.4 ms median at 1080p60
-on Windows with Direct3D 12 + Mailbox, and lists the open questions this spec inherits.
+on Windows with Direct3D 12 + Mailbox, and lists the open questions this spec inherits. Also
+investigate the Windows stalls at presentation mode changes the app shell measured (focus change
+229-401 ms, entering fullscreen 51-73 ms; app shell research R4).
 ```
 
 ### 4. Preview audio

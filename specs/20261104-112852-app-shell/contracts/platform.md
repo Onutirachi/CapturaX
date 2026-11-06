@@ -1,0 +1,35 @@
+# Contract: Platform Interface
+
+Crate `platform`: the only place that calls OS-specific APIs (constitution IV). Each function has
+a Windows and a Linux implementation selected at compile time; `app` sees one interface. Names
+are indicative; tasks fix the exact signatures.
+
+| Function | Windows | Linux | Spec |
+|---|---|---|---|
+| `app_folder() -> PathBuf` | executable's folder | `$APPIMAGE`'s folder, else executable's | FR-026 |
+| `window_attributes(attrs) -> attrs` | `with_undecorated_shadow(true)` | app id `capturax` (`with_name`, Wayland and X11) | FR-006, research R5, R12 |
+| `set_fullscreen_frame(window, fullscreen)` | `set_undecorated_shadow(!fullscreen)` | no-op | FR-007, research R5 |
+| `drawn_size(window) -> PhysicalSize` | inner size minus 1 row while neither maximized nor fullscreen (the shadow's hidden row) | inner size | FR-019, research R5 |
+| `follow_dpi_rect(window)` | subclass: while moving or resizing, `WM_DPICHANGED` places the window on the system's suggested rectangle | no-op | FR-006, research R5 |
+| `work_area(monitor) -> Option<(position, size)>` | `GetMonitorInfoW` `rcWork` | none (the caller uses the monitor's bounds) | FR-012 |
+| `user_config_folder() -> Option<PathBuf>` | `%APPDATA%\CapturaX` | `$XDG_CONFIG_HOME/capturax`, `~/.config/capturax` | FR-027 |
+| `is_writable(folder) -> bool` | probe file create + remove | same | FR-026 |
+| `claim_instance(name) -> Claim` | named pipe | abstract socket | FR-013, [single-instance.md](single-instance.md) |
+| `can_raise_window() -> bool` | true | false on Wayland, true on X11 | FR-013 |
+| `autostart::state() -> bool` | Run value present and not disabled in StartupApproved (first byte odd) | `autostart/capturax.desktop` present, not `Hidden=true` nor `X-GNOME-Autostart-enabled=false` | FR-014b |
+| `autostart::set(on, exe)` | write or remove the Run value; both also remove the StartupApproved mark, so the app's switch wins | write or remove the `.desktop` | FR-014b |
+| `autostart::target() -> Option<PathBuf>` | program in the Run value | program in the entry's `Exec` | FR-014b |
+| `autostart::executable() -> PathBuf` | this executable | `$APPIMAGE` when set, else this executable | FR-014b |
+| `tray::available() -> bool` | true | StatusNotifierWatcher on the session bus | FR-014a |
+| `tray::create(icons, labels, on_event) -> Tray` | `tray-icon`, created on the event loop's thread, icon size from `SM_CXSMICON` at the system DPI | `ksni` on its own thread, every size as pixmaps | FR-014a |
+| `theme::current(window) -> Option<Theme>` | winit `Window::theme()` | XDG Settings portal `ReadOne` (500 ms timeout) | FR-017 |
+| `theme::watch(on_change)` | nothing (winit sends `ThemeChanged`) | thread on the portal's `SettingChanged` | FR-017 |
+| `show_system_message(kind, title, text)` | `MessageBoxW`, error or warning icon | `kdialog --error` / `--sorry`, `zenity --error` / `--warning`, else stderr | FR-036, FR-013 |
+| `snap::attach(window, on_event) -> Snap`, `Snap::set_button(Option<rect>)` | subclass + `HTMAXBUTTON`, DWM frame extended down to the button (best effort, research R5) | no-op | FR-011 |
+| `precise_timers() -> TimerGuard` | `timeBeginPeriod(1)` until the guard drops | no-op | FR-004, research R9 |
+
+`platform` depends on winit for `window_attributes`, `set_fullscreen_frame`, `drawn_size`, `follow_dpi_rect`, `work_area` and `snap::attach`; it is the only crate that
+uses winit's platform extension traits.
+
+Events from the platform (tray Open / Quit, theme changed, single-instance `show`, snap button
+click) reach the main thread as winit user events through an `EventLoopProxy`.

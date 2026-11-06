@@ -1,0 +1,41 @@
+[package]
+name = "capturax"
+description = "Watch and hear capture cards with the lowest possible latency"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "capturax"
+path = "src/main.rs"
+
+[dependencies]
+settings = { package = "capturax-settings", path = "../crates/settings" }
+platform = { package = "capturax-platform", path = "../crates/platform" }
+slint.workspace = true
+winit.workspace = true
+bytemuck.workspace = true
+pollster.workspace = true
+clap.workspace = true
+log.workspace = true
+anyhow.workspace = true
+sys-locale.workspace = true
+gst.workspace = true
+gst-app.workspace = true
+gst-video.workspace = true
+
+# Forced backends do not fall back (research R4): each platform builds only the backends it uses.
+[target.'cfg(windows)'.dependencies]
+wgpu = { workspace = true, features = ["std", "parking_lot", "wgsl", "dx12", "vulkan"] }
+
+[target.'cfg(not(windows))'.dependencies]
+wgpu = { workspace = true, features = ["std", "parking_lot", "wgsl", "vulkan", "gles"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+toml.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+resvg.workspace = true

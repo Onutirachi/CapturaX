@@ -1,0 +1,32 @@
+// Every text Rust needs (notices, tray menu, system messages), by identifier (research R7). Rust
+// never builds user-facing text: it reads these, so every text has one catalog.
+export global Texts {
+    out property <string> app-name: @tr("CapturaX");
+    // System message `already-open` (a warning): a second start found CapturaX open, but the
+    // platform did not let the window come to the front (Wayland).
+    // Tray menu (FR-014a).
+    out property <string> tray-open: @tr("Open");
+    out property <string> tray-quit: @tr("Quit");
+    // The first entry of the settings panel's Language select, before the languages' own names.
+    out property <string> automatic: @tr("Automatic");
+    // Notices about the settings location (FR-027, FR-028, FR-030): a title, and a text with the
+    // folder or file it names.
+    out property <string> settings-fallback-title: @tr("Settings in another folder");
+    out property <string> settings-not-kept-title: @tr("Settings will not be kept");
+    out property <string> settings-damaged-title: @tr("Settings damaged");
+    public pure function settings-fallback(folder: string) -> string {
+        @tr("CapturaX cannot write to its own folder, so settings are kept in this folder:\n{}", folder)
+    }
+    public pure function settings-not-kept() -> string {
+        @tr("CapturaX cannot write its settings anywhere. Changes will be lost when it closes.")
+    }
+    public pure function settings-damaged(kept-as: string) -> string {
+        @tr("The settings file was damaged. Default settings are in use; the old file was kept as {}.", kept-as)
+    }
+    public pure function settings-unreadable() -> string {
+        @tr("The settings file could not be read. Default settings are in use.")
+    }
+    // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
+    out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
+    out property <string> already-open: @tr("CapturaX is already open.");
+}
