@@ -361,7 +361,9 @@ change that only breaks one platform's build; each is reported and blocks the me
   title, an optional one-line detail, and zero, one or two actions (primary and secondary), in
   both themes and both languages (F11).
 - **FR-034**: The app MUST have one non-blocking, dismissible notice for shell-level messages
-  (settings fallback, damaged settings, settings not kept).
+  (settings fallback, damaged settings, settings not kept), shaped as the settings panel: a
+  header with an icon for its kind, a title of its own and the close control (FR-025), then its
+  text.
 - **FR-035**: The video area MUST show the empty state "no source" when nothing is open, never a
   black or blank area.
 - **FR-036**: If the renderer cannot start, the app MUST show a system message in the user's

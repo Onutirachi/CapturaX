@@ -82,3 +82,24 @@ msgstr "Claro"
 
 msgid "Version {}"
 msgstr "Versão {}"
+
+msgid "CapturaX cannot write to its own folder, so settings are kept in this folder:\n{}"
+msgstr "O CapturaX não consegue gravar na própria pasta, então as configurações ficam nesta pasta:\n{}"
+
+msgid "CapturaX cannot write its settings anywhere. Changes will be lost when it closes."
+msgstr "O CapturaX não consegue gravar as configurações em nenhum lugar. As mudanças serão perdidas ao fechar."
+
+msgid "The settings file was damaged. Default settings are in use; the old file was kept as {}."
+msgstr "O arquivo de configurações estava danificado. As configurações padrão estão em uso; o arquivo antigo foi guardado como {}."
+
+msgid "The settings file could not be read. Default settings are in use."
+msgstr "Não foi possível ler o arquivo de configurações. As configurações padrão estão em uso."
+
+msgid "Settings in another folder"
+msgstr "Configurações em outra pasta"
+
+msgid "Settings will not be kept"
+msgstr "Configurações não serão salvas"
+
+msgid "Settings damaged"
+msgstr "Configurações danificadas"

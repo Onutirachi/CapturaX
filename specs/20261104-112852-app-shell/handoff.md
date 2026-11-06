@@ -447,7 +447,38 @@ saving
 Found: a kill leaves the save's `.capturax-*.tmp` beside the file (78 of 100 kills). Harmless to
 loading, but they pile up in the folder; real saves are rare and short, so it needs a crash or
 power loss during one. Open: remove stale `.capturax-*.tmp` at start in T053 (spec/data-model
-first), maintainer to decide. Next: T053 (wiring, visible: notices).
+first), maintainer to decide. Decided (maintainer, 2026-11-06): remove them; contracts/settings-file.md
+rule 6 and data-model.md "Settings location" updated.
+
+T053 (location wired) done, checked by the maintainer (folders `target/check-readonly` and
+`target/check-damaged`) and committed (`feat: keep settings in the per-user folder or in memory`). fmt, clippy, 125 tests pass.
+- `main.rs::settings_location`: probes the app folder; the per-user folder only when the app
+  folder is not writable (so `%APPDATA%\CapturaX` is not created needlessly); file times from
+  opening `capturax.toml` in each. Logger in `location.folder()` (stderr in memory); first log
+  line `settings: <kind>`, then `settings read from <path>` when `read_from` is used. Loads
+  `load_path()`; a first start or damaged file saves at once, as before; in memory nothing.
+- Single-instance name from `location.file()`, in memory from the app folder's file. After the
+  claim, `settings::file::remove_temps(folder)` (logged when it removed any).
+- Notices: `notices::settings_fallback(folder)` (info), `settings_not_kept()` (warning),
+  `settings_damaged(kept_as)` (warning; shows the kept file's name, or a text without it when the
+  rename failed). `Notice` gained `arg` and `text: fn(&Texts, &str)`; the texts are public pure
+  functions in the `Texts` global (`invoke_settings_*` from Rust), 4 new texts with pt-BR. Queued
+  in `start` right after `App::new`.
+- Scripted checks (Windows, release, copies of the exe in the scratchpad, `icacls /deny`
+  W,D,DC): read-only folder with a pt-BR / light `capturax.toml` → UserFolder, file read from
+  the app folder, notice in Portuguese naming `C:\Users\...\Roaming\CapturaX`, nothing written
+  there until a change; also `%APPDATA%\CapturaX` denied → memory, warning notice, light theme
+  from the read-only file, no log in AppData; garbage `capturax.toml` and two `.capturax-*.tmp`
+  in a writable folder → damaged notice naming `capturax.toml.damaged-<s>`, both temps removed,
+  defaults saved. Test folders and `%APPDATA%\CapturaX` removed afterwards.
+- The fallback notice wrapped the path after `C:` (Slint's line breaking); the path now has its
+  own line (maintainer).
+- Maintainer (2026-11-06): the small windows share one header, icon + title + close control
+  at the other end (new `components/panel-header.slint`). The settings panel's header got the
+  settings icon (folded into `feat: move settings to a central panel with categories`, FR-025 and
+  plan into its docs commit); notices got a title of their own (`Texts.settings-*-title`, pt-BR)
+  above the text, aligned with the title (folded here, FR-034 and data-model updated). Checked by
+  the maintainer with the `target/check-*` folders.
 
 ## Done in the last sessions
 
@@ -608,4 +639,4 @@ One CachyOS KDE Plasma Wayland session (maintainer's PC), release build, test vi
    logged.
 3. T050 Linux: quickstart 1 and 7, then menu, language and theme runs as on Windows.
 4. Quickstart 2–6 and 12–18 if wanted formally.
-Then T041 and T050 are checked. US3 (T053–T054) can go on Windows before that session.
+Then T041 and T050 are checked. T055 (quickstart 8–11) can go on Windows before that session.

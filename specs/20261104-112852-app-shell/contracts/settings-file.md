@@ -36,8 +36,11 @@ monitor = "\\\\.\\DISPLAY1" # monitor name as the OS reports it; absent = primar
 5. **Damaged file** (not valid TOML, not UTF-8, or unreadable): renamed to
    `capturax.toml.damaged-<unix seconds>`, defaults are used and the notice `settings-damaged` is
    shown. The app always starts (US3 scenario 4).
-6. **Atomic save**: written to a temporary file in the same folder, synced, then replacing
-   `capturax.toml`; an interruption leaves either the old or the new file (FR-029).
+6. **Atomic save**: written to a temporary file (`.capturax-*.tmp`) in the same folder, synced,
+   then replacing `capturax.toml`; an interruption leaves either the old or the new file
+   (FR-029). The temporary file of an interrupted save stays behind, so at start, once this
+   instance holds the single-instance channel (no other instance can be saving there), the app
+   removes every `.capturax-*.tmp` in the settings folder (maintainer, 2026-11-06).
 7. Comments written by people are not kept when the app saves (the `toml` crate does not keep
    them); values are.
 

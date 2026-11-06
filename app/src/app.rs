@@ -222,7 +222,6 @@ impl App {
     }
 
     /// Queues a notice; it shows at once if none is on screen.
-    #[expect(dead_code, reason = "the settings location notices use it (spec US3)")]
     pub fn notify(&mut self, notice: crate::notices::Notice) {
         if self.notices.push(notice) {
             self.show_notice();
@@ -237,7 +236,9 @@ impl App {
                     Kind::Info => NoticeKind::Info,
                     Kind::Warning => NoticeKind::Warning,
                 });
-                app.set_notice_text((n.text)(&Texts::get(app)));
+                let texts = Texts::get(app);
+                app.set_notice_title((n.title)(&texts));
+                app.set_notice_text((n.text)(&texts, &n.arg));
                 app.set_notice_visible(true);
             }
             None => app.set_notice_visible(false),

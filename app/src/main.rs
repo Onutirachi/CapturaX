@@ -39,21 +39,37 @@ fn run() -> i32 {
         }
     };
 
-    // Settings next to the executable; the per-user and memory fallbacks come with spec US3.
-    let folder = platform::app_folder();
-    if let Err(err) = log::Logger::new(Some(&folder), ::log::LevelFilter::Info).install() {
+    // Plan step 2: where settings and log are kept (FR-026–FR-028), then the settings (FR-030).
+    let location = settings_location();
+    if let Err(err) = log::Logger::new(location.folder(), ::log::LevelFilter::Info).install() {
         eprintln!("log: {err}");
     }
     ::log::info!(
-        "CapturaX {} starting, settings in {}",
+        "CapturaX {} starting, settings: {:?}",
         env!("CARGO_PKG_VERSION"),
-        folder.display()
+        location.kind
     );
-    let path = folder.join(settings::FILE_NAME);
-    let (table, write_now) = match settings::file::load(&path) {
-        settings::LoadOutcome::Loaded(table) => (table, false),
-        // The damaged-file notice comes with spec US3.
-        settings::LoadOutcome::NoFile | settings::LoadOutcome::Damaged { .. } => (Default::default(), true),
+    let mut notices = Vec::new();
+    match &location.kind {
+        settings::LocationKind::AppFolder(_) => {}
+        settings::LocationKind::UserFolder(folder) => notices.push(notices::settings_fallback(folder)),
+        settings::LocationKind::Memory => notices.push(notices::settings_not_kept()),
+    }
+    let (table, write_now) = match location.load_path() {
+        Some(path) => {
+            if location.read_from.is_some() {
+                ::log::info!("settings read from {}", path.display());
+            }
+            match settings::file::load(&path) {
+                settings::LoadOutcome::Loaded(table) => (table, false),
+                settings::LoadOutcome::NoFile => (Default::default(), true),
+                settings::LoadOutcome::Damaged { kept_as } => {
+                    notices.push(notices::settings_damaged(kept_as.as_deref()));
+                    (Default::default(), true)
+                }
+            }
+        }
+        None => (Default::default(), false),
     };
     // The language for this start (FR-022): `--lang` (never saved), else the saved one; automatic
     // follows the system.
@@ -64,8 +80,11 @@ fn run() -> i32 {
     );
     ::log::info!("language {language}");
     // One instance per settings location (FR-013): a later start hands over and exits before it
-    // writes anything. The in-memory location (spec US3) names it from the executable instead.
-    let instance = match platform::claim_instance(&platform::instance_name(&path)) {
+    // writes anything. In memory the name comes from the app folder's file.
+    let instance_file = location
+        .file()
+        .unwrap_or_else(|| platform::app_folder().join(settings::FILE_NAME));
+    let instance = match platform::claim_instance(&platform::instance_name(&instance_file)) {
         Ok(platform::Claim::First(listener)) => Some(listener),
         Ok(platform::Claim::Running(client)) => {
             hand_over(&client, language);
@@ -77,13 +96,21 @@ fn run() -> i32 {
             None
         }
     };
-    let store = settings::Store::new(table, Some(path), &i18n::codes());
+    // No other instance saves in this folder now: the temporary files of interrupted saves can go
+    // (contracts/settings-file.md rule 6).
+    if let Some(folder) = location.folder() {
+        let removed = settings::file::remove_temps(folder);
+        if removed > 0 {
+            ::log::info!("removed {removed} temporary files of interrupted saves");
+        }
+    }
+    let store = settings::Store::new(table, location.file(), &i18n::codes());
     if write_now {
         store.save_soon();
     }
     follow_autostart();
 
-    let code = match start(options, process_start, store, instance, language) {
+    let code = match start(options, process_start, store, instance, language, notices) {
         Ok(code) => code,
         Err(err) => {
             ::log::error!("{err:#}");
@@ -93,6 +120,30 @@ fn run() -> i32 {
     };
     ::log::logger().flush();
     code
+}
+
+/// Resolves the settings location (data-model.md "Settings location"): the per-user folder is
+/// probed, and so created, only when the app folder is not writable.
+fn settings_location() -> settings::Location {
+    let app_folder = platform::app_folder();
+    let app_writable = platform::is_writable(&app_folder);
+    let user_folder = if app_writable {
+        None
+    } else {
+        platform::user_config_folder()
+    };
+    let user_writable = user_folder.as_deref().is_some_and(platform::is_writable);
+    let times = settings::FileTimes {
+        app: file_time(&app_folder),
+        user: user_folder.as_deref().and_then(file_time),
+    };
+    settings::location::resolve(&app_folder, app_writable, user_folder.as_deref(), user_writable, times)
+}
+
+/// When the settings file in `folder` was last changed, if it exists and can be opened.
+fn file_time(folder: &std::path::Path) -> Option<std::time::SystemTime> {
+    let file = std::fs::File::open(folder.join(settings::FILE_NAME)).ok()?;
+    file.metadata().and_then(|meta| meta.modified()).ok()
 }
 
 /// With Start with the system on, points the entry to this executable when it starts another one,
@@ -149,6 +200,7 @@ fn start(
     store: settings::Store,
     instance: Option<platform::Listener>,
     language: &'static str,
+    notices: Vec<notices::Notice>,
 ) -> anyhow::Result<i32> {
     let ui = ui::Ui::new(language)?;
     let event_loop = EventLoop::<app::UserEvent>::with_user_event().build()?;
@@ -165,6 +217,9 @@ fn start(
             .ok()
     });
     let mut app = app::App::new(options, process_start, store, ui, event_loop.create_proxy(), instance);
+    for notice in notices {
+        app.notify(notice);
+    }
     ::log::debug!("options: {:?}", app.options());
     event_loop.run_app(&mut app)?;
     Ok(app.exit_code)

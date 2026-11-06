@@ -1,66 +1,41 @@
-// One non-blocking, dismissible notice at the top of the video area (FR-034): an icon and a text
-// that may name a folder. Rust keeps the queue and shows each notice id at most once per run.
+// One non-blocking, dismissible notice at the top of the video area (FR-034), in the shape of the
+// other small windows: a header with the kind's icon, the notice's title and the close control,
+// then the text, which may name a folder. Rust keeps the queue and shows each notice id at most
+// once per run.
 import { Theme } from "../theme.slint";
+import { PanelHeader } from "panel-header.slint";
 
 export enum NoticeKind { info, warning }
 
 export component Notice inherits Rectangle {
     in property <NoticeKind> kind: NoticeKind.info;
+    in property <string> title;
     in property <string> text;
     callback dismiss();
 
-    property <length> icon-size: 20px;
-    property <length> close-size: 28px;
-
     background: Theme.c.raised;
     border-radius: Theme.radius-m;
-    height: max(row.preferred-height, root.close-size) + 2 * Theme.gap-m;
+    height: header.height + body.preferred-height + Theme.gap-l;
 
-    row := HorizontalLayout {
-        padding: Theme.gap-m;
-        padding-left: Theme.gap-l;
-        spacing: Theme.gap-m;
-        alignment: stretch;
+    body := Text {
+        x: header.title-x;
+        y: header.height;
+        width: root.width - self.x - Theme.gap-l;
+        text: root.text;
+        color: Theme.c.text;
+        font-size: Theme.text-m;
+        wrap: word-wrap;
+    }
 
-        Image {
-            source: root.kind == NoticeKind.warning
-                ? @image-url("../assets/icons/alert_triangle.svg")
-                : @image-url("../assets/icons/info_circle.svg");
-            colorize: root.kind == NoticeKind.warning ? Theme.c.warn : Theme.c.accent-text;
-            width: root.icon-size;
-            height: root.icon-size;
-            y: (parent.height - self.height) / 2;
-        }
-
-        Text {
-            text: root.text;
-            color: Theme.c.text;
-            font-size: Theme.text-m;
-            wrap: word-wrap;
-            vertical-alignment: center;
-            horizontal-stretch: 1;
-        }
-
-        close := Rectangle {
-            width: root.close-size;
-            height: root.close-size;
-            y: (parent.height - self.height) / 2;
-            border-radius: self.width / 2;
-            background: touch.pressed ? Theme.c.press : touch.has-hover ? Theme.c.hover : transparent;
-            accessible-role: button;
-            accessible-label: @tr("Dismiss");
-            accessible-action-default => { root.dismiss(); }
-
-            Image {
-                source: @image-url("../assets/icons/close.svg");
-                colorize: Theme.c.text-muted;
-                width: 16px;
-                height: 16px;
-            }
-
-            touch := TouchArea {
-                clicked => { root.dismiss(); }
-            }
-        }
+    header := PanelHeader {
+        y: 0;
+        width: root.width;
+        icon: root.kind == NoticeKind.warning
+            ? @image-url("../assets/icons/alert_triangle.svg")
+            : @image-url("../assets/icons/info_circle.svg");
+        icon-color: root.kind == NoticeKind.warning ? Theme.c.warn : Theme.c.accent-text;
+        title: root.title;
+        close-tooltip: @tr("Dismiss");
+        close => { root.dismiss(); }
     }
 }

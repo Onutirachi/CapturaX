@@ -64,6 +64,31 @@ fn damaged(path: &Path) -> LoadOutcome {
     }
 }
 
+/// Prefix and suffix of the temporary files [`save`] writes.
+const TEMP_PREFIX: &str = ".capturax-";
+const TEMP_SUFFIX: &str = ".tmp";
+
+/// Removes the temporary files interrupted saves left in `folder` (rule 6). Call only while no
+/// other instance can be saving there (after the single-instance claim). Returns how many went.
+pub fn remove_temps(folder: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !(name.starts_with(TEMP_PREFIX) && name.ends_with(TEMP_SUFFIX)) || !entry.path().is_file() {
+            continue;
+        }
+        match std::fs::remove_file(entry.path()) {
+            Ok(()) => removed += 1,
+            Err(err) => log::warn!("cannot remove {}: {err}", entry.path().display()),
+        }
+    }
+    removed
+}
+
 /// Saves `table` to `path` atomically: a temporary file in the same folder is written and synced,
 /// then replaces the target, so an interruption leaves either the old or the new file (FR-029).
 pub fn save(path: &Path, table: &Table) -> io::Result<()> {
@@ -73,8 +98,8 @@ pub fn save(path: &Path, table: &Table) -> io::Result<()> {
         _ => Path::new("."),
     };
     let mut temp = tempfile::Builder::new()
-        .prefix(".capturax-")
-        .suffix(".tmp")
+        .prefix(TEMP_PREFIX)
+        .suffix(TEMP_SUFFIX)
         .tempfile_in(folder)?;
     temp.write_all(text.as_bytes())?;
     temp.as_file().sync_all()?;
@@ -168,5 +193,26 @@ mod tests {
         save(&path, &table("version = 1\nzeta = 1\nalpha = 2")).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.find("zeta").unwrap() < text.find("alpha").unwrap(), "{text}");
+    }
+
+    #[test]
+    fn remove_temps_keeps_everything_else() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [
+            ".capturax-a1B2c3.tmp",
+            ".capturax-x.tmp",
+            "capturax.toml",
+            "capturax.log",
+            "other.tmp",
+        ] {
+            std::fs::write(dir.path().join(name), b"x").unwrap();
+        }
+        std::fs::create_dir(dir.path().join(".capturax-dir.tmp")).unwrap();
+        assert_eq!(remove_temps(dir.path()), 2);
+        assert_eq!(
+            files(dir.path()),
+            [".capturax-dir.tmp", "capturax.log", "capturax.toml", "other.tmp"]
+        );
+        assert_eq!(remove_temps(&dir.path().join("missing")), 0);
     }
 }

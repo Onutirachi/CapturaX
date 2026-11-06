@@ -36,6 +36,7 @@ export component AppWindow inherits Window {
     // The notice shown, set by Rust from its queue (app/src/notices.rs).
     in property <bool> notice-visible;
     in property <NoticeKind> notice-kind;
+    in property <string> notice-title;
     in property <string> notice-text;
     callback dismiss-notice();
 
@@ -199,6 +200,7 @@ export component AppWindow inherits Window {
         y: root.video-y + Theme.gap-l;
         width: min(560px, root.video-width - 2 * Theme.gap-l);
         kind: root.notice-kind;
+        title: root.notice-title;
         text: root.notice-text;
         dismiss => { root.dismiss-notice(); }
     }

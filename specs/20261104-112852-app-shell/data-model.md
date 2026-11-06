@@ -39,6 +39,10 @@ Crate `settings`, resolved once at startup from probe results given by `platform
 - `read_from`: optional path of a readable file in a read-only application folder, loaded when
   the per-user folder has no newer file (spec edge case; research R6).
 - App folder = folder of the executable, or of `$APPIMAGE` on Linux.
+- The per-user folder is probed (and created) only when the app folder is not writable.
+- The single-instance name comes from the location's file; in memory, from the app folder's.
+- After the single-instance claim, leftover `.capturax-*.tmp` files of interrupted saves are
+  removed from the location's folder (contracts/settings-file.md rule 6).
 
 ```text
 start ─► app folder writable? ── yes ─► AppFolder
@@ -136,7 +140,7 @@ Slint components with Rust-side identifiers (texts come from `Texts`, research R
 | Entity | Fields | Rules |
 |---|---|---|
 | State message | `icon`, `title`, `detail?`, `primary?`, `secondary?` (action id + label) | 0, 1 or 2 actions; fills the video area; used for `no-source` in this spec (FR-033, FR-035) |
-| Notice | `id`, `text` (may name a folder), dismissible | Non-blocking, top of the video area; each id shown at most once per run (FR-034) |
+| Notice | `id`, `kind` (info, warning: the icon), `title`, `text` (may name a folder), dismissible | Non-blocking, top of the video area; each id shown at most once per run (FR-034) |
 
 Notice ids in this spec: `settings-fallback(folder)`, `settings-damaged`, `settings-not-kept`.
 System message ids (outside the window): `renderer-unavailable`, `already-open`.
