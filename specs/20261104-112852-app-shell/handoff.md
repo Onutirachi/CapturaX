@@ -480,6 +480,13 @@ T053 (location wired) done, checked by the maintainer (folders `target/check-rea
   above the text, aligned with the title (folded here, FR-034 and data-model updated). Checked by
   the maintainer with the `target/check-*` folders.
 
+T055 Windows part done (2026-11-06): quickstart 8–11 checked by the maintainer, all pass, with
+copies of the release exe in `target\check-t055\row{8,9,10,11}` (removed afterwards, with
+`%APPDATA%\CapturaX`). Row 10 also checked that a change survives a restart in the per-user folder
+(not covered by T053's scripted checks). Note for read-only folders: `icacls /deny user:(W)` on a
+folder also denies SYNCHRONIZE, so the folder cannot even be listed; use
+`(WD,AD,WEA,WA,DC)` instead. Unchecked in tasks.md until the Linux part.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -638,5 +645,8 @@ One CachyOS KDE Plasma Wayland session (maintainer's PC), release build, test vi
 2. T045 Linux: Theme Automatic follows a Plasma color scheme change (portal), `theme switch`
    logged.
 3. T050 Linux: quickstart 1 and 7, then menu, language and theme runs as on Windows.
-4. Quickstart 2–6 and 12–18 if wanted formally.
-Then T041 and T050 are checked. T055 (quickstart 8–11) can go on Windows before that session.
+4. T055 Linux: quickstart 8–11 (read-only folder with `chmod a-w`; also with `$APPIMAGE` set to
+   a file in another folder).
+5. Quickstart 2–6 and 12–18 if wanted formally.
+Then T041, T050 and T055 are checked. Before that session, on Windows: US4 (T056–T058, then the
+Windows part of T059), and T063/T064.
