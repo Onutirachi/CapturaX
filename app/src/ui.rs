@@ -199,6 +199,16 @@ impl Ui {
         true
     }
 
+    /// The window was destroyed (hidden in the tray on Wayland): no pointer, no focus, and the
+    /// next image is drawn whole for the new window's video thread.
+    pub fn window_gone(&mut self) {
+        let window = self.window.window();
+        window.dispatch_event(SlintEvent::PointerExited);
+        self.app.global::<WindowState>().set_active(false);
+        window.dispatch_event(SlintEvent::WindowActiveChanged(false));
+        self.full_repaint = true;
+    }
+
     /// Advances Slint's timers and animations.
     pub fn update_timers(&self) {
         slint::platform::update_timers_and_animations();

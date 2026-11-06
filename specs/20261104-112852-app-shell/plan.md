@@ -78,6 +78,9 @@ UI structure below).
 6. Apply the start mode (fullscreen, windowed, or hidden in tray with `--autostart`), show the
    window; show any pending notice; start the test video if asked.
 
+Closing with a tray hides the window; on Wayland, which cannot hide one, it stops the video
+thread and destroys the window, and showing it again repeats step 5 (R11).
+
 ### Quit sequence (FR-014)
 
 Stop the test video pipeline → stop and join the video thread → flush settings → drop the tray

@@ -109,6 +109,17 @@ impl Inbox {
         self.wake.notify_one();
     }
 
+    /// For a new video thread: what the last one left (the stop, a hold, the UI image and scene of
+    /// the old window) goes; the newest video frame stays.
+    fn begin(&self) {
+        let mut state = self.lock();
+        let frame = state.frame.take();
+        *state = State {
+            frame,
+            ..State::default()
+        };
+    }
+
     /// From the main thread, just before asking the system for a new window size: no present
     /// until the UI hands over a scene of another size, at most [`HOLD_LIMIT`]. On Wayland the
     /// first commit after the compositor's configure tells it the window's new size; a frame of
@@ -139,16 +150,19 @@ pub struct VideoThread {
 }
 
 impl VideoThread {
-    /// Sets up the GPU for `window` and starts the thread. `process_start` is used to log the time
-    /// to the first present (SC-004); with `stats` the thread prints contracts/stats.md.
+    /// Sets up the GPU for `window` and starts the thread on `inbox`, which outlives it: a window
+    /// made again after hiding on Wayland gets a new thread on the same inbox, so the source keeps
+    /// sending (research R11). With `process_start` the time to the first present is logged
+    /// (SC-004); with `stats` the thread prints contracts/stats.md.
     pub fn start(
         window: Arc<Window>,
+        inbox: Arc<Inbox>,
         presentation: Presentation,
-        process_start: Instant,
+        process_start: Option<Instant>,
         stats: bool,
     ) -> Result<Self, RendererError> {
         let gpu = gpu::Gpu::new(window, presentation)?;
-        let inbox = Arc::new(Inbox::default());
+        inbox.begin();
         let thread_inbox = inbox.clone();
         let handle = std::thread::Builder::new()
             .name("video".into())
@@ -201,13 +215,13 @@ fn ui_deadline(last_frame: Option<Instant>, now: Instant) -> Option<Instant> {
     last_frame.map(|t| t + FLOWING).filter(|deadline| *deadline > now)
 }
 
-fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
+fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: bool) {
     let mut stats = stats.then(|| {
         print_stats(&gpu.header());
         Stats::new(Instant::now())
     });
     let mut scene: Option<Scene> = None;
-    let mut first_present = true;
+    let mut first_present = process_start;
     // When the last video frame was taken from the inbox.
     let mut last_frame: Option<Instant> = None;
     loop {
@@ -295,8 +309,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
             frame.ready
         });
         if gpu.render(&scene) {
-            if first_present {
-                first_present = false;
+            if let Some(process_start) = first_present.take() {
                 log::info!(
                     "first present {:.0} ms after start",
                     process_start.elapsed().as_secs_f64() * 1e3
@@ -340,6 +353,36 @@ mod tests {
         assert!(inbox.lock().hold.is_some());
         inbox.send_ui(None, scene((1280, 720)));
         assert!(inbox.lock().hold.is_none());
+    }
+
+    #[test]
+    fn a_new_video_thread_keeps_only_the_newest_frame() {
+        let inbox = Inbox::default();
+        inbox.send_frame(VideoFrame {
+            width: 2,
+            height: 2,
+            data: vec![0; 16],
+            ready: Instant::now(),
+        });
+        inbox.send_ui(
+            None,
+            Scene {
+                video: [0.0; 5],
+                backdrop: [0.0; 3],
+                size: (1280, 720),
+            },
+        );
+        inbox.hold_for_resize();
+        {
+            let mut state = inbox.lock();
+            state.hidden = true;
+            state.stop = true;
+        }
+        inbox.begin();
+        let state = inbox.lock();
+        assert!(state.frame.is_some());
+        assert!(!state.stop && !state.hidden && !state.changed);
+        assert!(state.hold.is_none() && state.scene.is_none() && state.ui.is_none());
     }
 
     #[test]

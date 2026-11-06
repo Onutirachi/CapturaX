@@ -19,7 +19,7 @@ use crate::i18n;
 use crate::icon;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
-use crate::render::{Presentation, Scene, VideoThread};
+use crate::render::{Inbox, Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
 use crate::theme::{self, SystemTheme};
 use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
@@ -77,6 +77,14 @@ pub struct App {
     notices: Notices,
     window: Option<Arc<Window>>,
     video: Option<VideoThread>,
+    /// The video thread's inbox, kept across windows: the source sends to it (research R11).
+    inbox: Arc<Inbox>,
+    /// A video thread was started: only the first one logs the time to its first present.
+    video_started: bool,
+    /// Hidden in the tray on Wayland, the window was destroyed; showing makes a new one, back in
+    /// fullscreen if it was (research R11).
+    window_gone: bool,
+    reopen_fullscreen: bool,
     test_video: Option<TestVideo>,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
@@ -151,6 +159,10 @@ impl App {
             notices: Notices::default(),
             window: None,
             video: None,
+            inbox: Arc::new(Inbox::default()),
+            video_started: false,
+            window_gone: false,
+            reopen_fullscreen: false,
             test_video: None,
             scene: None,
             last_ui: Instant::now(),
@@ -212,7 +224,7 @@ impl App {
     /// Closing the window: hidden in the tray while there is one, else the app quits (FR-014,
     /// FR-014a). Hidden, the video thread stops presenting.
     fn close(&mut self, event_loop: &ActiveEventLoop) {
-        let (Some(window), Some(_)) = (&self.window, &self.tray) else {
+        let (Some(window), Some(_)) = (self.window.clone(), &self.tray) else {
             event_loop.exit();
             return;
         };
@@ -220,7 +232,35 @@ impl App {
         if let Some(video) = &self.video {
             video.set_visible(false);
         }
+        // Wayland cannot hide a window: it stayed on screen, frozen. It goes instead (research R11).
+        if window.is_visible().is_none() {
+            self.destroy_window(window);
+        }
         log::info!("window hidden in the tray");
+    }
+
+    /// Destroys the window to hide it where it cannot be hidden: its placement is saved, the video
+    /// thread stops before the window goes (it holds the surface), and the UI forgets the pointer.
+    fn destroy_window(&mut self, window: Arc<Window>) {
+        if std::mem::take(&mut self.placement_changed) {
+            self.save_placement(&window);
+        }
+        self.reopen_fullscreen = window.fullscreen().is_some() && self.leave_fullscreen_at.is_none();
+        if let Some(mut video) = self.video.take() {
+            video.stop();
+        }
+        self.snap = None;
+        self.snap_button = None;
+        self.window = None;
+        drop(window);
+        self.monitor = None;
+        self.resize = None;
+        self.awaiting_size = false;
+        self.leave_fullscreen_at = None;
+        self.scene = None;
+        self.ui.app.global::<WindowState>().set_fullscreen(false);
+        self.ui.window_gone();
+        self.window_gone = true;
     }
 
     /// The system message `renderer-unavailable` (FR-036): its title and text in the resolved
@@ -309,8 +349,23 @@ impl App {
 
     /// Shows the window for another start (FR-013): out of the tray or the taskbar, then to the
     /// front where the platform allows it (winit's focus needs a visible, restored window). Before
-    /// the window exists there is nothing to do: it is about to be shown.
-    fn show_window(&mut self) {
+    /// the window exists there is nothing to do: it is about to be shown. A window destroyed to
+    /// hide it is made again (research R11).
+    fn show_window(&mut self, event_loop: &ActiveEventLoop) {
+        if self.window.is_none() && std::mem::take(&mut self.window_gone) {
+            let Some(window) = self.open_window(event_loop) else {
+                return;
+            };
+            self.window = Some(window.clone());
+            if std::mem::take(&mut self.reopen_fullscreen) {
+                self.set_fullscreen(&window, true);
+            }
+            self.update_ui();
+            window.set_visible(true);
+            window.focus_window();
+            log::info!("window made again out of the tray");
+            return;
+        }
         let Some(window) = self.window.clone() else {
             return;
         };
@@ -517,6 +572,51 @@ impl App {
         });
     }
 
+    /// Creates the window, hidden, at the saved placement and starts its video thread (plan.md,
+    /// start sequence step 5). On failure the loop exits with its exit code and None returns.
+    fn open_window(&mut self, event_loop: &ActiveEventLoop) -> Option<Arc<Window>> {
+        let window = match self.create_window(event_loop) {
+            Ok(w) => w,
+            Err(err) => {
+                log::error!("window: {err:#}");
+                self.exit_code = EXIT_NO_RENDERER;
+                event_loop.exit();
+                return None;
+            }
+        };
+        self.ui.set_scale(window.scale_factor() as f32);
+        self.ui.set_size(platform::drawn_size(&window));
+        platform::follow_dpi_rect(&window);
+        let proxy = self.proxy.clone();
+        self.snap = Some(snap::attach(&window, move |event| {
+            let _ = proxy.send_event(UserEvent::Snap(event));
+        }));
+        self.update_refresh(&window);
+        let presentation = Presentation {
+            backend: self.options.backend,
+            present: self.options.present,
+        };
+        let first = (!self.video_started).then_some(self.process_start);
+        match VideoThread::start(
+            window.clone(),
+            self.inbox.clone(),
+            presentation,
+            first,
+            self.options.stats,
+        ) {
+            Ok(video) => self.video = Some(video),
+            Err(err) => {
+                // main.rs shows the system message `renderer-unavailable` once the loop ends.
+                log::error!("no usable renderer: {err}");
+                self.exit_code = EXIT_NO_RENDERER;
+                event_loop.exit();
+                return None;
+            }
+        }
+        self.video_started = true;
+        Some(window)
+    }
+
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<Arc<Window>> {
         let handles: Vec<MonitorHandle> = event_loop.available_monitors().collect();
         let primary = event_loop
@@ -617,14 +717,8 @@ impl ApplicationHandler<UserEvent> for App {
         if self.window.is_some() {
             return;
         }
-        let window = match self.create_window(event_loop) {
-            Ok(w) => w,
-            Err(err) => {
-                log::error!("window: {err:#}");
-                self.exit_code = EXIT_NO_RENDERER;
-                event_loop.exit();
-                return;
-            }
+        let Some(window) = self.open_window(event_loop) else {
+            return;
         };
         self.system_theme = platform::theme::current(&window).map(SystemTheme::from);
         log::info!("system theme {:?}", self.system_theme);
@@ -633,42 +727,18 @@ impl ApplicationHandler<UserEvent> for App {
         platform::theme::watch(move |theme| {
             let _ = proxy.send_event(UserEvent::SystemTheme(theme));
         });
-        self.ui.set_scale(window.scale_factor() as f32);
-        self.ui.set_size(platform::drawn_size(&window));
-        platform::follow_dpi_rect(&window);
-        let proxy = self.proxy.clone();
-        self.snap = Some(snap::attach(&window, move |event| {
-            let _ = proxy.send_event(UserEvent::Snap(event));
-        }));
-        self.update_refresh(&window);
-        let presentation = Presentation {
-            backend: self.options.backend,
-            present: self.options.present,
-        };
-        let video = match VideoThread::start(window.clone(), presentation, self.process_start, self.options.stats) {
-            Ok(video) => video,
-            Err(err) => {
-                // main.rs shows the system message `renderer-unavailable` once the loop ends.
-                log::error!("no usable renderer: {err}");
-                self.exit_code = EXIT_NO_RENDERER;
-                event_loop.exit();
-                return;
-            }
-        };
         if let Some(size) = self.options.test_video {
-            match TestVideo::start(size, video.inbox().clone()) {
+            match TestVideo::start(size, self.inbox.clone()) {
                 Ok(test_video) => self.test_video = Some(test_video),
                 Err(err) => {
                     log::error!("{err}");
                     eprintln!("{err}");
-                    self.video = Some(video);
                     self.exit_code = EXIT_NO_TEST_VIDEO;
                     event_loop.exit();
                     return;
                 }
             }
         }
-        self.video = Some(video);
         // Without a source the video area shows the `no-source` state (FR-035).
         self.ui.app.set_source_open(self.test_video.is_some());
         self.window = Some(window.clone());
@@ -728,7 +798,7 @@ impl ApplicationHandler<UserEvent> for App {
                     self.ui.app.global::<Prefs>().set_start_with_system(autostart::state());
                 }
             },
-            UserEvent::ShowWindow | UserEvent::Tray(TrayEvent::Open) => self.show_window(),
+            UserEvent::ShowWindow | UserEvent::Tray(TrayEvent::Open) => self.show_window(event_loop),
             UserEvent::Tray(TrayEvent::Quit) => event_loop.exit(),
             UserEvent::SystemTheme(theme) => self.system_theme_changed(theme.map(SystemTheme::from)),
             UserEvent::Snap(event) => {

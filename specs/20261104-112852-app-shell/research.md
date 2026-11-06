@@ -354,6 +354,19 @@ reopened here; entries below say how the shell builds it.
   the same crate, so the default build fails on Linux (found 2026-11-06). The tray is available when `org.kde.StatusNotifierWatcher` has an owner on the session
   bus; otherwise the setting is hidden and closing quits (GNOME without the extension, F48). Menu:
   Open, Quit, texts from `Texts`. Icon: `brand/X.svg` rasterized at build time (R12).
+- **Hiding in the tray**: closing with a tray hides the window and the video thread stops
+  presenting; the source keeps running. Wayland has no way to hide a window (winit's
+  `set_visible` does nothing there, `is_visible` answers none): the window stayed on screen,
+  frozen (found in T065, 2026-11-06). Where `is_visible` is none, hiding destroys the window
+  instead: the video thread is stopped first (the surface goes before the window), then the
+  window; showing it again creates a new window at the saved placement and a new video thread on
+  the same inbox, back in fullscreen if it was. The source keeps its inbox, so it is not
+  restarted. Started hidden with `--autostart`, the window exists but is never presented, so
+  Wayland never maps it. Maintainer, 2026-11-06: chosen over minimizing (stays in the taskbar)
+  and over no tray on Wayland. Known limit: the new window gets the saved size but KWin's
+  placement, not the place it had (a Wayland client cannot place its window; the session
+  management protocol that would keep it is experimental and not in winit). A KWin window rule
+  keeps a fixed place for users who want one.
 - **Autostart (FR-014b)**: Windows — value `CapturaX` in
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` with `"<exe>" --autostart`; it counts as
   on when present and not disabled in `...\Explorer\StartupApproved\Run` (Task Manager's switch).
