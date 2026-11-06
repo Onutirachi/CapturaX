@@ -47,12 +47,24 @@ struct State {
     changed: bool,
     /// Presenting is off while the window is hidden.
     hidden: bool,
+    /// Presenting waits for a scene of another size (see [`Inbox::hold_for_resize`]).
+    hold: Option<Hold>,
     stop: bool,
     /// Counted for the stats since the video thread last looked.
     received: u32,
     replaced: u32,
     moves: u32,
 }
+
+/// No present until the surface size changes from `size`, or `until` passes.
+#[derive(Debug, Clone, Copy)]
+struct Hold {
+    size: (u32, u32),
+    until: Instant,
+}
+
+/// The longest a [`Hold`] lasts, for a size change that never comes.
+const HOLD_LIMIT: Duration = Duration::from_millis(100);
 
 /// Hands frames and UI images to the video thread and wakes it.
 #[derive(Default)]
@@ -88,10 +100,28 @@ impl Inbox {
         if ui.is_some() {
             state.ui = ui;
         }
+        if state.hold.is_some_and(|hold| hold.size != scene.size) {
+            state.hold = None;
+        }
         state.scene = Some(scene);
         state.changed = true;
         drop(state);
         self.wake.notify_one();
+    }
+
+    /// From the main thread, just before asking the system for a new window size: no present
+    /// until the UI hands over a scene of another size, at most [`HOLD_LIMIT`]. On Wayland the
+    /// first commit after the compositor's configure tells it the window's new size; a frame of
+    /// the old size there made KWin put the window off its place when leaving fullscreen
+    /// (research R5).
+    pub fn hold_for_resize(&self) {
+        let mut state = self.lock();
+        if let Some(scene) = state.scene {
+            state.hold = Some(Hold {
+                size: scene.size,
+                until: Instant::now() + HOLD_LIMIT,
+            });
+        }
     }
 }
 
@@ -198,8 +228,13 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
                 } else {
                     None
                 };
+                if state.hold.is_some_and(|hold| now >= hold.until) {
+                    log::warn!("no new size within {} ms of a window change", HOLD_LIMIT.as_millis());
+                    state.hold = None;
+                }
+                let held = state.hidden || state.hold.is_some();
                 let ready = state.frame.is_some() || (state.changed && deadline.is_none());
-                if state.stop || (!state.hidden && ready) {
+                if state.stop || (!held && ready) {
                     break ready;
                 }
                 // A UI image is uploaded as soon as it arrives, so the next video frame's way to
@@ -207,10 +242,12 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Instant, stats: bool) {
                 if !state.hidden && state.ui.is_some() {
                     break false;
                 }
-                // Wake for the next stats line and for a waiting change, even when nothing arrives.
+                // Wake for the next stats line, a waiting change and the hold's end, even when
+                // nothing arrives.
                 let wake_at = [
                     stats.as_ref().map(Stats::next_report),
-                    deadline.filter(|_| !state.hidden),
+                    deadline.filter(|_| !held),
+                    state.hold.map(|hold| hold.until),
                 ]
                 .into_iter()
                 .flatten()
@@ -281,6 +318,29 @@ fn print_stats(line: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_hold_ends_with_a_scene_of_another_size() {
+        let scene = |size| Scene {
+            video: [0.0; 5],
+            backdrop: [0.0; 3],
+            size,
+        };
+        let inbox = Inbox::default();
+        // Nothing presented yet: nothing to hold.
+        inbox.hold_for_resize();
+        assert!(inbox.lock().hold.is_none());
+        inbox.send_ui(None, scene((1920, 1080)));
+        inbox.hold_for_resize();
+        let hold = inbox.lock().hold.expect("held");
+        assert_eq!(hold.size, (1920, 1080));
+        assert!(hold.until > Instant::now() && hold.until <= Instant::now() + HOLD_LIMIT);
+        // A UI change at the old size keeps it; the new size ends it.
+        inbox.send_ui(None, scene((1920, 1080)));
+        assert!(inbox.lock().hold.is_some());
+        inbox.send_ui(None, scene((1280, 720)));
+        assert!(inbox.lock().hold.is_none());
+    }
 
     #[test]
     fn ui_changes_wait_only_while_the_video_flows() {

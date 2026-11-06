@@ -90,6 +90,11 @@ pub struct App {
     resize: Option<ResizeDirection>,
     /// The window moved or resized since the placement was last saved.
     placement_changed: bool,
+    /// The video thread holds its presents until the next size reaches it
+    /// ([`Inbox::hold_for_resize`](crate::render::Inbox::hold_for_resize)).
+    awaiting_size: bool,
+    /// When to ask the system to leave fullscreen ([`Self::set_fullscreen`]).
+    leave_fullscreen_at: Option<Instant>,
     /// The single-instance listener; dropped in the quit sequence, which releases the name.
     instance: Option<platform::Serving>,
     /// The tray icon, while Keep in tray is on and the desktop has a tray (FR-014a): closing the
@@ -153,6 +158,8 @@ impl App {
             monitor: None,
             resize: None,
             placement_changed: false,
+            awaiting_size: false,
+            leave_fullscreen_at: None,
             instance,
             tray: None,
             tray_available,
@@ -408,9 +415,30 @@ impl App {
 
     /// Borderless fullscreen on the monitor the window is on (research R5); leaving it returns to
     /// the window's state before, maximized or not.
+    ///
+    /// Leaving waits two refreshes with the video thread holding its presents, so a frame of the
+    /// fullscreen size already queued by the driver reaches the compositor before the change: on
+    /// Wayland a frame of the old size after it made KWin put the window off its place.
     fn set_fullscreen(&mut self, w: &Window, on: bool) {
+        if !on && let Some(video) = &self.video {
+            if self.leave_fullscreen_at.is_none() {
+                video.inbox().hold_for_resize();
+                self.leave_fullscreen_at = Some(Instant::now() + 2 * self.refresh);
+            }
+            return;
+        }
+        self.apply_fullscreen(w, on);
+    }
+
+    /// Asks the system for the change; see [`Self::set_fullscreen`].
+    fn apply_fullscreen(&mut self, w: &Window, on: bool) {
+        self.leave_fullscreen_at = None;
         if on {
             platform::set_fullscreen_frame(w, true);
+        } else if let Some(video) = &self.video {
+            // Held again from here: the first present after the change must have the new size.
+            video.inbox().hold_for_resize();
+            self.awaiting_size = true;
         }
         w.set_fullscreen(on.then_some(Fullscreen::Borderless(None)));
         if !on {
@@ -725,7 +753,8 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.placement_changed = true;
                 // Paced as other UI images: each size is a new image, texture and surface setup.
-                if Instant::now() >= self.last_ui + self.refresh {
+                // Not when the video thread holds its presents for this size.
+                if std::mem::take(&mut self.awaiting_size) || Instant::now() >= self.last_ui + self.refresh {
                     self.update_ui();
                 } else {
                     self.request_redraw();
@@ -812,10 +841,18 @@ impl ApplicationHandler<UserEvent> for App {
             // its first frame was just drawn, so the flag is set again.
             animating |= self.ui.has_active_animations();
         }
+        if let (Some(at), Some(w)) = (self.leave_fullscreen_at, self.window.clone())
+            && Instant::now() >= at
+        {
+            self.apply_fullscreen(&w, false);
+        }
         let mut wake = self.ui.next_timer();
         if animating || !due {
             let next = (self.last_ui + self.refresh).max(Instant::now() + Duration::from_millis(1));
             wake = Some(wake.map_or(next, |w| w.min(next)));
+        }
+        if let Some(at) = self.leave_fullscreen_at {
+            wake = Some(wake.map_or(at, |w| w.min(at)));
         }
         event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
