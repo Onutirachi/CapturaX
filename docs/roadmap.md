@@ -9,7 +9,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | # | Spec | Covers | Depends on | Status |
 |---|---|---|---|---|
 | 1 | [Stack spike](#1-stack-spike) ([spec](../specs/20261026-154808-stack-spike/spec.md)) | — | — | done |
-| 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | in progress |
+| 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
 | 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43, F52 | 2 | |
 | 4 | [Preview audio](#4-preview-audio) | F12–F14, F47 | 3 | |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
@@ -50,6 +50,13 @@ Linux checked too. Old implementation for reference: old/capturax-react.
 ```
 
 ### 2. App shell
+
+Done: [handoff](../specs/20261104-112852-app-shell/handoff.md),
+[latency](../specs/20261104-112852-app-shell/measurements/latency.md) and
+[acceptance](../specs/20261104-112852-app-shell/measurements/acceptance.md). Carried to spec #3:
+keeping the GPU awake on Linux (SC-001 not met there at idle clocks), the Windows stalls at
+presentation mode changes and language switches. Leaving fullscreen back to a snapped place
+on Windows goes to the next spec that touches the window.
 
 ```text
 /speckit-specify App shell (see docs/roadmap.md #2): the Rust + Slint application skeleton
