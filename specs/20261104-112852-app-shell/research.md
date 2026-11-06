@@ -254,8 +254,10 @@ reopened here; entries below say how the shell builds it.
   `color-scheme` 1 → dark, 2 → light, 0 (no preference) → unknown, so Automatic gives dark. Not
   yet run on CachyOS: checked in its Linux session (T050).
 - **Contrast (FR-018)**: `app/tests/contrast.rs` reads the color tokens from `theme.slint` and
-  checks a declared list of text-on-surface pairs at 4.5:1 in both themes; for semi-transparent
-  panels over the video it checks against a white and a black video behind them.
+  checks a declared list of text-on-surface pairs at 4.5:1 and control icons at 3:1 in both
+  themes; for semi-transparent panels over the video it checks against a white and a black
+  video behind them. A toggled tool on the dock sits on an opaque chip (`raised` under
+  `accent-soft`), so the video cannot lower its icon's contrast (found by the test, T048).
 - **Shadows above 100% (spike open question)**: the nine-slice shadow images are generated in
   Rust at 1× (a port of the spike's `tools/make_shadow.py`: rounded rectangle, two Gaussian
   layers, hollow centre), once at start, and handed to Slint as images with their nine-slice

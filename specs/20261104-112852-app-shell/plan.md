@@ -179,7 +179,7 @@ app/                       # binary `capturax`
 ├── lang/pt-BR/LC_MESSAGES/capturax.po
 └── tests/
     ├── i18n.rs            # catalog completeness, no untranslated literals (FR-039)
-    ├── contrast.rs        # 4.5:1 text pairs in both themes (FR-018)
+    ├── contrast.rs        # 4.5:1 text, 3:1 icons, both themes (FR-018)
     └── platform_boundary.rs   # no OS crate or cfg outside platform (R13)
 
 crates/settings/           # format, lenient load, unknown values, atomic save, location

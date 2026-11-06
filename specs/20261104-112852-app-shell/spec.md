@@ -104,7 +104,7 @@ the settings and check every visible text and surface.
    text, icon and the logo change at once; with Automatic the app follows the system theme,
    also when the system theme changes while the app runs.
 4. **Given** either theme, **When** any text is shown over its background, **Then** it reaches a
-   contrast of at least 4.5:1.
+   contrast of at least 4.5:1, and every icon of a control at least 3:1.
 
 ---
 
@@ -299,7 +299,9 @@ change that only breaks one platform's build; each is reported and blocks the me
   the only outline. The theme values MUST be defined in one place and used by name.
 - **FR-017**: Dark and Light themes MUST exist, plus Automatic (follow the system and its
   changes while running), which is the default (F46).
-- **FR-018**: Every text pair MUST reach a contrast of at least 4.5:1 in both themes.
+- **FR-018**: Every text pair MUST reach a contrast of at least 4.5:1 in both themes, and every
+  icon of a control at least 3:1 (WCAG non-text contrast); an icon on a semi-transparent panel
+  MUST reach it over any video behind it.
 - **FR-019**: The interface MUST stay sharp at display scales from 100% to 200%, including when
   the window moves to a monitor with another scale.
 - **FR-020**: Every interactive control MUST be reachable and usable with the keyboard and show
