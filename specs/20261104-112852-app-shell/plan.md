@@ -115,7 +115,9 @@ and the single-instance listener → destroy the window.
   180 px, icon and name, the selected one tinted with `accent-soft`, icon and
   name in `accent-text`, as a toggled tool button like the dock's settings button) in a sunken well (`base` tone; no divider line, FR-016), the category's rows
   on the right in a `Flickable`. Compact layout: the panel fills the window below the title bar
-  with 8 px margins and the column keeps only the icons (names in tooltips). Icons: Tabler
+  with 8 px margins, still at most 760 × 520 and centered (a wide, low window would stretch it
+  across the screen; maintainer, 2026-11-06), and the column keeps only the icons (names in
+  tooltips). Icons: Tabler
   `adjustments-horizontal`, `palette`, `info-circle`. The category list is static in Slint (one entry
   per category, ids `general`, `appearance`, `about`); the selected category is not saved. Tab
   cycles through the panel's controls only while it is open. The chrome is not held shown by

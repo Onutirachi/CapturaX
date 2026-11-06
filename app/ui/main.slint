@@ -226,8 +226,8 @@ export component AppWindow inherits Window {
     }
 
     // Settings panel layer: a backdrop over the video area dims it and takes every click (a click
-    // on it closes the panel); the panel is centered on it, at most 760 × 520, filling the window
-    // in the compact layout. Taller than the room, its rows scroll.
+    // on it closes the panel); the panel is centered on it, at most 760 × 520, 24 px from the
+    // edges (8 px in the compact layout). Taller than the room, its rows scroll.
     if root.settings-open: Rectangle {
         x: root.video-x;
         y: root.video-y;
@@ -241,8 +241,8 @@ export component AppWindow inherits Window {
 
         SettingsPanel {
             property <length> margin: root.compact ? 8px : 24px;
-            width: min(root.compact ? parent.width : 760px, parent.width - 2 * self.margin);
-            height: min(root.compact ? parent.height : 520px, parent.height - 2 * self.margin);
+            width: min(760px, parent.width - 2 * self.margin);
+            height: min(520px, parent.height - 2 * self.margin);
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             compact: root.compact;
