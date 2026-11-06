@@ -335,7 +335,9 @@ reopened here; entries below say how the shell builds it.
 
 - **Tray (FR-014a)**: Windows — `tray-icon` (Shell_NotifyIcon, menu through `muda`), driven by the
   winit loop's message pump. Linux — `ksni` (StatusNotifierItem over D-Bus, blocking feature, no
-  GTK); the tray is available when `org.kde.StatusNotifierWatcher` has an owner on the session
+  GTK). Its default features are off and it uses `async-io`, as Slint's `system-tray` does:
+  `ksni` refuses `tokio` (its default) and `async-io` together, and Slint enables `async-io` on
+  the same crate, so the default build fails on Linux (found 2026-11-06). The tray is available when `org.kde.StatusNotifierWatcher` has an owner on the session
   bus; otherwise the setting is hidden and closing quits (GNOME without the extension, F48). Menu:
   Open, Quit, texts from `Texts`. Icon: `brand/X.svg` rasterized at build time (R12).
 - **Autostart (FR-014b)**: Windows — value `CapturaX` in

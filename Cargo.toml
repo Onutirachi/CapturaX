@@ -54,7 +54,7 @@ windows-sys = { version = "0.61", features = [
 ] }
 tray-icon = "0.26"
 zbus = "5"
-ksni = { version = "0.3", features = ["blocking"] }
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
 
 [profile.release]
 debug = "line-tables-only"
