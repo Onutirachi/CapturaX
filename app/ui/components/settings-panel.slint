@@ -1,12 +1,17 @@
-// The settings panel (FR-025): a raised panel over the video, opened from the dock's settings
-// button and closed with Esc or its close control; the video keeps playing behind it. Each change
-// is reported to Rust, which saves it at once (FR-029). The values live in the global `Prefs`, set
-// by Rust. The language and theme rows come with the languages and themes work (spec US2).
+// The settings panel (FR-025): a raised panel centered over the dimmed video, opened from the
+// dock's settings button and closed with Esc, its close control or a click outside it; the video
+// keeps playing behind it. Categories with their icons in a sunken column on the left, the chosen
+// one's rows on the right; in the compact layout the column keeps only the icons, names in
+// tooltips. Each change is
+// reported to Rust, which saves it at once (FR-029). The values live in the global `Prefs`, set
+// by Rust.
 import { Theme } from "../theme.slint";
+import { Texts } from "../texts.slint";
 import { Toggle } from "toggle.slint";
-import { IconButton } from "icon-button.slint";
-import { Side } from "tooltip.slint";
+import { Tooltips, Side } from "tooltip.slint";
 import { Raised } from "raised.slint";
+import { PanelHeader } from "panel-header.slint";
+import { FocusRing, Input } from "focus-ring.slint";
 
 export global Prefs {
     in-out property <bool> start-fullscreen;
@@ -20,6 +25,111 @@ export global Prefs {
     callback start-with-system-changed(bool);
     // The panel opened: Rust reads the system's autostart entry again (FR-014b).
     callback opened();
+}
+
+// Later specs add their categories here (F40).
+enum Category { general, appearance, about }
+
+struct CategoryEntry {
+    id: Category,
+    text: string,
+    icon: image,
+}
+
+// One category in the column: its icon and name, tinted with the soft accent while chosen, as a
+// toggled tool button (the dock's settings button). Compact, only the icon, with the name in a tooltip (after 500 ms of hover, or
+// at once on keyboard focus). A click, Enter or Space chooses it.
+component CategoryItem inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> selected;
+    in property <bool> compact;
+    callback chosen();
+
+    // Created with the panel or when the layout switches: the chosen category takes the focus, so
+    // the keyboard starts inside the panel (the ring shows only after a key).
+    init => {
+        if (root.selected) {
+            focus.focus();
+        }
+    }
+
+    // The token of the tooltip shown, 0 when none.
+    property <int> tip;
+    property <bool> wants-tip: root.compact && (area.has-hover || (focus.has-focus && Input.keyboard));
+    property <color> ink: root.selected ? Theme.c.accent-text : area.has-hover ? Theme.c.text : Theme.c.text-muted;
+
+    height: 44px;
+    border-radius: Theme.radius-s;
+    background: root.selected ? Theme.c.accent-soft : area.has-hover ? Theme.c.hover : transparent;
+    animate background { duration: Theme.quick; }
+
+    accessible-role: AccessibleRole.tab;
+    accessible-label: root.text;
+    accessible-item-selectable: true;
+    accessible-item-selected: root.selected;
+    accessible-action-default => { root.chosen(); }
+
+    forward-focus: focus;
+
+    function show-tip() {
+        root.tip = Tooltips.show(root.text, Side.right,
+            root.absolute-position.x, root.absolute-position.y, root.width, root.height);
+    }
+
+    changed wants-tip => {
+        if (!self.wants-tip) {
+            Tooltips.hide(root.tip);
+            root.tip = 0;
+        } else if (focus.has-focus && !area.has-hover) {
+            root.show-tip();
+        }
+    }
+
+    Image {
+        x: root.compact ? (parent.width - self.width) / 2 : Theme.gap-m;
+        width: 20px;
+        height: 20px;
+        source: root.icon;
+        colorize: root.ink;
+    }
+
+    if !root.compact: Text {
+        x: Theme.gap-m + 20px + Theme.gap-m;
+        width: parent.width - self.x - Theme.gap-m;
+        text: root.text;
+        color: root.ink;
+        font-size: Theme.text-m;
+        font-weight: root.selected ? 600 : 400;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    area := TouchArea {
+        clicked => { root.chosen(); }
+    }
+
+    focus := FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.chosen();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: area.has-hover && root.tip == 0 && root.wants-tip;
+        triggered => { root.show-tip(); }
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: root.border-radius;
+    }
 }
 
 // One setting: its name and a switch; a click anywhere on the row flips it.
@@ -58,15 +168,28 @@ component ToggleRow inherits Rectangle {
 }
 
 export component SettingsPanel inherits Raised {
+    // The compact layout (FR-009): the categories become a row of tabs.
+    in property <bool> compact;
     callback close();
 
-    // Created each time the panel opens (`if` in main.slint).
+    // Created each time the panel opens (`if` in main.slint), so it opens on General.
     init => { Prefs.opened(); }
+
+    property <Category> category: Category.general;
+    property <[CategoryEntry]> categories: [
+        { id: Category.general, text: @tr("General"), icon: @image-url("../assets/icons/adjustments_horizontal.svg") },
+        { id: Category.appearance, text: @tr("Appearance"), icon: @image-url("../assets/icons/palette.svg") },
+        { id: Category.about, text: @tr("About"), icon: @image-url("../assets/icons/info_circle.svg") },
+    ];
 
     property <length> pad: Theme.gap-l;
     property <length> header: 52px;
-    // The height the panel wants; the caller limits its height and the rows scroll.
-    out property <length> wanted-height: root.header + content.preferred-height;
+    // The categories' well and the space around its items.
+    property <length> well-pad: Theme.gap-s;
+    property <length> nav-width: root.compact ? 44px + 2 * root.well-pad : 180px;
+    // Where the rows start.
+    property <length> content-x: Theme.gap-m + root.nav-width;
+    property <length> content-y: root.header;
 
     fill: Theme.c.raised;
     accessible-role: groupbox;
@@ -75,68 +198,94 @@ export component SettingsPanel inherits Raised {
     // Clicks on the panel stay on it.
     TouchArea { }
 
-    title := Text {
-        x: root.pad;
-        y: 0;
-        height: root.header;
-        text: @tr("Settings");
-        color: Theme.c.text;
-        font-size: Theme.text-l;
-        font-weight: 600;
-        vertical-alignment: center;
-    }
+    // The categories come first in the focus order, then the rows, then the close control. They
+    // sit in a sunken well: depth by tone, no divider line (FR-016).
+    Rectangle {
+        x: Theme.gap-m;
+        y: root.header;
+        width: root.nav-width;
+        height: root.height - root.header - Theme.gap-m;
+        border-radius: Theme.radius-m;
+        background: Theme.c.base;
 
-    IconButton {
-        x: root.width - self.width - Theme.gap-s;
-        y: (root.header - self.height) / 2;
-        size: 36px;
-        icon-size: 18px;
-        icon: @image-url("../assets/icons/close.svg");
-        tooltip: @tr("Close (Esc)");
-        tooltip-side: Side.bottom;
-        clicked => { root.close(); }
+        VerticalLayout {
+            padding: root.well-pad;
+            spacing: 2px;
+            alignment: start;
+
+            for entry in root.categories: CategoryItem {
+                text: entry.text;
+                icon: entry.icon;
+                compact: root.compact;
+                selected: entry.id == root.category;
+                chosen => { root.category = entry.id; }
+            }
+        }
     }
 
     Flickable {
-        x: 0;
-        y: root.header;
-        width: root.width;
-        height: root.height - root.header;
+        x: root.content-x;
+        y: root.content-y;
+        width: root.width - root.content-x;
+        height: root.height - root.content-y;
         content-height: max(self.height, content.preferred-height);
 
         content := VerticalLayout {
+            alignment: start;
             padding-left: root.pad;
             padding-right: root.pad;
             padding-bottom: root.pad;
             spacing: Theme.gap-s;
 
-            ToggleRow {
+            if root.category == Category.general: ToggleRow {
                 text: @tr("Start in fullscreen");
                 checked <=> Prefs.start-fullscreen;
                 toggled(on) => { Prefs.start-fullscreen-changed(on); }
             }
 
-            if Prefs.tray-available: ToggleRow {
+            if root.category == Category.general && Prefs.tray-available: ToggleRow {
                 text: @tr("Keep in tray when closed");
                 checked <=> Prefs.keep-in-tray;
                 toggled(on) => { Prefs.keep-in-tray-changed(on); }
             }
 
-            ToggleRow {
+            if root.category == Category.general: ToggleRow {
                 text: @tr("Start with the system");
                 checked <=> Prefs.start-with-system;
                 toggled(on) => { Prefs.start-with-system-changed(on); }
             }
 
-            Text {
-                text: @tr("Version {}", Prefs.version);
-                color: Theme.c.text-faint;
-                font-size: Theme.text-s;
-                horizontal-alignment: center;
-                // Space above it, apart from the rows.
-                height: self.preferred-height + Theme.gap-m;
-                vertical-alignment: bottom;
+            if root.category == Category.about: VerticalLayout {
+                padding-top: Theme.gap-m;
+                spacing: Theme.gap-s;
+
+                // The wordmark in the theme's text color (FR-006), in its aspect ratio (816 × 199.89).
+                Image {
+                    source: Theme.dark ? @image-url("../../../brand/CapturaX-light.svg")
+                        : @image-url("../../../brand/CapturaX-dark.svg");
+                    width: 32px * 816 / 199.89;
+                    height: 32px;
+                    accessible-role: image;
+                    accessible-label: Texts.app-name;
+                }
+
+                Text {
+                    text: @tr("Version {}", Prefs.version);
+                    color: Theme.c.text-muted;
+                    font-size: Theme.text-m;
+                }
             }
         }
+    }
+
+    // Last, so its close control is last in the focus order.
+    PanelHeader {
+        y: 0;
+        width: root.width;
+        height: root.header;
+        icon: @image-url("../assets/icons/settings.svg");
+        title: @tr("Settings");
+        close-tooltip: @tr("Close (Esc)");
+        close => { root.close(); }
     }
 }

@@ -14,6 +14,8 @@ export component IconButton inherits Rectangle {
     in property <length> size: 44px;
     in property <length> icon-size: 22px;
     in property <bool> enabled: true;
+    // False keeps it out of the focus order without fading it (the docks under the settings panel).
+    in property <bool> focusable: true;
     // Where the tooltip prefers to open: towards the inside of the window.
     in property <Side> tooltip-side: Side.top;
     out property <bool> hovered: area.has-hover;
@@ -104,7 +106,7 @@ export component IconButton inherits Rectangle {
     }
 
     focus := FocusScope {
-        enabled: root.enabled;
+        enabled: root.enabled && root.focusable;
         // A click does not take the focus: the ring and the tooltip stay with the keyboard.
         focus-on-click: false;
         key-pressed(event) => {

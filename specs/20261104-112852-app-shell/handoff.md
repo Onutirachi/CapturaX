@@ -371,6 +371,21 @@ code until T046. `theme::SystemTheme` converts from winit's `Theme`. Start on th
 dark and light while the app runs: checked (Windows 11, release, 1080p60 test video), log
 `theme switch light 60.9 ms`, `theme switch dark 38.2 ms` (SC-005 under 100 ms).
 
+T067 (central settings panel) done, checked by the maintainer and committed (`feat: move settings
+to a central panel with categories`); 111 tests pass. `SettingsPanel` (in a backdrop `Rectangle`
+over the video area, `Theme.c.scrim`, a click on it closes) is centered, at most 760 × 520, 24 px
+from the edges (compact: fills, 8 px). Categories General / Appearance / About (enum `Category`,
+not saved, opens on General) as `CategoryItem` with Tabler icons (new `adjustments_horizontal`,
+`palette`; `info_circle`) in a `base`-toned well; the chosen one tinted as the dock's toggled settings button (`accent-soft`, icon `accent-icon`,
+name `accent-text`; maintainer's choice after trying a solid accent fill, which read as the
+record / live buttons; a selection bar and a divider line were refused, FR-016).
+Compact: icons only, names in tooltips (500 ms hover or keyboard focus). About: the wordmark
+(32 px, by theme) and the version. Focus: the chosen category takes the focus on creation;
+`IconButton.focusable` keeps the docks out of the Tab order while the panel is open;
+`reveal-chrome` does nothing then; closed from the keyboard, the focus goes back to the settings
+button. The chrome is no longer held shown by the panel. New texts (General, Appearance, About)
+are not in the pt-BR catalog yet (T049).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -517,8 +532,7 @@ dark and light while the app runs: checked (Windows 11, release, 1080p60 test vi
 
 ## Next step
 
-T067 (central settings panel, spec changes waiting for the maintainer's validation), then T046
-(Language and Theme rows under Appearance). T047 and T048 can be done in parallel. The CachyOS
-part of T041 (same runs as measurements/latency.md, with the GPU clock state), and quickstart
-checks 2–6 and 12–18 if the maintainer wants them run formally, stay for one Linux session with
-T045's Linux part and T050.
+T046: Language and Theme rows under Appearance (selects; check menu scrolling at 640 × 360 there).
+T047 and T048 can be done in parallel. The CachyOS part of T041 (same runs as
+measurements/latency.md, with the GPU clock state), and quickstart checks 2–6 and 12–18 if the
+maintainer wants them run formally, stay for one Linux session with T045's Linux part and T050.

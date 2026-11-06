@@ -324,11 +324,14 @@ change that only breaks one platform's build; each is reported and blocks the me
 - **FR-025**: Settings MUST be a panel inside the main window, centered over the video, opened
   from the dock and closed with Esc, its close control or a click outside it; the video keeps
   playing behind it, dimmed, also in fullscreen. While it is open, keyboard focus stays inside
-  it. The app opens no other windows. The panel lists its categories in a column on its left
-  and shows the chosen category's settings on the right; in the compact layout (FR-009) the
-  categories become a row of tabs above the settings. In this spec: **General** (Start in
+  it. The app opens no other windows. The panel lists its categories, each with an icon and its
+  name, in a column on its left, and shows the chosen category's settings on the right; the
+  chosen category is tinted with the accent, as a toggled tool button. Its header holds the settings icon and the title on the left and
+  the close control at the other end, the header every small window inside the main window
+  shares. In the compact layout (FR-009) the column keeps
+  only the icons, with the names in tooltips. In this spec: **General** (Start in
   fullscreen, FR-012a; Keep in tray when closed, FR-014a; Start with the system, FR-014b),
-  **Appearance** (language, theme) and **About** (the app's version). Later specs add their
+  **Appearance** (language, theme) and **About** (the logo, FR-006, and the app's version). Later specs add their
   categories to the same panel (F40). (Maintainer, 2026-11-05: a central panel with categories
   replaces the panel beside the dock, because later settings include lists such as audio
   devices and hotkeys.)

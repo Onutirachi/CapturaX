@@ -59,9 +59,16 @@ export component AppWindow inherits Window {
         visible: !WindowState.fullscreen;
     }
 
-    // The settings panel is open; its button is in the right dock, Esc and its close control close
-    // it (FR-025).
+    // The settings panel is open; its button is in the right dock, Esc, its close control or a
+    // click outside it close it (FR-025). Closed from the keyboard, the focus goes back to its
+    // button.
     in-out property <bool> settings-open;
+    changed settings-open => {
+        if (!self.settings-open && Input.keyboard) {
+            root.reveal-chrome();
+            settings-button.focus();
+        }
+    }
 
     // Float at 800 × 520 and above; below it the compact layout puts the docks in the toolbar's
     // row, so nothing overlaps (FR-009).
@@ -72,11 +79,10 @@ export component AppWindow inherits Window {
     changed width => { Tooltips.dismiss(); Menus.close(); }
     changed height => { Tooltips.dismiss(); Menus.close(); }
     // The chrome shows while the pointer is on the top of the video, the toolbar or a dock, while a
-    // menu or the settings panel is open, or while a chrome control has the keyboard focus; it
-    // hides 2 s after (FR-008).
+    // menu is open, or while a chrome control has the keyboard focus; it hides 2 s after (FR-008).
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || right-area.has-hover || Menus.open || root.settings-open || fullscreen-button.has-focus
+        || right-area.has-hover || Menus.open || fullscreen-button.has-focus
         || settings-button.has-focus;
     changed engaged => {
         if (self.engaged) {
@@ -93,9 +99,10 @@ export component AppWindow inherits Window {
     animate hidden { duration: root.slide; easing: ease-out; }
 
     // Called by Rust before a Tab reaches Slint: the focus chain skips controls outside the window,
-    // so the hidden docks must be in place before the key moves the focus (FR-020).
+    // so the hidden docks must be in place before the key moves the focus (FR-020). Not while the
+    // settings panel is open: the focus stays inside it.
     public function reveal-chrome() {
-        if (!root.chrome-shown) {
+        if (!root.chrome-shown && !root.settings-open) {
             root.instant = true;
             root.chrome-shown = true;
         }
@@ -157,6 +164,7 @@ export component AppWindow inherits Window {
                         : @image-url("assets/icons/fullscreen.svg");
                     tooltip: WindowState.fullscreen ? @tr("Exit fullscreen (F11)") : @tr("Fullscreen (F11)");
                     tooltip-side: root.compact ? Side.bottom : Side.right;
+                    focusable: !root.settings-open;
                     clicked => { WindowState.toggle-fullscreen(); }
                 }
             }
@@ -178,6 +186,7 @@ export component AppWindow inherits Window {
                     tooltip: @tr("Settings");
                     tooltip-side: root.compact ? Side.bottom : Side.left;
                     active: root.settings-open;
+                    focusable: !root.settings-open;
                     clicked => { root.settings-open = !root.settings-open; }
                 }
             }
@@ -194,19 +203,29 @@ export component AppWindow inherits Window {
         dismiss => { root.dismiss-notice(); }
     }
 
-    // Settings panel layer: beside the right dock, centered on it; in the compact layout below the
-    // toolbar's row. Taller than the video area allows, its rows scroll.
-    if root.settings-open: SettingsPanel {
-        property <length> edge: 12px;
-        property <length> room: root.compact ? root.video-height - 88px - self.edge : root.video-height - 2 * self.edge;
-        width: min(360px, root.video-width - 2 * self.edge);
-        height: min(self.wanted-height, self.room);
-        x: root.video-x + (root.compact ? root.video-width - self.width - self.edge
-            : right-area.x - self.width - self.edge);
-        y: root.video-y + (root.compact ? 88px
-            : max(self.edge, min(root.video-height - self.height - self.edge,
-                right-area.y + (right-area.height - self.height) / 2)));
-        close => { root.settings-open = false; }
+    // Settings panel layer: a backdrop over the video area dims it and takes every click (a click
+    // on it closes the panel); the panel is centered on it, at most 760 × 520, filling the window
+    // in the compact layout. Taller than the room, its rows scroll.
+    if root.settings-open: Rectangle {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+        background: Theme.c.scrim;
+
+        TouchArea {
+            clicked => { root.settings-open = false; }
+        }
+
+        SettingsPanel {
+            property <length> margin: root.compact ? 8px : 24px;
+            width: min(root.compact ? parent.width : 760px, parent.width - 2 * self.margin);
+            height: min(root.compact ? parent.height : 520px, parent.height - 2 * self.margin);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            compact: root.compact;
+            close => { root.settings-open = false; }
+        }
     }
 
     // Top layer (menus, dropdowns, tooltips): drawn last, so nothing covers them (FR-010). A menu

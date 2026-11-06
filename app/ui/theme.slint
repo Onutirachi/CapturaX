@@ -20,10 +20,10 @@ export struct Palette {
     accent-hover: color,
     // Text and icons on the accent.
     accent-ink: color,
-    // Accent as text and as the focus ring (the light theme needs a deeper orange to read).
+    // Accent as text, as the icon of a toggled tool or chosen category, and as the focus ring
+    // (the light theme needs a deeper orange to read).
     accent-text: color,
-    // Toggled tools: a vivid icon on a soft orange chip.
-    accent-icon: color,
+    // The soft orange chip of a toggled tool or chosen category.
     accent-soft: color,
     ok: color,
     warn: color,
@@ -31,6 +31,8 @@ export struct Palette {
     // Semi-transparent panels over the video (title bar, dock, overlay); only panels are
     // transparent.
     panel: color,
+    // Dims the video behind the settings panel.
+    scrim: color,
     // Shadow images are drawn at this opacity: light surfaces need softer shadows.
     shadow: float,
 }
@@ -50,12 +52,12 @@ export global Palettes {
         accent-hover: #ff8a2e,
         accent-ink: #16171c,
         accent-text: #ff7304,
-        accent-icon: #ff7304,
         accent-soft: #ff73042e,
         ok: #3fcf7c,
         warn: #f2c14e,
         bad: #f46a62,
         panel: #0e0f13b8,
+        scrim: #00000080,
         shadow: 1,
     };
     out property <Palette> light: {
@@ -72,12 +74,12 @@ export global Palettes {
         accent-hover: #ff7304,
         accent-ink: #16171c,
         accent-text: #9e4500,
-        accent-icon: #d65a00,
         accent-soft: #f26a0024,
         ok: #0f7038,
         warn: #7d5a00,
         bad: #b42a23,
         panel: #f7f8fac4,
+        scrim: #00000052,
         shadow: 0.35,
     };
 }

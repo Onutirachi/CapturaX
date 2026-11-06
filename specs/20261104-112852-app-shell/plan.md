@@ -97,7 +97,8 @@ and the single-instance listener → destroy the window.
 - `theme.slint` (`Theme`), `texts.slint` (`Texts`: every text Rust needs, by identifier),
   `window-state.slint` (window actions and state between Rust and the UI).
 - `components/`: `title-bar`, `dock`, `icon-button`, `menu` (flips side when it does not fit,
-  above), `tooltip`, `state-message`, `notice`, `settings-panel`,
+  above), `tooltip`, `state-message`, `notice`, `settings-panel`, `panel-header` (icon, title
+  and close control shared by the settings panel and the notices),
   `toggle`, `select`, `focus-ring`, `raised` (opaque surface over the two shadow images).
 - Top layer: controls do not hold their menu or tooltip. They call the globals `Menus.show` and
   `Tooltips.show` with their rectangle in window coordinates, and `MenuLayer` and
@@ -111,9 +112,11 @@ and the single-instance listener → destroy the window.
 - Settings panel (FR-025): a backdrop over the whole window below the title bar dims the video
   and takes every click (a click on it closes the panel); the panel is centered on the video
   area, at most 760 × 520 with 24 px from the window's edges. Left column of categories (about
-  180 px, the selected one highlighted), the category's rows on the right in a `Flickable`.
-  Compact layout: the panel fills the window below the title bar with 8 px margins and the
-  categories become a tab row above the rows. The category list is static in Slint (one entry
+  180 px, icon and name, the selected one tinted with `accent-soft`, icon and
+  name in `accent-text`, as a toggled tool button like the dock's settings button) in a sunken well (`base` tone; no divider line, FR-016), the category's rows
+  on the right in a `Flickable`. Compact layout: the panel fills the window below the title bar
+  with 8 px margins and the column keeps only the icons (names in tooltips). Icons: Tabler
+  `adjustments-horizontal`, `palette`, `info-circle`. The category list is static in Slint (one entry
   per category, ids `general`, `appearance`, `about`); the selected category is not saved. Tab
   cycles through the panel's controls only while it is open. The chrome is not held shown by
   the panel.
