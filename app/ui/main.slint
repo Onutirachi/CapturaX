@@ -7,6 +7,7 @@ import { Theme, Palette } from "theme.slint";
 import { Texts } from "texts.slint";
 import { WindowState } from "window-state.slint";
 import { Notice, NoticeKind } from "components/notice.slint";
+import { StateMessage } from "components/state-message.slint";
 import { Input } from "components/focus-ring.slint";
 import { Menus, MenuItem, MenuLayer } from "components/menu.slint";
 import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
@@ -40,9 +41,26 @@ export component AppWindow inherits Window {
     in property <string> notice-text;
     callback dismiss-notice();
 
+    // A source is open (the test video in this spec); without one the video area shows the
+    // `no-source` state (FR-035).
+    in property <bool> source-open;
+    // An action of the state message, by id (none in this spec).
+    callback state-action(string /* action id */);
+
     // Video area: drawn by the video thread, nothing here.
 
-    // State message layer (no source, spec FR-035): filled by the state message task.
+    // State message layer: the `no-source` state fills the video area while nothing is open
+    // (FR-035), never a black or blank area.
+    if !root.source-open: StateMessage {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+        border-radius: root.video-radius;
+        icon: @image-url("assets/icons/device_tv_off.svg");
+        title: @tr("No source");
+        action(id) => { root.state-action(id); }
+    }
 
     // Chrome layer: the title bar (its window buttons are not in the Tab order, FR-020), then the
     // toolbar slot and the docks over the video; the keyboard focus goes left dock, right dock.

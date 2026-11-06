@@ -96,6 +96,8 @@ impl Ui {
                     .or_insert_with(|| slint::Image::from_rgba8(shadows::make(width, height, scale, fill, strength)))
                     .clone()
             });
+        // The state message's actions (FR-033); the `no-source` state has none in this spec.
+        app.on_state_action(|id| log::warn!("state message: unknown action {id:?}"));
         app.show()?;
         Ok(Self {
             window,

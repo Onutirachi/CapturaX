@@ -26,5 +26,7 @@ export global Texts {
     public pure function settings-unreadable() -> string {
         @tr("The settings file could not be read. Default settings are in use.")
     }
+    // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
+    out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
     out property <string> already-open: @tr("CapturaX is already open. Its window is shown, but the system did not let it come to the front.");
 }

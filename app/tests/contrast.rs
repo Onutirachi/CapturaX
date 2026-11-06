@@ -182,6 +182,11 @@ const PAIRS: &[Pair] = &[
     icon("text-muted", &["top"], "select chevron"),
     icon("text-muted", &["top", "hover"], "select chevron hovered"),
     icon("text-muted", &["top", "press"], "select chevron pressed"),
+    // State message, on the video area's ground; its secondary action is a top surface (listed
+    // above) and its primary one the accent.
+    text("text", &["deep"], "state message title"),
+    text("text-muted", &["deep"], "state message detail"),
+    icon("text-muted", &["deep"], "state message icon"),
     // Notice.
     icon("accent-text", &["raised"], "notice info icon"),
     icon("warn", &["raised"], "notice warning icon"),

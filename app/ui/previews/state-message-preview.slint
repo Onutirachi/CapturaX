@@ -1,0 +1,54 @@
+// The state message's four variants for `slint-viewer` (not built into the app): no action, one
+// action, two actions, each with or without a detail. Click the window's background to switch the
+// theme. Sample texts are plain strings: previews are left out of the translation check.
+import { Theme } from "../theme.slint";
+import { StateMessage, StateAction } from "../components/state-message.slint";
+import "../assets/fonts/Inter.ttf";
+
+export component StateMessagePreview inherits Window {
+    title: "State message preview";
+    default-font-family: Theme.font;
+    preferred-width: 1100px;
+    preferred-height: 640px;
+    background: Theme.c.base;
+
+    TouchArea {
+        clicked => { Theme.dark = !Theme.dark; }
+    }
+
+    GridLayout {
+        padding: 16px;
+        spacing: 16px;
+
+        Row {
+            StateMessage {
+                icon: @image-url("../assets/icons/device_tv_off.svg");
+                title: "No source";
+            }
+            StateMessage {
+                icon: @image-url("../assets/icons/device_tv_off.svg");
+                title: "No source";
+                detail: "Connect a capture card to start.";
+                primary: { id: "open-source", label: "Open a source" };
+                action(id) => { debug("action", id); }
+            }
+        }
+        Row {
+            StateMessage {
+                icon: @image-url("../assets/icons/alert_triangle.svg");
+                title: "The capture card stopped sending video";
+                detail: "Check the cable and the console's output, then try again. This line is long enough to be cut.";
+                primary: { id: "retry", label: "Try again" };
+                secondary: { id: "choose", label: "Choose another device" };
+                action(id) => { debug("action", id); }
+            }
+            StateMessage {
+                icon: @image-url("../assets/icons/alert_triangle.svg");
+                title: "The capture card stopped sending video";
+                primary: { id: "retry", label: "Try again" };
+                secondary: { id: "choose", label: "Choose another device" };
+                action(id) => { debug("action", id); }
+            }
+        }
+    }
+}

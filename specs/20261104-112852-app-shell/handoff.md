@@ -487,6 +487,29 @@ copies of the release exe in `target\check-t055\row{8,9,10,11}` (removed afterwa
 folder also denies SYNCHRONIZE, so the folder cannot even be listed; use
 `(WD,AD,WEA,WA,DC)` instead. Unchecked in tasks.md until the Linux part.
 
+T056–T058 done (2026-11-06), checked on Windows by the maintainer (T059 Windows part: no source
+without a source, hidden with `--test-video 1080p60`, `--backend gl` message in English and
+pt-BR, exit 2; notice dismissal as in T053/T055) and committed (`feat: add state message and
+renderer failure message`). T059 unchecked until the Linux part (`--backend dx12`).
+- `components/state-message.slint`: `StateMessage` (icon, title, one-line `detail` cut with an
+  ellipsis, `primary` / `secondary: StateAction { id, label }`, empty id = none,
+  `action(id)`), on `deep`; a private `ActionButton` (primary on the accent, secondary on
+  `top`, hover / press, Enter or Space, focus ring). Preview `ui/previews/state-message-preview.slint`
+  (`slint-viewer` 1.18.1 installed with `cargo install`; a click on the background switches
+  the theme). `ui/previews` is left out of the translation test (sample texts).
+- `no-source`: icon `device_tv_off` (Tabler 3.31.0, maintainer's pick against
+  `plug_connected_x`, which is for a disconnected device later; `preview_off` is kept for the
+  hidden preview), title `@tr("No source")`, no action; `AppWindow.source-open` set from
+  `app.rs` (test video running). Unknown actions are logged in `ui.rs`.
+- `renderer-unavailable`: `App::renderer_unavailable()` gives `Texts.app-name` and
+  `Texts.renderer-unavailable`; main.rs shows it after the loop when the exit code is 2 (also
+  when the window cannot be created).
+- Contrast pairs added for the state message on `deep`.
+- Product decisions recorded in docs/product.md (own `docs:` commit): the no-source action opens
+  the app's source picker (the toolbar's), not one of its own; F10 hiding the preview releases the
+  device and shows a "preview hidden" state, whether it also stops listening is open. The term
+  "preview" stays (maintainer: it tells at once what it is); do not propose renaming it.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -648,5 +671,5 @@ One CachyOS KDE Plasma Wayland session (maintainer's PC), release build, test vi
 4. T055 Linux: quickstart 8–11 (read-only folder with `chmod a-w`; also with `$APPIMAGE` set to
    a file in another folder).
 5. Quickstart 2–6 and 12–18 if wanted formally.
-Then T041, T050 and T055 are checked. Before that session, on Windows: US4 (T056–T058, then the
-Windows part of T059), and T063/T064.
+6. T059 Linux: US4 scenarios, renderer message with `--backend dx12`, in both languages.
+Then T041, T050, T055 and T059 are checked. Before that session, on Windows: T063/T064.

@@ -222,5 +222,9 @@ fn start(
     }
     ::log::debug!("options: {:?}", app.options());
     event_loop.run_app(&mut app)?;
+    if app.exit_code == app::EXIT_NO_RENDERER {
+        let (title, text) = app.renderer_unavailable();
+        platform::show_system_message(&title, &text);
+    }
     Ok(app.exit_code)
 }

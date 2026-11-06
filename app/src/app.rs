@@ -216,6 +216,13 @@ impl App {
         log::info!("window hidden in the tray");
     }
 
+    /// The system message `renderer-unavailable` (FR-036): its title and text in the resolved
+    /// language.
+    pub fn renderer_unavailable(&self) -> (slint::SharedString, slint::SharedString) {
+        let texts = Texts::get(&self.ui.app);
+        (texts.get_app_name(), texts.get_renderer_unavailable())
+    }
+
     /// The command line this run started with.
     pub fn options(&self) -> &StartupOptions {
         &self.options
@@ -613,7 +620,7 @@ impl ApplicationHandler<UserEvent> for App {
         let video = match VideoThread::start(window.clone(), presentation, self.process_start, self.options.stats) {
             Ok(video) => video,
             Err(err) => {
-                // The translated system message comes with the state message work (spec FR-036).
+                // main.rs shows the system message `renderer-unavailable` once the loop ends.
                 log::error!("no usable renderer: {err}");
                 self.exit_code = EXIT_NO_RENDERER;
                 event_loop.exit();
@@ -634,6 +641,8 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
         self.video = Some(video);
+        // Without a source the video area shows the `no-source` state (FR-035).
+        self.ui.app.set_source_open(self.test_video.is_some());
         self.window = Some(window.clone());
         self.sync_tray();
         // Started by the system with Keep in tray on: only the tray icon, whatever Start in

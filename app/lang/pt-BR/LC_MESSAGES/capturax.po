@@ -103,3 +103,9 @@ msgstr "Configurações não serão salvas"
 
 msgid "Settings damaged"
 msgstr "Configurações danificadas"
+
+msgid "No source"
+msgstr "Nenhuma fonte"
+
+msgid "CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again."
+msgstr "O CapturaX não pode iniciar porque nenhum renderizador gráfico funciona neste computador. Atualize o driver de vídeo e tente de novo."

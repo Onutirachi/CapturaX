@@ -1,0 +1,135 @@
+// The one component for empty and error states (FR-033): an icon, a short title, an optional
+// one-line detail and zero, one or two actions (primary and secondary), centered in the area it
+// fills (the video area). It sits on the window's deepest tone, where the video would be. An
+// action reports its id; Rust decides what it does. Enter or Space activates the focused action
+// (FR-020).
+import { Theme } from "../theme.slint";
+import { FocusRing } from "focus-ring.slint";
+
+// One action: the id sent to Rust and the label shown. An empty id means no action.
+export struct StateAction {
+    id: string,
+    label: string,
+}
+
+// A text button of the state message: the primary one fills with the accent, the secondary one
+// is an opaque top surface.
+component ActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary;
+    callback clicked();
+
+    height: 36px;
+    min-width: 96px;
+    horizontal-stretch: 0;
+    preferred-width: text.preferred-width + 2 * Theme.gap-l;
+    border-radius: Theme.radius-s;
+    background: root.primary ? (area.has-hover ? Theme.c.accent-hover : Theme.c.accent) : Theme.c.top;
+    animate background { duration: Theme.quick; }
+
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+
+    forward-focus: focus;
+
+    // Hover and press tint over the secondary fill (the primary one lightens instead).
+    Rectangle {
+        border-radius: root.border-radius;
+        background: root.primary ? transparent
+            : area.pressed ? Theme.c.press
+            : area.has-hover ? Theme.c.hover
+            : transparent;
+        animate background { duration: Theme.quick; }
+    }
+
+    text := Text {
+        text: root.label;
+        color: root.primary ? Theme.c.accent-ink : Theme.c.text;
+        font-size: Theme.text-m;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    area := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    focus := FocusScope {
+        // A click does not take the focus: the ring stays with the keyboard.
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: root.border-radius;
+    }
+}
+
+export component StateMessage inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    // One line; longer text is cut with an ellipsis.
+    in property <string> detail;
+    in property <StateAction> primary;
+    in property <StateAction> secondary;
+    callback action(string /* action id */);
+
+    background: Theme.c.deep;
+
+    VerticalLayout {
+        alignment: center;
+        padding: Theme.gap-xl;
+        spacing: Theme.gap-m;
+
+        Image {
+            source: root.icon;
+            height: 48px;
+            image-fit: contain;
+            colorize: Theme.c.text-muted;
+            accessible-role: none;
+        }
+
+        Text {
+            text: root.title;
+            color: Theme.c.text;
+            font-size: Theme.text-l;
+            font-weight: 600;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+
+        if root.detail != "": Text {
+            text: root.detail;
+            color: Theme.c.text-muted;
+            font-size: Theme.text-m;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+
+        if root.primary.id != "" || root.secondary.id != "": HorizontalLayout {
+            alignment: center;
+            spacing: Theme.gap-m;
+            padding-top: Theme.gap-s;
+
+            if root.primary.id != "": ActionButton {
+                label: root.primary.label;
+                primary: true;
+                clicked => { root.action(root.primary.id); }
+            }
+
+            if root.secondary.id != "": ActionButton {
+                label: root.secondary.label;
+                clicked => { root.action(root.secondary.id); }
+            }
+        }
+    }
+}

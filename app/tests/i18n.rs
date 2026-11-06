@@ -228,10 +228,13 @@ fn po_string(quoted: &str, at: &str) -> String {
     out
 }
 
-/// Every `.slint` file of the UI with its literals.
+/// Every `.slint` file of the UI with its literals. `ui/previews` is left out: the previews are
+/// for `slint-viewer` only, never built into the app, and show sample texts.
 fn ui_literals() -> Vec<(PathBuf, Vec<Literal>)> {
     let mut files = Vec::new();
     files_with_extension(&manifest().join("ui"), "slint", &mut files);
+    let previews = manifest().join("ui").join("previews");
+    files.retain(|path| !path.starts_with(&previews));
     assert!(!files.is_empty(), "no .slint files found");
     files
         .into_iter()
