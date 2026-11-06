@@ -499,9 +499,10 @@ dark and light while the app runs: checked (Windows 11, release, 1080p60 test vi
   The quarter-pixel glyph placement remains, but the maintainer finds fullscreen text very good,
   so patching Slint is not pursued. The test binaries and the offscreen render example were
   deleted. Closed.
-- Settings panel shape (maintainer, 2026-11-05): beside the dock as now, or a central panel as in
-  the original CapturaX. The maintainer decides once the future settings are listed; decide
-  before T046 adds the language and theme rows.
+- Settings panel shape: decided (maintainer, 2026-11-05): a central panel with categories
+  (General, Appearance, About) in a left column, a tab row in the compact layout; the video is
+  dimmed behind it and a click outside closes it. FR-025, plan.md (UI structure) and the new
+  T067 (before T046) updated.
 
 - The record / stream only mode may change the product's main scenario and the roadmap's order;
   product.md asks to decide it before spec #3 starts.
@@ -516,6 +517,8 @@ dark and light while the app runs: checked (Windows 11, release, 1080p60 test vi
 
 ## Next step
 
-The CachyOS part of T041 (same runs as measurements/latency.md, with the GPU clock state), and
-quickstart checks 2–6 and 12–18 if the maintainer wants them run formally, in one Linux session with
-T045's Linux part and T050; meanwhile US2 on Windows: commit T042 once checked, then T043.
+T067 (central settings panel, spec changes waiting for the maintainer's validation), then T046
+(Language and Theme rows under Appearance). T047 and T048 can be done in parallel. The CachyOS
+part of T041 (same runs as measurements/latency.md, with the GPU clock state), and quickstart
+checks 2–6 and 12–18 if the maintainer wants them run formally, stay for one Linux session with
+T045's Linux part and T050.

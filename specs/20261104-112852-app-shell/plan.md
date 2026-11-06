@@ -108,6 +108,15 @@ and the single-instance listener → destroy the window.
   overlaps, FR-009). Chrome hide timer 2 s (FR-008). Keyboard focus order and focus ring on every
   control (FR-020).
 - Docks hold only fullscreen and settings (FR-015); the toolbar slot stays empty for spec #3.
+- Settings panel (FR-025): a backdrop over the whole window below the title bar dims the video
+  and takes every click (a click on it closes the panel); the panel is centered on the video
+  area, at most 760 × 520 with 24 px from the window's edges. Left column of categories (about
+  180 px, the selected one highlighted), the category's rows on the right in a `Flickable`.
+  Compact layout: the panel fills the window below the title bar with 8 px margins and the
+  categories become a tab row above the rows. The category list is static in Slint (one entry
+  per category, ids `general`, `appearance`, `about`); the selected category is not saved. Tab
+  cycles through the panel's controls only while it is open. The chrome is not held shown by
+  the panel.
 
 ## Project Structure
 

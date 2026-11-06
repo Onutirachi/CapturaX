@@ -321,11 +321,17 @@ change that only breaks one platform's build; each is reported and blocks the me
 
 **Settings**
 
-- **FR-025**: Settings MUST be a panel inside the main window, over the video, opened from the
-  dock and closed with Esc or its close control; the video keeps playing behind it, also in
-  fullscreen. The app opens no other windows. In this spec the panel contains language, theme,
-  Start in fullscreen (FR-012a), Keep in tray when closed (FR-014a), Start with the system
-  (FR-014b), and the app's version; later specs add their categories to the same panel (F40).
+- **FR-025**: Settings MUST be a panel inside the main window, centered over the video, opened
+  from the dock and closed with Esc, its close control or a click outside it; the video keeps
+  playing behind it, dimmed, also in fullscreen. While it is open, keyboard focus stays inside
+  it. The app opens no other windows. The panel lists its categories in a column on its left
+  and shows the chosen category's settings on the right; in the compact layout (FR-009) the
+  categories become a row of tabs above the settings. In this spec: **General** (Start in
+  fullscreen, FR-012a; Keep in tray when closed, FR-014a; Start with the system, FR-014b),
+  **Appearance** (language, theme) and **About** (the app's version). Later specs add their
+  categories to the same panel (F40). (Maintainer, 2026-11-05: a central panel with categories
+  replaces the panel beside the dock, because later settings include lists such as audio
+  devices and hotkeys.)
 - **FR-026**: Settings MUST be stored in one human-readable file in the folder that holds the
   executable (or the AppImage file on Linux) when that folder is writable (F41, constitution
   principle VI).

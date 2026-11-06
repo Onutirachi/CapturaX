@@ -125,7 +125,8 @@ the settings panel and check every visible text and surface (quickstart 1 and 7)
 - [x] T043 [P] [US2] Implement app/src/theme.rs: `resolve(setting, system: Option<SystemTheme>) -> bool /* dark */` ("`auto` follows the system, unknown system → dark"); unit tests
 - [x] T044 [US2] Apply the language in app/src/main.rs and app/src/ui.rs (depends on T042): at start `slint::select_bundled_translation` for `resolve(settings.language or --lang, system_locale())` (`--lang` is not saved); on change from the panel, select it again, re-read every `Texts` value Rust holds (tray labels via `set_labels`, the visible notice), all within the same main loop turn (FR-022); log the time from the selection to the next UI image handed to the video thread as `language switch <code> <ms> ms` (SC-005)
 - [x] T045 [US2] Follow the system theme (depends on T043): Windows in app/src/app.rs with winit `Window::theme()` and `WindowEvent::ThemeChanged`; Linux first check whether winit 0.30 reports `ThemeChanged` on KDE Plasma Wayland, and only if not implement crates/platform/src/linux/theme.rs `system_theme_watch(sender)` reading the XDG Settings portal `org.freedesktop.appearance` `color-scheme` with `zbus` blocking and listening to `SettingChanged` on a thread (research R8); record the outcome in research R8; set `Theme.dark` on start and on every change, logo swap included; log `theme switch <dark|light> <ms> ms` measured as in T044 (SC-005)
-- [ ] T046 [US2] Add the Language and Theme rows to app/ui/components/settings-panel.slint (depends on T033, T044, T045): Language = Automatic + each `LANGUAGES` native name (from Rust as a model, so a third language needs no UI change, FR-024); Theme = Automatic, Dark, Light; each change applies at once and goes through `store.update`
+- [ ] T067 [US2] Rework app/ui/components/settings-panel.slint and its layer in app/ui/main.slint into the central panel of FR-025 and plan.md (depends on T033): backdrop that dims the video and closes on click, panel centered on the video area, categories General / Appearance / About in a left column (a tab row in the compact layout), the existing rows under General, the version under About, keyboard focus kept inside while open, the chrome no longer held shown by the panel; Esc order unchanged (FR-007)
+- [ ] T046 [US2] Add the Language and Theme rows under Appearance in app/ui/components/settings-panel.slint (depends on T067, T044, T045): Language = Automatic + each `LANGUAGES` native name (from Rust as a model, so a third language needs no UI change, FR-024); Theme = Automatic, Dark, Light; each change applies at once and goes through `store.update`
 - [ ] T047 [P] [US2] Create app/tests/i18n.rs (research R7, FR-039): extract every `@tr("...")` from `app/ui/**/*.slint` (handling escaped quotes and `{}` placeholders); parse every `app/lang/*/LC_MESSAGES/capturax.po`; fail naming the text for a msgid missing, with an empty msgstr, or stale (in the catalog but no longer in the UI); fail naming file and line for a string literal assigned to a `text`, `title`, `tooltip` or `label` property without `@tr`
 - [ ] T048 [P] [US2] Create app/tests/contrast.rs (FR-018): parse the color tokens of `app/ui/theme.slint` for Dark and Light; check a declared list of text-on-surface pairs (every text level on every neutral tone it is used on, `accent-ink` on accent, `accent-text` on the light surfaces, notice and state message texts) at 4.5:1 with the WCAG relative luminance formula; for the semi-transparent panels, check against a white and a black video behind them; fail naming the pair and its ratio
 - [ ] T049 [US2] Complete app/lang/pt-BR/LC_MESSAGES/capturax.po for every text so far and fix any contrast pair that fails (depends on T047, T048); `cargo test` passes
@@ -202,7 +203,7 @@ Linux-only build break, then an untranslated text; each is reported and blocks t
 - **Setup (Phase 1)**: none.
 - **Foundational (Phase 2)**: after Setup; blocks every story.
 - **US1 (Phase 3)**: after Foundational. The MVP.
-- **US2 (Phase 4)**: after Foundational; T046 needs the settings panel (T033) and T050 the
+- **US2 (Phase 4)**: after Foundational; T046 needs the central settings panel (T067) and T050 the
   latency setup of US1 (T041).
 - **US3 (Phase 5)**: after Foundational (it extends T011, T019 and uses the notice T020); T053
   also touches the single-instance name from T036 when US1 is done first.
@@ -216,7 +217,7 @@ Linux-only build break, then an untranslated text; each is reported and blocks t
 - T009 → T010 → T011; T013, T014 → T015 → T016 → T017 → T018 → T019.
 - US1: T021, T022 → T023; T026 → T028 → T029 → T030 → T031, T032, T033 → T034; T035 → T036;
   T037, T038 → T039; T028 → T040; all → T041.
-- US2: T042 → T044; T043 → T045; T044, T045 → T046; T047, T048 → T049.
+- US2: T042 → T044; T043 → T045; T033 → T067; T044, T045, T067 → T046; T047, T048 → T049.
 - US3: T051, T052 → T053.
 
 ## Parallel Example: User Story 1
