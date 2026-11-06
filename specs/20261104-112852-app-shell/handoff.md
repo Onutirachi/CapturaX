@@ -763,5 +763,13 @@ size`, `fix: destroy the window to hide it on Wayland`, `docs: record Windows an
 acceptance checks`). Not done on Linux, recorded in acceptance.md: 16 across monitors and 17 (no
 second monitor there; both pass on Windows) and 200%.
 
-1. T062: push, PR, first CI run (the workflow has never run), repository rule.
-2. T066: handoff, roadmap, PR description. Then spec #3 (GPU awake on Linux, Windows stalls).
+T066's roadmap entry and the PR description are done; PR #3 is open
+(https://github.com/Onutirachi/CapturaX/pull/3, body kept in the PR). CI run 2 passes (times
+in acceptance.md, SC-008 met); run 1 found a racy settings test, fixed in its own commit
+(`test: wait for the debounced save before reading the file`, the original commit is pushed).
+
+1. T062 rest: the rule on `main` (required checks `checks`, `build-test (ubuntu-24.04)`,
+   `build-test (windows-latest)`), then the Independent Test's failures on throwaway branches
+   (formatting, failing test, one platform's build, a text outside the locale files), each
+   reported and blocking the merge; record them in acceptance.md, check T061 and T062.
+2. Merge PR #3 when the maintainer says so; then spec #3. Then spec #3 (GPU awake on Linux, Windows stalls).

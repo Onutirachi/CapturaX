@@ -108,3 +108,21 @@ language switch and the focus stays on the Language select. All pass.
   placement is the one from before the snap. Browsers return to the snapped place, so it can be
   fixed (keep the window's rectangle when it is snapped and set it back after leaving). The
   maintainer wants it fixed, not in this spec: when it fits.
+
+## CI (T062) — 2026-11-06
+
+Pull request [#3](https://github.com/Onutirachi/CapturaX/pull/3). The first push did not start
+the workflow (no run, no check suite, Actions on and GitHub operational); closing and reopening
+the pull request started it.
+
+| Run | `checks` | `build-test (ubuntu-24.04)` | `build-test (windows-latest)` | Result |
+|---|---|---|---|---|
+| 1, empty caches | 0:56 | 12:14 | 7:32 (failed) | `store::tests::several_updates_make_one_save` read the file before the debounced write ended (the count goes up first); test fixed with a flush |
+| 2, warm Linux cache | 1:14 | 1:47 | 15:13 | Pass |
+
+SC-008 (under 20 minutes): met, 15:13 for the slowest job. The Windows job had no Rust cache yet
+(`Swatinem/rust-cache` saves only after a job that passes, and run 1 failed), so later runs
+should be shorter; it is the job to watch, the one near the limit.
+
+Rule on `main`: in a ruleset, a matrix job reports one check per entry, so the required checks
+are `checks`, `build-test (ubuntu-24.04)` and `build-test (windows-latest)`.
