@@ -99,10 +99,12 @@ export component AppWindow inherits Window {
     changed height => { Tooltips.dismiss(); Menus.close(); }
     // The chrome shows while the pointer is on the top of the video, the toolbar or a dock, while a
     // menu is open, or while a chrome control has the keyboard focus; it hides 2 s after (FR-008).
+    // The focus counts only while the keyboard is in use (its ring shows): a dock button keeps the
+    // focus after the mouse takes over, and the chrome would never hide.
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || right-area.has-hover || Menus.open || fullscreen-button.has-focus
-        || settings-button.has-focus;
+        || right-area.has-hover || Menus.open
+        || ((fullscreen-button.has-focus || settings-button.has-focus) && Input.keyboard);
     changed engaged => {
         if (self.engaged) {
             self.chrome-shown = true;
