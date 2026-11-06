@@ -22,6 +22,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37, F53 (app side) | 11 | |
 | 13 | [Packaging and updates](#13-packaging-and-updates) | F41 (installer, firewall), F44, F45 | 2 | |
 | 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
+| 15 | [Getting started guide](#15-getting-started-guide) | F54 | 14 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
 spec 13 can start any time after spec 2.
@@ -74,8 +75,7 @@ the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
 ```text
 /speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11, F43 and F52
 from docs/product.md. Device list with hot plug, native modes, the automatic modes (source, max resolution, max FPS), reconnect,
-latency and FPS measurement, explicit empty and error states (including a hint to turn off
-HDCP on the console when the image is black while a signal is present). Must state a latency budget and
+latency and FPS measurement, explicit empty and error states. Must state a latency budget and
 how it is measured (constitution principle I); the stack spike measured 30.4 ms median at 1080p60
 on Windows with Direct3D 12 + Mailbox, and lists the open questions this spec inherits. Also
 investigate the Windows stalls at presentation mode changes the app shell measured (focus change
@@ -178,4 +178,17 @@ window of its own on the desktop (the same panel, same size and look, without th
 without opening the preview device); `--live` and `--record` start the app that way (a running
 instance opens them). Live and Record can be open at the same time. Reuses the panels built in
 specs 9 and 10.
+```
+
+### 15. Getting started guide
+
+Last, so its screenshots show the finished app.
+
+```text
+/speckit-specify Getting started guide (see docs/roadmap.md #15): covers F54 from docs/product.md.
+A short illustrated guide with screenshots of the app: moving the info bubbles, the color range
+setting, the mode chosen against the resolution of the signal the device receives, and HDCP (a
+black image from a console with HDCP on, and how to turn it off). Reopened from the settings.
+Decide when it is first shown. Texts in both languages; screenshots per language and theme if
+needed.
 ```

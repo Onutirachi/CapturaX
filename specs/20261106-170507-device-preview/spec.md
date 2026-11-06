@@ -129,14 +129,14 @@ compare the values shown with the app's per-second statistics (app shell FR-005)
 
 Whatever happens to a device, the video area says so with the next action, never a black or
 frozen picture: no devices, access blocked by the system, device in use by another app, device
-disconnected, or a black image while a signal is present (likely HDCP).
+disconnected, or no signal.
 
 **Why this priority**: the constitution requires explicit states (principle II); a black preview
 with no explanation was the old app's most common support question.
 
 **Independent Test**: force each state (no device, camera access off in Windows privacy
-settings, the card open in another app, unplugging the card, HDCP on in the PS5) and check what
-is shown and that its action works.
+settings, the card open in another app, unplugging the card, no HDMI signal) and check what is
+shown and that its action works.
 
 **Acceptance Scenarios**:
 
@@ -151,11 +151,7 @@ is shown and that its action works.
 4. **Given** the open device is unplugged, **When** it disappears, **Then** the state says it is
    disconnected (naming it); **When** it comes back, **Then** it reopens by itself in the same
    mode (F4) within the time of SC-004.
-5. **Given** frames arrive but are entirely black for 5 s, **When** the condition holds, **Then**
-   a hint over the video suggests turning off HDCP on the console (on the PS5: Settings → System →
-   HDMI → Enable HDCP); it disappears as soon as a non-black frame arrives and can be dismissed
-   for the session.
-6. **Given** the device opens but no frame arrives within 5 s, **When** the timeout passes,
+5. **Given** the device opens but no frame arrives within 5 s, **When** the timeout passes,
    **Then** the state says there is no signal, with **Try again** and the mode menu reachable.
 
 ---
@@ -277,14 +273,17 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 - **FR-012**: The preview's latency MUST NOT depend on the GPU's power state: on a GPU that steps
   down to idle clocks under the preview's load (spike: RTX 3050 on Linux), the app MUST keep the
   frame ready → presented time within the app shell's budget without root, administrator rights
-  or system-wide driver settings, at a GPU cost the plan states and measures.
+  or system-wide driver settings, at a GPU cost the plan states and measures. Covered and
+  measured on NVIDIA GPUs, the only ones available; AMD and Intel GPUs are a known limit, not
+  measured and with no known way to raise their clocks without root (research R7), to be checked
+  when one is available (maintainer, 2026-11-06).
 - **FR-013**: Opening, switching and reopening a device MUST NOT block the interface or the
   window; while a device is opening, the video area shows an opening state (no frozen last
   frame from another device).
 - **FR-014**: When the open device disappears, the app MUST show the disconnected state and reopen
   the same device in the same mode when it comes back (F4); a system sleep and wake is treated as
   a reconnect.
-- **FR-015**: Measuring the preview (statistics, black-image detection, color range inference)
+- **FR-015**: Measuring the preview (statistics, color range inference)
   MUST NOT add to the frame ready → presented time beyond the app shell's budget.
 
 **Measurement (F7)**
@@ -319,9 +318,10 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   device in use; device disconnected; no signal (no frame within 5 s of opening); device failed
   (any other error, with **Try again** and the error in the log). Texts are short and in both
   languages.
-- **FR-020**: When frames arrive and are entirely black for 5 s, the app MUST show a dismissible
-  hint over the video that suggests turning off HDCP on the console, and hide it when a non-black
-  frame arrives (F11). Dismissed, it stays hidden until the app restarts.
+- **FR-020**: *Removed* (maintainer, 2026-11-06): no HDCP hint. A black image while a signal is
+  present is not a reliable sign of HDCP (a console that is off, an RCA to HDMI adapter, a VHS
+  tape being converted all give dark or black video), so the app shows the video as it comes; HDCP
+  is explained in the getting started guide (product.md F54).
 - **FR-021**: The access-blocked state MUST offer, on Windows, an action that opens the system's
   camera privacy settings; on Linux it names the device that could not be opened.
 
@@ -367,8 +367,7 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 - **Device choices** (settings, per device identity): remembered mode, color range. **Preview
   choices** (settings): last used device, presentation (Lowest latency, Follow the monitor),
   latency and frame rate bubble displays.
-- **Preview state**: what the video area shows: video, opening, or one of the states of FR-019,
-  plus the HDCP hint.
+- **Preview state**: what the video area shows: video, opening, or one of the states of FR-019.
 - **Preview measurement**: per-second frame counts (delivered, received, presented, dropped,
   repeated), latency values and frame ready → presented times; shown in the overlay (FR-016,
   FR-017) and reported by the statistics (FR-018).
@@ -399,7 +398,7 @@ added the real interface and settings since; this spec must not lose what the sp
   of being chosen or of a mode change; a plugged or removed device appears in or leaves the list
   within 3 s; a disconnected device that comes back shows video again within 3 s of the system
   offering it.
-- **SC-005**: Each state of FR-019 and the HDCP hint is shown when forced as in User Story 4, in
+- **SC-005**: Each state of FR-019 is shown when forced as in User Story 4, in
   both languages, and its action works; no device problem ever leaves a black, blank or frozen
   video area without a state.
 - **SC-006**: The cause of the Windows focus change and fullscreen stalls is identified and
@@ -415,6 +414,9 @@ added the real interface and settings since; this spec must not lose what the sp
 
 ## Assumptions
 
+- The GPUs available for measurement are NVIDIA (RTX 5070 Ti on Windows, RTX 3050 on Linux).
+  Whether AMD and Intel GPUs step down to idle clocks under the preview's load is unknown; the
+  app runs on them, with possibly a few ms more latency on Linux if they do (FR-012).
 - The look is the app shell's (Float direction): the device, mode and color range menus are the
   toolbar's dropdowns, built with the app shell's select and menu components; the toolbar slot the shell
   left empty gets its panel here. The audio dropdown is spec #4.
@@ -443,3 +445,5 @@ added the real interface and settings since; this spec must not lose what the sp
 - Recording and streaming, and sharing one open device with them (specs #9, #10); this spec only
   keeps the device opened once and owned by the media pipeline (constitution, principle III).
 - Device controls beyond mode and color range (brightness, exposure, the card's own settings).
+- The HDCP hint of F11 (FR-020, removed) and any explanation of color range, modes or the info
+  bubbles inside the app: the getting started guide (product.md F54, roadmap #15).

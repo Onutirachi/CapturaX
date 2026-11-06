@@ -85,7 +85,7 @@ App `preview.rs`. What the video area shows (FR-019); one at a time.
 |---|---|---|
 | `NoDevices` | state "No devices" + hint | opens the device menu |
 | `Opening(device)` | spinner state, no old frame | — |
-| `Playing` | video (+ HDCP hint when black) | — |
+| `Playing` | video | — |
 | `Blocked(device)` | "Camera access blocked" (Windows) / "Cannot open /dev/videoN" (Linux) | Windows: **Open privacy settings**; **Try again** |
 | `InUse(device)` | "In use by another app" | **Try again** |
 | `Disconnected(device)` | "<name> disconnected" | opens the device menu (waits for it meanwhile) |
@@ -117,8 +117,6 @@ any ── system sleep → wake errors ─► Disconnected ─► Opening when 
 - The last used device is saved when a device reaches `Playing` after a user choice, not when the
   app falls back to another (spec edge case: the remembered choice comes back when it reappears,
   unless the user picked another).
-- **HDCP hint**: in `Playing`, 5 s of black samplings → shown; a non-black sampling → hidden;
-  closed by the user → not shown again until restart.
 
 ## Preview measurement
 

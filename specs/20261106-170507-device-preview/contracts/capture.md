@@ -36,7 +36,7 @@ One open device; owns its pipeline (constitution III: later specs attach outputs
 | `Session::set_range(choice)` | Full, Limited or Auto; applies to the next frame, no restart |
 | `Session::close()` | Pipeline to Null; idempotent; also on drop |
 | `on_frame(Frame)` | Called on the streaming thread for each frame (data-model.md "Frame") |
-| `on_event(SessionEvent)` | `Playing { format, matrix }`, `FirstFrame`, `Range(in_use)`, `Black(bool)`, `Error(DeviceError)` |
+| `on_event(SessionEvent)` | `Playing { format, matrix }`, `FirstFrame`, `Range(in_use)`, `Error(DeviceError)` |
 | `DeviceError` | `InUse`, `Blocked`, `Gone`, `NoSignal`, `Failed(String)`; mapping in research R6 (Windows `Blocked` needs `platform::camera_access()`, passed in by `app`) |
 
 Rules:

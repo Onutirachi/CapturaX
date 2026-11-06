@@ -18,7 +18,7 @@ How to check that the device preview works and meets its budget. Results go in
 `cargo fmt --check`, `cargo clippy`, `cargo test` on Windows and Linux. Covers: mode parsing,
 format ranking, automatic modes, duplicate removal and badges (pure, from recorded caps of the
 ezcap and the C920 kept as test data); device identity and numbering;
-settings additions (lenient read, defaults, 32-entry cap); range and black detectors on
+settings additions (lenient read, defaults, 32-entry cap); range detector on
 synthetic luma; the latency estimate; the preview state machine with a fake session; pipeline
 tests with `videotestsrc` (NV12 frames reach the sink, `captured` ≤ `ready`, `set_range`
 without restart, no-signal after 5 s with a source that never produces); boundary test now also
@@ -56,8 +56,6 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
      closing it plays;
    - unplug the card while playing → "disconnected"; plug it back → video within 3 s, same mode
      (SC-004); moved to another USB port, a card without a serial opens with default choices;
-   - PS5 HDCP on (Settings → System → HDMI → Enable HDCP) → HDCP hint after 5 s; HDCP off → hint
-     gone; close the hint → not shown again in the run;
    - card connected without HDMI signal → "No signal" after 5 s.
 5. **US5**: Settings → Video → Presentation: Follow the monitor → on the G-SYNC monitor the
    cursor stays smooth with the app focused; `--stats` header `mode=fifo-follow`, `rep` > 0;

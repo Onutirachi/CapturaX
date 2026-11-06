@@ -81,7 +81,7 @@ fullscreen from a snapped window (R10).
 GStreamer streaming thread (per session)          device monitor thread
   appsink callback:                                 DEVICE_ADDED / REMOVED
     planes → pooled Frame (captured, ready)              │
-    every 500 ms: luma sample → range / black            ▼
+    every 500 ms: luma sample → range                    ▼
     │ Frame                    │ SessionEvent      app main thread: preview.rs
     ▼                          └──────────────────► state machine, settings, UI bridge
   Inbox (newest frame) ──► video thread                │ Scene, UI image, presentation
@@ -124,7 +124,7 @@ close the session, stop the monitor; the rest is the shell's sequence.
 - `components/badge.slint` (from the spike), `components/info-bubbles.slint` (fixed top left;
   hover settings buttons in the top layer).
 - `main.slint`: the state message shows the preview state's icon, title, detail and actions;
-  the HDCP hint bar; `source-open` becomes the preview state.
+  `source-open` becomes the preview state.
 - `components/settings-panel.slint`: category `video` with the Presentation select and tooltip.
 - New texts in `texts.slint` and the pt-BR catalog.
 
@@ -173,7 +173,7 @@ crates/capture/            # NEW: GStreamer devices, modes, session (contracts/c
 │   ├── mode.rs            # modes from caps, format rank, automatic modes, badges (R3, pure)
 │   ├── session.rs         # pipeline, appsink, errors, no-signal timer (R4, R6)
 │   ├── frame.rs           # Frame, plane pool, captured time (R11)
-│   ├── analysis.rs        # range and black detectors (R5, pure)
+│   ├── analysis.rs        # range detector (R5, pure)
 │   └── test_source.rs     # videotestsrc in NV12 (replaces app/src/test_video.rs)
 └── tests/
     ├── modes.rs           # recorded caps of the ezcap and the C920

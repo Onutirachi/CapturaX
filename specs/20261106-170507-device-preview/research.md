@@ -118,17 +118,17 @@ marks what was not run.
 - **Alternatives**: keep the spike's RGBA conversion (simpler shader; slower and the range would
   need a pipeline change). GStreamer's GL or D3D12 sinks: rejected by the spike (R13 there).
 
-## R5. Color range and black-image detection
+## R5. Color range detection
 
 - **Decision**: the appsink callback samples the luma plane on a 1/8 grid (every 8th pixel of
   every 8th row: about 32 000 samples at 1080p, tens of microseconds) once every 500 ms, never on
-  the video thread. It feeds two pure detectors (`crates/capture/src/analysis.rs`):
+  the video thread. It feeds a pure detector (`crates/capture/src/analysis.rs`):
   - **Range (Auto)**: before evidence, the range the device declares (Limited when undeclared).
     If at least 0.1% of samples in one sampling are below 16 (8-bit), the range becomes Full and
     stays Full until the device or mode changes. Full and Limited set it directly.
-  - **Black image**: a sampling is black when 99.9% of samples are at or below the range's black
-    plus 4 (20 limited, 4 full). Five seconds of black samplings show the HDCP hint (FR-020); the
-    first non-black sampling hides it.
+- **No black-image detection** (maintainer, 2026-11-06): an HDCP hint was planned from five
+  seconds of black samplings; dropped with spec FR-020, since black video with a signal also
+  comes from consoles that are off, RCA adapters and VHS tapes.
 - **Rationale**: the spike found 8% of luma values below 16 on a PS5 home screen with the ezcap
   declaring limited range; a 0.1% threshold ignores a few noisy pixels. Sampling off the video
   thread keeps FR-015.
@@ -191,6 +191,11 @@ marks what was not run.
   wgpu fork).
 - **New dependency**: `libloading` (ISC, maintained, widely used) in `crates/platform`, Linux
   only, to load NVML without linking it (the app must start on machines without NVIDIA).
+
+- **AMD and Intel** (maintainer, 2026-11-06): not covered. No such GPU is available to measure
+  whether they step down under the preview's load, and the known controls need root (above).
+  Recorded as a known limit; checked when the maintainer or a contributor has one (the
+  quickstart's L4/L6 comparison with `radeontop` or `intel_gpu_top` instead of `nvidia-smi`).
 
 ## R8. Windows stalls at presentation mode changes (investigation)
 
@@ -309,8 +314,7 @@ marks what was not run.
   (Tabler `device-tv` icon) with the Presentation select and its tooltip.
 - **States** (FR-019): the app shell's `StateMessage` with icons from Tabler (`device_tv_off` no
   devices / disconnected, `lock` blocked, `player_pause` in use, `antenna_bars_off` no signal,
-  `alert_triangle` failed, a spinner for opening); the HDCP hint is a `Notice`-shaped bar over
-  the video with a close control.
+  `alert_triangle` failed, a spinner for opening).
 
 ## R14. Dependencies
 
