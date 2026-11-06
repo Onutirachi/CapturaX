@@ -398,8 +398,8 @@ reopened here; entries below say how the shell builds it.
 | bytemuck, pollster | GPU buffers, blocking on wgpu setup | MIT / Apache-2.0 / Zlib | active |
 | clap 4 | command-line options | MIT / Apache-2.0 | active |
 | log | logging facade (own size-limited file writer) | MIT / Apache-2.0 | active |
-| toml | settings format | MIT / Apache-2.0 | active |
-| tempfile | atomic replace | MIT / Apache-2.0 | active |
+| toml | settings format (`app`: only its tests, the platform boundary check) | MIT / Apache-2.0 | active |
+| tempfile | atomic replace (`app`: only its tests) | MIT / Apache-2.0 | active |
 | sys-locale | system language | MIT / Apache-2.0 | active |
 | dirs | per-user configuration folder | MIT / Apache-2.0 | active |
 | anyhow | error context in the app | MIT / Apache-2.0 | active |
@@ -407,6 +407,8 @@ reopened here; entries below say how the shell builds it.
 | tray-icon (Windows) | tray icon and menu | MIT / Apache-2.0 | active |
 | zbus (Linux) | XDG portal theme, tray detection | MIT | active |
 | ksni (Linux) | StatusNotifierItem tray | Unlicense | active |
-| resvg (build) | rasterize the app icon | MPL-2.0 | active |
+| resvg (build) | rasterize the app icon | MIT / Apache-2.0 | active |
 
-All are compatible with GPL-3.0-only; `cargo deny` keeps it so.
+All are compatible with GPL-3.0-only; `cargo deny` keeps it so. Checked against
+`cargo tree --depth 1 -e normal,build,dev` per crate on 2026-11-06 (T064): no direct dependency
+missing from this table or unused.

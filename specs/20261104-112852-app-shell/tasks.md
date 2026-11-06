@@ -189,8 +189,8 @@ Linux-only build break, then an untranslated text; each is reported and blocks t
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T063 [P] Update README.md: build and run instructions (prerequisites of quickstart.md, `cargo run -p capturax`, `--test-video` and `--stats`), and the status line of AGENTS.md ("Early rewrite. There is no application code yet.") to the shell's state
-- [ ] T064 [P] Check the dependency list against research R14 (`cargo tree --depth 1 -e normal` per crate): every direct dependency is listed with its purpose and license; remove any not used
+- [X] T063 [P] Update README.md: build and run instructions (prerequisites of quickstart.md, `cargo run -p capturax`, `--test-video` and `--stats`), and the status line of AGENTS.md ("Early rewrite. There is no application code yet.") to the shell's state
+- [X] T064 [P] Check the dependency list against research R14 (`cargo tree --depth 1 -e normal` per crate): every direct dependency is listed with its purpose and license; remove any not used
 - [ ] T065 (maintainer) Full manual acceptance, quickstart 1–18 on Windows 11 and CachyOS KDE Plasma Wayland at 100% and at 150% or 200% (SC-009); the agent records the results and every known limit (fast moves on Windows, Linux window icon, snap flyout if dropped) in specs/20261104-112852-app-shell/measurements/acceptance.md
 - [ ] T066 Update handoff.md, mark the spec Done in docs/roadmap.md if it tracks status, and prepare the pull request description (what the shell delivers, measurements, known limits)
 

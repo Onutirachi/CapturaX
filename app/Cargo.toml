@@ -19,7 +19,6 @@ bytemuck.workspace = true
 pollster.workspace = true
 clap.workspace = true
 log.workspace = true
-toml.workspace = true
 anyhow.workspace = true
 sys-locale.workspace = true
 gst.workspace = true
@@ -35,6 +34,7 @@ wgpu = { workspace = true, features = ["std", "parking_lot", "wgsl", "vulkan", "
 
 [dev-dependencies]
 tempfile.workspace = true
+toml.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true

@@ -6,12 +6,13 @@ How to build the shell and check it against the spec. Options are in
 ## Prerequisites
 
 - Rust from `rust-toolchain.toml` (rustup installs it on first build).
-- GStreamer 1.28 development files, only for `--test-video`:
+- GStreamer 1.28 development files, needed to build and to start (research R9):
   - Windows: MSVC x86_64 installer with the development components; `.cargo/config.toml` points
     `PKG_CONFIG_PATH` at `C:\Program Files\gstreamer\1.0\msvc_x86_64\lib\pkgconfig` and the
     `bin` folder must be on `PATH` to run.
   - Linux (CachyOS): `gstreamer gst-plugins-base` (Ubuntu: `libgstreamer1.0-dev
-    libgstreamer-plugins-base1.0-dev`), plus `libxkbcommon-dev libwayland-dev` on Ubuntu.
+    libgstreamer-plugins-base1.0-dev`), plus `libxkbcommon-dev libwayland-dev libdbus-1-dev
+    libfontconfig1-dev` on Ubuntu (research R13).
 - For SC-001 to SC-003: the maintainer's machines (findings, environment).
 
 ## Automated checks (what CI runs)

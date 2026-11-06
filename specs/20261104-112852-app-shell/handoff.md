@@ -510,6 +510,15 @@ renderer failure message`). T059 unchecked until the Linux part (`--backend dx12
   device and shows a "preview hidden" state, whether it also stops listening is open. The term
   "preview" stays (maintainer: it tells at once what it is); do not propose renaming it.
 
+T063 and T064 done (2026-11-06), waiting for the maintainer's review before the commit
+(`docs: add build instructions and check dependencies`). README: Building section (prerequisites,
+`cargo run`, `--test-video`, `--stats`, the checks); AGENTS.md status names the shell. quickstart.md
+prerequisites corrected: GStreamer is needed to build and to start (not only for `--test-video`),
+plus the Ubuntu packages of R13. T064: `toml` in `app` is used only by the platform boundary test,
+moved to `[dev-dependencies]`; research R14's `resvg` license corrected (MIT / Apache-2.0, not
+MPL-2.0); no unused direct dependency, Linux deps checked with `--target x86_64-unknown-linux-gnu`.
+fmt, clippy, tests, `cargo deny check licenses bans` pass.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -672,4 +681,5 @@ One CachyOS KDE Plasma Wayland session (maintainer's PC), release build, test vi
    a file in another folder).
 5. Quickstart 2–6 and 12–18 if wanted formally.
 6. T059 Linux: US4 scenarios, renderer message with `--backend dx12`, in both languages.
-Then T041, T050, T055 and T059 are checked. Before that session, on Windows: T063/T064.
+Then T041, T050, T055 and T059 are checked. T065 (full acceptance, both platforms, 100 % and
+150 %/200 %) can share that session; T062 (push, PR, CI) and T066 when the maintainer asks.
