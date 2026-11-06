@@ -10,7 +10,7 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling, SetProcessInformation,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetClientRect, GetWindowRect, MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MessageBoxW,
+    GetClientRect, GetWindowRect, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_SETFOREGROUND, MessageBoxW,
 };
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::monitor::MonitorHandle;
@@ -38,7 +38,11 @@ pub fn can_raise_window() -> bool {
     true
 }
 
-pub fn show_system_message(title: &str, text: &str) {
+pub fn show_system_message(kind: crate::MessageKind, title: &str, text: &str) {
+    let icon = match kind {
+        crate::MessageKind::Error => MB_ICONERROR,
+        crate::MessageKind::Warning => MB_ICONWARNING,
+    };
     let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
     let (title, text) = (wide(title), wide(text));
     // SAFETY: both strings are NUL-terminated UTF-16 buffers that outlive the call; no owner window.
@@ -47,7 +51,7 @@ pub fn show_system_message(title: &str, text: &str) {
             std::ptr::null_mut(),
             text.as_ptr(),
             title.as_ptr(),
-            MB_OK | MB_ICONERROR | MB_SETFOREGROUND,
+            MB_OK | icon | MB_SETFOREGROUND,
         );
     }
 }

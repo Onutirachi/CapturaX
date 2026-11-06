@@ -24,7 +24,7 @@ are indicative; tasks fix the exact signatures.
 | `tray::create(icons, labels, on_event) -> Tray` | `tray-icon`, created on the event loop's thread, icon size from `SM_CXSMICON` at the system DPI | `ksni` on its own thread, every size as pixmaps | FR-014a |
 | `theme::current(window) -> Option<Theme>` | winit `Window::theme()` | XDG Settings portal `ReadOne` (500 ms timeout) | FR-017 |
 | `theme::watch(on_change)` | nothing (winit sends `ThemeChanged`) | thread on the portal's `SettingChanged` | FR-017 |
-| `show_system_message(title, text)` | `MessageBoxW` | `kdialog`, `zenity`, else stderr | FR-036, FR-013 |
+| `show_system_message(kind, title, text)` | `MessageBoxW`, error or warning icon | `kdialog --error` / `--sorry`, `zenity --error` / `--warning`, else stderr | FR-036, FR-013 |
 | `snap::attach(window, on_event) -> Snap`, `Snap::set_button(Option<rect>)` | subclass + `HTMAXBUTTON`, DWM frame extended down to the button (best effort, research R5) | no-op | FR-011 |
 | `precise_timers() -> TimerGuard` | `timeBeginPeriod(1)` until the guard drops | no-op | FR-004, research R9 |
 

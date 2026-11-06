@@ -37,9 +37,14 @@ pub fn can_raise_window() -> bool {
     !(set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET"))
 }
 
-pub fn show_system_message(title: &str, text: &str) {
-    let shown = run("kdialog", &["--title", title, "--error", text])
-        || run("zenity", &["--error", "--title", title, "--text", text]);
+pub fn show_system_message(kind: crate::MessageKind, title: &str, text: &str) {
+    // kdialog's `--sorry` is its warning box.
+    let (kdialog, zenity) = match kind {
+        crate::MessageKind::Error => ("--error", "--error"),
+        crate::MessageKind::Warning => ("--sorry", "--warning"),
+    };
+    let shown = run("kdialog", &["--title", title, kdialog, text])
+        || run("zenity", &[zenity, "--title", title, "--text", text]);
     if !shown {
         eprintln!("{title}: {text}");
     }

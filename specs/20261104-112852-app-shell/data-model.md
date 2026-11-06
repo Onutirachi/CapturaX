@@ -143,7 +143,8 @@ Slint components with Rust-side identifiers (texts come from `Texts`, research R
 | Notice | `id`, `kind` (info, warning: the icon), `title`, `text` (may name a folder), dismissible | Non-blocking, top of the video area; each id shown at most once per run (FR-034) |
 
 Notice ids in this spec: `settings-fallback(folder)`, `settings-damaged`, `settings-not-kept`.
-System message ids (outside the window): `renderer-unavailable`, `already-open`.
+System message ids (outside the window), with their kind (the icon): `renderer-unavailable`
+(error), `already-open` (warning).
 
 ## Presentation statistics
 

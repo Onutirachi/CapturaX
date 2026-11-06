@@ -71,11 +71,23 @@ pub fn can_raise_window() -> bool {
     os::can_raise_window()
 }
 
-/// Shows a blocking error message outside the window (FR-036), for problems the window cannot
-/// show. Falls back to stderr where no message box exists.
-pub fn show_system_message(title: &str, text: &str) {
-    log::error!("{title}: {text}");
-    os::show_system_message(title, text);
+/// What a system message is about; it sets the icon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageKind {
+    /// The app cannot go on (FR-036).
+    Error,
+    /// Something the user should know, nothing failed (FR-013).
+    Warning,
+}
+
+/// Shows a blocking message outside the window, for what the window cannot show (FR-013,
+/// FR-036). Falls back to stderr where no message box exists.
+pub fn show_system_message(kind: MessageKind, title: &str, text: &str) {
+    match kind {
+        MessageKind::Error => log::error!("{title}: {text}"),
+        MessageKind::Warning => log::warn!("{title}: {text}"),
+    }
+    os::show_system_message(kind, title, text);
 }
 
 /// The window's platform attributes: the system shadow and rounded corners of a frameless window

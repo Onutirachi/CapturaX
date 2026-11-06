@@ -188,7 +188,11 @@ fn show_already_open(language: &str) {
     match ui::Ui::new(language) {
         Ok(ui) => {
             let texts = ui::Texts::get(&ui.app);
-            platform::show_system_message(&texts.get_app_name(), &texts.get_already_open());
+            platform::show_system_message(
+                platform::MessageKind::Warning,
+                &texts.get_app_name(),
+                &texts.get_already_open(),
+            );
         }
         Err(err) => ::log::warn!("already-open message: {err:#}"),
     }
@@ -224,7 +228,7 @@ fn start(
     event_loop.run_app(&mut app)?;
     if app.exit_code == app::EXIT_NO_RENDERER {
         let (title, text) = app.renderer_unavailable();
-        platform::show_system_message(&title, &text);
+        platform::show_system_message(platform::MessageKind::Error, &title, &text);
     }
     Ok(app.exit_code)
 }

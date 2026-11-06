@@ -2,8 +2,8 @@
 // never builds user-facing text: it reads these, so every text has one catalog.
 export global Texts {
     out property <string> app-name: @tr("CapturaX");
-    // System message `already-open`: a second start found CapturaX open, but the platform did not
-    // let the window come to the front (Wayland).
+    // System message `already-open` (a warning): a second start found CapturaX open, but the
+    // platform did not let the window come to the front (Wayland).
     // Tray menu (FR-014a).
     out property <string> tray-open: @tr("Open");
     out property <string> tray-quit: @tr("Quit");
@@ -28,5 +28,5 @@ export global Texts {
     }
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
     out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
-    out property <string> already-open: @tr("CapturaX is already open. Its window is shown, but the system did not let it come to the front.");
+    out property <string> already-open: @tr("CapturaX is already open.");
 }
