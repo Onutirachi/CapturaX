@@ -161,3 +161,5 @@ pub fn work_area(monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, Phys
     );
     Some((PhysicalPosition::new(r.left, r.top), PhysicalSize::new(size.0, size.1)))
 }
+
+compile_error!("CI failure check: breaks only the Windows build");
