@@ -12,6 +12,7 @@ mod render;
 mod shadows;
 mod stats;
 mod test_video;
+mod theme;
 mod ui;
 
 use std::time::Instant;

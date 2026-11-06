@@ -329,12 +329,17 @@ Measuring notes: the agent launches each run in the background
 maintainer acts and closes with Alt+F4; the window reopens where it was last closed (check the
 monitor first); a click to focus changes the readings (focus = variable refresh on).
 
-T042 (`app/src/i18n.rs`) done, waiting for the maintainer's check before its commit: `LANGUAGES`,
+T042 (`app/src/i18n.rs`) done, checked and committed (`feat: add language list and resolution`): `LANGUAGES`,
 `codes()` (now passed to `settings::Store`, replacing main.rs's temporary `KNOWN_LANGUAGES`),
 `resolve` and `system_locale` (`sys-locale`; marked dead code until T044 uses them). Portuguese is
 matched by the locale's language subtag (`pt`, `pt-PT`, `pt_BR.UTF-8`, any case; not `ptx`);
 codes are exact (`pt-br` is unknown, so automatic). fmt, clippy, cargo-deny, 107 tests pass.
 The CachyOS part of T041 is postponed to one Linux session with T045 (Linux) and T050.
+
+T043 (`app/src/theme.rs`) done and committed (`feat: add theme resolution`; nothing to see until T045):
+`SystemTheme { Dark, Light }` (new here; T045 converts winit's `Theme` or the portal's
+`color-scheme` into it) and `resolve(ThemeSetting, Option<SystemTheme>) -> bool` (dark), both
+marked dead code until T045. fmt, clippy, 110 tests pass.
 
 ## Done in the last sessions
 
