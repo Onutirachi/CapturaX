@@ -16,11 +16,12 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
 | 8 | [Output audio](#8-output-audio) | F15–F17 | 4 | |
-| 9 | [Recording](#9-recording) | F20–F27, F50 (framework, record, screenshot), F51 (recording) | 7, 8 | |
-| 10 | [Direct link](#10-direct-link) | F28–F33, F38, F50 (stream), F51 (streaming) | 9 | |
-| 11 | [Server](#11-server) | F34–F37 (server side) | 10 | |
-| 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37 (app side) | 11 | |
+| 9 | [Recording](#9-recording) | F20–F27, F48 (Record in the tray), F50 (framework, record, screenshot), F51 (recording) | 7, 8 | |
+| 10 | [Direct link](#10-direct-link) | F28–F33, F38, F48 (Live in the tray), F50 (stream), F51 (streaming), F53 | 9 | |
+| 11 | [Server](#11-server) | F34–F37, F53 (server side) | 10 | |
+| 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37, F53 (app side) | 11 | |
 | 13 | [Packaging and updates](#13-packaging-and-updates) | F41 (installer, firewall), F44, F45 | 2 | |
+| 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
 spec 13 can start any time after spec 2.
@@ -127,23 +128,25 @@ loopback, Linux PipeWire), mix on track 1 and optional separate tracks.
 /speckit-specify Recording (see docs/roadmap.md #9): covers F20-F27 from docs/product.md,
 including the Record panel (the Stream panel is added by spec 10), the global
 hotkeys of F50 for recording and screenshot (the streaming hotkey is added by spec 10), and the
-recording status of F51 on the tray icon and the taskbar button.
+recording status of F51 on the tray icon and the taskbar button. The tray's Record entry and
+Ctrl+F10 open the Record panel in the main window (the compact window comes in spec 14).
 ```
 
 ### 10. Direct link
 
 ```text
 /speckit-specify Direct link live (see docs/roadmap.md #10): covers F28-F33 and the viewer page
-F38 from docs/product.md, the Stream panel (F25, F27), the F50 global hotkey to start and stop
-streaming, and the streaming status of F51. The PC serves the stream; automatic network setup;
-hardened server.
+F38 from docs/product.md, the Stream panel (F25, F27), the F50 global hotkey (opens the Stream
+panel, stops a live), the tray's Live entry (F48), the streaming status of F51 and the optional
+live password (F53). The PC serves the stream; automatic network setup; hardened server.
 ```
 
 ### 11. Server
 
 ```text
 /speckit-specify Self-hosted server (see docs/roadmap.md #11): covers the server side of
-F34-F37 from docs/product.md: signaling, viewer page, TURN fallback, passwords and link names,
+F34-F37 and F53 from docs/product.md: signaling, viewer page, TURN fallback, passwords (server
+and optional live password) and link names,
 as a container image with a compose file and one data volume. Replaces the old relay in
 old/capturax-react/relay. Deployed by the maintainer on an ARM (Oracle Ampere) VPS that hosts
 other projects behind a shared reverse proxy.
@@ -154,7 +157,7 @@ other projects behind a shared reverse proxy.
 ```text
 /speckit-specify Peer-to-peer live (see docs/roadmap.md #12): covers the app side of F34, F36
 and F37 from docs/product.md: streaming through the self-hosted server with WebRTC, server
-settings and password status in the app, link names.
+settings and password status in the app, link names, and the optional live password (F53).
 ```
 
 ### 13. Packaging and updates
@@ -163,4 +166,16 @@ settings and password status in the app, link names.
 /speckit-specify Packaging and updates (see docs/roadmap.md #13): covers the installer and
 firewall parts of F41, F44 and F45 from docs/product.md: Windows installer, Linux AppImage,
 bundled GStreamer, Configure firewall action, update check with automatic install.
+```
+
+### 14. Compact windows
+
+```text
+/speckit-specify Compact windows (see docs/roadmap.md #14): covers the compact windows of F25 and
+the Settings entry of F48 from docs/product.md. When the main window is not visible, the tray's
+Live, Record and Settings entries and the Ctrl+F9 / Ctrl+F10 hotkeys open that panel as a compact
+window of its own on the desktop (the same panel, same size and look, without the preview and
+without opening the preview device); `--live` and `--record` start the app that way (a running
+instance opens them). Live and Record can be open at the same time. Reuses the panels built in
+specs 9 and 10.
 ```

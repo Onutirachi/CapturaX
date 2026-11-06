@@ -740,8 +740,10 @@ by the maintainer on Linux: 13 passes (the window comes back at KWin's place, kn
   dimmed behind it and a click outside closes it. FR-025, plan.md (UI structure) and the new
   T067 (before T046) updated.
 
-- The record / stream only mode may change the product's main scenario and the roadmap's order;
-  product.md asks to decide it before spec #3 starts.
+- Resolved (maintainer, 2026-11-06): the record / stream only mode became compact Record and
+  Stream windows, opened from the tray, the hotkeys or `--record` / `--live` when the main window
+  is not visible (product.md F25, F48, F50; roadmap #14). The main scenario and the roadmap's
+  order do not change. Also added: an optional live password (F53).
 - Windows stalls at presentation mode changes (T041): a focus change stalls the video 229–401 ms
   on the native 1080p monitor, fullscreen gives one 51–73 ms stall about 18–20 s after entering it,
   and one unexplained 625 ms stall happened once. At 1440p through DSR the focus change and drags

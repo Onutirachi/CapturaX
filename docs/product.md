@@ -92,9 +92,14 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 
 | ID | Feature | Spec |
 |---|---|---|
-| F25 | Recording and streaming are set up in two separate panels inside the main window, **Record** and **Stream** (like the settings panel), each with its own source and audio. Nothing ties them together: to record and stream the same thing, the user picks the same source in both. | |
+| F25 | Recording and streaming are set up in two separate panels inside the main window, **Record** and **Stream** (like the settings panel), each with its own source and audio. Nothing ties them together: to record and stream the same thing, the user picks the same source in both. When the main window is not visible (closed to the tray, minimized, or the app started with `--live` or `--record`), the panel opens on its own as a compact window on the desktop instead: the same panel, at the same size and with the same look as inside the main window, without the preview and without opening the preview device. Both can be open at the same time, in either place. The compact windows come after the panels work inside the main window (roadmap #14). | |
 | F26 | Each output's source is any device, screen or window (default: the preview device). Recording and streaming can run at the same time with different sources, different apps and different audio, or with the same ones; a device or screen used by both is captured once. | |
 | F27 | While recording, the Record panel's options are locked until recording stops (volumes still change). The Stream panel's options can change during a live, and **Apply** restarts the stream; viewers reconnect by themselves. | |
+
+The compact windows replace the "record / stream only mode" considered on 2026-11-04 (a
+**Start without preview** setting): many people who lost Discord's screen sharing in Brazil have
+no capture card and only stream a screen or a window. The main scenario and the roadmap's order
+do not change (maintainer, 2026-11-06).
 
 ### H. Live by direct link (the PC serves the stream)
 
@@ -106,6 +111,7 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 | F31 | Stream quality set separately from recording: resolution, frame rate, automatic or manual bitrate, and the upload each viewer uses. | |
 | F32 | Viewer list (address, watching for how long), block an address, viewer limit (unlimited by default). | |
 | F33 | Hardened server: GET only on fixed routes, no file access from URLs, no route that controls the app, connection and request limits. | |
+| F53 | Optional live password, off by default, chosen in the Stream panel. When set, the viewer page asks for it before playing; the media is not sent before it is accepted. Applies to the direct link and to the server live (F34). Watching without a password stays the default. | |
 
 ### I. Live through a server (peer-to-peer)
 
@@ -132,9 +138,9 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 | F41 | Portable: settings, keys and state next to the executable; if that folder is not writable, warn and use the per-user configuration folder. The installer copies files and configures the firewall; the app has a **Configure firewall** action for restored backups. GStreamer ships with the app. | |
 | F44 | Updates: check GitHub Releases, notify about a new version, install it automatically when the user agrees. The check can be turned off. | |
 | F45 | Windows and Linux (AppImage on Linux). | |
-| F48 | Optional tray icon: with **Keep in tray when closed** on, closing the window keeps the app in the tray (Open, Quit). Hidden where the desktop has no tray. Later specs may add record and stream to its menu. | |
+| F48 | Optional tray icon: with **Keep in tray when closed** on, closing the window keeps the app in the tray (Open, Quit). Hidden where the desktop has no tray. Later specs add **Live**, **Record** and **Settings** to its menu: each opens its panel (F25, settings) inside the main window when it is visible, else as a compact window of its own, identical to the panel. | |
 | F49 | **Start with the system** (off by default), on Windows and Linux. With the tray option on, it starts straight to the tray, with no window. A moved portable folder keeps starting. | |
-| F50 | Hotkeys that work both in the window and while another app (for example a game) is in focus: **Ctrl+F8** screenshot, **Ctrl+F9** start and stop streaming, **Ctrl+F10** start and stop recording. Keys can be changed in the settings. There are no separate in-window keys for these actions. A key already taken by another program is not detected or handled; the user changes it if needed. On Linux under Wayland they go through the desktop's global shortcuts portal where it exists. | |
+| F50 | Hotkeys that work both in the window and while another app (for example a game) is in focus: **Ctrl+F8** screenshot; **Ctrl+F9** opens the Stream panel (where F25 says) when not streaming, and stops the live when streaming; **Ctrl+F10** does the same for recording with the Record panel. Keys can be changed in the settings. There are no separate in-window keys for these actions. A key already taken by another program is not detected or handled; the user changes it if needed. On Linux under Wayland they go through the desktop's global shortcuts portal where it exists. | |
 | F51 | Recording and streaming status outside the window: the tray icon (F48) changes with what the app is doing (idle, recording, streaming, both), and the taskbar button shows a small status badge (on Windows a taskbar overlay icon; on Linux where the desktop supports it). | |
 
 ## Removed
@@ -147,14 +153,6 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 
 ## To reconsider
 
-- **Record / stream only mode** (maintainer, 2026-11-04): start without the preview, in a compact
-  window, only to record and stream: a **Start without preview** setting, and a command-line
-  option that overrides it for one start (as Start in fullscreen, F8). Reason: Discord's screen
-  sharing was blocked in Brazil and had to be removed, and CapturaX can replace it; most of those
-  users have no capture card and would use only screen and window streaming. This changes the
-  main scenario (Vision) and may change the roadmap's order (specs 7, 10–12 earlier) and the
-  constitution's description of the product. Decide before spec #3 starts, or at least before
-  the Record panel spec (#9).
 - **Hide preview and its audio** (maintainer, 2026-11-06): hiding the preview (F10) releases the
   device, but whether it also stops listening (C) is not decided. Decide in the spec that adds
   F10.
@@ -170,8 +168,6 @@ Not planned; listed so they are not lost.
 - End a live after a long inactivity, so it cannot be left on by mistake (the old app streamed
   for 2 days unnoticed). What counts as inactive is open: no viewers for a while, no input on the
   PC, or both (specs #10 and #12).
-- Start and stop recording and streaming from the tray menu (F48), or open the Record or Stream
-  panel from it (specs #9 and #10).
 - For Voicemeeter users, suggest letting Voicemeeter read the capture card directly: the lowest
   possible audio delay (measured ≈ 0, against ≈ 100 ms through its virtual input).
 - Server mode where the server distributes the stream (upload once, any number of viewers).
