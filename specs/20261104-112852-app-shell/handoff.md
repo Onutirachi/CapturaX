@@ -582,6 +582,26 @@ fractional scale the first size is fitted with winit's integer monitor scale (96
 of about 1280 × 690 at 150 %). Raw: `raw/linux-1080-fullscreen-toggles-{before,hold}.txt`.
 Linux scale is back at 100 %, `capturax.toml` in the Linux clone reset to `~/capx/capturax.toml.orig`.
 
+T065 Windows session (2026-11-06, maintainer by hand; results in measurements/acceptance.md): the
+Linux session's fixes pass on Windows; checks 2–7, 12–18 pass, 16 at a higher scale and across
+monitors. Two faults fixed (committed):
+- Chrome never hid after a dock button got the focus from Tab and the mouse took over (ring
+  hidden, focus kept): `main.slint` `engaged` counts the dock focus only with `Input.keyboard`.
+- Compact settings panel stretched across a wide, low window: now at most 760 × 520 and
+  centered in both layouts (plan.md updated first, maintainer's request).
+Known limit: leaving fullscreen after a snap returns to the pre-snap placement (winit's
+`SetWindowPlacement`); the maintainer wants it fixed later (Open questions).
+fmt, clippy, 126 tests pass on Windows.
+Then on Linux (maintainer): closing to the tray left the window on screen, frozen (winit cannot
+hide on Wayland). Fixed (research R11 and plan.md updated first, maintainer chose destroying
+over minimizing): `App::destroy_window` / `open_window`, `show_window` makes the window again;
+`VideoThread::start` takes the app's `Inbox` (kept across windows, `Inbox::begin`) and an
+optional start time for the first-present log; `Ui::window_gone`. New test
+`a_new_video_thread_keeps_only_the_newest_frame`; 127 tests pass, clippy clean on both. Checked
+by the maintainer on Linux: 13 passes (the window comes back at KWin's place, known limit) and
+14's start hidden passes. Committed. The Linux clone is at `15225bd` plus these files
+(older copies stashed there, same code as committed).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -671,6 +691,11 @@ Linux scale is back at 100 %, `capturax.toml` in the Linux clone reset to `~/cap
 
 ## Open questions
 
+- Fullscreen after a snap (T065 Windows): winit restores the placement from before the snap.
+  Fix when it fits (maintainer, 2026-11-06: wanted, not urgent): keep the window's rectangle
+  when it is snapped (`IsWindowArranged`) on entering fullscreen and set it back after leaving.
+  Not in this spec; carry it to the next spec that touches the window.
+
 - Resolved, kept for the record: text sharpness (maintainer, 2026-11-05): text in menus and dock tooltips still reads worse than
   in the title bar's tooltips, although all use the same `Tooltip` component and font (15 px).
   Snapping positions to whole physical pixels did not help (T031). After this spec, a dedicated
@@ -732,15 +757,11 @@ Linux scale is back at 100 %, `capturax.toml` in the Linux clone reset to `~/cap
 
 ## Next step
 
-Order chosen by the agent (maintainer, 2026-11-06: "follow what you consider best"):
-1. In the Windows part of T065, also check the T065 Linux session's fixes (State, last entry):
-   F11 / Esc / the dock's control leave fullscreen without a visible delay or stall; a dock
-   tooltip shows on hover after the window's size changed with that button focused; in the
-   compact panel, a category's tooltip follows a language switch and the focus stays on the
-   Language select. A fault there is folded into its fix commit.
-2. T065 rest, with the maintainer: Linux 13–14 (tray, autostart, sign-out), 16 across monitors
-   and 17 (a second monitor), 200 % if wanted; the Windows part (1–18 at 100 % and 150 % or
-   200 %). That also completes T041 (its quickstart 2–6, 12–18) and T050 (check 7), which stay
-   unchecked until then.
-2. T062: push, PR, first CI run (the workflow has never run), repository rule.
-3. T066: handoff, roadmap, PR description. Then spec #3 (GPU awake on Linux, Windows stalls).
+T065, T041 and T050 checked (2026-11-06): the three fixes and the docs are committed
+(`fix: let the chrome hide once the mouse takes over`, `fix: cap the compact settings panel's
+size`, `fix: destroy the window to hide it on Wayland`, `docs: record Windows and Linux
+acceptance checks`). Not done on Linux, recorded in acceptance.md: 16 across monitors and 17 (no
+second monitor there; both pass on Windows) and 200%.
+
+1. T062: push, PR, first CI run (the workflow has never run), repository rule.
+2. T066: handoff, roadmap, PR description. Then spec #3 (GPU awake on Linux, Windows stalls).
