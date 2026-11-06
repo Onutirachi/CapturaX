@@ -22,3 +22,63 @@ msgstr "Sair"
 
 msgid "Dismiss"
 msgstr "Dispensar"
+
+msgid "Minimize"
+msgstr "Minimizar"
+
+msgid "Maximize"
+msgstr "Maximizar"
+
+msgid "Restore"
+msgstr "Restaurar"
+
+msgid "Close"
+msgstr "Fechar"
+
+msgid "Fullscreen (F11)"
+msgstr "Tela cheia (F11)"
+
+msgid "Exit fullscreen (F11)"
+msgstr "Sair da tela cheia (F11)"
+
+msgid "Settings"
+msgstr "Configurações"
+
+msgid "Close (Esc)"
+msgstr "Fechar (Esc)"
+
+msgid "General"
+msgstr "Geral"
+
+msgid "Appearance"
+msgstr "Aparência"
+
+msgid "About"
+msgstr "Sobre"
+
+msgid "Start in fullscreen"
+msgstr "Iniciar em tela cheia"
+
+msgid "Keep in tray when closed"
+msgstr "Manter na bandeja ao fechar"
+
+msgid "Start with the system"
+msgstr "Iniciar com o sistema"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Theme"
+msgstr "Tema"
+
+msgid "Automatic"
+msgstr "Automático"
+
+msgid "Dark"
+msgstr "Escuro"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Version {}"
+msgstr "Versão {}"
