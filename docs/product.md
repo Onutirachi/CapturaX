@@ -36,7 +36,9 @@ The **Spec** column is filled in when a spec covers the feature.
 | F5 | Screens and windows as a source for recording and streaming, with the cursor and without a capture border. On Windows the app lists them (screens named like "Screen 2 - 27G2G4"); on Linux Wayland the system picker chooses them. | |
 
 The preview shows devices only. Screens and windows are sources of the output (recording and
-streaming), and a **View output** action shows the output in the preview.
+streaming), and a **View output** action shows the output in the preview. With no device open,
+the preview shows a "no source" state; its action opens the app's source picker, the same one
+the toolbar opens, not a picker of its own (maintainer, 2026-11-06).
 
 ### B. Preview
 
@@ -46,7 +48,7 @@ streaming), and a **View output** action shows the output in the preview.
 | F7 | Measured latency and frame rate, updated live. Its spec defines which frame rate is shown (what the source delivers, what reaches the app or what is presented) and whether dropped frames are shown. | |
 | F8 | Frameless window with its own title bar; fullscreen with F11, or from the start with the **Start in fullscreen** setting (a command-line option overrides it for one start, for shortcuts). Esc closes an open menu first, then leaves fullscreen; it never quits the app. In small windows the main screen switches to a compact layout instead of overlapping its controls (the stack spike's Float needs 800 × 520 without it). | |
 | F9 | Optional ambient light: the area around the video glows with the video's colors. | |
-| F10 | Hide the preview to save resources; recording and streaming continue. | |
+| F10 | Hide the preview to save resources; recording and streaming continue. Hiding it releases the device (capture stops, a webcam's light turns off) unless recording or streaming uses it: the old app kept capturing while hidden. The video area then shows a "preview hidden" state (F11's component, icon `preview_off`) with a **Show preview** action, and says that recording and streaming continue when they do. Whether hiding also stops the preview's audio (C) is open (see To reconsider). | |
 | F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected, black image while a signal is present (likely HDCP: suggest turning it off on the console). Never an empty list. | |
 | F42 | Capture info overlay (source, mode, measured FPS and latency, recording/live status) over the video, as bubbles: each can be pinned, moved in the order and anchored to any of the four corners; with the controls hidden only the pinned ones show, packed against their corner. | |
 | F43 | Resolution badges (for example HD, Full HD, QHD, 4K) in device and mode lists. | |
@@ -153,6 +155,9 @@ streaming), and a **View output** action shows the output in the preview.
   main scenario (Vision) and may change the roadmap's order (specs 7, 10–12 earlier) and the
   constitution's description of the product. Decide before spec #3 starts, or at least before
   the Record / Stream window spec.
+- **Hide preview and its audio** (maintainer, 2026-11-06): hiding the preview (F10) releases the
+  device, but whether it also stops listening (C) is not decided. Decide in the spec that adds
+  F10.
 
 ## Future ideas
 
