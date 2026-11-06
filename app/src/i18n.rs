@@ -50,6 +50,26 @@ pub fn to_setting(choice: &str) -> LanguageSetting {
     }
 }
 
+/// The position of `language` in the settings panel's Language select: 0 is Automatic, then
+/// `LANGUAGES` in order. A code not in the list shows Automatic, as `resolve` treats it.
+pub fn choice_index(language: &LanguageSetting) -> i32 {
+    match language {
+        LanguageSetting::Auto => 0,
+        LanguageSetting::Code(code) => LANGUAGES
+            .iter()
+            .position(|l| l.code == code)
+            .map_or(0, |i| i as i32 + 1),
+    }
+}
+
+/// The choice at `index` of the settings panel's Language select: `auto` or a code.
+pub fn choice(index: i32) -> Option<&'static str> {
+    match usize::try_from(index).ok()? {
+        0 => Some("auto"),
+        i => LANGUAGES.get(i - 1).map(|l| l.code),
+    }
+}
+
 /// The language to show: `setting` is `auto` or a code (from the settings or `--lang`);
 /// `system_locale` is the system's locale, if known. `auto`, and a code not in `LANGUAGES`,
 /// follow the system: any Portuguese locale gives `pt-BR`, anything else, or none, gives `en`.
@@ -122,6 +142,20 @@ mod tests {
         for language in [LanguageSetting::Auto, LanguageSetting::Code("pt-BR".into())] {
             assert_eq!(to_setting(setting(&language)), language);
         }
+    }
+
+    #[test]
+    fn the_choices_round_trip() {
+        assert_eq!(choice(0), Some("auto"));
+        assert_eq!(choice_index(&LanguageSetting::Auto), 0);
+        for (i, language) in LANGUAGES.iter().enumerate() {
+            let index = choice_index(&LanguageSetting::Code(language.code.into()));
+            assert_eq!(index, i as i32 + 1);
+            assert_eq!(choice(index), Some(language.code));
+        }
+        assert_eq!(choice_index(&LanguageSetting::Code("fr".into())), 0);
+        assert_eq!(choice(-1), None);
+        assert_eq!(choice(LANGUAGES.len() as i32 + 1), None);
     }
 
     #[test]

@@ -30,9 +30,32 @@ pub fn resolve(setting: ThemeSetting, system: Option<SystemTheme>) -> bool {
     }
 }
 
+/// The settings panel's Theme choices, in its order (Automatic, Dark, Light).
+const CHOICES: [ThemeSetting; 3] = [ThemeSetting::Auto, ThemeSetting::Dark, ThemeSetting::Light];
+
+/// The position of `setting` in the settings panel's Theme select.
+pub fn choice_index(setting: ThemeSetting) -> i32 {
+    CHOICES.iter().position(|c| *c == setting).unwrap_or(0) as i32
+}
+
+/// The setting at `index` of the settings panel's Theme select, if there is one.
+pub fn choice(index: i32) -> Option<ThemeSetting> {
+    usize::try_from(index).ok().and_then(|i| CHOICES.get(i).copied())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_choices_round_trip() {
+        for setting in CHOICES {
+            assert_eq!(choice(choice_index(setting)), Some(setting));
+        }
+        assert_eq!(choice_index(ThemeSetting::Auto), 0);
+        assert_eq!(choice(-1), None);
+        assert_eq!(choice(3), None);
+    }
 
     #[test]
     fn auto_follows_the_system() {

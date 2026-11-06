@@ -22,7 +22,7 @@ use crate::placement::{self, Rect};
 use crate::render::{Presentation, Scene, VideoThread};
 use crate::test_video::TestVideo;
 use crate::theme::{self, SystemTheme};
-use crate::ui::{Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
+use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
 use platform::autostart;
 use platform::snap::{self, ButtonRect, Snap, SnapEvent};
 use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
@@ -52,9 +52,7 @@ pub enum UserEvent {
 #[derive(Debug, Clone, Copy)]
 pub enum SettingChange {
     /// `auto` or a code from `i18n::LANGUAGES`.
-    #[expect(dead_code, reason = "the settings panel's Language row sends it (T046)")]
     Language(&'static str),
-    #[expect(dead_code, reason = "the settings panel's Theme row sends it (T046)")]
     Theme(settings::ThemeSetting),
     StartFullscreen(bool),
     KeepInTray(bool),
@@ -258,6 +256,7 @@ impl App {
         if let Some(window) = &self.window {
             window.set_title(Texts::get(&self.ui.app).get_app_name().as_str());
         }
+        set_language_items(&self.ui);
         self.show_notice();
         self.switch = Some((format!("language switch {language}"), started));
         self.request_redraw();
@@ -525,11 +524,39 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
         }
     });
     prefs.set_version(env!("CARGO_PKG_VERSION").into());
+    set_language_items(ui);
+    prefs.set_language(i18n::choice_index(&general.language));
+    prefs.set_theme(theme::choice_index(general.theme));
+    let on = send.clone();
+    prefs.on_language_changed(move |index| {
+        if let Some(choice) = i18n::choice(index) {
+            on(UserEvent::Setting(SettingChange::Language(choice)));
+        }
+    });
+    let on = send.clone();
+    prefs.on_theme_changed(move |index| {
+        if let Some(theme) = theme::choice(index) {
+            on(UserEvent::Setting(SettingChange::Theme(theme)));
+        }
+    });
     let on = send.clone();
     prefs.on_start_fullscreen_changed(move |v| on(UserEvent::Setting(SettingChange::StartFullscreen(v))));
     let on = send.clone();
     prefs.on_keep_in_tray_changed(move |v| on(UserEvent::Setting(SettingChange::KeepInTray(v))));
     prefs.on_start_with_system_changed(move |v| send(UserEvent::Setting(SettingChange::StartWithSystem(v))));
+}
+
+/// The settings panel's Language entries (FR-024): Automatic in the interface's language, then
+/// each language's name in itself. Set again after a language switch.
+fn set_language_items(ui: &Ui) {
+    let automatic = Texts::get(&ui.app).get_automatic();
+    let items: Vec<MenuItem> = std::iter::once(automatic)
+        .chain(i18n::LANGUAGES.iter().map(|l| l.native_name.into()))
+        .map(|text| MenuItem { text })
+        .collect();
+    ui.app
+        .global::<Prefs>()
+        .set_languages(slint::ModelRc::new(slint::VecModel::from(items)));
 }
 
 /// A connected monitor for [`placement::fit`].

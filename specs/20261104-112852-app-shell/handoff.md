@@ -386,6 +386,16 @@ Compact: icons only, names in tooltips (500 ms hover or keyboard focus). About: 
 button. The chrome is no longer held shown by the panel. New texts (General, Appearance, About)
 are not in the pt-BR catalog yet (T049).
 
+T046 (Language and Theme rows) done, checked by the maintainer and committed (`feat: add language
+and theme settings`); fmt, clippy (Windows), 113 tests pass. `SelectRow` (name and a `Select`,
+at most 200 px) under Appearance. Language: `Prefs.languages` is a `[MenuItem]` model built by
+Rust (`app.rs::set_language_items`: new `Texts.automatic`, then each `LANGUAGES` native name), set
+again in `apply_language` so Automatic follows the switch; `MenuItem` is exported from main.slint.
+Theme: items inline in Slint (`@tr` Automatic, Dark, Light). Indexes ↔ settings in the pure
+`i18n::choice_index` / `choice` and `theme::choice_index` / `choice` (tested; an unknown language
+code shows Automatic). Menu scrolling at 640 × 360 cannot be exercised: the menus have 2–3 items.
+New texts (Language, Theme, Automatic, Dark, Light) wait for T049.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -532,7 +542,7 @@ are not in the pt-BR catalog yet (T049).
 
 ## Next step
 
-T046: Language and Theme rows under Appearance (selects; check menu scrolling at 640 × 360 there).
-T047 and T048 can be done in parallel. The CachyOS part of T041 (same runs as
+T047 (i18n test) and T048 (contrast test), in parallel; then T049 (pt-BR catalog and contrast
+fixes; the category's `accent-text` on `accent-soft` over `base` is a new pair for T048). The CachyOS part of T041 (same runs as
 measurements/latency.md, with the GPU clock state), and quickstart checks 2–6 and 12–18 if the
 maintainer wants them run formally, stay for one Linux session with T045's Linux part and T050.

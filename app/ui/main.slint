@@ -8,14 +8,14 @@ import { Texts } from "texts.slint";
 import { WindowState } from "window-state.slint";
 import { Notice, NoticeKind } from "components/notice.slint";
 import { Input } from "components/focus-ring.slint";
-import { Menus, MenuLayer } from "components/menu.slint";
+import { Menus, MenuItem, MenuLayer } from "components/menu.slint";
 import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
 import { TitleBar } from "components/title-bar.slint";
 import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
 import { SettingsPanel, Prefs } from "components/settings-panel.slint";
 
-export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, Tooltips, Prefs }
+export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs }
 
 export component AppWindow inherits Window {
     background: transparent;

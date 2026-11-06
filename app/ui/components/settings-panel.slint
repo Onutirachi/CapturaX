@@ -12,6 +12,8 @@ import { Tooltips, Side } from "tooltip.slint";
 import { Raised } from "raised.slint";
 import { PanelHeader } from "panel-header.slint";
 import { FocusRing, Input } from "focus-ring.slint";
+import { Select } from "select.slint";
+import { MenuItem } from "menu.slint";
 
 export global Prefs {
     in-out property <bool> start-fullscreen;
@@ -20,9 +22,17 @@ export global Prefs {
     // Keep in tray shows only where the desktop has a tray (FR-014a).
     in property <bool> tray-available: true;
     in property <string> version;
+    // Automatic, then each language's name in itself (FR-024), built by Rust from its list, so a
+    // new language needs no change here.
+    in property <[MenuItem]> languages;
+    // The chosen entries: of `languages`, and of Automatic, Dark, Light.
+    in-out property <int> language;
+    in-out property <int> theme;
     callback start-fullscreen-changed(bool);
     callback keep-in-tray-changed(bool);
     callback start-with-system-changed(bool);
+    callback language-changed(int);
+    callback theme-changed(int);
     // The panel opened: Rust reads the system's autostart entry again (FR-014b).
     callback opened();
 }
@@ -167,6 +177,39 @@ component ToggleRow inherits Rectangle {
     }
 }
 
+// One setting with a few choices: its name and a select.
+component SelectRow inherits Rectangle {
+    in property <string> text;
+    in property <[MenuItem]> items;
+    in-out property <int> current;
+    callback selected(int);
+
+    height: max(48px, label.preferred-height + 2 * Theme.gap-m);
+    border-radius: Theme.radius-s;
+    background: Theme.c.base;
+
+    label := Text {
+        x: Theme.gap-m;
+        width: parent.width - select.width - 3 * Theme.gap-m;
+        height: parent.height;
+        text: root.text;
+        color: Theme.c.text;
+        font-size: Theme.text-m;
+        wrap: word-wrap;
+        vertical-alignment: center;
+    }
+
+    select := Select {
+        x: parent.width - self.width - Theme.gap-s;
+        y: (parent.height - self.height) / 2;
+        width: min(200px, parent.width / 2);
+        label: root.text;
+        items: root.items;
+        current <=> root.current;
+        selected(index) => { root.selected(index); }
+    }
+}
+
 export component SettingsPanel inherits Raised {
     // The compact layout (FR-009): the categories become a row of tabs.
     in property <bool> compact;
@@ -253,6 +296,20 @@ export component SettingsPanel inherits Raised {
                 text: @tr("Start with the system");
                 checked <=> Prefs.start-with-system;
                 toggled(on) => { Prefs.start-with-system-changed(on); }
+            }
+
+            if root.category == Category.appearance: SelectRow {
+                text: @tr("Language");
+                items: Prefs.languages;
+                current <=> Prefs.language;
+                selected(index) => { Prefs.language-changed(index); }
+            }
+
+            if root.category == Category.appearance: SelectRow {
+                text: @tr("Theme");
+                items: [{ text: @tr("Automatic") }, { text: @tr("Dark") }, { text: @tr("Light") }];
+                current <=> Prefs.theme;
+                selected(index) => { Prefs.theme-changed(index); }
             }
 
             if root.category == Category.about: VerticalLayout {
