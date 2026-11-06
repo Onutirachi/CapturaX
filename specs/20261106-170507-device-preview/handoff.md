@@ -6,7 +6,7 @@
 
 Spec and plan approved by the maintainer and committed (`docs: add device preview spec`, `docs:
 add device preview plan`; plan.md, research.md R1–R14, data-model.md, contracts/,
-quickstart.md). Nothing pushed. No code.
+quickstart.md). tasks.md (59 tasks, T001–T059) validated and committed (`docs: add device preview tasks`). Nothing pushed. No code.
 
 ## Done in the last session
 
@@ -28,6 +28,16 @@ quickstart.md). Nothing pushed. No code.
   PresentMon and a present log before any fix (R8); a G-SYNC driver profile would be a maintainer
   decision.
 
+- **No HDCP hint** (maintainer, 2026-11-06): FR-020 removed. Black video with a signal also comes
+  from a console that is off, RCA adapters and VHS tapes, so it is not a reliable sign of HDCP; no
+  black-image detection. HDCP, color range, modes and the bubbles go into a getting started guide
+  (product.md F54, roadmap #15, last spec). Spec, research R5, data-model, contracts, quickstart,
+  tasks, product F11 and roadmap #3 updated.
+
+- **AMD and Intel GPUs** (maintainer, 2026-11-06): FR-012 is covered and measured on NVIDIA
+  only; AMD and Intel are a known limit (no hardware, known controls need root), to be measured
+  when the maintainer has one (spec FR-012 and Assumptions, research R7).
+
 ## Open questions
 
 - R7 is untested on the CachyOS PC: if the NVML request does not hold the clocks, the fallback
@@ -41,4 +51,6 @@ quickstart.md). Nothing pushed. No code.
 
 ## Next step
 
-Plan approved and committed (`docs: add device preview plan`). Run `/speckit-tasks`.
+Optionally run `/speckit-analyze`; then ask the maintainer for explicit approval before
+`/speckit-implement` (starts at T001). Linux GPU power (R7) is validated early, at T025, before it
+is wired in.
