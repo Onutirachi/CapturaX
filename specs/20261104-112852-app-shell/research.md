@@ -182,6 +182,20 @@ reopened here; entries below say how the shell builds it.
   sees short hitches of the video and the window and accepts them: only a still window matters
   (SC-003 relaxed). Hiding the video during a move was considered and not done: the presents and
   their waits stay, and the image disappears while the user places the window.
+- **Leaving fullscreen on Wayland (T065, 2026-11-06)**: on KWin the window came back off its
+  place, shifted by half the difference between the screen and the window (320, 180 for a
+  1280 × 720 window on 1080p; each toggle shifted it again; KWin's own fullscreen toggle did the
+  same, Konsole's did not). The protocol log (`WAYLAND_DEBUG`) showed why: winit acknowledges the
+  compositor's 1280 × 720 configure at once but sets the new window geometry 10–20 ms later (it
+  builds and drops its client-side frame in between), and the video thread committed frames of
+  the fullscreen size in that gap, so KWin took 1920 × 1080 as the client's answer, kept its center,
+  and then shrank the window around it. Two steps were needed: the video thread holds its presents
+  until a scene of the new size arrives (`Inbox::hold_for_resize`, at most 100 ms, the `Resized`
+  handler sends the scene at once), which fixed some toggles; and the app asks to leave fullscreen
+  only two refreshes after the hold starts, because the driver's mailbox on Wayland commits a frame
+  already queued up to a refresh later. With both, 10 of 10 toggles (F11 and Esc) came back in
+  place and no frame was committed between the configure and the new geometry. The video's gap
+  at leaving is the same as before (25–62 ms).
 - **Alternatives**: a system frame — not the Float look; drawing our own non-client area through
   `WM_NCCALCSIZE` — more Windows code for what winit already does.
 

@@ -555,6 +555,33 @@ Results (measurements/latency.md "CachyOS KDE Plasma Wayland", raw logs `raw/lin
   Scenario 2 (a state with actions) has no real case in this spec, as on Windows.
 Not done: quickstart 2–6 and 12–18 on Linux (T065), the tooltip case of check 7.
 
+T065 Linux session (2026-11-06, same SSH setup; results in measurements/acceptance.md): checks 2,
+3, 4, 5, 12, 15, 16 at 150 %, 18 and the tooltip case of check 7 pass, three of them after fixes,
+committed with the maintainer's go-ahead (2026-11-06) before a Windows check of them:
+- Leaving fullscreen on Wayland put the window off its place (each toggle +320, +180). Cause and
+  fix in research R5 (video frames of the old size committed after winit's ack): `render/mod.rs`
+  `Inbox::hold_for_resize` + `Hold`, `app.rs` `set_fullscreen` / `apply_fullscreen` with
+  `leave_fullscreen_at` (two refreshes) and `awaiting_size`. New test
+  `a_hold_ends_with_a_scene_of_another_size`. This changes Windows too (leaving fullscreen waits
+  two refreshes with presents held): to check in the Windows part of T065.
+- Tooltips: stale tokens (`tip-shown` in `icon-button.slint` and the settings categories), text
+  re-sent on change (`changed tooltip` / `changed text`, also in `title-bar.slint`), and the
+  categories' list without translated text (`CategoryEntry { id, icon }`, name bound in
+  `CategoryItem`), which also keeps the focus on the Language select after a switch.
+fmt, clippy, 126 tests pass on Windows; built and checked on Linux. Committed as separate commits
+(folding would rewrite later ones): `fix: keep the window in place when leaving fullscreen on
+Wayland` and `fix: update tooltips on language switch and after a size change`, plus `docs:`
+for acceptance.md, research R5 and this handoff.
+Asked by the maintainer after seeing check 15: the `already-open` message is now
+short ("CapturaX is already open." / "O CapturaX já está aberto.") and a warning, not an error
+(`platform::MessageKind`, kdialog `--sorry`, zenity `--warning`, `MB_ICONWARNING`; contracts
+platform.md and single-instance.md, data-model updated first); checked on Linux and approved by
+the maintainer. Committed: `fix: show the already-open message as a short warning`.
+Known limits recorded: leaving a fullscreen the app started in lands at KWin's (0, 0); at a
+fractional scale the first size is fitted with winit's integer monitor scale (960 × 540 instead
+of about 1280 × 690 at 150 %). Raw: `raw/linux-1080-fullscreen-toggles-{before,hold}.txt`.
+Linux scale is back at 100 %, `capturax.toml` in the Linux clone reset to `~/capx/capturax.toml.orig`.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -706,10 +733,14 @@ Not done: quickstart 2–6 and 12–18 on Linux (T065), the tooltip case of chec
 ## Next step
 
 Order chosen by the agent (maintainer, 2026-11-06: "follow what you consider best"):
-1. T065 on Linux through the SSH setup: quickstart 2–6, 12, 15, 18 by input, 16 with
-   `kscreen-doctor output.HDMI-A-1.scale.1.5`, the tooltip case of check 7; 13–14 (tray,
-   autostart, sign-out) and 17 (a second monitor) with the maintainer. That also completes T041
-   (its quickstart 2–6, 12–18) and T050 (check 7), which stay unchecked until then. Then the
-   Windows part of T065 (at 150%/200%), with the maintainer.
+1. In the Windows part of T065, also check the T065 Linux session's fixes (State, last entry):
+   F11 / Esc / the dock's control leave fullscreen without a visible delay or stall; a dock
+   tooltip shows on hover after the window's size changed with that button focused; in the
+   compact panel, a category's tooltip follows a language switch and the focus stays on the
+   Language select. A fault there is folded into its fix commit.
+2. T065 rest, with the maintainer: Linux 13–14 (tray, autostart, sign-out), 16 across monitors
+   and 17 (a second monitor), 200 % if wanted; the Windows part (1–18 at 100 % and 150 % or
+   200 %). That also completes T041 (its quickstart 2–6, 12–18) and T050 (check 7), which stay
+   unchecked until then.
 2. T062: push, PR, first CI run (the workflow has never run), repository rule.
 3. T066: handoff, roadmap, PR description. Then spec #3 (GPU awake on Linux, Windows stalls).
