@@ -200,6 +200,9 @@ mod tests {
         }
         assert_eq!(store.saves(), 0);
         std::thread::sleep(Duration::from_millis(400));
+        // The count goes up before the file is written: a flush waits for that write (it takes
+        // the save lock) and has nothing left to save. Without it a slow CI runner read too soon.
+        store.flush();
         assert_eq!(store.saves(), 1);
         assert_eq!(saved(&path)["window"]["width"].as_integer(), Some(719));
     }
