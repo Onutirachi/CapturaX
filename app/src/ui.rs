@@ -276,7 +276,7 @@ impl Ui {
 
 /// Selects the bundled catalog for `language` (FR-022); every `@tr` text, `Texts` included, is
 /// evaluated again on its next read. Needs the component to exist.
-pub fn select_language(language: &str) {
+pub fn select_language(  language: &str) {
     if let Err(err) = slint::select_bundled_translation(language) {
         log::warn!("language {language}: {err}");
     }
