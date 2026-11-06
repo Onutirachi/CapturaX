@@ -766,6 +766,7 @@ dependencies = [
 name = "capturax-platform"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "ksni",
  "log",
  "tray-icon",

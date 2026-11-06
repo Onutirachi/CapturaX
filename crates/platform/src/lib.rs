@@ -2,7 +2,7 @@
 //! contracts/platform.md). Each function has a Windows and a Linux implementation selected at
 //! compile time; the app sees one interface.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::monitor::MonitorHandle;
@@ -31,6 +31,37 @@ pub use single_instance::{Answer, Claim, Client, Listener, Serving, claim_instan
 /// Linux the folder of the AppImage when running from one.
 pub fn app_folder() -> PathBuf {
     os::app_folder().unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// The per-user folder the settings go to when the application folder is not writable (FR-027):
+/// `%APPDATA%\CapturaX` on Windows, `$XDG_CONFIG_HOME/capturax` or `~/.config/capturax` on
+/// Linux. None when the system gives no such folder.
+pub fn user_config_folder() -> Option<PathBuf> {
+    os::user_config_folder()
+}
+
+/// Whether the app can keep files in `folder` (FR-026): creates the folder if it is missing,
+/// then creates and removes a probe file in it.
+pub fn is_writable(folder: &Path) -> bool {
+    const PROBE: &str = ".capturax-write-probe";
+    if let Err(err) = std::fs::create_dir_all(folder) {
+        log::debug!("{} not writable: {err}", folder.display());
+        return false;
+    }
+    let probe = folder.join(PROBE);
+    // Not `create_new`: a probe left by a killed start must not make the folder look read-only.
+    let created = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&probe);
+    match created.map(drop).and_then(|()| std::fs::remove_file(&probe)) {
+        Ok(()) => true,
+        Err(err) => {
+            log::debug!("{} not writable: {err}", folder.display());
+            false
+        }
+    }
 }
 
 /// Whether a window of this app may bring itself to the front when another start asks it to
@@ -98,4 +129,38 @@ pub fn precise_timers() -> TimerGuard {
 /// The running executable's folder.
 fn exe_folder() -> Option<PathBuf> {
     std::env::current_exe().ok()?.parent().map(PathBuf::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let folder = std::env::temp_dir().join(format!("capturax-platform-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        folder
+    }
+
+    #[test]
+    fn writable_folder_is_created_and_left_clean() {
+        let folder = scratch("writable").join("nested");
+        assert!(is_writable(&folder));
+        assert!(folder.is_dir());
+        assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 0);
+        // A probe left behind by a killed start does not count against the folder.
+        std::fs::write(folder.join(".capturax-write-probe"), b"x").unwrap();
+        assert!(is_writable(&folder));
+        assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 0);
+        std::fs::remove_dir_all(folder.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn folder_under_a_file_is_not_writable() {
+        let base = scratch("file");
+        std::fs::create_dir_all(&base).unwrap();
+        let file = base.join("plain");
+        std::fs::write(&file, b"x").unwrap();
+        assert!(!is_writable(&file.join("inside")));
+        std::fs::remove_dir_all(&base).unwrap();
+    }
 }

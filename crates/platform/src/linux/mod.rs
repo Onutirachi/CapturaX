@@ -26,6 +26,11 @@ pub fn app_folder() -> Option<PathBuf> {
     }
 }
 
+/// `$XDG_CONFIG_HOME/capturax` when it is an absolute path, else `~/.config/capturax`.
+pub fn user_config_folder() -> Option<PathBuf> {
+    dirs::config_dir().map(|folder| folder.join(APP_ID))
+}
+
 /// winit picks Wayland whenever a Wayland display is set, and X11 otherwise.
 pub fn can_raise_window() -> bool {
     let set = |var| std::env::var_os(var).is_some_and(|v| !v.is_empty());

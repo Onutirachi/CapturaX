@@ -425,6 +425,19 @@ maintainer accepts it (settings, not real use). Unchecked in tasks.md until the 
 The analysis script used: `measurements/raw` lines `[loop]`, first 3 s and the last line left
 out, per run: seconds, median range, seconds with max > 3 ms, `pres` 59–61.
 
+T051 (`crates/settings/src/location.rs`) done and committed (`feat: add settings location
+resolution`; nothing to see until T053): `resolve(app_folder, app_writable, user_folder:
+Option<&Path>, user_writable, FileTimes { app, user }) -> Location { kind: LocationKind, read_from }`
+with `folder()`, `file()` and `load_path()`. Choices: a per-user file wins only when strictly
+newer (same time → the app folder's file); in memory `read_from` is the newer of the two files
+found, so a read-only setup still starts with the user's values. Table test for every branch.
+T052 done and committed (`feat: add per-user settings folder and write probe`):
+`platform::user_config_folder()` (`dirs::config_dir()` + `CapturaX` / `capturax`; `dirs` added to
+`platform`) and `platform::is_writable(folder)` in lib.rs (shared: creates the folder, then
+creates with truncate, not `create_new`, so a probe left by a killed start does not count, and
+removes `.capturax-write-probe`). fmt, clippy (Windows; `platform` also for Linux), cargo-deny ok,
+tests pass. Next: T053 (wiring, visible: notices), T054 (interrupted save test).
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -584,4 +597,4 @@ One CachyOS KDE Plasma Wayland session (maintainer's PC), release build, test vi
    logged.
 3. T050 Linux: quickstart 1 and 7, then menu, language and theme runs as on Windows.
 4. Quickstart 2–6 and 12–18 if wanted formally.
-Then T041 and T050 are checked. US3 (T051–T054) can go on Windows before that session.
+Then T041 and T050 are checked. US3 (T053–T054) can go on Windows before that session.

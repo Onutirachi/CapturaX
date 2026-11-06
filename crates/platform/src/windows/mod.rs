@@ -29,6 +29,11 @@ pub fn app_folder() -> Option<PathBuf> {
     super::exe_folder()
 }
 
+/// `%APPDATA%\CapturaX`.
+pub fn user_config_folder() -> Option<PathBuf> {
+    dirs::config_dir().map(|folder| folder.join("CapturaX"))
+}
+
 pub fn can_raise_window() -> bool {
     true
 }
