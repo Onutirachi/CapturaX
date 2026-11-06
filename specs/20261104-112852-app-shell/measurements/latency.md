@@ -1,4 +1,4 @@
-# Latency Budget (T041)
+# Latency Budget (T041, T050)
 
 SC-001 to SC-003 as defined in [spec.md](../spec.md) and measured as in
 [quickstart.md](../quickstart.md) "Latency budget". Raw `--stats` logs are in [raw/](raw/); the
@@ -81,6 +81,68 @@ The maintainer sees short hitches of the video and the window while dragging and
 - Stalls at presentation mode changes on Windows (research R4): investigated in spec #3.
 - Variable refresh: the cursor runs at the video's rate while the app has focus (research R4,
   F52 for spec #3).
+
+## Windows 11, settings states (T050) — 2026-11-06
+
+**Environment**: as above (same machine, monitor, G-SYNC setting, release build of
+`feat: add language and theme settings` plus the catalog and tests after it). Every run focused,
+with the settings panel open. Header in every run: `backend=dx12 mode=mailbox` (FR-003).
+
+- **Menu**: a select's menu opened and closed every 2–3 s, nothing chosen.
+- **Language**: English ↔ Português from the panel every 1–3 s.
+- **Theme**: Dark ↔ Light from the panel every 1–3 s.
+
+| Run | Seconds | Switches | `ready_ms` median | Max > 3 ms | `pres` 59–61 | Stalls ≥ 100 ms (`ready_ms` max) |
+|---|---|---|---|---|---|---|
+| 1080 window menu | 56 | — | 1.0–1.1 | 0 | 56 | |
+| 1080 window language | 63 | 15 | 1.1–9.9 | 10 | 58 | 643, 600, 962, 339 ms |
+| 1080 window language (repeat) | 68 | 55 | 1.1–9.8 | 8 | 63 | 729, 623, 779 ms |
+| 1080 window theme | 64 | 64 | 1.1–1.2 | 2 | 64 | |
+| 1080 fullscreen menu | 68 | — | 1.0–1.2 | 2 | 68 | |
+| 1080 fullscreen language | 69 | 22 | 1.1–9.7 | 8 | 65 | 171, 388, 358, 696 ms |
+| 1080 fullscreen theme | 73 | 71 | 1.1–1.2 | 0 | 73 | |
+| 1440 window menu | 73 | — | 1.1–1.2 | 2 | 73 | 313 ms |
+| 1440 window language | 90 | 35 | 1.1–1.3 | 3 | 90 | 111, 316, 126 ms |
+| 1440 window theme | 70 | 69 | 1.2–1.3 | 2 | 70 | 494 ms |
+| 1440 fullscreen menu | 72 | — | 1.2–1.5 | 0 | 72 | |
+| 1440 fullscreen language | 82 | 73 | 1.1–1.4 | 7 | 80 | 298, 610, 815, 526 ms |
+| 1440 fullscreen theme | 109 | 117 | 1.2–1.4 | 5 | 109 | 182 ms |
+| **Menu** | **269** | | **all ≤ 1.5** | **4 (1.5%)** | **269 (100%)** | 1 |
+| **Theme** | **316** | **321** | **all ≤ 1.5** | **9 (2.8%)** | **316 (100%)** | 2 |
+| **Language** | **372** | **200** | **362 of 372 ≤ 1.5** | **36 (9.7%)** | **356 (95.7%)** | 19 |
+
+**Language switch stalls.** About one switch in ten stalls the video for 110–960 ms. The language
+was already on screen (the `language switch` line, 1.1–4.2 ms) before each stall. The main thread
+stops too: the maintainer's clicks during a stall were taken about 2 s apart instead of about
+1 s. Every size and mode does it; switching to either language does it. Ruled out with isolated
+runs, the app focused and untouched, nothing in the UI changing:
+- the window title: `SetWindowTextW` on the window every 3 s, 10 times
+  (`raw/win-1080-win-title-test.txt`): no stall;
+- the settings save on the HDD that holds this folder: a 300-byte file written and flushed in
+  the same folder every 3 s, 10 times, 50–72 ms each (`raw/win-1080-win-flush-test.txt`): no
+  stall. Theme switches also save the file, and stall far less often.
+Cause unknown. It looks like the Windows stalls of T041 (focus changes, the 625 ms stall with the
+panel), which a theme switch (2 in 321) and the menu (1 in 269 s) also showed here.
+
+**SC-005** (from the log): language switch 1.1–4.2 ms (203 switches, check 7 included), theme
+switch 2.9–27.8 ms from the panel (321) and 34.6–37.0 ms following a Windows theme change. Met.
+
+### Verdicts (settings states)
+
+- **SC-001**: met for the menu and theme states (median ≤ 1.5 ms in every second, max ≤ 3 ms in
+  98.5% and 97.2%). Not met while switching the language (90.3% of the seconds within 3 ms). The
+  maintainer accepts it (2026-11-06): the video does not matter while the language is being
+  changed; what matters is no stall during real use.
+- **SC-002**: met for the menu and theme states (100%); 95.7% while switching the language.
+- **SC-005**: met.
+
+### Quickstart checks 1 and 7 (Windows)
+
+- **1**: window shown 396 ms after start, in pt-BR (system language) and dark (system theme,
+  setting Automatic). The "no source" state does not exist yet (T057): checked in T059.
+- **7**: language and theme switch at once, with an open menu and a visible tooltip included;
+  with the theme on Automatic, the app follows Windows to light and back. Checked by the
+  maintainer.
 
 ## CachyOS KDE Plasma Wayland
 

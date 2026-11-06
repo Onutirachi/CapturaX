@@ -1,6 +1,6 @@
 # Handoff: App Shell
 
-**Updated**: 2026-11-05 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261104-112852-app-shell`
+**Updated**: 2026-11-06 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261104-112852-app-shell`
 
 ## State
 
@@ -414,6 +414,17 @@ struct literal fields; fails on `@tr` contexts or plurals, which the catalogs do
 reads the `.po` files (fuzzy counts as untranslated) and fails on a non-empty literal in a
 property named `text`, `title`, `tooltip`, `label` or ending in `-label` etc. without `@tr`.
 
+T050 Windows part done (2026-11-06), recorded in [measurements/latency.md](measurements/latency.md)
+"Windows 11, settings states (T050)", raw logs `measurements/raw/win-{1080,1440}-{win,fs}-{menu,language,theme}.txt`
+(+ `win-1080-win-language-2.txt`, a repeat, and two isolated tests `win-1080-win-title-test.txt`,
+`win-1080-win-flush-test.txt`). Quickstart 1 (shown in 396 ms, pt-BR, dark) and 7 checked by the
+maintainer. Menu and theme states meet SC-001/SC-002; SC-005 met (language 1.1–4.2 ms, theme
+2.9–37 ms). Language switches stall the video (and the main thread) 110–960 ms about one time in
+ten; not the window title, not the settings save on this HDD (isolated tests). Cause unknown; the
+maintainer accepts it (settings, not real use). Unchecked in tasks.md until the Linux part.
+The analysis script used: `measurements/raw` lines `[loop]`, first 3 s and the last line left
+out, per run: seconds, median range, seconds with max > 3 ms, `pres` 59–61.
+
 ## Done in the last sessions
 
 - `/speckit-specify`: spec.md and checklists/requirements.md (all items pass).
@@ -555,11 +566,22 @@ property named `text`, `title`, `tooltip`, `label` or ending in `-label` etc. wi
   do not stall. Hypothesis: the swap chain moving in and out of its own hardware plane (MPO /
   independent flip). Planned for spec #3 (roadmap #3, research R4); the temporary per-stage
   timing used to look for the 625 ms stall was not kept.
+- Language switch stalls (T050): about one language switch in ten stalls video and UI for
+  110–960 ms on Windows (theme 2 in 321, menu 1 in 269 s). Not the title, not the save. Accepted
+  by the maintainer for this spec; look at it with the Windows stalls in spec #3 (per-stage
+  timing), or before if it shows in real use.
 - G-SYNC: with G-SYNC set to full screen only, the focused windowed app still makes the monitor
   follow it (cursor at about 60 Hz). Kept; F52 (spec #3) adds a "follow the monitor" mode.
 
 ## Next step
 
-T050 (needs CachyOS for its Linux part), or US3 (T051–T054) on Windows first. The CachyOS part
-of T041, quickstart checks 2–6 and 12–18 if wanted formally, T045's Linux part and T050 stay for
-one Linux session.
+One CachyOS KDE Plasma Wayland session (maintainer's PC), release build, test video
+`1080p60`, results into measurements/latency.md "CachyOS KDE Plasma Wayland", raw logs
+`measurements/raw/linux-*.txt`, GPU clock state (`nvidia-smi -q -d PERFORMANCE`) per run:
+1. T041 Linux: the runs of the Windows table (idle, chrome, panel; window and fullscreen; 1080p
+   and 1440p; unfocused if the monitor has variable refresh) and SC-003 moving and resizing.
+2. T045 Linux: Theme Automatic follows a Plasma color scheme change (portal), `theme switch`
+   logged.
+3. T050 Linux: quickstart 1 and 7, then menu, language and theme runs as on Windows.
+4. Quickstart 2–6 and 12–18 if wanted formally.
+Then T041 and T050 are checked. US3 (T051–T054) can go on Windows before that session.
