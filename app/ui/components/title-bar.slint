@@ -43,6 +43,14 @@ component WindowButton inherits Rectangle {
             root.absolute-position.x, root.absolute-position.y, root.width, root.height);
     }
 
+    // A language switch, or maximize and restore, changes the text of a tooltip that shows
+    // (FR-024).
+    changed tooltip => {
+        if (root.tip > 0 && root.tip == Tooltips.owner) {
+            root.show-tip();
+        }
+    }
+
     changed own-hover => {
         if (!self.own-hover) {
             Tooltips.hide(root.tip);

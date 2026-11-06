@@ -24,6 +24,8 @@ export component IconButton inherits Rectangle {
 
     // The token of the tooltip this button shows, 0 when none.
     property <int> tip;
+    // Its tooltip still shows: a size change or another control's tooltip hides it without telling.
+    property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
     property <bool> wants-tip: (area.has-hover || focus.has-focus) && root.enabled && root.visible;
 
     width: root.size;
@@ -63,6 +65,13 @@ export component IconButton inherits Rectangle {
     function hide-tip() {
         Tooltips.hide(root.tip);
         root.tip = 0;
+    }
+
+    // A language switch changes the text of a tooltip that shows (FR-024).
+    changed tooltip => {
+        if (root.tip-shown) {
+            root.show-tip();
+        }
     }
 
     changed wants-tip => {
@@ -120,7 +129,7 @@ export component IconButton inherits Rectangle {
 
     Timer {
         interval: 500ms;
-        running: area.has-hover && root.tip == 0 && root.wants-tip;
+        running: area.has-hover && root.tip != -1 && !root.tip-shown && root.wants-tip;
         triggered => { root.show-tip(); }
     }
 
