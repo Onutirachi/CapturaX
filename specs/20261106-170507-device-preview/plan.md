@@ -15,7 +15,9 @@ machine opens the remembered device, reconnects it and shows every device state 
 The toolbar gets device, mode and color range selects; the first info bubbles show source, mode,
 frame rate and latency (measured plus an estimate), each with its display choice. On Linux the
 app asks the NVIDIA driver for its performance mode while previewing, so idle clocks no longer
-cost latency. A Video settings category adds the Follow the monitor presentation. The Windows
+cost latency. A notice says when a device is connected or disconnected, in the app when focused and as a
+system notification otherwise, with **Open** for a new device. A Video settings category adds
+the Follow the monitor presentation. The Windows
 stalls at presentation mode changes and the language switch stalls are investigated with
 PresentMon and a present log, and fixed if the cause is the app's.
 
@@ -55,7 +57,7 @@ GPU power on Linux (R7, with R4), V4L2 against PipeWire (R4: V4L2; PipeWire only
 not in this spec), the 120 Hz mismatch and reading the incoming signal (R3: no UVC device reports
 it, so Auto source is not shown on them; the default is Auto max FPS), latency levers (R3, R4: optional, recorded), color range (R5),
 the device list's detail line (spec FR-004), the Windows stalls (R8, investigation), F52 (R9),
-fullscreen from a snapped window (R10).
+fullscreen from a snapped window (R10), device notices (R15, validated first).
 
 ## Constitution Check
 
@@ -66,9 +68,9 @@ fullscreen from a snapped window (R10).
 | I. Preview latency | Budget stated with method and reference (spec SC-001, SC-002; quickstart "Latency budget"); native modes, no software scaling (the GPU fits the image when presenting); conversion removed from the pipeline (R4); GPU power state handled on Linux (R7); analysis off the video thread (R5) |
 | II. Simple by default | Opens the right device and mode with no configuration (FR-005, FR-008); options only where the maintainer asked (color range, bubble displays, presentation); every device problem shown with its next action (data-model.md "Preview state") |
 | III. One native pipeline | One process; the device is opened once by `capture::Session`, which later outputs attach to; GStreamer for capture and decode, the app's own GPU presenter for the preview, as the constitution allows |
-| IV. Platform layer | Capture through GStreamer providers chosen from device properties, not `cfg`; registry, privacy page, NVML, QPC and window rectangles in `crates/platform` (contracts/platform.md); boundary test extended to `crates/capture`; Linux has no camera privacy switch and no snap restore, stated |
+| IV. Platform layer | Capture through GStreamer providers chosen from device properties, not `cfg`; registry, privacy page, NVML, QPC, system notifications and window rectangles in `crates/platform` (contracts/platform.md); boundary test extended to `crates/capture`; Linux has no camera privacy switch and no snap restore, stated |
 | V. Private and safe | No network; NVML request is per-process and undone at exit; nothing written to the system |
-| VI. Portable | Device choices in the portable settings file; no installed component needed (NVML is the driver's own library, optional) |
+| VI. Portable | Device choices in the portable settings file; no installed component needed (NVML is the driver's own library, optional); on Windows the notification app id is registered for the current user like the autostart entry, display only, no state (R15) |
 | VII. Spec-driven, tested | Spec approved 2026-11-06; pure logic unit tested, pipeline tests with test sources, manual acceptance listed; one new dependency justified (R14); spike capture code adopted only as this plan names it (R3) |
 | Technology constraints | Rust, GStreamer, Slint over the app's own swap chain; texts in both catalogs; accent and theme from the shell |
 | Workflow | English; Conventional Commits without AI trailers; CI on both platforms |
@@ -125,6 +127,9 @@ close the session, stop the monitor; the rest is the shell's sequence.
   hover settings buttons in the top layer).
 - `main.slint`: the state message shows the preview state's icon, title, detail and actions;
   `source-open` becomes the preview state.
+- `components/notice.slint`: the in-app device notice, one balloon showing the latest message
+  (top layer, bottom right of the video area, about 5 s, × button, closes on click, **Open** for
+  a connected device); no toast library.
 - `components/settings-panel.slint`: category `video` with the Presentation select and tooltip.
 - New texts in `texts.slint` and the pt-BR catalog.
 
@@ -137,6 +142,9 @@ close the session, stop the monitor; the rest is the shell's sequence.
   measurements/stalls.md; any fix needs the cause first; a G-SYNC driver profile is a maintainer
   decision.
 - **Language switch stalls**: same session, stage lines.
+- **System notifications** (R15): validate the Windows toast from an unpacked build and the KDE
+  notification first; if the Windows toast does not work, decide the fallback with the
+  maintainer.
 
 ## Project Structure
 
@@ -146,7 +154,7 @@ close the session, stop the monitor; the rest is the shell's sequence.
 specs/20261106-170507-device-preview/
 ├── spec.md
 ├── plan.md              # this file
-├── research.md          # R1–R14
+├── research.md          # R1–R15
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
@@ -187,13 +195,14 @@ app/src/
 ├── ui.rs                  # toolbar, bubbles, states, Video category bridge
 ├── cli.rs                 # --list-devices, --present-log
 └── app.rs, main.rs        # wiring; arranged rect around fullscreen (R10)
-app/ui/components/{toolbar, badge, info-bubbles}.slint   # NEW
+app/ui/components/{toolbar, badge, info-bubbles, notice}.slint   # NEW
 app/ui/components/{menu, select, settings-panel, state-message}.slint, main.slint, texts.slint
 app/tests/platform_boundary.rs   # + crates/capture
 
 crates/platform/src/
 ├── camera.rs, windows/camera.rs, linux/camera.rs   # camera_access, open_camera_privacy
 ├── gpu.rs, linux/nvml.rs                            # gpu_performance (R7)
+├── notify.rs, windows/notify.rs, linux/notify.rs   # notify (R15)
 └── windows/{mod.rs, snap.rs}                        # qpc, arranged_rect, set_outer_rect
 
 crates/settings/src/model.rs   # preview, overlay, devices tables

@@ -8,6 +8,7 @@ everything there stays. Names are indicative; tasks fix the exact signatures.
 | `camera_access() -> Access` (`Allowed`, `Denied`, `Unknown`) | `CapabilityAccessManager\ConsentStore\webcam` and `webcam\NonPackaged` `Value` under HKCU and HKLM: any `Deny` → Denied | `Unknown` (no system switch; node permissions show as errors) | FR-019, FR-021, research R6 |
 | `open_camera_privacy()` | `ShellExecuteW("ms-settings:privacy-webcam")` | not offered (the state names the node) | FR-021 |
 | `gpu_performance(pci_bus_id) -> PerformanceGuard` | no-op guard | NVIDIA: `libnvidia-ml.so.1` via `libloading`, `nvmlDeviceSetPowerMizerMode_v1(PREFER_MAXIMUM_PERFORMANCE)`, previous mode restored on drop; anything missing → logged once, no-op | FR-012, research R7 |
+| `notify(Notice { title, action: Option<label>, tag }) -> bool`, the action reported with its `tag` through a callback | WinRT toast, app id `CapturaX` registered under `HKCU\Software\Classes\AppUserModelId\CapturaX`; button through `Activated`; previous toast hidden | `org.freedesktop.Notifications.Notify` via `zbus` with `replaces_id`; `ActionInvoked` signal | FR-027, research R15 |
 | `qpc() -> i64` | `QueryPerformanceCounter` | `CLOCK_MONOTONIC` in ns (for the same log format) | FR-023, research R8 |
 | `arranged_rect(window) -> Option<rect>` | `IsWindowArranged` → `GetWindowRect` | none | FR-025, research R10 |
 | `set_outer_rect(window, rect)` | `SetWindowPos` (no z-order or activation change) | no-op | FR-025 |

@@ -42,7 +42,8 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
    once.
 2. **US2**: device menu lists the card and the webcam with badges, no screens; mode menu shows
    Automatic (with resolved modes, no duplicates) and Modes largest first; switching modes and
-   devices shows video within 2 s (SC-004); each device keeps its own mode and range.
+   devices shows video within 2 s (SC-004); each device keeps its own mode and range; with the
+   device menu open, plugging and unplugging the webcam adds and removes it within 3 s (SC-004).
 3. **US3**: bubbles show source, mode, frame rate, latency; in the 1080p120 mode with the PS5 at
    60 Hz the frame rate reads about "111 / 120 fps"; the hover settings button of each bubble
    offers its three displays; the choice survives a restart.
@@ -56,7 +57,13 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
      closing it plays;
    - unplug the card while playing → "disconnected"; plug it back → video within 3 s, same mode
      (SC-004); moved to another USB port, a card without a serial opens with default choices;
-   - card connected without HDMI signal → "No signal" after 5 s.
+   - card connected without HDMI signal → "No signal" after 5 s;
+   - notices (FR-027): with the window focused, plug the webcam → in-app "C920 connected" with
+     **Open**, which opens it; unplug it → "C920 disconnected", the × closes it and so does a
+     click on the balloon; plug and unplug quickly → one balloon with the latest message; unplug and plug the open card →
+     "disconnected", then "reconnected" with no button; repeat with another app focused, the
+     window minimized and hidden to the tray → system notifications, **Open** shows the window
+     and opens the device; each within 3 s (SC-005).
 5. **US5**: Settings → Video → Presentation: Follow the monitor → on the G-SYNC monitor the
    cursor stays smooth with the app focused; `--stats` header `mode=fifo-follow`, `rep` > 0;
    back to Lowest latency → `mode=mailbox`; the device is not reopened (no Opening state).

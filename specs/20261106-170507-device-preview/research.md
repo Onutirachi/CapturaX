@@ -321,8 +321,45 @@ marks what was not run.
 | Crate | Where | Purpose | License | Status |
 |---|---|---|---|---|
 | `libloading` 0.8 | `crates/platform`, Linux | load `libnvidia-ml.so.1` at run time (R7) | ISC | maintained, ~200 M downloads |
+| `windows` 0.62 | `crates/platform`, Windows | WinRT toast notifications (R15); already in the tree through Slint and wgpu, only features added | MIT or Apache-2.0 | Microsoft, maintained |
 
 GStreamer bindings are already in the workspace; `crates/capture` uses `gst`, `gst-app`,
 `gst-video`. Windows registry and `ShellExecuteW` come from the `windows-sys` features already
 declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2src`, `jpegdec`,
 `videoconvert`, `appsink`; `nvjpegdec`/`d3d12mjpegdec` when present).
+
+## R15. Device notices (FR-027)
+
+- **Decision**: the routing is pure app logic: monitor `Added`/`Removed` after `Listed` → a
+  notice; window focused → in-app notice (one balloon drawn by the app in Slint, no toast
+  library: top layer, bottom right of the video area above the dock, about 5 s, × and a click
+  anywhere close it, only the latest message); else → `platform::notify(notice)`. A system notification's action comes
+  back as a user event through the `EventLoopProxy`, as tray events do.
+  - **Linux**: `org.freedesktop.Notifications.Notify` over D-Bus with `zbus` (already a
+    dependency of `crates/platform` for the theme), app name `CapturaX`, the app icon, actions
+    `["open", "<Open>"]` when there is one, `replaces_id` of the previous notice (one at a time);
+    the `ActionInvoked` signal maps back to the device id. No service on the bus → logged once,
+    no-op.
+  - **Windows**: WinRT `ToastNotificationManager` (`windows` crate, features
+    `UI_Notifications`, `Data_Xml_Dom`; the crate is already in the tree through Slint and wgpu,
+    version 0.62). A portable app has no package identity, so it sets
+    `SetCurrentProcessExplicitAppUserModelID("CapturaX")` and registers that id under
+    `HKCU\Software\Classes\AppUserModelId\CapturaX` (`DisplayName`, `IconUri` to the app's icon
+    next to the executable), written when a notification is first shown and rewritten if the
+    folder moved; the toast's button is handled through the toast's `Activated` event while the
+    app runs (no COM activator, no start from a toast); `ToastNotifier::Hide` of the previous
+    toast keeps one at a time. Notifications off for the app → `Setting` is not `Enabled`, logged
+    once, no-op. Windows hides toasts while another app is fullscreen (focus assist); with
+    CapturaX fullscreen and focused the in-app notice is used anyway.
+- **To validate first** (task T061, maintainer): on Windows 11 the toast shows with the name
+  CapturaX and its icon from an unpacked build and its **Open** button reaches the app; on KDE
+  Plasma the notification shows with **Open** and the action reaches the app. If the Windows
+  toast does not work without a shortcut or a package, the fallback (a balloon on the app's own
+  tray icon) is brought to the maintainer before any change.
+- **Rationale**: both are the platforms' own services, no new crate on Linux and only features of
+  a crate already compiled on Windows; the in-app notice needs no platform code.
+- **Alternatives**: a tray balloon (`Shell_NotifyIcon` `NIF_INFO`): `tray-icon` does not expose
+  it, and Windows 11 shows it as a toast from "Windows Explorer"; `notify-rust`: on Windows it
+  borrows PowerShell's app id (wrong name and icon), on Linux it duplicates what `zbus` does.
+- **Constitution VI**: the `AppUserModelId` key is a display registration, not settings, like the
+  autostart entry; it is written only for the current user and holds no state.

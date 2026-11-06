@@ -142,7 +142,7 @@ shown and that its action works.
 
 1. **Given** no capture device is connected, **When** the app is shown, **Then** the video area
    shows "No devices" with a short hint, and the device menu shows the same state instead of an
-   empty list; plugging a device in opens it (FR-010).
+   empty list; plugging a device in opens it (FR-001, FR-005).
 2. **Given** the system blocks camera access for the app (Windows privacy settings; on Linux the
    device node not readable), **When** the device is opened, **Then** the state says access is
    blocked; on Windows its action opens the system's camera privacy page; **Try again** reopens.
@@ -153,6 +153,11 @@ shown and that its action works.
    mode (F4) within the time of SC-004.
 5. **Given** the device opens but no frame arrives within 5 s, **When** the timeout passes,
    **Then** the state says there is no signal, with **Try again** and the mode menu reachable.
+6. **Given** the app is running, **When** a device is plugged in or removed, **Then** a notice
+   names it (FR-027): inside the window when it has focus, as a system notification otherwise; a
+   device that is plugged in and not reopened by itself offers **Open**, so a card that comes back
+   as a new device (another USB port) is one click away and the user is not left waiting on a
+   disconnected state that will not end.
 
 ---
 
@@ -186,8 +191,9 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   its own remembered mode, as long as the system gives them stable identities.
 - The remembered device is not connected at start: the app opens another connected device if
   there is one (the most recently used, else the first capture card, else the first webcam) and
-  keeps the remembered choice, so it is taken back when it reappears only if the user has not
-  picked another device meanwhile.
+  keeps the remembered choice for the next start. When the remembered device is plugged in later,
+  it only appears in the device menu; the user picks it (maintainer, 2026-11-06). This is not a
+  reconnect: a device unplugged while open still reopens by itself (FR-014).
 - The remembered mode no longer exists (driver update, other device with the same name): the
   device opens in its default automatic mode.
 - The device delivers fewer frames than its mode says (a 60 Hz source in a 120 fps mode): the
@@ -208,6 +214,11 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   show a device that is gone.
 - The device is removed and another one is plugged in while the "disconnected" state shows: the
   app keeps waiting for the device it had open (the new one is in the menu); the user can pick it.
+- Several devices change at once (a USB hub unplugged, waking from sleep): one notice at a
+  time, a newer one replacing the one showing; no queue of old notices.
+- The system has notifications turned off, or does not offer them (a Linux desktop without a
+  notification service): no system notification, logged once; the in-app notice and the device
+  states still work.
 - The system goes to sleep and wakes up with the device open: the device is reopened as after a
   reconnect.
 - Camera access is turned off in the system while previewing: the preview shows the
@@ -308,8 +319,10 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   **Nominal** (the mode's rate). Dropped frames are not shown in the bubble; they are in the
   statistics (FR-018).
 - **FR-018**: The app shell's per-second statistics (app shell FR-005) MUST also cover a real
-  device: frames delivered by the device, frames reaching the app, frames presented, dropped and
-  repeated frames, and frame ready → presented time, so the budget can be checked with a card.
+  device: frames reaching the app, frames presented, dropped and repeated frames, and frame
+  ready → presented time, so the budget can be checked with a card. Frames the device drops
+  before the app are not counted directly; they show as frames reaching the app below the mode's
+  nominal rate (contracts/stats.md).
 
 **States (F11)**
 
@@ -324,6 +337,21 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   is explained in the getting started guide (product.md F54).
 - **FR-021**: The access-blocked state MUST offer, on Windows, an action that opens the system's
   camera privacy settings; on Linux it names the device that could not be opened.
+- **FR-027**: When a device joins or leaves the list after the app started (not the first list
+  at start), the app MUST show a short notice naming it (maintainer, 2026-11-06):
+  - texts: "<name> connected", "<name> reconnected" (the open device came back and reopened by
+    itself, FR-014), "<name> disconnected";
+  - "connected" offers **Open**, which opens that device as if picked in the device menu
+    (remembered mode and range, else its defaults); "reconnected" and "disconnected" have no
+    action (the video area already shows the state);
+  - when the window has focus: an in-app notice, one balloon over the video area, shown about
+    5 s (kept while the pointer is over it), never covering the state's actions; it has a close
+    button (×) and a click anywhere on it closes it (**Open** opens the device and closes it);
+    when the window is not focused, minimized or hidden to the tray: a system notification,
+    whose **Open** also shows the window;
+  - one notice at a time: the balloon shows only the latest message, a newer one replacing the
+    current (no queue, no stack); no setting to turn them off (the system's own notification
+    settings apply to system notifications) (maintainer, 2026-11-06).
 
 **Presentation setting (F52)**
 
@@ -367,8 +395,10 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 - **Device choices** (settings, per device identity): remembered mode, color range. **Preview
   choices** (settings): last used device, presentation (Lowest latency, Follow the monitor),
   latency and frame rate bubble displays.
+- **Device notice**: kind (connected, reconnected, disconnected), device name and id, where it
+  is shown (in-app or system), and its action (Open, for connected).
 - **Preview state**: what the video area shows: video, opening, or one of the states of FR-019.
-- **Preview measurement**: per-second frame counts (delivered, received, presented, dropped,
+- **Preview measurement**: per-second frame counts (received, presented, dropped,
   repeated), latency values and frame ready → presented times; shown in the overlay (FR-016,
   FR-017) and reported by the statistics (FR-018).
 
@@ -400,7 +430,9 @@ added the real interface and settings since; this spec must not lose what the sp
   offering it.
 - **SC-005**: Each state of FR-019 is shown when forced as in User Story 4, in
   both languages, and its action works; no device problem ever leaves a black, blank or frozen
-  video area without a state.
+  video area without a state. Each notice of FR-027 appears within 3 s of the device joining or
+  leaving the list, inside the window when focused and as a system notification otherwise, on
+  Windows and on Linux, and its **Open** opens the device.
 - **SC-006**: The cause of the Windows focus change and fullscreen stalls is identified and
   recorded. If it is in the app's control: no stall over 50 ms (3 frames at 60 fps) at a focus
   change or when entering and leaving fullscreen on the native 1080p monitor, in 10 tries each.
@@ -434,6 +466,11 @@ added the real interface and settings since; this spec must not lose what the sp
   required to meet the budget, and results are recorded.
 - The ezcap Live Gamer Ultra with the PS5 is the reference card and source; a webcam is used for
   webcam behavior (compressed modes, privacy light).
+- System notifications use each platform's own service: the notification center on Windows,
+  the desktop's notification service on Linux (freedesktop notifications over D-Bus, as KDE
+  Plasma offers). On Windows a portable app has to register its name and icon for the current
+  user to show them, as the app shell's autostart writes its own entry; the plan validates this
+  first (research R15).
 - Preview audio is spec #4: this spec shows no audio controls and plays no sound.
 - The developer test video stays available behind its command-line option (app shell FR-004).
 

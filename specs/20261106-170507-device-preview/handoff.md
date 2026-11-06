@@ -5,8 +5,8 @@
 ## State
 
 Spec and plan approved by the maintainer and committed (`docs: add device preview spec`, `docs:
-add device preview plan`; plan.md, research.md R1–R14, data-model.md, contracts/,
-quickstart.md). tasks.md (59 tasks, T001–T059) validated and committed (`docs: add device preview tasks`). Nothing pushed. No code.
+add device preview plan`; plan.md, research.md R1–R15, data-model.md, contracts/,
+quickstart.md). tasks.md (63 tasks, T001–T063; T060–T063 added for device notices) validated and committed (`docs: add device preview tasks`). Nothing pushed. No code.
 
 ## Done in the last session
 
@@ -37,6 +37,22 @@ quickstart.md). tasks.md (59 tasks, T001–T059) validated and committed (`docs:
 - **AMD and Intel GPUs** (maintainer, 2026-11-06): FR-012 is covered and measured on NVIDIA
   only; AMD and Intel are a known limit (no hardware, known controls need root), to be measured
   when the maintainer has one (spec FR-012 and Assumptions, research R7).
+
+- **No switch back to the remembered device** (maintainer, 2026-11-06): when the app started on
+  another device because the remembered one was missing, plugging the remembered one in only adds
+  it to the menu; the user picks it. Reconnect of the open device (F4, FR-014) is unchanged.
+  Spec edge case, data-model and T032 updated, with the other `/speckit-analyze` fixes (FR-018
+  wording, US4 reference, T028/T033 references, SC-004 list timing in T034 and quickstart).
+
+- **Device notices** (maintainer, 2026-11-06): reconnect (FR-014) kept; a notice says when a
+  device is connected, reconnected or disconnected, so the user is not left waiting on a device
+  that will not come back (for example the ezcap back on another USB port, a new identity). In
+  the app when the window has focus, a system notification otherwise, **Open** on a newly
+  connected device. FR-027, US4 scenario 6, SC-005, product F4, research R15 (Windows toast for a
+  portable app via a per-user `AppUserModelId` key, validated first at T061; Linux freedesktop
+  notifications through `zbus`), tasks T060–T063 inside Phase 6. New direct dependency: `windows`
+  0.62 (already in the tree) in `crates/platform`. In-app notice: one balloon drawn by the app
+  (no toast library), only the latest message, × button, closes on any click.
 
 ## Open questions
 

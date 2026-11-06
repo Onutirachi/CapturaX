@@ -115,8 +115,21 @@ any ── system sleep → wake errors ─► Disconnected ─► Opening when 
   vs webcam: unknown on both platforms in general, so "first" is the list order with names
   containing "cam" last (heuristic, logged).
 - The last used device is saved when a device reaches `Playing` after a user choice, not when the
-  app falls back to another (spec edge case: the remembered choice comes back when it reappears,
-  unless the user picked another).
+  app falls back to another (spec edge case: the remembered choice is kept for the next start;
+  when it is plugged in later it only appears in the menu, no automatic switch).
+
+## Device notice (FR-027)
+
+- **Kind**: `Connected` (with **Open**), `Reconnected` (the open device came back and reopens by
+  itself), `Disconnected`. Only after the monitor's first `Listed`.
+- **Where**: `InApp` when the window has focus, else `System` (not focused, minimized, hidden to
+  the tray).
+- **One at a time**: a new notice replaces the one showing (in-app: the single balloon shows the
+  latest message; system: `replaces_id` on Linux, the previous toast hidden on Windows).
+- **Closing (in-app)**: after about 5 s (not while hovered), on the × button, or on a click
+  anywhere on the balloon; **Open** opens the device and closes it.
+- **Open**: same as picking the device in the menu; from a system notification it also shows the
+  window.
 
 ## Preview measurement
 
