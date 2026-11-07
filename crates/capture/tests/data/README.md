@@ -1,6 +1,7 @@
 # Recorded device caps
 
-Test data for `crates/capture/tests/modes.rs`: the block `gst-device-monitor-1.0` prints for one
+Test data for `crates/capture/tests/modes.rs` and the menu tests of `app/src/preview.rs`, read
+with `capture::recorded::device`: the block `gst-device-monitor-1.0` prints for one
 device (name, caps, properties), kept as printed. GStreamer 1.28.8 on both machines.
 
 | File | Device | Machine | How | Date |

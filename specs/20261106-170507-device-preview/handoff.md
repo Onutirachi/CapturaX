@@ -114,6 +114,19 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   `mode_to_open`; tests on the hand-built and the recorded caps (ezcap → 1080p60 NV12, C920 →
   Auto max resolution). Smoke run on Windows (`target/t065`, no `mode` line): the ezcap opened
   at `mode=1920x1080@60 format=NV12`, nothing written to the settings file.
+- **T030** done and committed after the checks (pure, not wired; `feat: add the device and mode
+  menu models`): in app/src/preview.rs `device_items(devices, open, &Settings)` and
+  `mode_items(device, &ModeChoice)` return `Item { text: Label, detail: Option<Detail>, badge,
+  current, disabled, pick: Option<Pick> }`. Catalog texts are named, not written (`Label::
+  NoDevices / Automatic / Modes / Auto(choice)`, `Label::Plain` for names and mode labels;
+  `Detail { automatic, mode }` reads "Auto max resolution · 1920 × 1080 · 30"), so T031 maps
+  them through texts.slint. `mode_choice(device, stored)` (stored choice if the device can open
+  it, else the default) now backs `mode_to_open`; T031 passes it to `mode_items`. Marking: the
+  exact choice, else the row opening the same mode in the same group (a hidden duplicate
+  Auto max FPS marks Auto max resolution on the C920; a stored `@60` marks a 59.94 mode).
+  New `capture::recorded::device(text)` reads a `gst-device-monitor-1.0` block (name, caps,
+  identity, modes); the capture `modes.rs` test and the preview menu tests use it on the
+  recorded C920 and ezcap. fmt, clippy, tests pass on Windows.
 
 Nothing pushed.
 
@@ -219,8 +232,8 @@ Nothing pushed.
 
 ## Next step
 
-1. Phase 4 (US2): T030 menu models onward (device and mode menus; the mode menu marks the
-   default 1080p60 mode from the list when nothing is stored). The ezcap stays on the Windows
+1. Phase 4 (US2): T031 device and mode selects in the toolbar, from the T030 models (remove
+   their `#[allow(dead_code)]` lines and the one on `Preview::devices`). The ezcap stays on the Windows
    PC until T034. System notifications (R15) are validated at T061 before they are wired in.
 
 Linux PC notes: `ydotoold` does not survive a reboot; start it as in the app-shell handoff before

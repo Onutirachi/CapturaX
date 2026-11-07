@@ -9,6 +9,7 @@ pub mod device;
 pub mod frame;
 pub mod mode;
 pub mod monitor;
+pub mod recorded;
 pub mod session;
 pub mod test_source;
 

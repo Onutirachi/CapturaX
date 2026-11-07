@@ -3,44 +3,13 @@
 
 use std::path::Path;
 
-use capturax_capture::mode::{
-    Format, Mode, ModeChoice, default_choice, modes_from_caps, nv12_declared_full, resolve, shown_automatic,
-};
+use capturax_capture::Device;
+use capturax_capture::mode::{Format, Mode, ModeChoice, default_choice, resolve, shown_automatic};
 
-/// The caps and the properties of one recorded device block.
-struct Recorded {
-    caps: gst::Caps,
-    api: String,
-}
-
-fn recorded(file: &str) -> Recorded {
-    gst::init().expect("GStreamer initializes");
+fn recorded(file: &str) -> Device {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(file);
     let text = std::fs::read_to_string(&path).expect("recorded caps are readable");
-    let mut structures = Vec::new();
-    let mut in_caps = false;
-    let mut api = String::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if let Some(first) = line.strip_prefix("caps  :") {
-            in_caps = true;
-            structures.push(first.trim().to_string());
-        } else if line.starts_with("properties:") {
-            in_caps = false;
-        } else if in_caps && !line.is_empty() {
-            structures.push(line.to_string());
-        } else if let Some(value) = line.strip_prefix("device.api = ") {
-            api = value.trim().to_string();
-        }
-    }
-    let caps = structures.join("; ").parse().expect("recorded caps parse");
-    Recorded { caps, api }
-}
-
-fn modes(file: &str) -> Vec<Mode> {
-    let device = recorded(file);
-    let frame_server = device.api == "mediafoundation" && nv12_declared_full(&device.caps);
-    modes_from_caps(&device.caps, frame_server)
+    capturax_capture::recorded::device(&text).expect("a recorded device")
 }
 
 fn format_of(modes: &[Mode], width: u32, height: u32, fps: i32) -> Format {
@@ -54,7 +23,12 @@ fn format_of(modes: &[Mode], width: u32, height: u32, fps: i32) -> Format {
 
 #[test]
 fn ezcap_on_linux() {
-    let modes = modes("ezcap-linux.txt");
+    let device = recorded("ezcap-linux.txt");
+    assert_eq!(
+        device.id,
+        "v4l2:32ed:3201:ezcap_ezcap_Live_GAMER_ULTRA_00000001@pci-0000:03:00.0-usb-0:3:1.0"
+    );
+    let modes = device.modes;
     let labels: Vec<String> = modes.iter().map(Mode::label).collect();
     assert_eq!(
         labels,
@@ -89,10 +63,11 @@ fn ezcap_on_linux() {
 
 #[test]
 fn c920_on_windows() {
+    // Media Foundation, NV12 declared full range: the Frame Server rule applies (research R3).
     let device = recorded("c920-windows.txt");
-    assert_eq!(device.api, "mediafoundation");
-    assert!(nv12_declared_full(&device.caps));
-    let modes = modes("c920-windows.txt");
+    assert_eq!(device.name, "HD Pro Webcam C920");
+    assert!(device.id.starts_with(r"mf:\\?\usb#vid_046d&pid_082d"), "{}", device.id);
+    let modes = device.modes;
 
     // YUY2 before the Frame Server's NV12 where both exist; NV12 where YUY2 is too slow.
     assert_eq!(format_of(&modes, 640, 480, 30), Format::Yuy2);
