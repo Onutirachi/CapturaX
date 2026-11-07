@@ -5,6 +5,7 @@
 
 mod gpu;
 
+use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -35,6 +36,10 @@ struct State {
     frame: Option<Frame>,
     /// The session whose frames are taken; others (a closed session's last frames) are dropped.
     session: Option<u64>,
+    /// When the session's frames come (research R16).
+    pace: Pace,
+    /// The refresh interval of the monitor the window is on; zero until the main thread tells.
+    refresh: Duration,
     /// The video layer goes before the next present (the source closed).
     clear_video: bool,
     ui: Option<UiImage>,
@@ -50,6 +55,47 @@ struct State {
     received: u32,
     replaced: u32,
     moves: u32,
+}
+
+/// The source's frame period: the median of the recent arrival intervals, the open mode's rate
+/// before there are any (research R16).
+#[derive(Debug, Default, Clone)]
+struct Pace {
+    /// From the open mode's frame rate.
+    nominal: Option<Duration>,
+    /// The latest arrival intervals, at most [`PACE_INTERVALS`].
+    intervals: VecDeque<Duration>,
+    last_arrival: Option<Instant>,
+}
+
+/// How many arrival intervals the median is taken over: half a second at 30 fps.
+const PACE_INTERVALS: usize = 15;
+
+impl Pace {
+    fn new(fps: f64) -> Self {
+        Self {
+            nominal: (fps > 0.0).then(|| Duration::from_secs_f64(1.0 / fps)),
+            ..Self::default()
+        }
+    }
+
+    fn arrived(&mut self, at: Instant) {
+        if let Some(last) = self.last_arrival.replace(at) {
+            if self.intervals.len() == PACE_INTERVALS {
+                self.intervals.pop_front();
+            }
+            self.intervals.push_back(at.saturating_duration_since(last));
+        }
+    }
+
+    fn period(&self) -> Option<Duration> {
+        if self.intervals.is_empty() {
+            return self.nominal;
+        }
+        let mut sorted: Vec<Duration> = self.intervals.iter().copied().collect();
+        sorted.sort_unstable();
+        Some(sorted[sorted.len() / 2])
+    }
 }
 
 /// No present until the surface size changes from `size`, or `until` passes.
@@ -82,6 +128,7 @@ impl Inbox {
             return;
         }
         state.received += 1;
+        state.pace.arrived(Instant::now());
         if state.frame.replace(frame).is_some() {
             state.replaced += 1;
         }
@@ -89,10 +136,12 @@ impl Inbox {
         self.wake.notify_one();
     }
 
-    /// From the main thread: the session whose frames are taken from now on (`None`: none). A
-    /// waiting frame of another session goes.
-    pub fn set_session(&self, session: Option<u64>) {
+    /// From the main thread: the session whose frames are taken from now on and its mode's frame
+    /// rate (`None`: none). A waiting frame of another session goes.
+    pub fn set_session(&self, session: Option<(u64, f64)>) {
         let mut state = self.lock();
+        state.pace = session.map(|(_, fps)| Pace::new(fps)).unwrap_or_default();
+        let session = session.map(|(id, _)| id);
         state.session = session;
         if state.frame.as_ref().is_some_and(|f| Some(f.session) != session) {
             state.frame = None;
@@ -108,6 +157,11 @@ impl Inbox {
         state.changed = true;
         drop(state);
         self.wake.notify_one();
+    }
+
+    /// From the main thread: the refresh interval of the monitor the window is on.
+    pub fn set_refresh(&self, refresh: Duration) {
+        self.lock().refresh = refresh;
     }
 
     /// From the main thread: the window moved (for the stats).
@@ -131,14 +185,16 @@ impl Inbox {
     }
 
     /// For a new video thread: what the last one left (the stop, a hold, the UI image and scene of
-    /// the old window) goes; the newest video frame stays.
+    /// the old window) goes; the newest video frame, the source's pace and the refresh stay.
     fn begin(&self) {
         let mut state = self.lock();
         let frame = state.frame.take();
-        let session = state.session;
+        let pace = std::mem::take(&mut state.pace);
         *state = State {
             frame,
-            session,
+            session: state.session,
+            pace,
+            refresh: state.refresh,
             ..State::default()
         };
     }
@@ -228,14 +284,40 @@ impl Drop for VideoThread {
     }
 }
 
-/// How long the video may go without a frame and still count as flowing: while it flows, a UI or
-/// scene change waits for the next video frame instead of being presented on its own (research R3).
+/// Without a frame period, how long the video may go without a frame and still count as flowing
+/// (research R3).
 const FLOWING: Duration = Duration::from_millis(50);
 
-/// When a UI or scene change with no video frame may be presented on its own: at once (`None`)
-/// unless the video is flowing, else when it stops flowing.
-fn ui_deadline(last_frame: Option<Instant>, now: Instant) -> Option<Instant> {
-    last_frame.map(|t| t + FLOWING).filter(|deadline| *deadline > now)
+/// Added to the monitor's refresh interval for the time a UI present may hold the swap chain:
+/// frame arrival jitter and the present's own cost (research R16).
+const PRESENT_MARGIN: Duration = Duration::from_millis(2);
+
+/// When a UI or scene change with no video frame may be presented on its own (`None`: at once).
+///
+/// A UI present can make the next video frame wait up to one refresh, so the change rides on the
+/// next video frame (research R3) only when that frame is expected within one refresh plus
+/// [`PRESENT_MARGIN`]; else it is presented between frames (research R16). The expected frame is
+/// `last_frame + period`; one later than the same window counts as late and the change goes on
+/// its own. Without a period the video counts as flowing for [`FLOWING`] after a frame.
+fn ui_deadline(
+    last_frame: Option<Instant>,
+    period: Option<Duration>,
+    refresh: Duration,
+    now: Instant,
+) -> Option<Instant> {
+    let last = last_frame?;
+    let deadline = match period {
+        Some(period) => {
+            let expected = last + period;
+            let window = refresh + PRESENT_MARGIN;
+            if expected > now + window {
+                return None;
+            }
+            expected + window
+        }
+        None => last + FLOWING,
+    };
+    Some(deadline).filter(|deadline| *deadline > now)
 }
 
 fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: bool) {
@@ -261,7 +343,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
                     }
                 }
                 let deadline = if state.changed {
-                    ui_deadline(last_frame, now)
+                    ui_deadline(last_frame, state.pace.period(), state.refresh, now)
                 } else {
                     None
                 };
@@ -404,11 +486,11 @@ mod tests {
         let inbox = Inbox::default();
         inbox.send_frame(frame(1));
         assert!(inbox.lock().frame.is_none());
-        inbox.set_session(Some(1));
+        inbox.set_session(Some((1, 30.0)));
         inbox.send_frame(frame(1));
         assert!(inbox.lock().frame.is_some());
         // A new session drops the old one's waiting frame and its late frames.
-        inbox.set_session(Some(2));
+        inbox.set_session(Some((2, 30.0)));
         assert!(inbox.lock().frame.is_none());
         inbox.send_frame(frame(1));
         assert!(inbox.lock().frame.is_none());
@@ -421,7 +503,8 @@ mod tests {
     #[test]
     fn a_new_video_thread_keeps_only_the_newest_frame() {
         let inbox = Inbox::default();
-        inbox.set_session(Some(1));
+        inbox.set_session(Some((1, 30.0)));
+        inbox.set_refresh(Duration::from_millis(7));
         inbox.send_frame(frame(1));
         inbox.send_ui(
             None,
@@ -440,20 +523,103 @@ mod tests {
         inbox.begin();
         let state = inbox.lock();
         assert!(state.frame.is_some());
+        assert_eq!(state.session, Some(1));
+        assert!(state.pace.last_arrival.is_some());
+        assert_eq!(state.refresh, Duration::from_millis(7));
         assert!(!state.stop && !state.hidden && !state.changed);
         assert!(state.hold.is_none() && state.scene.is_none() && state.ui.is_none());
+    }
+
+    fn ms(ms: f64) -> Duration {
+        Duration::from_secs_f64(ms / 1e3)
+    }
+
+    /// The deadline `since` ms after a frame, for a source at `fps` on a monitor at `hz`, in ms
+    /// from that frame (`None`: at once).
+    fn deadline(fps: f64, hz: f64, since: f64) -> Option<f64> {
+        let last = Instant::now();
+        ui_deadline(Some(last), Some(ms(1e3 / fps)), ms(1e3 / hz), last + ms(since))
+            .map(|d| (d - last).as_secs_f64() * 1e3)
+    }
+
+    fn near(got: Option<f64>, want: f64) -> bool {
+        got.is_some_and(|got| (got - want).abs() < 0.01)
+    }
+
+    #[test]
+    fn ui_changes_go_between_frames_when_a_refresh_fits() {
+        // 30 fps on 60 Hz: a 33.33 ms period, a 16.67 + 2 ms window.
+        assert_eq!(deadline(30.0, 60.0, 1.0), None);
+        assert_eq!(deadline(30.0, 60.0, 14.0), None);
+        assert!(near(deadline(30.0, 60.0, 15.0), 33.33 + 18.67));
+        // 30 fps on 144 Hz: a 6.94 + 2 ms window.
+        assert_eq!(deadline(30.0, 144.0, 24.0), None);
+        assert!(near(deadline(30.0, 144.0, 25.0), 33.33 + 8.94));
+        // 60 fps on 60 Hz: no room between frames, the change rides on the next one.
+        assert!(near(deadline(60.0, 60.0, 0.0), 16.67 + 18.67));
+        // 60 fps on 144 Hz: room right after a frame.
+        assert_eq!(deadline(60.0, 144.0, 1.0), None);
+        assert_eq!(deadline(60.0, 144.0, 7.0), None);
+        assert!(near(deadline(60.0, 144.0, 8.0), 16.67 + 8.94));
+        // 120 fps: never room, on either monitor.
+        assert!(near(deadline(120.0, 60.0, 0.0), 8.33 + 18.67));
+        assert!(near(deadline(120.0, 144.0, 0.0), 8.33 + 8.94));
+        // A frame later than the window: at once.
+        assert_eq!(deadline(30.0, 60.0, 52.1), None);
+        assert_eq!(deadline(120.0, 144.0, 17.3), None);
     }
 
     #[test]
     fn ui_changes_wait_only_while_the_video_flows() {
         let now = Instant::now();
+        let refresh = ms(16.67);
         // No video yet: at once.
-        assert_eq!(ui_deadline(None, now), None);
-        // A frame 10 ms ago: wait for the next one, at most until the video counts as stopped.
+        assert_eq!(ui_deadline(None, Some(ms(33.3)), refresh, now), None);
+        assert_eq!(ui_deadline(None, None, refresh, now), None);
+        // No period known: wait for the next frame, at most until the video counts as stopped.
         let last = now - Duration::from_millis(10);
-        assert_eq!(ui_deadline(Some(last), now), Some(last + FLOWING));
+        assert_eq!(ui_deadline(Some(last), None, refresh, now), Some(last + FLOWING));
         // No frame for longer than that: at once.
-        assert_eq!(ui_deadline(Some(now - FLOWING), now), None);
-        assert_eq!(ui_deadline(Some(now - Duration::from_millis(200)), now), None);
+        assert_eq!(ui_deadline(Some(now - FLOWING), None, refresh, now), None);
+        let long_ago = now - Duration::from_millis(200);
+        assert_eq!(ui_deadline(Some(long_ago), None, refresh, now), None);
+    }
+
+    #[test]
+    fn the_period_is_the_median_of_recent_arrivals() {
+        let nominal = Some(Duration::from_secs_f64(1.0 / 30.0));
+        let mut pace = Pace::new(30.0);
+        assert_eq!(pace.period(), nominal);
+        assert_eq!(Pace::new(0.0).period(), None);
+        let mut at = Instant::now();
+        // One arrival gives no interval yet.
+        pace.arrived(at);
+        assert_eq!(pace.period(), nominal);
+        // The camera really gives 25 fps, with a late frame and a stall.
+        for gap in [40, 40, 41, 39, 120, 40, 2000, 40] {
+            at += Duration::from_millis(gap);
+            pace.arrived(at);
+        }
+        assert_eq!(pace.period(), Some(Duration::from_millis(40)));
+        // Only the latest intervals count.
+        for _ in 0..PACE_INTERVALS {
+            at += Duration::from_millis(10);
+            pace.arrived(at);
+        }
+        assert_eq!(pace.intervals.len(), PACE_INTERVALS);
+        assert_eq!(pace.period(), Some(Duration::from_millis(10)));
+    }
+
+    #[test]
+    fn a_new_session_starts_from_its_mode_rate() {
+        let inbox = Inbox::default();
+        inbox.set_session(Some((1, 30.0)));
+        inbox.send_frame(frame(1));
+        inbox.send_frame(frame(1));
+        assert_eq!(inbox.lock().pace.intervals.len(), 1);
+        inbox.set_session(Some((2, 60.0)));
+        let state = inbox.lock();
+        assert!(state.pace.intervals.is_empty() && state.pace.last_arrival.is_none());
+        assert_eq!(state.pace.period(), Some(Duration::from_secs_f64(1.0 / 60.0)));
     }
 }

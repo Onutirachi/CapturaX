@@ -264,7 +264,7 @@ impl App {
                 session,
             } => {
                 self.close_session();
-                self.inbox.set_session(Some(session));
+                self.inbox.set_session(Some((session, mode.fps_f64())));
                 let inbox = self.inbox.clone();
                 let proxy = self.proxy.clone();
                 let opened = capture::Session::open(
@@ -540,6 +540,9 @@ impl App {
         {
             self.refresh = Duration::from_secs_f64(1000.0 / f64::from(mhz));
         }
+        // The video thread presents UI changes between slow video frames when a refresh fits
+        // (research R16).
+        self.inbox.set_refresh(self.refresh);
     }
 
     /// Advances timers and animations, draws the UI if Slint says it changed, and hands it to the
@@ -887,7 +890,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
             // Through the capture crate in NV12, like a device (contracts/cli.md); no device is
             // opened.
-            self.inbox.set_session(Some(0));
+            self.inbox.set_session(Some((0, f64::from(size.fps))));
             let inbox = self.inbox.clone();
             let session = capture::Session::test_video(
                 size.width,

@@ -28,6 +28,18 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   at 30 Hz, because UI presents ride on video frames (app shell R3/T041); the spike stays smooth.
   Release vs debug and Vulkan vs DX12 were ruled out by the maintainer (lag only with the camera,
   also on Vulkan).
+- **T064** implemented and validated on Windows by the maintainer (chrome and cursor much
+  smoother on the C920 with G-SYNC, a few slight animation hitches, expected), committed
+  (`feat: present ui changes between slow video frames`). Windows runs in
+  measurements/latency.md: idle unchanged, `ready_ms` better while the chrome animates (C920
+  13 → 2 seconds over 3 ms, test video 4 → 0). The ezcap runs on CachyOS (2026-11-07, 1080p120,
+  no HDMI input) show no change, as expected at 120 fps; T064 is checked.
+- T064 notes: `Inbox::set_session(Some((id, fps)))` takes the mode's rate; `Inbox::set_refresh`
+  is sent from `App::update_refresh`; `Pace` keeps the median of the last 15 arrival intervals;
+  `PRESENT_MARGIN` is 2 ms; a frame later than expected + refresh + margin counts as late and
+  the UI change goes alone; without a period the old 50 ms `FLOWING` rule still applies.
+  Measuring note: a copied exe in its own folder starts with an empty `capturax.toml`
+  (portable), so copy the settings to keep the remembered device.
 
 Nothing pushed.
 
@@ -127,9 +139,12 @@ Nothing pushed.
 
 ## Next step
 
-1. T064 (research R16) first, as the maintainer asked (2026-11-07): the stack spike is built in
-   `target/spike-stack` (git worktree of the tag, `git worktree remove target/spike-stack` when
-   done) with `target/spike-c920.bat` and `target/spike-test-video.bat` to compare; compare in
-   release (`cargo build --release`), debug draws the UI much slower.
-2. `/speckit-implement` from T023 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
+1. `/speckit-implement` from T023 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
    system notifications (R15) at T061, each before it is wired in.
+
+Linux PC notes from the T064 runs: `ydotoold` was not running (it does not survive a reboot);
+start it as in the app-shell handoff before any GUI automation. In the windowed preview the
+toolbar shows only with the pointer near the top of the window (`glide 960 200`), not over the
+middle of the video. The before/after binaries are in `~/capx/t064-before` and
+`~/capx/t064-after` (can be deleted). The spike worktree `target/spike-stack` was removed (its
+commit stays on `feat/20261026-154808-stack-spike`).
