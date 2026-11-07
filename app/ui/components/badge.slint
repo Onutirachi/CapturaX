@@ -1,0 +1,34 @@
+// The resolution badge of a mode (F43), ported from the stack spike's `Badge`: one fill per tier,
+// white text. `kind` is the capture crate's badge id (`4k`, `qhd`, `fhd`, `hd`); empty or unknown
+// draws nothing.
+import { Theme } from "../theme.slint";
+
+export component Badge inherits Rectangle {
+    in property <string> kind;
+
+    property <bool> uhd: root.kind == "4k";
+    property <bool> qhd: root.kind == "qhd";
+    property <bool> fhd: root.kind == "fhd";
+    property <bool> known: root.uhd || root.qhd || root.fhd || root.kind == "hd";
+
+    visible: root.known;
+    width: root.known ? label.preferred-width + 10px : 0;
+    height: label.preferred-height + 2px;
+    border-radius: 4px;
+    background: root.uhd ? Theme.c.badge-4k
+        : root.qhd ? Theme.c.badge-qhd
+        : root.fhd ? Theme.c.badge-full-hd
+        : Theme.c.badge-hd;
+    accessible-role: text;
+    accessible-label: label.text;
+
+    label := Text {
+        text: root.uhd ? @tr("4K")
+            : root.qhd ? @tr("QHD")
+            : root.fhd ? @tr("Full HD")
+            : @tr("HD");
+        color: #ffffff;
+        font-size: Theme.text-s;
+        font-weight: 600;
+    }
+}

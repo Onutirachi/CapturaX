@@ -120,9 +120,10 @@ close the session, stop the monitor; the rest is the shell's sequence.
 ### UI (`app/ui/`)
 
 - `components/toolbar.slint`: the toolbar panel in the shell's slot with the device, mode and
-  color range selects (R13); compact layout keeps them in the toolbar's row and shortens labels.
-- `components/menu.slint`: `MenuItem` gains `kind`, `detail`, `badge`, `enabled`; group headers
-  are not selectable; keyboard navigation skips them.
+  color range selects (R13), in the spike's dropdown look (title inside); compact layout keeps
+  them in the toolbar's row, narrower.
+- `components/menu.slint`: `MenuItem` gains `kind`, `detail` (second line), `badge`,
+  `disabled`; group headers are not selectable; keyboard navigation skips them.
 - `components/badge.slint` (from the spike), `components/info-bubbles.slint` (fixed top left;
   hover settings buttons in the top layer).
 - `main.slint`: the state message shows the preview state's icon, title, detail and actions;

@@ -1,18 +1,33 @@
 // A select: an opaque control showing the chosen item and a chevron that opens a menu of the
 // items in the top layer (menu.slint), ported from the stack spike's `dropdown.slint`. Enter,
 // Space, Up or Down opens it from the keyboard; the focus comes back here when it closes (FR-020).
+// Two looks: plain (36 px, for the settings panel's 44 px rows) and, with a `title`, the spike's
+// dropdown (research R13): a raised control 48 px tall with its title inside, above the chosen
+// value in bold and that item's badge, whose menu is at least 320 px wide.
 import { Theme } from "../theme.slint";
 import { FocusRing } from "focus-ring.slint";
 import { Menus, MenuItem } from "menu.slint";
+import { Badge } from "badge.slint";
 
 export component Select inherits Rectangle {
     in property <[MenuItem]> items;
     in-out property <int> current;
     in property <bool> enabled: true;
+    // False keeps it out of the Tab order (behind the settings panel).
+    in property <bool> focusable: true;
+    // Shown in the button instead of the chosen item's text when not empty ("Auto (Full)").
+    in property <string> shown;
+    // The small title inside the control (the dropdown look); empty for the plain look.
+    in property <string> title;
     // The setting's name, for screen readers.
     in property <string> label;
     out property <bool> has-focus: focus.has-focus;
     callback selected(int);
+
+    property <bool> titled: root.title != "";
+    property <bool> valid: root.current >= 0 && root.current < root.items.length;
+    property <string> chosen: root.valid ? root.items[root.current].text : "";
+    property <string> badge: root.valid ? root.items[root.current].badge : "";
 
     property <int> id;
     init => { self.id = Menus.new-id(); }
@@ -35,19 +50,20 @@ export component Select inherits Rectangle {
     function open-menu() {
         if (root.enabled && root.items.length > 0) {
             Menus.show(root.id, root.items, root.current, root.absolute-position.x, root.absolute-position.y,
-                root.width, root.height);
+                root.width, root.height, root.titled ? 320px : 160px);
         }
     }
 
     min-width: 120px;
-    height: 36px;
-    border-radius: Theme.radius-s;
-    background: Theme.c.top;
+    height: root.titled ? 48px : 36px;
+    border-radius: root.titled ? Theme.radius-m : Theme.radius-s;
+    // The dropdown look draws its fill with its shadow (as `Raised`).
+    background: root.titled ? transparent : Theme.c.top;
     opacity: root.enabled ? 1 : 0.35;
 
     accessible-role: combobox;
     accessible-label: root.label;
-    accessible-value: root.current >= 0 && root.current < root.items.length ? root.items[root.current].text : "";
+    accessible-value: root.shown != "" ? root.shown : root.chosen;
     accessible-enabled: root.enabled;
     accessible-expandable: true;
     accessible-expanded: root.open;
@@ -56,10 +72,20 @@ export component Select inherits Rectangle {
 
     forward-focus: focus;
 
-    // Hover and open tint over the fill.
+    if root.titled: Image {
+        x: -36px;
+        y: -36px;
+        width: root.width + 72px;
+        height: root.height + 72px + 10px;
+        source: Theme.surface(root.width, root.height, 1px / 1phx, Theme.c.top, Theme.c.shadow);
+    }
+
+    // Hover and open tint over the fill; the dropdown look has no pressed tint (as the spike).
     Rectangle {
         border-radius: root.border-radius;
-        background: area.pressed ? Theme.c.press : area.has-hover || root.open ? Theme.c.hover : transparent;
+        background: area.pressed && !root.titled ? Theme.c.press
+            : area.has-hover || root.open ? Theme.c.hover
+            : transparent;
         animate background { duration: Theme.quick; }
     }
 
@@ -69,7 +95,7 @@ export component Select inherits Rectangle {
     }
 
     focus := FocusScope {
-        enabled: root.enabled;
+        enabled: root.enabled && root.focusable;
         focus-on-click: false;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow
@@ -82,17 +108,44 @@ export component Select inherits Rectangle {
     }
 
     HorizontalLayout {
-        padding-left: Theme.gap-m;
-        padding-right: Theme.gap-s + 4px;
+        padding-left: root.titled ? 14px : Theme.gap-m;
+        padding-right: root.titled ? 10px : Theme.gap-s + 4px;
         spacing: Theme.gap-s;
 
-        Text {
-            text: root.current >= 0 && root.current < root.items.length ? root.items[root.current].text : "";
-            color: Theme.c.text;
-            font-size: Theme.text-m;
-            vertical-alignment: center;
-            overflow: elide;
+        VerticalLayout {
+            alignment: center;
+            spacing: 1px;
             horizontal-stretch: 1;
+
+            if root.titled: Text {
+                text: root.title;
+                // The spike's faint tone falls below 4.5:1 on the hovered control (FR-018).
+                color: Theme.c.text-muted;
+                font-size: 11px;
+                font-weight: 600;
+                overflow: elide;
+                accessible-role: none;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Text {
+                    text: root.shown != "" ? root.shown : root.chosen;
+                    color: Theme.c.text;
+                    font-size: Theme.text-m;
+                    font-weight: root.titled ? 600 : 400;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+
+                if root.titled && root.badge != "": VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Badge { kind: root.badge; }
+                }
+            }
         }
 
         VerticalLayout {

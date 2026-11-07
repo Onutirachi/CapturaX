@@ -303,10 +303,16 @@ marks what was not run.
 ## R13. Interface pieces
 
 - **Decision**: the toolbar slot gets its panel with three selects: **device**, **mode**, **color
-  range** (Float order, left to right). `MenuItem` grows optional fields: `kind` (item, group
-  header), `detail` (right-aligned text, for the resolved mode of an automatic mode and the
-  device's detail line), `badge` (resolution badge) and `enabled`; the existing selects keep
-  working with text only. The device select shows "No devices" as a disabled item when the list
+  range** (Float order, left to right). They look like the spike's `dropdown.slint`
+  (maintainer, 2026-11-07): a raised control of 240 × 48 (narrower in the compact layout) with
+  its small title inside, above the chosen value in bold and that item's badge (the title in the
+  muted tone, not the spike's faint one, which falls below 4.5:1 on the hovered control; no
+  pressed tint, as the spike); its menu is at
+  least 320 px wide and slides open, group headers in faint text, an item's detail on a second
+  line under its name. The settings panel's selects keep the shell's 36 px look (they sit in
+  44 px rows). `MenuItem` grows optional fields: `kind` (item, group header), `detail` (second
+  line, for the resolved mode of an automatic mode and the device's detail line), `badge`
+  (resolution badge) and `disabled`; the existing selects keep working with text only. The device select shows "No devices" as a disabled item when the list
   is empty (never an empty menu). Info bubbles (source, mode, frame rate, latency) sit in the
   video area's top left corner with the chrome, in the spike's shape (black at 55%, opaque text);
   the frame rate and latency bubbles show a settings button on hover, drawn in the top layer (app

@@ -4,7 +4,7 @@
 
 use capture::mode::{self, ModeChoice};
 use capture::session::SessionEvent;
-use capture::{Device, Mode, MonitorEvent, RangeChoice};
+use capture::{Device, Mode, MonitorEvent, Range, RangeChoice};
 use settings::{ColorRange, Settings};
 
 /// What the video area shows; one at a time. The string is the device id.
@@ -36,6 +36,8 @@ pub enum Event {
     },
     /// The user picked a device.
     ChooseDevice(String),
+    /// The user picked a color range for the open device.
+    ChooseRange(RangeChoice),
     /// The user pressed Try again.
     TryAgain,
     /// The window went to the tray: the device is closed.
@@ -58,6 +60,16 @@ pub enum Command {
     Close,
     /// Remember the device the user chose: `preview.device`, `preview.recent` and its entry.
     SaveChoice { id: String, name: String },
+    /// Apply a color range choice to the open session (no restart, FR-010).
+    SetRange(RangeChoice),
+    /// Store a device's color range choice (`devices."<id>".color_range`).
+    SaveRange {
+        id: String,
+        name: String,
+        range: RangeChoice,
+    },
+    /// The color range choice or the range in use changed: show [`Preview::range`].
+    ShowRange,
     /// The state changed: show [`Preview::state`].
     ShowState,
 }
@@ -69,6 +81,9 @@ struct Open {
     session: u64,
     /// Opened because the user chose it (saved when it plays), not a fallback.
     chosen: bool,
+    range: RangeChoice,
+    /// The range frames are converted with, once the session reports it.
+    in_use: Option<Range>,
 }
 
 #[derive(Debug, Default)]
@@ -107,7 +122,6 @@ impl Preview {
     }
 
     /// The device open or opening.
-    #[allow(dead_code)] // For the toolbar's selects (T031).
     pub fn device(&self) -> Option<&Device> {
         let id = &self.open.as_ref()?.device;
         capture::device::find(id, &self.devices)
@@ -129,6 +143,14 @@ impl Preview {
                 None => self.names.push((device.id.clone(), device.name.clone())),
             }
         }
+    }
+
+    /// The open device's color range choice and the range in use (once known); Auto with no
+    /// device.
+    pub fn range(&self) -> (RangeChoice, Option<Range>) {
+        self.open
+            .as_ref()
+            .map_or((RangeChoice::Auto, None), |o| (o.range, o.in_use))
     }
 
     /// The devices listed now.
@@ -178,6 +200,21 @@ impl Preview {
                     self.resume = Some((id, true));
                 } else {
                     self.open_device(&id, true, settings, &mut out);
+                }
+            }
+            Event::ChooseRange(range) => {
+                if let Some(open) = self.open.as_mut()
+                    && open.range != range
+                {
+                    open.range = range;
+                    out.push(Command::SetRange(range));
+                    out.push(Command::SaveRange {
+                        id: open.device.clone(),
+                        name: capture::device::find(&open.device, &self.devices)
+                            .map_or_else(String::new, |d| d.base_name.clone()),
+                        range,
+                    });
+                    out.push(Command::ShowRange);
                 }
             }
             Event::TryAgain => {
@@ -236,19 +273,22 @@ impl Preview {
         };
         self.sessions += 1;
         let session = self.sessions;
+        let stored = settings.device(&device.id);
+        let range = range_choice(stored.map(|c| c.color_range).unwrap_or_default());
         self.open = Some(Open {
             device: device.id.clone(),
             session,
             chosen,
+            range,
+            in_use: None,
         });
-        let stored = settings.device(&device.id);
+        out.push(Command::ShowRange);
         let Some(mode) = mode_to_open(&device, stored.map(|c| c.mode.as_str())) else {
             log::error!("preview: {} ({}) offers no mode", device.name, device.id);
             self.open = None;
             self.state = Some(PreviewState::Failed(device.id));
             return;
         };
-        let range = range_choice(stored.map(|c| c.color_range).unwrap_or_default());
         self.state = Some(PreviewState::Opening(device.id.clone()));
         out.push(Command::Open {
             device,
@@ -284,7 +324,11 @@ impl Preview {
                 // Every error is Failed for now; US4 maps each to its own state.
                 self.state = Some(PreviewState::Failed(id));
             }
-            SessionEvent::Playing { .. } | SessionEvent::Range(_) => {}
+            SessionEvent::Range(range) => {
+                open.in_use = Some(range);
+                out.push(Command::ShowRange);
+            }
+            SessionEvent::Playing { .. } => {}
         }
     }
 
@@ -316,6 +360,15 @@ pub fn range_choice(stored: ColorRange) -> RangeChoice {
         ColorRange::Auto => RangeChoice::Auto,
         ColorRange::Full => RangeChoice::Full,
         ColorRange::Limited => RangeChoice::Limited,
+    }
+}
+
+/// A color range choice as stored.
+pub fn color_range(choice: RangeChoice) -> ColorRange {
+    match choice {
+        RangeChoice::Auto => ColorRange::Auto,
+        RangeChoice::Full => ColorRange::Full,
+        RangeChoice::Limited => ColorRange::Limited,
     }
 }
 
@@ -578,5 +631,45 @@ mod tests {
         // Its name is still known for the state message.
         assert_eq!(p.name("card"), "ezcap Live GAMER ULTRA");
         assert_eq!(p.name("never"), "never");
+    }
+
+    #[test]
+    fn a_range_choice_applies_and_is_stored_without_reopening() {
+        let mut settings = Settings::default();
+        settings.touch_device("card", "ezcap Live GAMER ULTRA").color_range = ColorRange::Limited;
+        let mut p = Preview::new();
+        let out = p.handle(listed(vec![card()]), &settings);
+        let session = opened(&out).unwrap().2;
+        assert_eq!(p.range(), (RangeChoice::Limited, None));
+        let out = p.handle(
+            Event::Session {
+                session,
+                event: SessionEvent::Range(Range::Limited),
+            },
+            &settings,
+        );
+        assert!(has(&out, |c| matches!(c, Command::ShowRange)));
+        assert_eq!(p.range(), (RangeChoice::Limited, Some(Range::Limited)));
+
+        let out = p.handle(Event::ChooseRange(RangeChoice::Auto), &settings);
+        assert!(opened(&out).is_none(), "no reopen");
+        assert!(has(&out, |c| matches!(c, Command::SetRange(RangeChoice::Auto))));
+        assert!(has(&out, |c| matches!(
+            c,
+            Command::SaveRange { id, range: RangeChoice::Auto, .. } if id == "card"
+        )));
+        assert_eq!(p.range().0, RangeChoice::Auto);
+        // The same choice again does nothing.
+        assert!(p.handle(Event::ChooseRange(RangeChoice::Auto), &settings).is_empty());
+    }
+
+    #[test]
+    fn a_range_choice_without_a_device_does_nothing() {
+        let mut p = Preview::new();
+        let settings = Settings::default();
+        p.handle(listed(vec![]), &settings);
+        assert!(p.handle(Event::ChooseRange(RangeChoice::Full), &settings).is_empty());
+        assert_eq!(color_range(RangeChoice::Full), ColorRange::Full);
+        assert_eq!(range_choice(color_range(RangeChoice::Limited)), RangeChoice::Limited);
     }
 }

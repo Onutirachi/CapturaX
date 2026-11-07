@@ -15,6 +15,7 @@ import { TitleBar } from "components/title-bar.slint";
 import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
 import { SettingsPanel, Prefs } from "components/settings-panel.slint";
+import { Toolbar } from "components/toolbar.slint";
 
 export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs }
 
@@ -49,6 +50,12 @@ export component AppWindow inherits Window {
     in property <string> state-title;
     in property <string> state-detail;
     property <bool> no-source: root.preview-state == "no-source";
+    // The toolbar's choices for the open device (components/toolbar.slint), set by Rust.
+    in property <bool> device-open;
+    in-out property <int> color-range;
+    in property <bool> range-full;
+    callback color-range-changed(int);
+
     // An action of the state message, by id.
     callback state-action(string /* action id */);
 
@@ -113,7 +120,7 @@ export component AppWindow inherits Window {
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
         || right-area.has-hover || Menus.open
-        || ((fullscreen-button.has-focus || settings-button.has-focus) && Input.keyboard);
+        || ((fullscreen-button.has-focus || settings-button.has-focus || toolbar.has-focus) && Input.keyboard);
     changed engaged => {
         if (self.engaged) {
             self.chrome-shown = true;
@@ -169,13 +176,23 @@ export component AppWindow inherits Window {
             height: 100px;
         }
 
-        // The toolbar slot: no content and no panel in this spec; spec #3 fills it (FR-015). In the
-        // compact layout it takes the space between the docks.
+        // The toolbar (research R13). In the compact layout it takes the space between the docks.
         toolbar-area := TouchArea {
             x: root.compact ? left-area.width + 2 * chrome.edge : 0;
             y: -(self.height + chrome.away) * root.hidden;
             width: root.compact ? parent.width - 2 * (left-area.width + 2 * chrome.edge) : parent.width;
             height: chrome.toolbar-height;
+
+            toolbar := Toolbar {
+                width: parent.width;
+                height: parent.height;
+                compact: root.compact;
+                focusable: !root.settings-open;
+                device-open: root.device-open;
+                color-range <=> root.color-range;
+                range-full: root.range-full;
+                color-range-changed(index) => { root.color-range-changed(index); }
+            }
         }
 
         // Float: slides out to the left; compact: up with the toolbar's row.

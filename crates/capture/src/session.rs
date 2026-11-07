@@ -4,12 +4,12 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use gst::prelude::*;
 use gst_video::prelude::*;
 
-use crate::analysis::{RangeChoice, RangeDetector};
+use crate::analysis::{self, RangeChoice, RangeDetector};
 use crate::device::Device;
 use crate::frame::{self, Frame, Matrix, PixelFormat, Plane, PlanePool, Range};
 use crate::mode::{Format, Mode};
@@ -55,6 +55,8 @@ struct Shared {
     errored: AtomicBool,
     first_frame: AtomicBool,
     detector: Mutex<RangeDetector>,
+    /// When the luma was last sampled for the range detector.
+    sampled: Mutex<Option<Instant>>,
     session: u64,
     on_frame: Box<FrameSink>,
     on_event: Box<EventSink>,
@@ -146,6 +148,7 @@ impl Session {
                 errored: AtomicBool::new(false),
                 first_frame: AtomicBool::new(false),
                 detector: Mutex::new(RangeDetector::new(range, None)),
+                sampled: Mutex::new(None),
                 session,
                 on_frame,
                 on_event,
@@ -193,6 +196,23 @@ impl Session {
         if let Err(err) = spawned {
             self.shared
                 .fail(DeviceError::Failed(format!("cannot start a thread: {err}")));
+        }
+    }
+
+    /// Changes the color range choice; the next frame is converted with it, without a restart
+    /// (FR-010). A change of the range in use is reported as [`SessionEvent::Range`].
+    pub fn set_range(&self, choice: RangeChoice) {
+        let changed = {
+            let Ok(mut detector) = self.shared.detector.lock() else {
+                return;
+            };
+            let before = detector.in_use();
+            detector.set_choice(choice);
+            (detector.in_use() != before).then(|| detector.in_use())
+        };
+        log::info!("session {}: color range {choice:?}", self.shared.session);
+        if let Some(range) = changed {
+            self.shared.event(SessionEvent::Range(range));
         }
     }
 
@@ -366,9 +386,10 @@ fn appsink(formats: &[&str], shared: &Arc<Shared>) -> gst_app::AppSink {
                 && let Some(format) = pixel_format(video.format())
             {
                 let matrix = frame::matrix_for(matrix_of(&video), video.height());
-                if let Ok(mut detector) = shared.detector.lock() {
+                let range = shared.detector.lock().ok().map(|mut detector| {
                     detector.reset(range_of(&video));
-                }
+                    detector.in_use()
+                });
                 log::info!(
                     "session {}: playing {}x{} {} {:?} declared range {:?}",
                     shared.session,
@@ -379,6 +400,10 @@ fn appsink(formats: &[&str], shared: &Arc<Shared>) -> gst_app::AppSink {
                     range_of(&video)
                 );
                 shared.event(SessionEvent::Playing { format, matrix });
+                // The range in use from the start; later changes follow.
+                if let Some(range) = range {
+                    shared.event(SessionEvent::Range(range));
+                }
             }
             gst::PadProbeReturn::Ok
         });
@@ -392,6 +417,7 @@ fn appsink(formats: &[&str], shared: &Arc<Shared>) -> gst_app::AppSink {
                 let shared = weak.upgrade().ok_or(gst::FlowError::Flushing)?;
                 let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
                 let frame = copy_frame(sink, &sample, &pool, &shared)?;
+                detect_range(&shared, &frame);
                 if !shared.first_frame.swap(true, Ordering::SeqCst) {
                     shared.event(SessionEvent::FirstFrame);
                 }
@@ -403,6 +429,43 @@ fn appsink(formats: &[&str], shared: &Arc<Shared>) -> gst_app::AppSink {
             .build(),
     );
     sink
+}
+
+/// How often the luma is sampled for the range detector (research R5).
+const SAMPLE_EVERY: Duration = Duration::from_millis(500);
+
+/// Samples a frame's luma at most every [`SAMPLE_EVERY`], on the streaming thread (never on the
+/// video thread, FR-015), and reports a change of the range in use; the next frame carries it.
+fn detect_range(shared: &Shared, frame: &Frame) {
+    let Ok(mut detector) = shared.detector.lock() else {
+        return;
+    };
+    if !detector.wants_samples() {
+        return;
+    }
+    let now = Instant::now();
+    if let Ok(mut sampled) = shared.sampled.lock() {
+        if sampled.is_some_and(|at| now < at + SAMPLE_EVERY) {
+            return;
+        }
+        *sampled = Some(now);
+    }
+    let Some(plane) = frame.planes().first() else {
+        return;
+    };
+    let samples = analysis::sample_luma(
+        plane.bytes.as_slice(),
+        plane.stride,
+        frame.width,
+        frame.height,
+        frame.format,
+    );
+    if detector.observe(&samples) {
+        let range = detector.in_use();
+        drop(detector);
+        log::info!("session {}: range in use {range:?} (inferred)", shared.session);
+        shared.event(SessionEvent::Range(range));
+    }
 }
 
 /// Copies a sample's planes, rows packed, into a pooled frame stamped with its capture time.

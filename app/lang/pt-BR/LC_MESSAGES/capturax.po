@@ -107,6 +107,36 @@ msgstr "Configurações danificadas"
 msgid "No source"
 msgstr "Nenhuma fonte"
 
+msgid "4K"
+msgstr "4K"
+
+msgid "QHD"
+msgstr "QHD"
+
+msgid "Full HD"
+msgstr "Full HD"
+
+msgid "HD"
+msgstr "HD"
+
+msgid "Color range"
+msgstr "Faixa de cor"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Full"
+msgstr "Completa"
+
+msgid "Limited"
+msgstr "Limitada"
+
+msgid "Auto (Full)"
+msgstr "Auto (Completa)"
+
+msgid "Auto (Limited)"
+msgstr "Auto (Limitada)"
+
 msgid "No devices"
 msgstr "Nenhum dispositivo"
 

@@ -54,6 +54,8 @@ pub enum UserEvent {
         session: u64,
         event: capture::SessionEvent,
     },
+    /// The toolbar's color range choice: 0 Auto, 1 Full, 2 Limited.
+    ColorRange(i32),
 }
 
 /// A change made in the settings panel.
@@ -165,6 +167,9 @@ impl App {
         state.on_start_move(move || on(UserEvent::Window(WindowAction::StartMove)));
         let on = send.clone();
         ui.app.on_dismiss_notice(move || on(UserEvent::DismissNotice));
+        let on = send.clone();
+        ui.app
+            .on_color_range_changed(move |index| on(UserEvent::ColorRange(index)));
         bind_prefs(&ui, &store, send);
         Self {
             options,
@@ -279,6 +284,26 @@ impl App {
                 log::info!("device {id} remembered");
                 self.store.update(|s| s.remember_device(&id, &name));
             }
+            Command::SetRange(range) => {
+                if let Some((session, _)) = &self.session {
+                    session.set_range(range);
+                }
+            }
+            Command::SaveRange { id, name, range } => {
+                self.store
+                    .update(|s| s.touch_device(&id, &name).color_range = preview::color_range(range));
+            }
+            Command::ShowRange => {
+                let (choice, in_use) = self.preview.range();
+                let app = &self.ui.app;
+                app.set_color_range(match choice {
+                    capture::RangeChoice::Auto => 0,
+                    capture::RangeChoice::Full => 1,
+                    capture::RangeChoice::Limited => 2,
+                });
+                app.set_range_full(in_use == Some(capture::Range::Full));
+                self.request_redraw();
+            }
             Command::ShowState => {
                 log::info!("preview state {:?}", self.preview.state());
                 self.show_preview_state();
@@ -300,6 +325,7 @@ impl App {
         };
         let (id, title, detail) = crate::ui::state_message(&state, &name, &Texts::get(&self.ui.app));
         let app = &self.ui.app;
+        app.set_device_open(self.preview.device().is_some());
         app.set_preview_state(id.into());
         app.set_state_title(title.into());
         app.set_state_detail(detail.into());
@@ -808,7 +834,10 @@ fn set_language_items(ui: &Ui) {
     let automatic = Texts::get(&ui.app).get_automatic();
     let items: Vec<MenuItem> = std::iter::once(automatic)
         .chain(i18n::LANGUAGES.iter().map(|l| l.native_name.into()))
-        .map(|text| MenuItem { text })
+        .map(|text| MenuItem {
+            text,
+            ..Default::default()
+        })
         .collect();
     ui.app
         .global::<Prefs>()
@@ -942,6 +971,14 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::SystemTheme(theme) => self.system_theme_changed(theme.map(SystemTheme::from)),
             UserEvent::Monitor(event) => self.preview_event(preview::Event::Monitor(event)),
             UserEvent::Session { session, event } => self.session_event(session, event),
+            UserEvent::ColorRange(index) => {
+                let range = match index {
+                    1 => capture::RangeChoice::Full,
+                    2 => capture::RangeChoice::Limited,
+                    _ => capture::RangeChoice::Auto,
+                };
+                self.preview_event(preview::Event::ChooseRange(range));
+            }
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();
                 match event {

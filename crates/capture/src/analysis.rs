@@ -80,6 +80,11 @@ impl RangeDetector {
         self.choice = choice;
     }
 
+    /// Whether a sampling could change the range in use (Auto, not yet Full).
+    pub fn wants_samples(&self) -> bool {
+        self.choice == RangeChoice::Auto && !self.seen_full
+    }
+
     /// Feeds one sampling; true when the range in use changed.
     pub fn observe(&mut self, samples: &[u8]) -> bool {
         if self.choice != RangeChoice::Auto || self.seen_full || samples.is_empty() {

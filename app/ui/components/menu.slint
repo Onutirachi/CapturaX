@@ -3,13 +3,25 @@
 // drawn last in main.slint, places it: below the control and aligned to its left; if it does not
 // fit below, above; if it does not fit to the right, aligned to the control's right edge (plan,
 // Menu placement; FR-010). A menu taller than the room it gets scrolls. One menu is open at a time.
-// Keys: Up, Down, Home, End move; Enter or Space picks; Esc or Tab closes (FR-020).
+// Keys: Up, Down, Home, End move, skipping headers and disabled items; Enter or Space picks; Esc
+// or Tab closes (FR-020). Rows as the spike's dropdown menu (research R13): group headers 30 px in
+// faint text, items 36 px, 44 px with their detail on a second line; the menu slides open.
 import { Theme } from "../theme.slint";
 import { Raised } from "raised.slint";
 import { FocusRing } from "focus-ring.slint";
+import { Badge } from "badge.slint";
 
+// One row of a menu. Every field but `text` may be left out: an empty `kind` is an item.
 export struct MenuItem {
     text: string,
+    // `item` (or empty) or `header`: a header names the group below it and cannot be picked.
+    kind: string,
+    // A second line under the text.
+    detail: string,
+    // A resolution badge id (`4k`, `qhd`, `fhd`, `hd`), or empty.
+    badge: string,
+    // Shown but not selectable (default false, so a menu built without it is all enabled).
+    disabled: bool,
 }
 
 export global Menus {
@@ -26,11 +38,25 @@ export global Menus {
     out property <length> anchor-y;
     out property <length> anchor-width;
     out property <length> anchor-height;
+    // The narrowest the menu may be (the dropdown look asks for 320 px).
+    out property <length> min-width: 160px;
     // The last pick: its owner, its item, and a count that changes on every pick.
     out property <int> picked-owner;
     out property <int> picked-index;
     out property <int> picks;
     property <int> ids;
+
+    // The index of the next selectable item from `from` (excluded) in direction `step` (1 or -1),
+    // or `from` when there is none; set by Rust (app/src/ui.rs, `next_selectable`), since Slint
+    // functions cannot loop.
+    pure callback next-selectable(items: [MenuItem], from: int, step: int) -> int;
+    // The top of row `index` in the list (`index` = the count: the list's height plus one
+    // spacing); set by Rust (`item_top`) with the row heights below and a 2 px spacing.
+    pure callback item-top(items: [MenuItem], index: int) -> length;
+
+    public pure function selectable(item: MenuItem) -> bool {
+        return item.kind != "header" && !item.disabled;
+    }
 
     // A new owner id for a control that opens menus; call it once, from `init`.
     public function new-id() -> int {
@@ -38,10 +64,12 @@ export global Menus {
         return self.ids;
     }
 
-    public function show(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length, height: length) {
+    public function show(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length, height: length,
+        min-width: length) {
         self.items = items;
+        self.min-width = min-width;
         self.current = current;
-        self.highlighted = max(0, current);
+        self.highlighted = current >= 0 ? current : self.next-selectable(items, -1, 1);
         self.anchor-x = x;
         self.anchor-y = y;
         self.anchor-width = width;
@@ -50,7 +78,7 @@ export global Menus {
     }
 
     public function pick(index: int) {
-        if (self.open && index >= 0 && index < self.items.length) {
+        if (self.open && index >= 0 && index < self.items.length && self.selectable(self.items[index])) {
             self.picked-owner = self.owner;
             self.picked-index = index;
             self.picks += 1;
@@ -69,10 +97,10 @@ export component MenuLayer inherits Rectangle {
     property <length> margin: 8px;
     property <length> space: 4px;
     property <length> pad: 6px;
-    property <length> item-height: 36px;
+    // Must match `item_top` in app/src/ui.rs.
     property <length> spacing: 2px;
     property <int> count: Menus.items.length;
-    property <length> content-height: root.count * root.item-height + max(0, root.count - 1) * root.spacing;
+    property <length> content-height: max(0px, Menus.item-top(Menus.items, root.count) - root.spacing);
     property <length> natural-height: root.content-height + 2 * root.pad;
     property <length> ax: Menus.anchor-x;
     property <length> ay: Menus.anchor-y;
@@ -82,22 +110,29 @@ export component MenuLayer inherits Rectangle {
     property <length> room-above: root.ay - root.space - root.margin;
     property <bool> below: root.natural-height <= root.room-below || root.room-below >= root.room-above;
     property <length> menu-height: max(0px, min(root.natural-height, root.below ? root.room-below : root.room-above));
-    property <length> menu-width: min(max(root.aw, rows.preferred-width + 2 * root.pad, 160px), root.width - 2 * root.margin);
+    property <length> menu-width: min(max(root.aw, rows.preferred-width + 2 * root.pad, Menus.min-width), root.width - 2 * root.margin);
     property <bool> right-aligned: root.ax + root.menu-width > root.width - root.margin;
 
     // The menu takes the keyboard when it opens or another control's menu replaces it.
     property <int> owner: Menus.owner;
     changed owner => { keys.focus(); }
-    init => { keys.focus(); }
+    // Slides 8 px away from its control while it fades in.
+    property <float> appear: 0;
+    animate appear { duration: Theme.quick; easing: ease-out; }
+    init => {
+        keys.focus();
+        self.appear = 1;
+    }
 
     // Keeps the highlighted item inside the visible part of the list.
     property <int> highlighted: Menus.highlighted;
     changed highlighted => {
-        let top = self.highlighted * (self.item-height + self.spacing);
+        let top = Menus.item-top(Menus.items, self.highlighted);
+        let bottom = Menus.item-top(Menus.items, self.highlighted + 1) - self.spacing;
         if (top < -scroller.content-y) {
             scroller.content-y = -top;
-        } else if (top + self.item-height > -scroller.content-y + scroller.height) {
-            scroller.content-y = -(top + self.item-height - scroller.height);
+        } else if (bottom > -scroller.content-y + scroller.height) {
+            scroller.content-y = -(bottom - scroller.height);
         }
     }
 
@@ -109,13 +144,13 @@ export component MenuLayer inherits Rectangle {
     keys := FocusScope {
         key-pressed(event) => {
             if (event.text == Key.DownArrow) {
-                Menus.highlighted = min(root.count - 1, Menus.highlighted + 1);
+                Menus.highlighted = Menus.next-selectable(Menus.items, Menus.highlighted, 1);
             } else if (event.text == Key.UpArrow) {
-                Menus.highlighted = max(0, Menus.highlighted - 1);
+                Menus.highlighted = Menus.next-selectable(Menus.items, Menus.highlighted, -1);
             } else if (event.text == Key.Home) {
-                Menus.highlighted = 0;
+                Menus.highlighted = Menus.next-selectable(Menus.items, -1, 1);
             } else if (event.text == Key.End) {
-                Menus.highlighted = root.count - 1;
+                Menus.highlighted = Menus.next-selectable(Menus.items, root.count, -1);
             } else if (event.text == Key.Return || event.text == Key.Space) {
                 Menus.pick(Menus.highlighted);
             } else if (event.text == Key.Escape || event.text == Key.Tab || event.text == Key.Backtab) {
@@ -130,9 +165,11 @@ export component MenuLayer inherits Rectangle {
     menu := Raised {
         fill: Theme.c.raised;
         x: root.right-aligned ? max(root.margin, root.ax + root.aw - root.menu-width) : root.ax;
-        y: root.below ? root.ay + root.ah + root.space : root.ay - root.space - root.menu-height;
+        y: root.below ? root.ay + root.ah + root.space + 8px * root.appear
+            : root.ay - root.space - root.menu-height - 8px * root.appear;
         width: root.menu-width;
         height: root.menu-height;
+        opacity: root.appear;
         accessible-role: list;
 
         property <bool> scrolls: root.content-height > scroller.height;
@@ -153,17 +190,25 @@ export component MenuLayer inherits Rectangle {
                 width: scroller.width;
                 spacing: root.spacing;
 
-                for item[i] in Menus.items: Rectangle {
-                    height: root.item-height;
+                for item[i] in Menus.items: row := Rectangle {
+                    property <bool> header: item.kind == "header";
+                    property <bool> selectable: Menus.selectable(item);
+                    height: self.header ? 30px : item.detail != "" ? 44px : 36px;
                     border-radius: Theme.radius-s;
-                    background: i == Menus.current ? Theme.c.press : i == Menus.highlighted ? Theme.c.hover : transparent;
+                    background: !self.selectable ? transparent
+                        : i == Menus.current ? Theme.c.press
+                        : i == Menus.highlighted ? Theme.c.hover
+                        : transparent;
                     accessible-role: list-item;
                     accessible-label: item.text;
+                    accessible-description: item.detail;
+                    accessible-enabled: self.selectable;
                     accessible-item-selected: i == Menus.current;
                     accessible-item-index: i;
                     accessible-action-default => { Menus.pick(i); }
 
                     item-area := TouchArea {
+                        enabled: row.selectable;
                         clicked => { Menus.pick(i); }
                         changed has-hover => {
                             if (self.has-hover) {
@@ -173,19 +218,36 @@ export component MenuLayer inherits Rectangle {
                     }
 
                     HorizontalLayout {
-                        padding-left: Theme.gap-m;
-                        padding-right: Theme.gap-m;
-                        Text {
-                            text: item.text;
-                            color: Theme.c.text;
-                            font-size: Theme.text-m;
-                            vertical-alignment: center;
-                            overflow: elide;
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        spacing: 10px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: item.text;
+                                color: row.header || item.disabled ? Theme.c.text-faint : Theme.c.text;
+                                font-size: row.header ? Theme.text-s : Theme.text-m;
+                                font-weight: row.header ? 600 : 400;
+                                overflow: elide;
+                            }
+                            if item.detail != "": Text {
+                                text: item.detail;
+                                color: item.disabled ? Theme.c.text-faint : Theme.c.text-muted;
+                                font-size: Theme.text-s;
+                                overflow: elide;
+                            }
+                        }
+
+                        if item.badge != "": VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 0;
+                            Badge { kind: item.badge; }
                         }
                     }
 
                     FocusRing {
-                        focused: i == Menus.highlighted;
+                        focused: row.selectable && i == Menus.highlighted;
                         radius: Theme.radius-s;
                         // Inside the item, so the list's clip does not cut it.
                         offset: -Theme.focus-ring;

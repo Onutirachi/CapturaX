@@ -1,0 +1,46 @@
+// The toolbar (research R13, FR-002, FR-010), as the stack spike's: a semi-transparent band across
+// the top of the video holding the preview's dropdowns (240 × 48, title inside) in the Float order
+// device, mode, color range. It slides away with the docks. In the compact layout it sits between
+// the docks, in the same row, and the dropdowns narrow so nothing overlaps (shell FR-009). The
+// keyboard reaches it before the docks (it comes first in main.slint).
+import { Theme } from "../theme.slint";
+import { Select } from "select.slint";
+
+export component Toolbar inherits Rectangle {
+    in property <bool> compact;
+    // False while the settings panel holds the keyboard.
+    in property <bool> focusable: true;
+    // A device is open or opening: its choices can change.
+    in property <bool> device-open;
+    // Color range chosen: 0 Auto, 1 Full, 2 Limited; with Auto, `range-full` says which range is
+    // in use, shown in the button as "Auto (Full)" or "Auto (Limited)" (data-model.md).
+    in-out property <int> color-range;
+    in property <bool> range-full;
+    callback color-range-changed(int);
+    out property <bool> has-focus: range-select.has-focus;
+
+    background: Theme.c.panel;
+
+    HorizontalLayout {
+        padding: Theme.gap-l;
+        spacing: root.compact ? Theme.gap-m : Theme.gap-l;
+        alignment: start;
+
+        VerticalLayout {
+            alignment: center;
+            range-select := Select {
+                preferred-width: 240px;
+                min-width: 140px;
+                horizontal-stretch: 0;
+                title: @tr("Color range");
+                label: @tr("Color range");
+                enabled: root.device-open;
+                focusable: root.focusable;
+                items: [{ text: @tr("Auto") }, { text: @tr("Full") }, { text: @tr("Limited") }];
+                current <=> root.color-range;
+                shown: root.color-range != 0 ? "" : root.range-full ? @tr("Auto (Full)") : @tr("Auto (Limited)");
+                selected(index) => { root.color-range-changed(index); }
+            }
+        }
+    }
+}

@@ -5,7 +5,7 @@
 use std::sync::mpsc;
 use std::time::Duration;
 
-use capturax_capture::{Frame, PixelFormat, Session, SessionEvent};
+use capturax_capture::{Frame, PixelFormat, Range, RangeChoice, Session, SessionEvent};
 
 /// What the callbacks saw, in order.
 enum Seen {
@@ -78,11 +78,48 @@ fn nv12_frames_and_events_in_order() {
                     format: PixelFormat::Nv12,
                     ..
                 },
+                SessionEvent::Range(_),
                 SessionEvent::FirstFrame
             ]
         ),
         "events: {order:?}"
     );
     session.close();
+    session.close();
+}
+
+#[test]
+fn set_range_applies_to_the_next_frames_without_a_restart() {
+    if !gstreamer_available() {
+        return;
+    }
+    let (session, rx) = test_video(3);
+    let next_frame = || loop {
+        match rx.recv_timeout(Duration::from_secs(10)).expect("the test video plays") {
+            Seen::Frame(frame) => return frame,
+            Seen::Event(_) => {}
+        }
+    };
+    // The test video declares no range: Auto uses Limited (the ball's black is not below 16).
+    assert_eq!(next_frame().range, Range::Limited);
+    session.set_range(RangeChoice::Full);
+    // A frame already copied may still carry the old range; the ones after carry the new one.
+    let mut events = Vec::new();
+    let mut full = false;
+    for _ in 0..5 {
+        let frame = loop {
+            match rx.recv_timeout(Duration::from_secs(10)).expect("the test video plays") {
+                Seen::Frame(frame) => break frame,
+                Seen::Event(event) => events.push(event),
+            }
+        };
+        full = frame.range == Range::Full;
+    }
+    assert!(full, "frames after set_range(Full) are Full");
+    assert!(events.contains(&SessionEvent::Range(Range::Full)), "events: {events:?}");
+    assert!(
+        !events.iter().any(|e| matches!(e, SessionEvent::Playing { .. })),
+        "no restart: {events:?}"
+    );
     session.close();
 }

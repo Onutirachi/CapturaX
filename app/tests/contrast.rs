@@ -131,11 +131,16 @@ const PAIRS: &[Pair] = &[
     text("text", &["raised"], "settings panel title, notice text, menu items"),
     text("text", &["raised", "hover"], "menu item highlighted"),
     text("text", &["raised", "press"], "menu item chosen"),
-    text("text-muted", &["raised"], "version in About"),
+    text("text-muted", &["raised"], "version in About, menu item detail"),
+    text("text-muted", &["raised", "hover"], "menu item detail highlighted"),
+    text("text-muted", &["raised", "press"], "menu item detail chosen"),
     // Top surfaces: tooltip, select, setting row under the pointer.
     text("text", &["top"], "tooltip, select, setting row hovered"),
     text("text", &["top", "hover"], "select hovered"),
     text("text", &["top", "press"], "select pressed"),
+    text("text-muted", &["top"], "dropdown title"),
+    text("text-muted", &["top", "hover"], "dropdown title hovered"),
+    text("text-faint", &["raised"], "menu group headers"),
     // Base: setting rows and the category well.
     text("text", &["base"], "setting row names"),
     text("text", &["base", "hover"], "category hovered"),
@@ -187,6 +192,11 @@ const PAIRS: &[Pair] = &[
     text("text", &["deep"], "state message title"),
     text("text-muted", &["deep"], "state message detail"),
     icon("text-muted", &["deep"], "state message icon"),
+    // Resolution badges: white text on each fill.
+    text("#ffffff", &["badge-hd"], "HD badge"),
+    text("#ffffff", &["badge-full-hd"], "Full HD badge"),
+    text("#ffffff", &["badge-qhd"], "QHD badge"),
+    text("#ffffff", &["badge-4k"], "4K badge"),
     // Notice.
     icon("accent-text", &["raised"], "notice info icon"),
     icon("warn", &["raised"], "notice warning icon"),

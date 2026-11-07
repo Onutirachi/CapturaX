@@ -57,6 +57,15 @@ Nothing pushed.
   <name>" until T045; items kept for later tasks carry `#[allow(dead_code)]` naming the task;
   `Preview::name(id)` keeps the names of devices seen this run (a state names a device that
   left).
+- T020–T022 notes: `MenuItem` has `disabled` instead of the plan's `enabled` (a Slint struct
+  field left out defaults to false, so the existing menus stay enabled); keyboard skipping of
+  headers and disabled items is the Rust callback `Menus.next-selectable` (`ui::next_selectable`,
+  Slint functions cannot loop). Badge fills are palette tokens (same in both themes) so the
+  contrast test checks them. Toolbar: a panel band with titled selects (titles hidden in the
+  compact layout); pt-BR "Faixa de cor": Auto, Completa, Limitada. The session sends
+  `Range(in_use)` right after `Playing` (the initial value for the button) and on each change;
+  `Session::set_range` applies to the next frame; `Preview` stores the choice through
+  `touch_device(..).color_range`.
 - The Linux clone (`~/Projetos/CapturaX`) is on a detached commit made from the working tree
   (`refs/tmp/wip`); its old app-shell copies were stashed ("pre-device-preview copies").
 
@@ -110,5 +119,9 @@ Nothing pushed.
 
 ## Next step
 
-1. `/speckit-implement` from T020 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
+1. Maintainer checks T020–T022 (uncommitted): the toolbar band with **Faixa de cor**, the menus
+   of the settings panel still working, Auto showing "Auto (Completa)"/"Auto (Limitada)" and
+   Full/Limited switching at once, the choice kept per device after a restart. Then commit
+   (`feat: add the toolbar and the color range choice`) and go on.
+2. `/speckit-implement` from T023 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
    system notifications (R15) at T061, each before it is wired in.

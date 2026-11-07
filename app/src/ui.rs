@@ -43,6 +43,51 @@ pub fn state_message(
     (id, title.into(), String::new())
 }
 
+/// The kinds of menu rows, by height (menu.slint).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuRow {
+    Header,
+    Item,
+    WithDetail,
+}
+
+impl MenuRow {
+    fn height(self) -> f32 {
+        match self {
+            Self::Header => 30.0,
+            Self::Item => 36.0,
+            Self::WithDetail => 44.0,
+        }
+    }
+}
+
+/// The space between menu rows (menu.slint).
+const MENU_SPACING: f32 = 2.0;
+
+/// The top of row `index` in a menu's list, in logical pixels; for `index` = the count, the
+/// list's height plus one spacing. Out of range clamps.
+pub fn item_top(rows: &[MenuRow], index: i32) -> f32 {
+    let end = usize::try_from(index.max(0)).unwrap_or(0).min(rows.len());
+    rows[..end].iter().map(|r| r.height() + MENU_SPACING).sum()
+}
+
+/// The next selectable item of a menu from `from` (excluded) in direction `step` (1 or -1), or
+/// `from` when there is none (the highlight stays). `from` may be -1 or `len` to start at an end.
+pub fn next_selectable(selectable: &[bool], from: i32, step: i32) -> i32 {
+    let step = step.signum();
+    if step == 0 {
+        return from;
+    }
+    let mut i = from + step;
+    while i >= 0 && (i as usize) < selectable.len() {
+        if selectable[i as usize] {
+            return i;
+        }
+        i += step;
+    }
+    from
+}
+
 /// A finished UI image: premultiplied RGBA, rows packed, the size of the surface it was drawn for.
 pub struct UiImage {
     pub pixels: Arc<[u8]>,
@@ -99,6 +144,27 @@ impl Ui {
         // Surface images by physical size, scale, fill and shadow strength; a few surfaces, so
         // the cache stays small, and it is dropped when it grows (tooltips vary with their text).
         let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32), slint::Image>::new());
+        app.global::<Menus>().on_item_top(|items, index| {
+            use slint::Model;
+            let rows: Vec<MenuRow> = items
+                .iter()
+                .map(|i| {
+                    if i.kind == "header" {
+                        MenuRow::Header
+                    } else if i.detail.is_empty() {
+                        MenuRow::Item
+                    } else {
+                        MenuRow::WithDetail
+                    }
+                })
+                .collect();
+            item_top(&rows, index)
+        });
+        app.global::<Menus>().on_next_selectable(|items, from, step| {
+            use slint::Model;
+            let selectable: Vec<bool> = items.iter().map(|i| i.kind != "header" && !i.disabled).collect();
+            next_selectable(&selectable, from, step)
+        });
         app.global::<Theme>()
             .on_surface(move |width, height, scale, fill, strength| {
                 let (w, h) = shadows::image_size(width, height, scale);
@@ -333,4 +399,42 @@ fn slint_key(event: &KeyEvent) -> Option<slint::SharedString> {
         _ => return None,
     };
     Some(key.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn menu_rows_stack_with_their_heights() {
+        use MenuRow::*;
+        let rows = [Header, Item, WithDetail, Item];
+        assert_eq!(item_top(&rows, 0), 0.0);
+        assert_eq!(item_top(&rows, 1), 32.0);
+        assert_eq!(item_top(&rows, 2), 70.0);
+        assert_eq!(item_top(&rows, 3), 116.0);
+        // The list's height is the end minus one spacing.
+        assert_eq!(item_top(&rows, 4) - MENU_SPACING, 152.0);
+        assert_eq!(item_top(&rows, 9), item_top(&rows, 4));
+        assert_eq!(item_top(&rows, -1), 0.0);
+    }
+
+    #[test]
+    fn menu_keys_skip_headers_and_disabled_items() {
+        // header, item, disabled, item, header, item
+        let menu = [false, true, false, true, false, true];
+        assert_eq!(next_selectable(&menu, -1, 1), 1, "Home");
+        assert_eq!(next_selectable(&menu, 6, -1), 5, "End");
+        assert_eq!(next_selectable(&menu, 1, 1), 3);
+        assert_eq!(next_selectable(&menu, 3, 1), 5);
+        assert_eq!(next_selectable(&menu, 5, 1), 5, "stays at the last");
+        assert_eq!(next_selectable(&menu, 3, -1), 1);
+        assert_eq!(
+            next_selectable(&menu, 1, -1),
+            1,
+            "stays at the first, not on the header"
+        );
+        assert_eq!(next_selectable(&[], -1, 1), -1);
+        assert_eq!(next_selectable(&[false, false], -1, 1), -1);
+    }
 }
