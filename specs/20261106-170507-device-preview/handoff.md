@@ -109,6 +109,11 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   data-model, product F3, new task T065). The ezcap stays on the Windows PC; it goes back to
   CachyOS at T034 (batch the Linux checks then). The CachyOS HDMI cable goes back to its monitor
   (KDE remembers each display's setup).
+- **T065** done: `default_choice(signal, &[Mode])` (Auto source; else 1920 × 1080 at its highest
+  rate within 58–62 fps, 60 before 59.94; else Auto max resolution), passed the modes by
+  `mode_to_open`; tests on the hand-built and the recorded caps (ezcap → 1080p60 NV12, C920 →
+  Auto max resolution). Smoke run on Windows (`target/t065`, no `mode` line): the ezcap opened
+  at `mode=1920x1080@60 format=NV12`, nothing written to the settings file.
 
 Nothing pushed.
 
@@ -214,11 +219,9 @@ Nothing pushed.
 
 ## Next step
 
-1. T065 (default mode 1080p at about 60 fps, FR-008 changed after T029): code in
-   `crates/capture/src/mode.rs` (`default_choice(signal, &[Mode])`) and `app/src/preview.rs`
-   (`mode_to_open`), after the maintainer approves it; smoke run with the ezcap on Windows
-   (`target/t028/capturax.toml` without its `mode` line). Then Phase 4 (US2, T030 onward).
-   System notifications (R15) are validated at T061 before they are wired in.
+1. Phase 4 (US2): T030 menu models onward (device and mode menus; the mode menu marks the
+   default 1080p60 mode from the list when nothing is stored). The ezcap stays on the Windows
+   PC until T034. System notifications (R15) are validated at T061 before they are wired in.
 
 Linux PC notes: `ydotoold` does not survive a reboot; start it as in the app-shell handoff before
 any GUI automation (started again for T027, 2026-11-07). The T027 copy is `~/capx/t027` (its own

@@ -437,13 +437,19 @@ pub fn shown_automatic(modes: &[Mode], signal: Option<Signal>) -> Vec<(ModeChoic
     shown
 }
 
-/// The default choice (FR-008): Auto source when the device reports its input, else Auto max FPS.
-pub fn default_choice(signal: Option<Signal>) -> ModeChoice {
+/// The default choice (FR-008): Auto source when the device reports its input; else 1920 × 1080
+/// at its highest rate within 58–62 fps (60 before 59.94) when it has one; else Auto max
+/// resolution. Auto max FPS with a 60 Hz source measured about 5 ms slower than the 60 mode
+/// (T029).
+pub fn default_choice(signal: Option<Signal>, modes: &[Mode]) -> ModeChoice {
     if signal.is_some() {
-        ModeChoice::AutoSource
-    } else {
-        ModeChoice::AutoMaxFps
+        return ModeChoice::AutoSource;
     }
+    modes
+        .iter()
+        .filter(|m| m.width == 1920 && m.height == 1080 && (58.0..=62.0).contains(&m.fps_f64()))
+        .max_by(|a, b| a.fps_f64().total_cmp(&b.fps_f64()))
+        .map_or(ModeChoice::AutoMaxResolution, ModeChoice::manual)
 }
 
 /// The resolution badge of a mode (F43).
@@ -488,6 +494,14 @@ mod tests {
             height,
             fps: (fps, 1),
             format,
+        }
+    }
+
+    /// An NV12 mode at a fractional rate (59.94 = 60000/1001).
+    fn mode_rate(width: u32, height: u32, fps: (i32, i32)) -> Mode {
+        Mode {
+            fps,
+            ..mode(width, height, 0, Format::Nv12)
         }
     }
 
@@ -760,8 +774,38 @@ mod tests {
                 .label(),
             "1920 × 1080 · 60"
         );
-        assert_eq!(default_choice(None), ModeChoice::AutoMaxFps);
-        assert_eq!(default_choice(Some(signal)), ModeChoice::AutoSource);
+        assert_eq!(default_choice(Some(signal), &ezcap()), ModeChoice::AutoSource);
+    }
+
+    #[test]
+    fn default_is_1080p_near_60_else_auto_max_resolution() {
+        let at_60 = ModeChoice::Manual {
+            width: 1920,
+            height: 1080,
+            fps: (60, 1),
+        };
+        assert_eq!(default_choice(None, &ezcap()), at_60);
+        assert_eq!(default_choice(None, &webcam()), ModeChoice::AutoMaxResolution);
+        assert_eq!(default_choice(None, &[]), ModeChoice::AutoMaxResolution);
+
+        // 60 before 59.94; 59.94 alone is taken.
+        let both = vec![mode_rate(1920, 1080, (60000, 1001)), mode(1920, 1080, 60, Format::Nv12)];
+        assert_eq!(default_choice(None, &both), at_60);
+        let ntsc = vec![
+            mode(1920, 1080, 120, Format::Nv12),
+            mode_rate(1920, 1080, (60000, 1001)),
+        ];
+        assert_eq!(
+            default_choice(None, &ntsc),
+            ModeChoice::Manual {
+                width: 1920,
+                height: 1080,
+                fps: (60000, 1001),
+            }
+        );
+        // 1080p only at 50 or 120: not near 60.
+        let pal = vec![mode(1920, 1080, 120, Format::Nv12), mode(1920, 1080, 50, Format::Nv12)];
+        assert_eq!(default_choice(None, &pal), ModeChoice::AutoMaxResolution);
     }
 
     #[test]

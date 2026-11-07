@@ -352,7 +352,7 @@ pub fn mode_to_open(device: &Device, stored: Option<&str>) -> Option<Mode> {
     stored
         .and_then(ModeChoice::parse)
         .and_then(|choice| mode::resolve(&choice, &device.modes, signal))
-        .or_else(|| mode::resolve(&mode::default_choice(signal), &device.modes, signal))
+        .or_else(|| mode::resolve(&mode::default_choice(signal, &device.modes), &device.modes, signal))
 }
 
 pub fn range_choice(stored: ColorRange) -> RangeChoice {
@@ -458,8 +458,8 @@ mod tests {
         let out = p.handle(listed(vec![webcam(), card()]), &settings);
         let (id, mode, session) = opened(&out).unwrap();
         assert_eq!(id, "card");
-        // No stored choice: Auto max FPS.
-        assert_eq!(mode, self::mode(1920, 1080, 120));
+        // No stored choice: 1080p near 60 (FR-008).
+        assert_eq!(mode, self::mode(1920, 1080, 60));
         assert_eq!(p.session(), Some(session));
         assert_eq!(p.state(), PreviewState::Opening("card".into()));
     }
@@ -487,7 +487,8 @@ mod tests {
     #[test]
     fn unknown_or_missing_stored_mode_opens_the_default() {
         let device = card();
-        let default = Some(mode(1920, 1080, 120));
+        // FR-008: 1080p near 60, not Auto max FPS (1080p120).
+        let default = Some(mode(1920, 1080, 60));
         assert_eq!(mode_to_open(&device, None), default);
         assert_eq!(mode_to_open(&device, Some("rubbish")), default);
         assert_eq!(mode_to_open(&device, Some("3840x2160@60")), default);

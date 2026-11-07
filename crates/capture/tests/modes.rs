@@ -3,7 +3,9 @@
 
 use std::path::Path;
 
-use capturax_capture::mode::{Format, Mode, ModeChoice, modes_from_caps, nv12_declared_full, resolve, shown_automatic};
+use capturax_capture::mode::{
+    Format, Mode, ModeChoice, default_choice, modes_from_caps, nv12_declared_full, resolve, shown_automatic,
+};
 
 /// The caps and the properties of one recorded device block.
 struct Recorded {
@@ -78,6 +80,11 @@ fn ezcap_on_linux() {
 
     let shown: Vec<ModeChoice> = shown_automatic(&modes, None).into_iter().map(|s| s.0).collect();
     assert_eq!(shown, [ModeChoice::AutoMaxResolution, ModeChoice::AutoMaxFps]);
+
+    // The default is the 1080p60 mode from the list (FR-008, T029).
+    let default = resolve(&default_choice(None, &modes), &modes, None).expect("default");
+    assert_eq!(default.label(), "1920 × 1080 · 60");
+    assert_eq!(default.format, Format::Nv12);
 }
 
 #[test]
@@ -99,6 +106,9 @@ fn c920_on_windows() {
     // Both resolve to 1080p30: only Auto max resolution is shown, and no Auto source.
     let shown: Vec<ModeChoice> = shown_automatic(&modes, None).into_iter().map(|s| s.0).collect();
     assert_eq!(shown, [ModeChoice::AutoMaxResolution]);
+
+    // No 1080p near 60: the default is Auto max resolution (FR-008).
+    assert_eq!(default_choice(None, &modes), ModeChoice::AutoMaxResolution);
 
     // Largest first, one entry per size and rate.
     assert_eq!(modes[0].width, 2304);
