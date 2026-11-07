@@ -483,4 +483,4 @@ added the real interface and settings since; this spec must not lose what the sp
   keeps the device opened once and owned by the media pipeline (constitution, principle III).
 - Device controls beyond mode and color range (brightness, exposure, the card's own settings).
 - The HDCP hint of F11 (FR-020, removed) and any explanation of color range, modes or the info
-  bubbles inside the app: the getting started guide (product.md F54, roadmap #15).
+  bubbles inside the app: the getting started guide (product.md F54, roadmap #16).

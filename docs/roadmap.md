@@ -22,7 +22,8 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37, F53 (app side) | 11 | |
 | 13 | [Packaging and updates](#13-packaging-and-updates) | F41 (installer, firewall), F44, F45 | 2 | |
 | 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
-| 15 | [Getting started guide](#15-getting-started-guide) | F54 | 14 | |
+| 15 | [Accelerate GPU](#15-accelerate-gpu) | F55 | 10 | |
+| 16 | [Getting started guide](#16-getting-started-guide) | F54 | 15 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
 spec 13 can start any time after spec 2.
@@ -180,15 +181,30 @@ instance opens them). Live and Record can be open at the same time. Reuses the p
 specs 9 and 10.
 ```
 
-### 15. Getting started guide
+### 15. Accelerate GPU
+
+After a usable app with a working live (maintainer, 2026-11-07).
+
+```text
+/speckit-specify Accelerate GPU (see docs/roadmap.md #15): covers F55 from docs/product.md. An
+Accelerate GPU setting (Auto: ask the GPU for full clocks whenever needed except on battery; Off:
+never; On: whenever needed, on battery too) over the GPU performance request of the device
+preview (its research R7). Measure first whether the request helps a live with the preview
+hidden (frames dropped, encoding time, GPU state, 1080p60 and 1080p120, with and without it) and
+add it to the live only if it does. Decide what the setting does on Windows and how battery is
+detected on both systems.
+```
+
+### 16. Getting started guide
 
 Last, so its screenshots show the finished app.
 
 ```text
-/speckit-specify Getting started guide (see docs/roadmap.md #15): covers F54 from docs/product.md.
+/speckit-specify Getting started guide (see docs/roadmap.md #16): covers F54 from docs/product.md.
 A short illustrated guide with screenshots of the app: moving the info bubbles, the color range
 setting, the mode chosen against the resolution of the signal the device receives, and HDCP (a
 black image from a console with HDCP on, and how to turn it off). Reopened from the settings.
-Decide when it is first shown. Texts in both languages; screenshots per language and theme if
-needed.
+Decide when it is first shown. Also tooltips on the more complex settings (Accelerate GPU, color
+range, presentation), a few words of detail each. Texts in both languages; screenshots per
+language and theme if needed.
 ```
