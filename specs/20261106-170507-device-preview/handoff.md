@@ -71,6 +71,17 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   closes, the window hides or the thread stops; `Gpu::pci_bus_id()` from wgpu's
   `AdapterInfo::device_pci_bus_id` (empty → None). fmt, clippy, tests pass on Windows; smoke run
   on Windows (test video `--stats`, DX12): requested with adapter `0000:01:00.0`.
+- **T027** validated by the maintainer and committed (`docs: record us1 acceptance checks`),
+  results in measurements/acceptance.md, Linux logs in measurements/raw/t027/. Windows (C920,
+  maintainer by hand): with the phone's virtual camera on, the start order opened it (no "cam" in
+  its name; heuristic kept by the maintainer, 2026-11-07), so the C920's id was pasted into
+  `[preview] device` (no device menu until T031); restart, range switches, fullscreen pass.
+  CachyOS (ezcap, agent over SSH): first start → 1080p120 NV12 in 393 ms, `Auto (Completa)`,
+  Full/Limited at once and stored per device, F11/Esc, P0 while previewing and P8 when hidden
+  with the requested/released lines; with the PS5 on, Limited crushes the dark gray and clips the
+  yellow, Auto picks Full and matches the passthrough (maintainer). Not checked: the device select
+  with badge (T031), `lat_ms` (T036), 150 % and English, the ezcap on Windows. A SIGTERM ends the
+  app without the "quit" / "released" lines (the driver drops the per-process request anyway).
 
 Nothing pushed.
 
@@ -176,13 +187,15 @@ Nothing pushed.
 
 ## Next step
 
-1. T027 (maintainer): quickstart "First checks" 2–3 and US1 acceptance 1 on Windows (C920) and
-   CachyOS (ezcap); on CachyOS also confirm `nvidia-smi` at P0 while previewing and idle when
-   hidden (T026), and the requested/released lines in the log. System notifications (R15) are
-   validated at T061 before they are wired in.
+1. T028 (maintainer): latency runs L1, L2, L4, L5, L6 of quickstart "Latency budget" with the
+   240 fps camera and the `--stats` log of each clip (L4 with `nvidia-smi` at P0, `power.draw`
+   with and without the request); the agent runs `tools/latency/analyze.py` and records the
+   SC-001 to SC-003 verdicts in measurements/latency.md. Then T029 (L3, L3b). System
+   notifications (R15) are validated at T061 before they are wired in.
 
-Linux PC notes from the T064 runs: `ydotoold` was not running (it does not survive a reboot);
-start it as in the app-shell handoff before any GUI automation. In the windowed preview the
+Linux PC notes: `ydotoold` does not survive a reboot; start it as in the app-shell handoff before
+any GUI automation (started again for T027, 2026-11-07). The T027 copy is `~/capx/t027` (its own
+`capturax.toml`, keep_in_tray on; may be left running). The clone is on a detached `8f191a7`. In the windowed preview the
 toolbar shows only with the pointer near the top of the window (`glide 960 200`), not over the
 middle of the video. The before/after binaries are in `~/capx/t064-before` and
 `~/capx/t064-after` (can be deleted). The spike worktree `target/spike-stack` was removed (its
