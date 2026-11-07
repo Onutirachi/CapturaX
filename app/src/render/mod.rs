@@ -431,7 +431,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
 }
 
 /// `--stats` output goes to stdout and the log (contracts/cli.md).
-fn print_stats(line: &str) {
+pub fn print_stats(line: &str) {
     println!("{line}");
     log::info!("{line}");
 }

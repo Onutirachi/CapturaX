@@ -103,6 +103,8 @@ pub struct App {
     monitor_devices: Option<capture::Monitor>,
     /// The open device's session, and when it was asked for (SC-004).
     session: Option<(capture::Session, Instant)>,
+    /// The open device, for the `[source]` line of `--stats` (contracts/stats.md).
+    source: Option<crate::stats::Source>,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
     /// When the UI was last handed over and the monitor's refresh interval: animations redraw at
@@ -187,6 +189,7 @@ impl App {
             preview: Preview::new(),
             monitor_devices: None,
             session: None,
+            source: None,
             scene: None,
             last_ui: Instant::now(),
             refresh: Duration::from_millis(16),
@@ -278,6 +281,12 @@ impl App {
                     },
                 );
                 self.session = Some((opened, Instant::now()));
+                self.source = Some(crate::stats::Source {
+                    device: device.name.clone(),
+                    id: device.id.clone(),
+                    mode,
+                    playing: None,
+                });
             }
             Command::Close => self.close_session(),
             Command::SaveChoice { id, name } => {
@@ -335,6 +344,7 @@ impl App {
     fn close_session(&mut self) {
         self.inbox.set_session(None);
         self.inbox.clear_video();
+        self.source = None;
         if let Some((session, _)) = self.session.take() {
             session.close();
         }
@@ -352,7 +362,25 @@ impl App {
                 asked.elapsed().as_secs_f64() * 1e3
             );
         }
+        let current = self.session.as_ref().is_some_and(|(open, _)| open.id() == session);
+        let range = match &event {
+            capture::SessionEvent::Playing { format, matrix } if current => {
+                if let Some(source) = &mut self.source {
+                    source.playing = Some((*format, *matrix));
+                }
+                None
+            }
+            capture::SessionEvent::Range(range) if current => Some(*range),
+            _ => None,
+        };
         self.preview_event(preview::Event::Session { session, event });
+        // The session sends the range in use right after `Playing` and on each change.
+        if let (Some(range), true) = (range, self.options.stats) {
+            let auto = self.preview.range().0 == capture::RangeChoice::Auto;
+            if let Some(line) = self.source.as_ref().and_then(|s| s.line(range, auto)) {
+                crate::render::print_stats(&line);
+            }
+        }
     }
 
     fn tray_labels(&self) -> Labels {

@@ -4,12 +4,49 @@
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
+use capture::{Matrix, Mode, PixelFormat, Range};
+
 /// The `[present]` header: printed when the video thread starts and when the presentation changes.
 pub fn header(backend: &str, mode: &str, adapter: &str, surface: (u32, u32)) -> String {
     format!(
         "[present] backend={backend} mode={mode} adapter=\"{adapter}\" surface={}x{}",
         surface.0, surface.1
     )
+}
+
+/// The open source, for its `[source]` line.
+#[derive(Debug, Clone)]
+pub struct Source {
+    pub device: String,
+    pub id: String,
+    pub mode: Mode,
+    /// What the session plays, once the device accepted the format.
+    pub playing: Option<(PixelFormat, Matrix)>,
+}
+
+impl Source {
+    /// The `[source]` line with the range in use (`auto`: inferred), once the source plays.
+    pub fn line(&self, range: Range, auto: bool) -> Option<String> {
+        let (format, matrix) = self.playing?;
+        Some(format!(
+            "[source] device=\"{}\" id=\"{}\" mode={}x{}@{} format={} matrix={} range={}{}",
+            self.device,
+            self.id,
+            self.mode.width,
+            self.mode.height,
+            capture::mode::rate_text(self.mode.fps),
+            format.name(),
+            match matrix {
+                Matrix::Bt601 => "bt601",
+                Matrix::Bt709 => "bt709",
+            },
+            match range {
+                Range::Full => "full",
+                Range::Limited => "limited",
+            },
+            if auto { "(auto)" } else { "" },
+        ))
+    }
 }
 
 /// Counts one second of the video thread's work and produces its `[loop]` line.
@@ -146,6 +183,33 @@ mod tests {
         assert_eq!(
             header("dx12", "mailbox", "NVIDIA GeForce RTX 5070 Ti", (1920, 1080)),
             "[present] backend=dx12 mode=mailbox adapter=\"NVIDIA GeForce RTX 5070 Ti\" surface=1920x1080"
+        );
+    }
+
+    #[test]
+    fn source_line() {
+        let mut source = Source {
+            device: "ezcap Live Gamer Ultra".into(),
+            id: "mf:abc".into(),
+            mode: Mode {
+                width: 1920,
+                height: 1080,
+                fps: (60, 1),
+                format: capture::mode::Format::Nv12,
+            },
+            playing: None,
+        };
+        assert_eq!(source.line(Range::Full, true), None);
+        source.playing = Some((PixelFormat::Nv12, Matrix::Bt709));
+        assert_eq!(
+            source.line(Range::Full, true).unwrap(),
+            "[source] device=\"ezcap Live Gamer Ultra\" id=\"mf:abc\" mode=1920x1080@60 format=NV12 matrix=bt709 range=full(auto)"
+        );
+        source.mode.fps = (60000, 1001);
+        source.playing = Some((PixelFormat::Yuy2, Matrix::Bt601));
+        assert_eq!(
+            source.line(Range::Limited, false).unwrap(),
+            "[source] device=\"ezcap Live Gamer Ultra\" id=\"mf:abc\" mode=1920x1080@59.94 format=YUY2 matrix=bt601 range=limited"
         );
     }
 

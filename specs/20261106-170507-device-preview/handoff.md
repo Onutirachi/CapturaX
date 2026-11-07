@@ -40,6 +40,14 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   the UI change goes alone; without a period the old 50 ms `FLOWING` rule still applies.
   Measuring note: a copied exe in its own folder starts with an empty `capturax.toml`
   (portable), so copy the settings to keep the remembered device.
+- **T023** done: `[source]` line with `--stats`. `stats::Source` (device, id, mode, and format
+  and matrix from `SessionEvent::Playing`) is kept in `App::source` for the open session; the
+  line is printed on each `SessionEvent::Range` of the current session (the session sends it
+  right after `Playing` and on each change), through `render::print_stats` (stdout and log).
+  `(auto)` when the range choice is Auto. Not printed for the test video (no device, its events
+  only go to the log). Smoke run on Windows: `[source] device="HD Pro Webcam C920" id="mf:…"
+  mode=1920x1080@30 format=NV12 matrix=bt601 range=full(auto)`: the C920 declares BT.601 at
+  1080p (the declared matrix wins over the 720p rule, as designed).
 
 Nothing pushed.
 
@@ -139,7 +147,7 @@ Nothing pushed.
 
 ## Next step
 
-1. `/speckit-implement` from T023 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
+1. `/speckit-implement` from T024 (Phase 3, US1: `gpu_performance`, Linux NVML). Linux GPU power (R7) is validated at T025 and
    system notifications (R15) at T061, each before it is wired in.
 
 Linux PC notes from the T064 runs: `ydotoold` was not running (it does not survive a reboot);
