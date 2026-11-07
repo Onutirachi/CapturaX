@@ -369,3 +369,28 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
   borrows PowerShell's app id (wrong name and icon), on Linux it duplicates what `zbus` does.
 - **Constitution VI**: the `AppUserModelId` key is a display registration, not settings, like the
   autostart entry; it is written only for the current user and holds no state.
+
+## R16. UI presents between slow video frames
+
+- **Problem** (maintainer, 2026-11-07): the app shell's rule "UI presents ride on video frames"
+  (app shell research R3, T041) makes the interface animate at the video's frame rate. With the
+  C920 at 30 fps the chrome animates at 30 fps, and with G-SYNC the monitor then refreshes at
+  30 Hz, so the mouse cursor moves at 30 Hz too. The stack spike, which presented every UI change
+  at once, stays smooth with the same camera. Below 20 fps the shell's 50 ms "flowing" window
+  already lets UI images present on their own between frames (except the 50 ms after each
+  frame), so the worst range is about 20–60 fps; a webcam's 2 fps modes still stutter for the
+  first 50 ms after each frame.
+- **Decision**: a UI image or scene change is presented on its own, also while the video flows,
+  when the next video frame is not expected within one monitor refresh plus a margin: expected
+  next frame = last frame + the source's frame period (median of the recent arrival intervals,
+  the open mode's rate before there are any). Otherwise it rides on the next video frame as
+  today. A UI present delays the next acquire by at most one refresh, so a frame arriving as
+  expected never waits for it; a frame arriving early can wait up to one refresh, only while the
+  UI changes. With 120 fps sources nothing changes (no gap); at 30 fps on a 60–144 Hz monitor
+  nearly every UI image fits between frames.
+- **Validation**: `ready_ms` median and max with the chrome animating, before and after, with the
+  C920 (30 fps), the test video (60 fps) and the ezcap (120 fps); idle unchanged; SC-001 and
+  SC-003 still met; the chrome and the cursor smooth with G-SYNC on the C920.
+- **Alternatives**: presenting every UI change at once (the spike; fails SC-001 while
+  animating, T041); predicting the vsync (rejected in the app shell as fragile); a deeper swap
+  chain (a vsync more latency).

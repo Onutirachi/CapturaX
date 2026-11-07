@@ -1,6 +1,6 @@
 # Handoff: Device Preview
 
-**Updated**: 2026-11-06 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
+**Updated**: 2026-11-07 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
 
 ## State
 
@@ -20,6 +20,14 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   `source-open` in main.slint, the opening state spins `loader_2`. Smoke run on Windows: the
   start order picked the phone's virtual camera ("cam" heuristic), first frame 43–47 ms after
   the choice.
+- **T020–T022** validated by the maintainer and committed (`feat: add the toolbar and the color
+  range choice`, 0bd3803): badge, rich menu items, toolbar with the **Faixa de cor** dropdown in
+  the spike's look (maintainer asked for it: research R13 updated), color range wired.
+- **New task T064** (research R16, maintainer 2026-11-07): UI presents between slow video
+  frames. With the C920 (30 fps) the chrome animates at 30 fps and, with G-SYNC, the cursor moves
+  at 30 Hz, because UI presents ride on video frames (app shell R3/T041); the spike stays smooth.
+  Release vs debug and Vulkan vs DX12 were ruled out by the maintainer (lag only with the camera,
+  also on Vulkan).
 
 Nothing pushed.
 
@@ -119,9 +127,9 @@ Nothing pushed.
 
 ## Next step
 
-1. Maintainer checks T020–T022 (uncommitted): the toolbar band with **Faixa de cor**, the menus
-   of the settings panel still working, Auto showing "Auto (Completa)"/"Auto (Limitada)" and
-   Full/Limited switching at once, the choice kept per device after a restart. Then commit
-   (`feat: add the toolbar and the color range choice`) and go on.
+1. T064 (research R16) first, as the maintainer asked (2026-11-07): the stack spike is built in
+   `target/spike-stack` (git worktree of the tag, `git worktree remove target/spike-stack` when
+   done) with `target/spike-c920.bat` and `target/spike-test-video.bat` to compare; compare in
+   release (`cargo build --release`), debug draws the UI much slower.
 2. `/speckit-implement` from T023 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
    system notifications (R15) at T061, each before it is wired in.
