@@ -188,6 +188,8 @@ pub struct Gpu {
     ui: Option<Layer>,
     /// The `[present]` line of contracts/stats.md for the presentation in use.
     header: String,
+    /// The adapter's PCI bus id when the backend gives one (e.g. `0000:01:00.0`).
+    pci_bus_id: Option<String>,
 }
 
 impl Gpu {
@@ -252,7 +254,11 @@ impl Gpu {
             (config.width, config.height),
         );
         log::info!("presentation: {header}");
-        Ok(Self::with_device(surface, device, queue, config, header))
+        let pci_bus_id = Some(adapter.get_info().device_pci_bus_id).filter(|id| !id.is_empty());
+        Ok(Self {
+            pci_bus_id,
+            ..Self::with_device(surface, device, queue, config, header)
+        })
     }
 
     fn with_device(
@@ -348,12 +354,18 @@ impl Gpu {
             video: None,
             ui: None,
             header,
+            pci_bus_id: None,
         }
     }
 
     /// The `[present]` header of the presentation in use.
     pub fn header(&self) -> String {
         self.header.clone()
+    }
+
+    /// The adapter's PCI bus id, when the backend gives one.
+    pub fn pci_bus_id(&self) -> Option<&str> {
+        self.pci_bus_id.as_deref()
     }
 
     /// Reconfigures the surface when the window's size changed.

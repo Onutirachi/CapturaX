@@ -30,12 +30,25 @@ pub struct Scene {
     pub size: (u32, u32),
 }
 
+/// The session the video thread takes frames from (see [`Inbox::set_session`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Feed {
+    pub session: u64,
+    /// The open mode's frame rate.
+    pub fps: f64,
+    /// Ask the GPU for full clocks while the session's frames are presented (FR-012, research R7):
+    /// a device, or the test video when `--stats` compares runs.
+    pub gpu_performance: bool,
+}
+
 /// What waits for the video thread; only the newest of each is kept.
 #[derive(Default)]
 struct State {
     frame: Option<Frame>,
     /// The session whose frames are taken; others (a closed session's last frames) are dropped.
     session: Option<u64>,
+    /// The session asks for full GPU clocks while it is presented.
+    gpu_performance: bool,
     /// When the session's frames come (research R16).
     pace: Pace,
     /// The refresh interval of the monitor the window is on; zero until the main thread tells.
@@ -136,16 +149,20 @@ impl Inbox {
         self.wake.notify_one();
     }
 
-    /// From the main thread: the session whose frames are taken from now on and its mode's frame
-    /// rate (`None`: none). A waiting frame of another session goes.
-    pub fn set_session(&self, session: Option<(u64, f64)>) {
+    /// From the main thread: the session whose frames are taken from now on (`None`: none). A
+    /// waiting frame of another session goes.
+    pub fn set_session(&self, feed: Option<Feed>) {
         let mut state = self.lock();
-        state.pace = session.map(|(_, fps)| Pace::new(fps)).unwrap_or_default();
-        let session = session.map(|(id, _)| id);
+        state.pace = feed.map(|feed| Pace::new(feed.fps)).unwrap_or_default();
+        state.gpu_performance = feed.is_some_and(|feed| feed.gpu_performance);
+        let session = feed.map(|feed| feed.session);
         state.session = session;
         if state.frame.as_ref().is_some_and(|f| Some(f.session) != session) {
             state.frame = None;
         }
+        drop(state);
+        // A held GPU request goes when the session ends.
+        self.wake.notify_one();
     }
 
     /// From the main thread: the source closed, so its last frame is not shown again (no old
@@ -193,6 +210,7 @@ impl Inbox {
         *state = State {
             frame,
             session: state.session,
+            gpu_performance: state.gpu_performance,
             pace,
             refresh: state.refresh,
             ..State::default()
@@ -320,6 +338,37 @@ fn ui_deadline(
     Some(deadline).filter(|deadline| *deadline > now)
 }
 
+/// The GPU performance request (FR-012, research R7), held while the frames of a session that asks
+/// for it are presented; acquiring and releasing are logged.
+struct Performance {
+    _guard: platform::PerformanceGuard,
+}
+
+impl Performance {
+    fn acquire(pci_bus_id: Option<&str>) -> Self {
+        log::info!(
+            "gpu performance requested (adapter {})",
+            pci_bus_id.unwrap_or("unknown")
+        );
+        Self {
+            _guard: platform::gpu_performance(pci_bus_id),
+        }
+    }
+}
+
+impl Drop for Performance {
+    fn drop(&mut self) {
+        log::info!("gpu performance released");
+    }
+}
+
+impl State {
+    /// The GPU request is wanted: a session that asks for it is open and the window shows.
+    fn wants_performance(&self) -> bool {
+        self.gpu_performance && self.session.is_some() && !self.hidden
+    }
+}
+
 fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: bool) {
     let mut stats = stats.then(|| {
         print_stats(&gpu.header());
@@ -329,8 +378,10 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
     let mut first_present = process_start;
     // When the last video frame was taken from the inbox.
     let mut last_frame: Option<Instant> = None;
+    // Dropped after the lock on return (declared before it).
+    let mut performance: Option<Performance> = None;
     loop {
-        let (frame, ui, present) = {
+        let (frame, ui, present, wants_performance) = {
             let mut state = inbox.lock();
             let present = loop {
                 let now = Instant::now();
@@ -353,8 +404,10 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
                 }
                 let held = state.hidden || state.hold.is_some();
                 let ready = state.frame.is_some() || (state.changed && deadline.is_none());
-                if state.stop || (!held && ready) {
-                    break ready;
+                // A request no longer wanted is released outside the lock.
+                let release = performance.is_some() && !state.wants_performance();
+                if state.stop || (!held && ready) || release {
+                    break !held && ready;
                 }
                 // A UI image is uploaded as soon as it arrives, so the next video frame's way to
                 // the screen does not include it (SC-001).
@@ -399,8 +452,11 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
             if std::mem::take(&mut state.clear_video) {
                 gpu.clear_video();
             }
-            (frame, state.ui.take(), present)
+            (frame, state.ui.take(), present, state.wants_performance())
         };
+        if !wants_performance {
+            performance = None;
+        }
         if let Some(ui) = ui {
             gpu.set_ui(&ui);
             if let Some(stats) = &mut stats {
@@ -425,6 +481,10 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
             }
             if let (Some(stats), Some(ready)) = (&mut stats, ready) {
                 stats.presented(ready, Instant::now());
+            }
+            // After the first frame is on screen, so loading the GPU library does not delay it.
+            if ready.is_some() && wants_performance && performance.is_none() {
+                performance = Some(Performance::acquire(gpu.pci_bus_id()));
             }
         }
     }
@@ -463,6 +523,14 @@ mod tests {
         assert!(inbox.lock().hold.is_none());
     }
 
+    fn feed(session: u64, fps: f64) -> Feed {
+        Feed {
+            session,
+            fps,
+            gpu_performance: true,
+        }
+    }
+
     fn frame(session: u64) -> Frame {
         let plane = |len: usize| capture::Plane {
             bytes: vec![0; len].into(),
@@ -486,11 +554,11 @@ mod tests {
         let inbox = Inbox::default();
         inbox.send_frame(frame(1));
         assert!(inbox.lock().frame.is_none());
-        inbox.set_session(Some((1, 30.0)));
+        inbox.set_session(Some(feed(1, 30.0)));
         inbox.send_frame(frame(1));
         assert!(inbox.lock().frame.is_some());
         // A new session drops the old one's waiting frame and its late frames.
-        inbox.set_session(Some((2, 30.0)));
+        inbox.set_session(Some(feed(2, 30.0)));
         assert!(inbox.lock().frame.is_none());
         inbox.send_frame(frame(1));
         assert!(inbox.lock().frame.is_none());
@@ -503,7 +571,7 @@ mod tests {
     #[test]
     fn a_new_video_thread_keeps_only_the_newest_frame() {
         let inbox = Inbox::default();
-        inbox.set_session(Some((1, 30.0)));
+        inbox.set_session(Some(feed(1, 30.0)));
         inbox.set_refresh(Duration::from_millis(7));
         inbox.send_frame(frame(1));
         inbox.send_ui(
@@ -611,13 +679,37 @@ mod tests {
     }
 
     #[test]
+    fn the_gpu_request_follows_a_shown_session_that_asks_for_it() {
+        let inbox = Inbox::default();
+        assert!(!inbox.lock().wants_performance());
+        inbox.set_session(Some(feed(1, 60.0)));
+        assert!(inbox.lock().wants_performance());
+        // A new video thread (Wayland, after hiding) keeps it.
+        inbox.begin();
+        assert!(inbox.lock().wants_performance());
+        // Hidden in the tray: released.
+        inbox.lock().hidden = true;
+        assert!(!inbox.lock().wants_performance());
+        inbox.lock().hidden = false;
+        // The test video without `--stats` does not ask; a closed session neither.
+        inbox.set_session(Some(Feed {
+            gpu_performance: false,
+            ..feed(0, 60.0)
+        }));
+        assert!(!inbox.lock().wants_performance());
+        inbox.set_session(Some(feed(2, 60.0)));
+        inbox.set_session(None);
+        assert!(!inbox.lock().wants_performance());
+    }
+
+    #[test]
     fn a_new_session_starts_from_its_mode_rate() {
         let inbox = Inbox::default();
-        inbox.set_session(Some((1, 30.0)));
+        inbox.set_session(Some(feed(1, 30.0)));
         inbox.send_frame(frame(1));
         inbox.send_frame(frame(1));
         assert_eq!(inbox.lock().pace.intervals.len(), 1);
-        inbox.set_session(Some((2, 60.0)));
+        inbox.set_session(Some(feed(2, 60.0)));
         let state = inbox.lock();
         assert!(state.pace.intervals.is_empty() && state.pace.last_arrival.is_none());
         assert_eq!(state.pace.period(), Some(Duration::from_secs_f64(1.0 / 60.0)));

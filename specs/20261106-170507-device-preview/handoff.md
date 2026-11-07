@@ -61,6 +61,16 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   P8 right after release; no root. R7 holds, no fallback needed. The request is per process
   (nvidia-settings cannot override it, nor the app theirs; research R7), so dropping the guard just
   withdraws ours. Validated by the maintainer; T025 checked.
+- **T026** validated by the maintainer and committed (`feat: hold the gpu performance request
+  while previewing`):
+  `render::Feed { session, fps, gpu_performance }` replaces the `(id, fps)` pair of
+  `Inbox::set_session` (devices ask, the test video only with `--stats`); the video thread
+  acquires `Performance` (wraps `platform::PerformanceGuard`, logs "gpu performance requested
+  (adapter …)" / "gpu performance released") right after a video frame is presented, so the first
+  frame is not delayed by loading NVML, and drops it outside the inbox lock when the session
+  closes, the window hides or the thread stops; `Gpu::pci_bus_id()` from wgpu's
+  `AdapterInfo::device_pci_bus_id` (empty → None). fmt, clippy, tests pass on Windows; smoke run
+  on Windows (test video `--stats`, DX12): requested with adapter `0000:01:00.0`.
 
 Nothing pushed.
 
@@ -166,8 +176,10 @@ Nothing pushed.
 
 ## Next step
 
-1. `/speckit-implement` T026 (hold the guard on the video thread; PCI bus id from wgpu's adapter
-   info). System notifications (R15) are validated at T061 before they are wired in.
+1. T027 (maintainer): quickstart "First checks" 2–3 and US1 acceptance 1 on Windows (C920) and
+   CachyOS (ezcap); on CachyOS also confirm `nvidia-smi` at P0 while previewing and idle when
+   hidden (T026), and the requested/released lines in the log. System notifications (R15) are
+   validated at T061 before they are wired in.
 
 Linux PC notes from the T064 runs: `ydotoold` was not running (it does not survive a reboot);
 start it as in the app-shell handoff before any GUI automation. In the windowed preview the

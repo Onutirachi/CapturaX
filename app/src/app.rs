@@ -267,7 +267,11 @@ impl App {
                 session,
             } => {
                 self.close_session();
-                self.inbox.set_session(Some((session, mode.fps_f64())));
+                self.inbox.set_session(Some(crate::render::Feed {
+                    session,
+                    fps: mode.fps_f64(),
+                    gpu_performance: true,
+                }));
                 let inbox = self.inbox.clone();
                 let proxy = self.proxy.clone();
                 let opened = capture::Session::open(
@@ -918,7 +922,12 @@ impl ApplicationHandler<UserEvent> for App {
             }
             // Through the capture crate in NV12, like a device (contracts/cli.md); no device is
             // opened.
-            self.inbox.set_session(Some((0, f64::from(size.fps))));
+            // The GPU request only for comparison runs (contracts/platform.md).
+            self.inbox.set_session(Some(crate::render::Feed {
+                session: 0,
+                fps: f64::from(size.fps),
+                gpu_performance: self.options.stats,
+            }));
             let inbox = self.inbox.clone();
             let session = capture::Session::test_video(
                 size.width,
