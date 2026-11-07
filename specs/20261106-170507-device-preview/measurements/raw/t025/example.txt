@@ -1,0 +1,5 @@
+   0.000 INFO  requesting for 60 s
+   0.023 INFO  gpu performance: PowerMizer prefers maximum performance on 0000:01:00.0 (was Adaptive)
+  60.023 INFO  releasing
+  60.024 INFO  gpu performance: PowerMizer back to Adaptive
+  60.026 INFO  done

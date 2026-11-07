@@ -77,3 +77,32 @@ UI activity, so it does not come from T064.
 **Verdict**: no change at 120 fps, as expected: a frame is due every 8.3 ms, less than one
 refresh plus the margin, so a UI change always rides on the next frame, as before T064. The
 small differences between runs are noise from the clock drop above.
+
+## T025: GPU performance request on Linux (research R7)
+
+### CachyOS, RTX 3050, driver 615.78.08 — 2026-11-07
+
+The agent ran `gpu_performance 60 0000:01:00.0` (release build of the T024 example) over SSH,
+with `nvidia-smi --query-gpu=timestamp,pstate,clocks.gr,clocks.mem,pcie.link.gen.current,power.draw
+--format=csv -lms 500` running from 5 s before to 10 s after. No other GPU load; desktop idle.
+Logs: [raw/t025/](raw/t025/).
+
+| Phase | Samples | P-state | Graphics | Memory | PCIe | Power |
+|---|---|---|---|---|---|---|
+| before | 11 | P8 | 210 MHz | 405 MHz | Gen1 | 5.8–6.0 W |
+| request, first second | 2 | P0 | 210 MHz | 405 MHz | Gen3 | 6.1 W |
+| request held | 121 | P0 | 1777 MHz | 7001 MHz | Gen3 | 22.3–23.1 W |
+| after release | 26 | P8 | 210–360 MHz | 405 MHz | Gen1 | 5.8–6.7 W |
+
+The example logged `PowerMizer prefers maximum performance on 0000:01:00.0 (was Adaptive)` at
+0.023 s and `PowerMizer back to Adaptive` at 60.024 s; no root, no error. The clocks reach full
+speed within about 1 s of the request, stay there for the whole minute, and drop back to P8 in
+the next sample after the release.
+
+A second check with `nvidia-settings` showed the request is per process: set from
+nvidia-settings alone, the mode lasts only until it exits; set to Adaptive from nvidia-settings
+while the example holds the request, the GPU stays at P0 (research R7).
+
+**Verdict**: research R7 holds on this PC; the keep-alive fallback is not needed. Cost while the
+request is held: about **+17 W** at idle (6 → 23 W), within R7's estimate of +10–20 W; the cost
+while previewing is measured with L4/L6 in T028 (FR-012).

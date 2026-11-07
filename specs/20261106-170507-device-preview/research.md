@@ -178,12 +178,23 @@ marks what was not run.
   a user report says the mode holds only while the requesting process lives, which suits the app
   (a crash undoes it). Not yet run on the CachyOS PC: the first task validates it with a short
   script and `nvidia-smi --query-gpu=pstate,clocks.gr,clocks.mem,pcie.link.gen.current,power.draw`.
+- **Per process, checked on the CachyOS PC** (T025, 2026-11-07): the driver keeps one request
+  per process and applies the highest. `nvidia-settings -a GpuPowerMizerMode=1` alone wakes the
+  GPU only until nvidia-settings exits; setting 0 from nvidia-settings while the example holds 1
+  leaves the GPU at P0, and nvidia-settings reads 0 meanwhile (its own request). Restoring on drop
+  therefore only withdraws CapturaX's request: it can neither override a choice made in another
+  program nor slow down another program's GPU work, which the driver's adaptive mode keeps at
+  full clocks while it has load.
 - **Together with R4**: fewer bytes per frame narrows the gap at low clocks; the PowerMizer
   request closes it. The power cost (P0 while previewing, estimated +10–20 W on the RTX 3050) is
   measured and recorded (FR-012).
 - **If NVML does not hold the clocks**: fall back to a small keep-alive GPU workload on the video
   thread sized by measurement (it must keep both graphics and memory clocks up), recorded with
   its power cost; decided with the maintainer.
+- **Later** (maintainer, 2026-11-07): this spec requests only while the preview presents video,
+  always (no setting). A live with the preview hidden and an **Accelerate GPU** setting (Auto:
+  whenever needed except on battery; Off: never; On: whenever needed) are product.md F55, roadmap #15, after a working
+  live; that spec measures whether the request helps a live before adding it.
 - **Ruled out**: `~/.nv/nvidia-application-profiles-rc` (GLX only, no power key), `__GL_*`
   variables (none for Vulkan power), `PerfLevelSrc` and locked clocks (root), GameMode's NVIDIA
   options (X11 `nvidia-settings -a`, one-shot), AMD `power_dpm_force_performance_level` and Intel

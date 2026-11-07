@@ -48,6 +48,19 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   only go to the log). Smoke run on Windows: `[source] device="HD Pro Webcam C920" id="mf:…"
   mode=1920x1080@30 format=NV12 matrix=bt601 range=full(auto)`: the C920 declares BT.601 at
   1080p (the declared matrix wins over the 720p rule, as designed).
+- **T024** done and committed (`feat: add the gpu performance request`): `platform::gpu_performance(pci_bus_id)
+  -> PerformanceGuard` in `crates/platform/src/gpu.rs`, NVML in `crates/platform/src/linux/nvml.rs`
+  (loaded with `libloading`; struct `{currentMode, mode, supportedPowerMizerModes}` checked against
+  nvidia-ml-py 13.615 and the symbols of driver 615), Windows no-op in `windows/mod.rs`, example
+  `crates/platform/examples/gpu_performance.rs` (`[seconds [pci bus id]]`, default 60 s). Already
+  preferring maximum performance → left alone, nothing restored; a PCI id not found → first GPU;
+  failures logged once per run (info when the library or a symbol is missing, warn when refused).
+  fmt, clippy and tests pass on Windows and CachyOS.
+- **T025 run by the agent over SSH** (2026-11-07, recorded in measurements/latency.md, logs in
+  raw/t025/): P8 210/405 MHz Gen1 6 W → P0 1777/7001 MHz Gen3 23 W within ~1 s, held 60 s, back to
+  P8 right after release; no root. R7 holds, no fallback needed. The request is per process
+  (nvidia-settings cannot override it, nor the app theirs; research R7), so dropping the guard just
+  withdraws ours. Validated by the maintainer; T025 checked.
 
 Nothing pushed.
 
@@ -111,7 +124,7 @@ Nothing pushed.
 - **No HDCP hint** (maintainer, 2026-11-06): FR-020 removed. Black video with a signal also comes
   from a console that is off, RCA adapters and VHS tapes, so it is not a reliable sign of HDCP; no
   black-image detection. HDCP, color range, modes and the bubbles go into a getting started guide
-  (product.md F54, roadmap #15, last spec). Spec, research R5, data-model, contracts, quickstart,
+  (product.md F54, roadmap #16, last spec). Spec, research R5, data-model, contracts, quickstart,
   tasks, product F11 and roadmap #3 updated.
 
 - **AMD and Intel GPUs** (maintainer, 2026-11-06): FR-012 is covered and measured on NVIDIA
@@ -134,10 +147,16 @@ Nothing pushed.
   0.62 (already in the tree) in `crates/platform`. In-app notice: one balloon drawn by the app
   (no toast library), only the latest message, × button, closes on any click.
 
+- **GPU request for the live and Accelerate GPU setting** (maintainer, 2026-11-07): not in this
+  spec. Recorded as product.md F55 and roadmap #15 (the getting started guide moved to #16, still
+  last), after a usable app with a working live: measure whether waking the GPU helps a live with
+  the preview hidden, and an Accelerate GPU setting (Auto: whenever needed except on battery,
+  Off: never, On: whenever needed). Research R7 points to it. Tooltips on the more complex
+  settings go with the getting started guide (F54, roadmap #16).
+
 ## Open questions
 
-- R7 is untested on the CachyOS PC: if the NVML request does not hold the clocks, the fallback
-  (small keep-alive GPU work) needs the maintainer's decision.
+
 - Windows error mapping for "in use" vs "failed" is a heuristic (R6), tested in acceptance
   (quickstart US4: card open in another app); if it misreads, Windows shows the generic Failed
   state instead (maintainer, 2026-11-06), no Media Foundation code of our own.
@@ -147,8 +166,8 @@ Nothing pushed.
 
 ## Next step
 
-1. `/speckit-implement` from T024 (Phase 3, US1: `gpu_performance`, Linux NVML). Linux GPU power (R7) is validated at T025 and
-   system notifications (R15) at T061, each before it is wired in.
+1. `/speckit-implement` T026 (hold the guard on the video thread; PCI bus id from wgpu's adapter
+   info). System notifications (R15) are validated at T061 before they are wired in.
 
 Linux PC notes from the T064 runs: `ydotoold` was not running (it does not survive a reboot);
 start it as in the app-shell handoff before any GUI automation. In the windowed preview the

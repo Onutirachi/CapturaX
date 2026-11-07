@@ -20,6 +20,9 @@ use linux as os;
 
 pub use os::autostart;
 
+mod gpu;
+pub use gpu::{PerformanceGuard, gpu_performance};
+
 pub mod snap;
 pub mod theme;
 pub mod tray;

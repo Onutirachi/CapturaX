@@ -57,6 +57,15 @@ pub fn show_system_message(kind: crate::MessageKind, title: &str, text: &str) {
 }
 
 /// 1 ms timer resolution while it lives; only ended if it was granted.
+/// Nothing to request: Windows keeps the GPU's clocks up under the preview's load (research R7).
+pub struct PerformanceGuard;
+
+impl PerformanceGuard {
+    pub fn new(_pci_bus_id: Option<&str>) -> Self {
+        Self
+    }
+}
+
 pub struct TimerGuard(bool);
 
 impl TimerGuard {

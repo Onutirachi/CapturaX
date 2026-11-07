@@ -11,6 +11,7 @@ use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
 pub mod instance;
+mod nvml;
 pub mod snap;
 pub mod theme;
 pub mod tray;
@@ -60,6 +61,8 @@ fn run(program: &str, args: &[&str]) -> bool {
 }
 
 /// Linux timers are already precise.
+pub use nvml::PerformanceGuard;
+
 pub struct TimerGuard;
 
 impl TimerGuard {
