@@ -82,6 +82,25 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   yellow, Auto picks Full and matches the passthrough (maintainer). Not checked: the device select
   with badge (T031), `lat_ms` (T036), 150 % and English, the ezcap on Windows. A SIGTERM ends the
   app without the "quit" / "released" lines (the driver drops the per-process request anyway).
+- **T028** validated by the maintainer and committed (`docs: record the latency budget runs`).
+  Windows (ezcap moved to the Windows PC, portable copy `target/t028` with its own
+  `capturax.toml`): L1 28.7 / 31.7 ms, L2 29.7 / 32.3 ms (SC-001 pass), preview on the left
+  Samsung at 143.98 Hz (FreeSync not taken as G-SYNC), passthrough on the right G-SYNC monitor.
+  The Windows logs show stalls of 50–675 ms; a check (`raw/t028/focus.txt`) proved they are the
+  focus-change stalls (none in 70 s alone, one per focus change), left to T052 (SC-006). The
+  ezcap's Windows id is `mf:\\?\usb#vid_32ed&pid_3201&mi_00#9&37ee7830&0&0000#…` (USB serial
+  `00000001`; whether the id follows it to another port is still unchecked).
+  Linux half: L4 30.1 / 34.4 ms, L5 29.6 / 33.4 ms
+  (SC-002 pass), L6 without the GPU request 37.9 / 46.0 ms; the request costs about +16.5 W while
+  previewing (24.7 W at P0 vs 8.2 W at P8). Mode pinned with `mode = "1920x1080@60"` under the
+  ezcap's `[devices."…"]` (no mode menu until T031). L6 used the cfed7fe build (T064, before the
+  request) in `~/capx/t028-off`; L4/L5 the 8f191a7 build in `~/capx/t028`. Clips
+  `clips/t028-l{4,5,6}.mp4` need `--fps 240` (the phone stores 29.1). SC-003: windowed passes in
+  every interface state (`raw/t028/ui.txt`, maintainer clicking); fullscreen with UI animating
+  reaches max ~13 ms, as in the app shell, plus ~4 s after F11: **accepted as a known limit by
+  the maintainer**, investigate only if it becomes a problem (spec SC-003, latency.md).
+  `flash.html` is also served from the Linux PC (`python3 -m http.server 8000` in `~/capx/t028`),
+  but the PS5 uses `http://192.168.0.10/tools/latency/flash.html` (the Windows PC).
 
 Nothing pushed.
 
@@ -187,11 +206,12 @@ Nothing pushed.
 
 ## Next step
 
-1. T028 (maintainer): latency runs L1, L2, L4, L5, L6 of quickstart "Latency budget" with the
-   240 fps camera and the `--stats` log of each clip (L4 with `nvidia-smi` at P0, `power.draw`
-   with and without the request); the agent runs `tools/latency/analyze.py` and records the
-   SC-001 to SC-003 verdicts in measurements/latency.md. Then T029 (L3, L3b). System
-   notifications (R15) are validated at T061 before they are wired in.
+1. T029 on the Windows setup (ezcap stays on the Windows PC; it goes back to CachyOS only at
+   T034, batch the Linux checks then): L3 = `mode = "auto-max-fps"` (1080p120) in
+   `target/t028/capturax.toml` with the PS5 at 60 Hz; L3b = the Windows PC's HDMI output into
+   the ezcap set to 1080p120 with `flash.html` fullscreen on it (the PS5's 120 Hz is only on in
+   games that support it, so it cannot be held). Record next to L1. System notifications (R15)
+   are validated at T061 before they are wired in.
 
 Linux PC notes: `ydotoold` does not survive a reboot; start it as in the app-shell handoff before
 any GUI automation (started again for T027, 2026-11-07). The T027 copy is `~/capx/t027` (its own

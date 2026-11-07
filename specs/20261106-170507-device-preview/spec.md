@@ -423,7 +423,12 @@ added the real interface and settings since; this spec must not lose what the sp
   SC-001 (median at most 1.5 ms every second, maximum at most 3 ms in 95% of the seconds) and 99%
   of the seconds present 59–61 frames, on Windows and on Linux with default power settings, in
   every interface state of the app shell's SC-001. Stalls at presentation mode changes are
-  counted apart and judged by SC-006.
+  counted apart and judged by SC-006. Known limit accepted by the maintainer (2026-11-07, T028):
+  on Linux (KWin) in fullscreen, while the interface animates (chrome, menus, panel), the
+  maximum reaches about 13 ms and a few seconds have a median over 1.5 ms, as in the app shell,
+  and for about 4 s after entering fullscreen; no frame is dropped and fullscreen at idle meets
+  the criterion. Not investigated now; to be looked into if it becomes a problem in use (likely
+  causes in measurements/latency.md, T028).
 - **SC-004**: On the maintainer's machines: a device opens and shows its first frame within 2 s
   of being chosen or of a mode change; a plugged or removed device appears in or leaves the list
   within 3 s; a disconnected device that comes back shows video again within 3 s of the system

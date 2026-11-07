@@ -106,3 +106,125 @@ while the example holds the request, the GPU stays at P0 (research R7).
 **Verdict**: research R7 holds on this PC; the keep-alive fallback is not needed. Cost while the
 request is held: about **+17 W** at idle (6 → 23 W), within R7's estimate of +10–20 W; the cost
 while previewing is measured with L4/L6 in T028 (FR-012).
+
+## T028: Latency budget (SC-001 to SC-003, FR-012)
+
+### Windows 11 — 2026-11-07 (L1, L2)
+
+**Environment**: Windows 11 Pro 26300, NVIDIA GeForce RTX 5070 Ti, release build of 8f191a7,
+header `[present] backend=dx12 mode=mailbox`. Preview on the left monitor (Samsung, 1080p at
+143.98 Hz, FreeSync that the driver does not take as G-SYNC); the passthrough on the right
+monitor (G-SYNC). Source: PS5 at 1080p60 showing `flash.html` through the ezcap (Windows id
+`mf:\\?\usb#vid_32ed&pid_3201&mi_00#9&37ee7830&0&0000#…`, USB serial `00000001`), mode pinned
+to `1920x1080@60` (NV12, BT.709, `Auto (Completa)`) in a portable copy (`target/t028`). The
+maintainer placed the window, pressed F11 for L1 and filmed 25 s at 240 fps; after the L2 clip
+the maintainer went through the chrome, the color range menu, the settings panel, language and
+theme switches, then F11, chrome and menu in fullscreen, then Esc, in the L2 log. Logs:
+[raw/t028/](raw/t028/) (`l1.txt`, `l2.txt`).
+
+| Run | Window | n | Median | p95 | Min | Max | Budget (SC-001) |
+|---|---|---|---|---|---|---|---|
+| L1 | fullscreen | 24 | **28.7** | **31.7** | 25.4 | 32.0 | median ≤ 32, p95 ≤ 35: **pass** |
+| L2 | windowed | 23 | **29.7** | **32.3** | 25.8 | 32.0 | **pass** |
+
+**SC-003 reading of the `--stats` logs**:
+
+| Log | Seconds | Seconds with UI | `ready_ms` median | Median > 1.5 | Max > 3 | `pres` outside 59–61 | Gaps > 50 ms (with `ui=0`) | Worst gap |
+|---|---|---|---|---|---|---|---|---|
+| L1 | 328 | 26 | 0.6–1.4 | 0 | 48 (85.4% ok) | 13 (96.0% ok) | 25 (19) | 436 ms |
+| L2 + states | 366 | 101 | 0.6–0.8 | 0 | 74 (79.8% ok) | 31 (91.5% ok) | 46 (41) | 675 ms |
+
+- The medians are clean (0.6–0.8 ms) and the clips have no outlier sample, so the stalls did
+  not fall inside the filmed 25 s.
+- **Stalls with no UI activity**: bursts of seconds with present gaps of 50–675 ms and frames
+  replaced in the inbox (`repl` up to 5), `ready_ms` max ≈ gap − 16 ms: a frame was ready and
+  the video thread did not present it for that long, so the wait is in the present path, not in
+  capture. Bursts: L1 t=76–114, L2 t=43–69 and t=234–258. They fall when the maintainer was
+  working in other windows (the region windows of `analyze.py` took the focus while the app
+  ran), so they look like the app shell's focus-change stalls (229–401 ms, research R8), which
+  SC-006 and T052 investigate. The maintainer does not remember whether the focus moved at
+  those times, so a check followed (`raw/t028/focus.txt`, same build and window, 134 s): with
+  the app left alone for 70 s (t=4–73) there is no second with a max over 3 ms or a gap over
+  30 ms; with ten clicks into another window and back about every 5 s (t=74–102) every focus
+  change gives a stall of 80–200 ms (`repl` 2–4), and the max stays at 4–28 ms for a few
+  seconds after each one; clean again after the last click. **The stalls are the focus-change
+  stalls** (SC-006, T052); the cause is investigated there with PresentMon.
+- With the UI active (fullscreen chrome and menu, settings panel, language and theme switches)
+  there is no stall of its own beyond those bursts: a few seconds with a max of 4.5–8.9 ms.
+
+**Verdict (Windows)**: SC-001 passes, fullscreen and windowed. SC-003 passes on the medians;
+the max and `pres` rules fail only because of the focus-change stalls, which SC-003 leaves to
+SC-006 (T052); with the app focused and left alone it passes.
+
+### CachyOS KDE Plasma Wayland — 2026-11-07 (L4, L5, L6)
+
+**Environment**: CachyOS, NVIDIA GeForce RTX 3050 (driver 615.78.08), 1080p 120 Hz monitor
+without VRR, header `[present] backend=vulkan mode=mailbox`. Source: PS5 at 1080p60 showing
+`flash.html` through the ezcap, mode pinned in the settings file to `1920x1080@60` (NV12,
+BT.709, `Auto (Completa)`). L4 and L5: release build of 8f191a7 (with the GPU request). L6:
+release build of cfed7fe (T064, before T024–T026): the same video path without the request.
+The agent started each run over SSH with `--stats` and `nvidia-smi … -lms 500`, entered
+fullscreen with F11 (L4, L6) and moved the pointer off the video; the maintainer filmed 25 s at
+240 fps with the passthrough next to the preview, chrome idle; after the clip the agent showed
+and hid the chrome 3 times (`ydotool`). Clips analyzed with `--fps 240` (the phone stores 29.1
+fps as the playback rate). Logs: [raw/t028/](raw/t028/), samples in
+[video-samples.csv](video-samples.csv), table in [summary.md](summary.md).
+
+| Run | Window | GPU request | n | Median | p95 | Min | Max | Budget (SC-002) |
+|---|---|---|---|---|---|---|---|---|
+| L4 | fullscreen | yes | 25 | **30.1** | **34.4** | 25.0 | 42.6 | median ≤ 35, p95 ≤ 40: **pass** |
+| L5 | windowed 1280 × 720 | yes | 23 | **29.6** | **33.4** | 26.0 | 33.8 | **pass** |
+| L6 | fullscreen | no | 24 | 37.9 | 46.0 | 20.6 | 48.7 | recorded (would fail) |
+
+Samples rejected by the analyzer (camera skipped frames): 1, 2 and 1.
+
+**GPU while previewing (FR-012)**, from the `nvidia-smi` logs:
+
+| Run | P-state while previewing | Graphics | Power (mean) |
+|---|---|---|---|
+| L4 | P0 (515 of 517 samples; P8 only before the first frame) | 1777 MHz | 24.7 W |
+| L5 | P0 (394 of 396) | 1777 MHz | 24.4 W |
+| L6 | P8 (212 of 224; P0/P5 in the first seconds) | ~250 MHz | 8.2 W |
+
+The request costs about **+16.5 W** while previewing and saves about **8 ms** of median and
+**12 ms** of p95 glass-to-glass latency; without it the Linux budget is missed.
+
+**SC-003 reading of the `--stats` logs** (first 3 seconds and last line left out):
+
+| Run | Seconds | Seconds with UI | `ready_ms` median | Median > 1.5 | Max > 3 | `pres` outside 59–61 |
+|---|---|---|---|---|---|---|
+| L4 | 252 | 13 | 0.7–0.8 (outside the F11 switch) | 4 (t=6–9, F11 switch) | 12 (95.2% ok) | 1 (58, t=253) |
+| L5 | 192 | 11 | 0.8 | 0 | 0 | 0 |
+| L6 | 106 | 5 | 2.6–3.1 | 104 | 42 (60.4% ok) | 3 |
+
+- **Entering fullscreen (L4)**: for about 4 seconds after F11 the frames waited one, then two
+  refreshes before they were ready (`ready_ms` 16, then 30 ms median, t=6–9), then went back to
+  0.8 ms on their own. L6 shows the same at its F11 (median 6.4, then 22.4 ms, t=6–7).
+  Probably KWin switching the fullscreen window to direct scanout; to be checked
+  against the app shell's Linux fullscreen runs before it is called a regression.
+- **Chrome in fullscreen (L4, t=233–250)**: the medians stay at 0.7–0.8 ms, but 7 of the 9
+  seconds with UI images have a max of 3.3–8.9 ms (`gap_ms` up to 24.8). In the window (L5) the
+  same chrome passes give no max over 3 ms.
+- **Interface states** (`ui.txt`, build of L4, no clip, 130 seconds, 85 with UI images): the
+  maintainer went through the chrome, the color range menu, the settings panel, language and
+  theme switches in the window, then F11 and the chrome and menu in fullscreen. Windowed
+  (t=4–82, by the log's shape): one second with a max over 3 ms (3.1), medians 0.7–0.8. From
+  t=83 to the end (fullscreen, UI active almost every second): `ready_ms` max 3.1–12.7 ms in 30
+  seconds, falling about 1 ms a second and starting again (a beat between the video and the
+  UI presents), and 5 seconds with a median of 2.4–5.0 ms; `pres` 60 throughout. Whole run:
+  76.9% of the seconds with a max ≤ 3 ms.
+- The fullscreen spikes with UI are not new: the app shell's Linux runs with the clock locked
+  gave max over 3 ms in 36 of 38 seconds of fullscreen chrome (highest 4.3 ms; app shell
+  measurements/latency.md, "1080 fullscreen chrome", clock locked). Idle fullscreen, where the
+  latency budget is measured, is clean.
+- L6 confirms what the app shell saw at idle on Linux: with the GPU at P8, `ready_ms` sits at
+  2.6 ms and the SC-003 rule fails.
+
+**Verdict (Linux)**: SC-002 passes, fullscreen and windowed, with the GPU request; without it
+(L6) it fails by 3 ms of median and 6 ms of p95. SC-003 passes windowed in every interface
+state; in fullscreen it passes at idle but not while the UI animates (max up to 12.7 ms, 5
+seconds with a median over 1.5 ms), as in the app shell, plus about 4 seconds after F11. No
+frame is dropped (`pres` 60). The maintainer accepted it as a known limit of fullscreen on KWin
+(2026-11-07, recorded in spec SC-003), to be investigated only if it becomes a problem in use;
+likely causes to start from: the UI layer drawn at full screen size, or KWin leaving direct
+scanout while the chrome shows.
