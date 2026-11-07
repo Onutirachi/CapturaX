@@ -8,7 +8,6 @@ mod icon;
 mod log;
 mod notices;
 mod placement;
-#[allow(dead_code)] // Wired into the app in T018.
 mod preview;
 mod render;
 mod shadows;

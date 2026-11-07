@@ -26,6 +26,17 @@ export global Texts {
     public pure function settings-unreadable() -> string {
         @tr("The settings file could not be read. Default settings are in use.")
     }
+    // The preview's state messages (FR-019); US4 gives each error state its own text and hint.
+    out property <string> preview-no-devices: @tr("No devices");
+    public pure function preview-opening(device: string) -> string {
+        @tr("Opening {}", device)
+    }
+    public pure function preview-disconnected(device: string) -> string {
+        @tr("{} disconnected", device)
+    }
+    public pure function preview-cannot-open(device: string) -> string {
+        @tr("Cannot open {}", device)
+    }
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
     out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
     out property <string> already-open: @tr("CapturaX is already open.");

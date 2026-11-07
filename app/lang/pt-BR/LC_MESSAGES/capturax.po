@@ -107,5 +107,17 @@ msgstr "Configurações danificadas"
 msgid "No source"
 msgstr "Nenhuma fonte"
 
+msgid "No devices"
+msgstr "Nenhum dispositivo"
+
+msgid "Opening {}"
+msgstr "Abrindo {}"
+
+msgid "{} disconnected"
+msgstr "{} desconectado"
+
+msgid "Cannot open {}"
+msgstr "Não foi possível abrir {}"
+
 msgid "CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again."
 msgstr "O CapturaX não pode iniciar porque nenhum renderizador gráfico funciona neste computador. Atualize o driver de vídeo e tente de novo."

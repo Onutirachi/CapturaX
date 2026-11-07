@@ -19,6 +19,30 @@ use crate::shadows;
 
 slint::include_modules!();
 
+/// What the video area shows for a preview state (data-model.md "Preview state"): the state id
+/// of `main.slint`, the title and the detail. `name` is the state's device name.
+pub fn state_message(
+    state: &crate::preview::PreviewState,
+    name: &str,
+    texts: &Texts,
+) -> (&'static str, String, String) {
+    use crate::preview::PreviewState as S;
+    let name = slint::SharedString::from(name);
+    let (id, title) = match state {
+        S::Playing => ("playing", Default::default()),
+        S::NoSource => ("no-source", Default::default()),
+        S::NoDevices => ("no-devices", texts.get_preview_no_devices()),
+        S::Opening(_) => ("opening", texts.invoke_preview_opening(name)),
+        S::Disconnected(_) => ("disconnected", texts.invoke_preview_disconnected(name)),
+        // Provisional: US4 (T045) gives each its own text, hint and actions.
+        S::Blocked(_) => ("blocked", texts.invoke_preview_cannot_open(name)),
+        S::InUse(_) => ("in-use", texts.invoke_preview_cannot_open(name)),
+        S::NoSignal(_) => ("no-signal", texts.invoke_preview_cannot_open(name)),
+        S::Failed(_) => ("failed", texts.invoke_preview_cannot_open(name)),
+    };
+    (id, title.into(), String::new())
+}
+
 /// A finished UI image: premultiplied RGBA, rows packed, the size of the surface it was drawn for.
 pub struct UiImage {
     pub pixels: Arc<[u8]>,

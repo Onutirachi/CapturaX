@@ -19,6 +19,7 @@ use crate::i18n;
 use crate::icon;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
+use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
 use crate::theme::{self, SystemTheme};
 use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
@@ -31,8 +32,9 @@ pub const EXIT_NO_RENDERER: i32 = 2;
 /// Exit code when `--test-video` cannot play: GStreamer or `videotestsrc` is missing.
 pub const EXIT_NO_TEST_VIDEO: i32 = 69;
 
-/// Events reaching the main thread from the UI's callbacks and, later, from the platform layer.
-#[derive(Debug, Clone, Copy)]
+/// Events reaching the main thread from the UI's callbacks, the platform layer and the capture
+/// crate's threads.
+#[derive(Debug, Clone)]
 pub enum UserEvent {
     Window(WindowAction),
     DismissNotice,
@@ -45,6 +47,13 @@ pub enum UserEvent {
     Snap(SnapEvent),
     /// The system's theme changed where winit does not report it (FR-017, Linux).
     SystemTheme(Option<platform::theme::Theme>),
+    /// The device monitor's events.
+    Monitor(capture::MonitorEvent),
+    /// An event of the session with this number.
+    Session {
+        session: u64,
+        event: capture::SessionEvent,
+    },
 }
 
 /// A change made in the settings panel.
@@ -86,6 +95,12 @@ pub struct App {
     reopen_fullscreen: bool,
     /// The test video's session and the precise timers that pace it.
     test_video: Option<(capture::Session, platform::TimerGuard)>,
+    /// What the video area shows and which device is open (data-model.md "Preview state").
+    preview: Preview,
+    /// The device monitor, unless the test video plays or GStreamer cannot start.
+    monitor_devices: Option<capture::Monitor>,
+    /// The open device's session, and when it was asked for (SC-004).
+    session: Option<(capture::Session, Instant)>,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
     /// When the UI was last handed over and the monitor's refresh interval: animations redraw at
@@ -164,6 +179,9 @@ impl App {
             window_gone: false,
             reopen_fullscreen: false,
             test_video: None,
+            preview: Preview::new(),
+            monitor_devices: None,
+            session: None,
             scene: None,
             last_ui: Instant::now(),
             refresh: Duration::from_millis(16),
@@ -212,6 +230,105 @@ impl App {
         }
     }
 
+    /// Starts the device monitor: its events reach the main thread as [`UserEvent::Monitor`].
+    fn start_monitor(&mut self) {
+        let proxy = self.proxy.clone();
+        match capture::Monitor::start(move |event| {
+            let _ = proxy.send_event(UserEvent::Monitor(event));
+        }) {
+            Ok(monitor) => self.monitor_devices = Some(monitor),
+            // The video area keeps the shell's `no-source` state.
+            Err(err) => log::error!("device monitor unavailable: {err}"),
+        }
+    }
+
+    /// Hands an event to the preview and runs the commands it gives.
+    fn preview_event(&mut self, event: preview::Event) {
+        let settings = self.store.get();
+        for command in self.preview.handle(event, &settings) {
+            self.run(command);
+        }
+    }
+
+    fn run(&mut self, command: Command) {
+        match command {
+            Command::Open {
+                device,
+                mode,
+                range,
+                session,
+            } => {
+                self.close_session();
+                self.inbox.set_session(Some(session));
+                let inbox = self.inbox.clone();
+                let proxy = self.proxy.clone();
+                let opened = capture::Session::open(
+                    &device,
+                    &mode,
+                    range,
+                    session,
+                    move |frame| inbox.send_frame(frame),
+                    move |event| {
+                        let _ = proxy.send_event(UserEvent::Session { session, event });
+                    },
+                );
+                self.session = Some((opened, Instant::now()));
+            }
+            Command::Close => self.close_session(),
+            Command::SaveChoice { id, name } => {
+                log::info!("device {id} remembered");
+                self.store.update(|s| s.remember_device(&id, &name));
+            }
+            Command::ShowState => {
+                log::info!("preview state {:?}", self.preview.state());
+                self.show_preview_state();
+            }
+        }
+    }
+
+    /// Shows the preview's state in the video area, in the current language.
+    fn show_preview_state(&mut self) {
+        let state = self.preview.state();
+        let name = match &state {
+            PreviewState::Opening(id)
+            | PreviewState::Blocked(id)
+            | PreviewState::InUse(id)
+            | PreviewState::Disconnected(id)
+            | PreviewState::NoSignal(id)
+            | PreviewState::Failed(id) => self.preview.name(id),
+            PreviewState::NoDevices | PreviewState::Playing | PreviewState::NoSource => String::new(),
+        };
+        let (id, title, detail) = crate::ui::state_message(&state, &name, &Texts::get(&self.ui.app));
+        let app = &self.ui.app;
+        app.set_preview_state(id.into());
+        app.set_state_title(title.into());
+        app.set_state_detail(detail.into());
+        self.request_redraw();
+    }
+
+    fn close_session(&mut self) {
+        self.inbox.set_session(None);
+        self.inbox.clear_video();
+        if let Some((session, _)) = self.session.take() {
+            session.close();
+        }
+    }
+
+    /// A session event: the time from the choice to the first frame is logged (SC-004), then the
+    /// preview gets it.
+    fn session_event(&mut self, session: u64, event: capture::SessionEvent) {
+        if event == capture::SessionEvent::FirstFrame
+            && let Some((open, asked)) = &self.session
+            && open.id() == session
+        {
+            log::info!(
+                "session {session}: first frame {:.0} ms after the choice",
+                asked.elapsed().as_secs_f64() * 1e3
+            );
+        }
+        self.preview_event(preview::Event::Session { session, event });
+    }
+
     fn tray_labels(&self) -> Labels {
         let texts = Texts::get(&self.ui.app);
         Labels {
@@ -232,6 +349,7 @@ impl App {
         if let Some(video) = &self.video {
             video.set_visible(false);
         }
+        self.preview_event(preview::Event::Hidden);
         // Wayland cannot hide a window: it stayed on screen, frozen. It goes instead (research R11).
         if window.is_visible().is_none() {
             self.destroy_window(window);
@@ -313,6 +431,7 @@ impl App {
         }
         set_language_items(&self.ui);
         self.show_notice();
+        self.show_preview_state();
         self.switch = Some((format!("language switch {language}"), started));
         self.request_redraw();
     }
@@ -352,6 +471,7 @@ impl App {
     /// the window exists there is nothing to do: it is about to be shown. A window destroyed to
     /// hide it is made again (research R11).
     fn show_window(&mut self, event_loop: &ActiveEventLoop) {
+        self.preview_event(preview::Event::Shown);
         if self.window.is_none() && std::mem::take(&mut self.window_gone) {
             let Some(window) = self.open_window(event_loop) else {
                 return;
@@ -736,7 +856,9 @@ impl ApplicationHandler<UserEvent> for App {
                 event_loop.exit();
                 return;
             }
-            // Through the capture crate in NV12, like a device (contracts/cli.md).
+            // Through the capture crate in NV12, like a device (contracts/cli.md); no device is
+            // opened.
+            self.inbox.set_session(Some(0));
             let inbox = self.inbox.clone();
             let session = capture::Session::test_video(
                 size.width,
@@ -748,9 +870,14 @@ impl ApplicationHandler<UserEvent> for App {
             );
             // Paces `videotestsrc` evenly on Windows (app shell research R9).
             self.test_video = Some((session, platform::precise_timers()));
+        } else {
+            self.start_monitor();
         }
-        // Without a source the video area shows the `no-source` state (FR-035).
-        self.ui.app.set_source_open(self.test_video.is_some());
+        // The test video plays at once; else the video area shows the `no-source` state until
+        // the monitor's first list (FR-035).
+        if self.test_video.is_some() {
+            self.ui.app.set_preview_state("playing".into());
+        }
         self.window = Some(window.clone());
         self.sync_tray();
         // Started by the system with Keep in tray on: only the tray icon, whatever Start in
@@ -759,6 +886,8 @@ impl ApplicationHandler<UserEvent> for App {
             if let Some(video) = &self.video {
                 video.set_visible(false);
             }
+            // No device opens until the window is shown.
+            self.preview_event(preview::Event::Hidden);
             log::info!("started hidden in the tray");
             return;
         }
@@ -811,6 +940,8 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::ShowWindow | UserEvent::Tray(TrayEvent::Open) => self.show_window(event_loop),
             UserEvent::Tray(TrayEvent::Quit) => event_loop.exit(),
             UserEvent::SystemTheme(theme) => self.system_theme_changed(theme.map(SystemTheme::from)),
+            UserEvent::Monitor(event) => self.preview_event(preview::Event::Monitor(event)),
+            UserEvent::Session { session, event } => self.session_event(session, event),
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();
                 match event {
@@ -938,9 +1069,14 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // Quit sequence (FR-014): the test video stops first so no frame arrives during the stop;
-        // the video thread holds the surface, so it stops while the window still exists; then the
-        // settings are flushed and the window destroyed.
+        // Quit sequence (FR-014): the session and the test video stop first so no frame arrives
+        // during the stop, then the device monitor; the video thread holds the surface, so it
+        // stops while the window still exists; then the settings are flushed and the window
+        // destroyed.
+        self.close_session();
+        if let Some(mut monitor) = self.monitor_devices.take() {
+            monitor.stop();
+        }
         if let Some((test_video, _timers)) = self.test_video.take() {
             test_video.close();
         }

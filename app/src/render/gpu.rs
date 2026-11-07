@@ -378,6 +378,13 @@ impl Gpu {
         self.upload(&layer.planes[0], &ui.pixels);
     }
 
+    /// Drops the video layer: only the UI and the ground are drawn until the next frame.
+    pub fn clear_video(&mut self) {
+        if self.video.take().is_some() {
+            log::info!("video layer cleared");
+        }
+    }
+
     /// Uploads a frame's planes as they come (research R4); the textures are made again when the
     /// format or the size changes.
     pub fn set_video(&mut self, frame: &Frame) {

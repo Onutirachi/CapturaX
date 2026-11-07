@@ -41,24 +41,33 @@ export component AppWindow inherits Window {
     in property <string> notice-text;
     callback dismiss-notice();
 
-    // A source is open (the test video in this spec); without one the video area shows the
-    // `no-source` state (FR-035).
-    in property <bool> source-open;
-    // An action of the state message, by id (none in this spec).
+    // What the video area shows, set by Rust from the preview (app/src/preview.rs): `playing`
+    // shows the video; `no-source`, `no-devices`, `opening`, `blocked`, `in-use`, `disconnected`,
+    // `no-signal` and `failed` fill it with their state message (FR-019, FR-035). The title and
+    // detail come from Rust (they name the device), except the shell's `no-source`.
+    in property <string> preview-state: "no-source";
+    in property <string> state-title;
+    in property <string> state-detail;
+    property <bool> no-source: root.preview-state == "no-source";
+    // An action of the state message, by id.
     callback state-action(string /* action id */);
 
     // Video area: drawn by the video thread, nothing here.
 
-    // State message layer: the `no-source` state fills the video area while nothing is open
-    // (FR-035), never a black or blank area.
-    if !root.source-open: StateMessage {
+    // State message layer: every state but `playing` fills the video area, never a black or
+    // blank area, nor the last frame of a closed device (FR-013).
+    if root.preview-state != "playing": StateMessage {
         x: root.video-x;
         y: root.video-y;
         width: root.video-width;
         height: root.video-height;
         border-radius: root.video-radius;
-        icon: @image-url("assets/icons/device_tv_off.svg");
-        title: @tr("No source");
+        icon: root.preview-state == "opening" ? @image-url("assets/icons/loader_2.svg")
+            : root.preview-state == "no-source" || root.preview-state == "no-devices" ? @image-url("assets/icons/device_tv_off.svg")
+            : @image-url("assets/icons/alert_triangle.svg");
+        spinning: root.preview-state == "opening";
+        title: root.no-source ? @tr("No source") : root.state-title;
+        detail: root.state-detail;
         action(id) => { root.state-action(id); }
     }
 

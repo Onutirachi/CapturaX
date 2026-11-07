@@ -12,6 +12,14 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
 - **Phase 3**: T017 (pure preview state machine, `app/src/preview.rs`) committed after the
   checks (`feat: add the preview state machine`); not wired yet (`#[allow(dead_code)]` on the
   module in main.rs until T018).
+- **T018–T019** validated by the maintainer (start device, remembered device from the file) and committed (`feat: open the start device in the preview`). The app
+  starts the monitor, opens the start device through `Preview`, saves a user choice on
+  `Playing`, closes on hide to tray (also when started hidden by the system) and reopens on
+  show; the inbox drops frames of other sessions (`Inbox::set_session`) and clears the video
+  layer on close (`Inbox::clear_video`); `preview-state`/`state-title`/`state-detail` replace
+  `source-open` in main.slint, the opening state spins `loader_2`. Smoke run on Windows: the
+  start order picked the phone's virtual camera ("cam" heuristic), first frame 43–47 ms after
+  the choice.
 
 Nothing pushed.
 
@@ -45,6 +53,10 @@ Nothing pushed.
   hidden/shown (minimized sends nothing); the mode and range choice events come with their
   tasks (T022, T031) so no unused variant exists. Removing the open device already gives
   `Disconnected` + `Close` (reconnect is US4).
+- T018–T019 notes: error states other than Disconnected show the provisional "Cannot open
+  <name>" until T045; items kept for later tasks carry `#[allow(dead_code)]` naming the task;
+  `Preview::name(id)` keeps the names of devices seen this run (a state names a device that
+  left).
 - The Linux clone (`~/Projetos/CapturaX`) is on a detached commit made from the working tree
   (`refs/tmp/wip`); its old app-shell copies were stashed ("pre-device-preview copies").
 
@@ -98,5 +110,5 @@ Nothing pushed.
 
 ## Next step
 
-1. `/speckit-implement` from T018 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
+1. `/speckit-implement` from T020 (Phase 3, US1). Linux GPU power (R7) is validated at T025 and
    system notifications (R15) at T061, each before it is wired in.

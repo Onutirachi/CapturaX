@@ -8,6 +8,7 @@ use capture::{Device, Mode, MonitorEvent, RangeChoice};
 use settings::{ColorRange, Settings};
 
 /// What the video area shows; one at a time. The string is the device id.
+#[allow(dead_code)] // Blocked, InUse and NoSignal come from the error mapping of US4 (T042).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PreviewState {
     /// No capture device is connected.
@@ -24,6 +25,7 @@ pub enum PreviewState {
 }
 
 /// What goes into [`Preview::handle`].
+#[allow(dead_code)] // ChooseDevice comes with the device menu (T031), TryAgain with US4 (T045).
 #[derive(Debug, Clone)]
 pub enum Event {
     Monitor(MonitorEvent),
@@ -73,6 +75,9 @@ struct Open {
 pub struct Preview {
     state: Option<PreviewState>,
     devices: Vec<Device>,
+    /// The name of every device seen in this run, by id: a state names its device also after it
+    /// left.
+    names: Vec<(String, String)>,
     /// The monitor's first list arrived.
     listed: bool,
     open: Option<Open>,
@@ -96,17 +101,38 @@ impl Preview {
 
     /// The current session number, if a device is open or opening; frames of other sessions are
     /// dropped.
+    #[cfg(test)]
     pub fn session(&self) -> Option<u64> {
         self.open.as_ref().map(|o| o.session)
     }
 
     /// The device open or opening.
+    #[allow(dead_code)] // For the toolbar's selects (T031).
     pub fn device(&self) -> Option<&Device> {
         let id = &self.open.as_ref()?.device;
         capture::device::find(id, &self.devices)
     }
 
+    /// The name shown for a device seen in this run; its id when never seen.
+    pub fn name(&self, id: &str) -> String {
+        self.names
+            .iter()
+            .find(|(known, _)| known == id)
+            .map_or_else(|| id.to_string(), |(_, name)| name.clone())
+    }
+
+    /// Keeps the names of the devices listed now.
+    fn learn_names(&mut self) {
+        for device in &self.devices {
+            match self.names.iter_mut().find(|(id, _)| *id == device.id) {
+                Some(entry) => entry.1 = device.name.clone(),
+                None => self.names.push((device.id.clone(), device.name.clone())),
+            }
+        }
+    }
+
     /// The devices listed now.
+    #[allow(dead_code)] // For the device menu (T031).
     pub fn devices(&self) -> &[Device] {
         &self.devices
     }
@@ -114,6 +140,10 @@ impl Preview {
     pub fn handle(&mut self, event: Event, settings: &Settings) -> Vec<Command> {
         let mut out = Vec::new();
         let before = self.state.clone();
+        if let Event::Monitor(_) = &event {
+            // Learnt after the change too (renumbering); before it for a device about to leave.
+            self.learn_names();
+        }
         match event {
             Event::Monitor(MonitorEvent::Listed(devices)) => {
                 self.devices = devices;
@@ -177,6 +207,7 @@ impl Preview {
                 }
             }
         }
+        self.learn_names();
         if self.state != before {
             out.push(Command::ShowState);
         }
@@ -544,5 +575,8 @@ mod tests {
         assert!(closes(&out));
         assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
         assert_eq!(p.devices().len(), 1);
+        // Its name is still known for the state message.
+        assert_eq!(p.name("card"), "ezcap Live GAMER ULTRA");
+        assert_eq!(p.name("never"), "never");
     }
 }

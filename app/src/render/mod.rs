@@ -33,6 +33,10 @@ pub struct Scene {
 #[derive(Default)]
 struct State {
     frame: Option<Frame>,
+    /// The session whose frames are taken; others (a closed session's last frames) are dropped.
+    session: Option<u64>,
+    /// The video layer goes before the next present (the source closed).
+    clear_video: bool,
     ui: Option<UiImage>,
     scene: Option<Scene>,
     /// The UI or the scene changed since the video thread last looked.
@@ -70,13 +74,38 @@ impl Inbox {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// From the source: replaces a frame not yet presented.
+    /// From the source: replaces a frame not yet presented. A frame of another session than the
+    /// current one is dropped.
     pub fn send_frame(&self, frame: Frame) {
         let mut state = self.lock();
+        if state.session != Some(frame.session) {
+            return;
+        }
         state.received += 1;
         if state.frame.replace(frame).is_some() {
             state.replaced += 1;
         }
+        drop(state);
+        self.wake.notify_one();
+    }
+
+    /// From the main thread: the session whose frames are taken from now on (`None`: none). A
+    /// waiting frame of another session goes.
+    pub fn set_session(&self, session: Option<u64>) {
+        let mut state = self.lock();
+        state.session = session;
+        if state.frame.as_ref().is_some_and(|f| Some(f.session) != session) {
+            state.frame = None;
+        }
+    }
+
+    /// From the main thread: the source closed, so its last frame is not shown again (no old
+    /// frame under the next state or the next device, FR-013).
+    pub fn clear_video(&self) {
+        let mut state = self.lock();
+        state.frame = None;
+        state.clear_video = true;
+        state.changed = true;
         drop(state);
         self.wake.notify_one();
     }
@@ -106,8 +135,10 @@ impl Inbox {
     fn begin(&self) {
         let mut state = self.lock();
         let frame = state.frame.take();
+        let session = state.session;
         *state = State {
             frame,
+            session,
             ..State::default()
         };
     }
@@ -283,6 +314,9 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
             if frame.is_some() {
                 last_frame = Some(Instant::now());
             }
+            if std::mem::take(&mut state.clear_video) {
+                gpu.clear_video();
+            }
             (frame, state.ui.take(), present)
         };
         if let Some(ui) = ui {
@@ -347,14 +381,12 @@ mod tests {
         assert!(inbox.lock().hold.is_none());
     }
 
-    #[test]
-    fn a_new_video_thread_keeps_only_the_newest_frame() {
-        let inbox = Inbox::default();
+    fn frame(session: u64) -> Frame {
         let plane = |len: usize| capture::Plane {
             bytes: vec![0; len].into(),
             stride: 2,
         };
-        inbox.send_frame(Frame::new(
+        Frame::new(
             2,
             2,
             capture::PixelFormat::Nv12,
@@ -363,8 +395,34 @@ mod tests {
             capture::Range::Limited,
             Instant::now(),
             Instant::now(),
-            1,
-        ));
+            session,
+        )
+    }
+
+    #[test]
+    fn only_the_current_session_frames_are_taken() {
+        let inbox = Inbox::default();
+        inbox.send_frame(frame(1));
+        assert!(inbox.lock().frame.is_none());
+        inbox.set_session(Some(1));
+        inbox.send_frame(frame(1));
+        assert!(inbox.lock().frame.is_some());
+        // A new session drops the old one's waiting frame and its late frames.
+        inbox.set_session(Some(2));
+        assert!(inbox.lock().frame.is_none());
+        inbox.send_frame(frame(1));
+        assert!(inbox.lock().frame.is_none());
+        inbox.send_frame(frame(2));
+        assert_eq!(inbox.lock().frame.as_ref().map(|f| f.session), Some(2));
+        inbox.set_session(None);
+        assert!(inbox.lock().frame.is_none());
+    }
+
+    #[test]
+    fn a_new_video_thread_keeps_only_the_newest_frame() {
+        let inbox = Inbox::default();
+        inbox.set_session(Some(1));
+        inbox.send_frame(frame(1));
         inbox.send_ui(
             None,
             Scene {
