@@ -55,7 +55,7 @@ selects, four bubbles, one settings category, nine preview states
 No NEEDS CLARIFICATION remains. The spec's inherited questions are answered in research.md:
 GPU power on Linux (R7, with R4), V4L2 against PipeWire (R4: V4L2; PipeWire only for a sandbox,
 not in this spec), the 120 Hz mismatch and reading the incoming signal (R3: no UVC device reports
-it, so Auto source is not shown on them; the default is Auto max FPS), latency levers (R3, R4: optional, recorded), color range (R5),
+it, so Auto source is not shown on them; the default is 1080p at about 60 fps, else Auto max resolution, after T029), latency levers (R3, R4: optional, recorded), color range (R5),
 the device list's detail line (spec FR-004), the Windows stalls (R8, investigation), F52 (R9),
 fullscreen from a snapped window (R10), device notices (R15, validated first).
 

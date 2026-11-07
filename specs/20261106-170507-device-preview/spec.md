@@ -54,7 +54,7 @@ the card's passthrough.
 **Acceptance Scenarios**:
 
 1. **Given** one capture device is connected and the app never opened one, **When** the app
-   starts, **Then** it opens that device in its default automatic mode (FR-008) and shows its
+   starts, **Then** it opens that device in its default mode (FR-008) and shows its
    video.
 2. **Given** the user previewed a device in a given mode, **When** the app starts again with that
    device connected, **Then** it opens the same device in the same mode (automatic or manual).
@@ -95,7 +95,7 @@ contents against what the drivers report, and switch between devices and modes.
 3. **Given** the mode menu is open, **When** the user picks a mode, **Then** the preview switches
    to it and shows video within the time of SC-004; the choice is remembered for that device.
 4. **Given** the user picks another device, **When** it opens, **Then** it uses that device's
-   remembered mode, else its default automatic mode.
+   remembered mode, else its default mode.
 5. **Given** no device is open (the "no source" state), **When** the user activates its action,
    **Then** the device menu of the toolbar opens (product.md, note under F5).
 
@@ -195,7 +195,7 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   it only appears in the device menu; the user picks it (maintainer, 2026-11-06). This is not a
   reconnect: a device unplugged while open still reopens by itself (FR-014).
 - The remembered mode no longer exists (driver update, other device with the same name): the
-  device opens in its default automatic mode.
+  device opens in its default mode.
 - The device delivers fewer frames than its mode says (a 60 Hz source in a 120 fps mode): the
   frame rate shows what arrives; Auto source avoids the mismatch where the device reports the
   signal (spike: every path 3–5 ms slower in the mismatched mode).
@@ -244,7 +244,7 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   identity depends on its USB port (no serial) moved to another port counts as a new device: its
   choices start from the defaults (maintainer, 2026-11-06).
 - **FR-004**: The detail line of each device MUST show the mode it will open in: its remembered
-  mode, else its default automatic mode, with the resolved resolution and frame rate (spike
+  mode, else its default mode, with the resolved resolution and frame rate (spike
   proposal, adopted as the default here).
 - **FR-005**: The app MUST open the last used device at start when it is connected, else follow
   the Edge Cases order, and remember the user's device choice.
@@ -264,9 +264,12 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   - Modes: each native resolution × frame rate once, in its lowest-latency format (Edge Cases),
     sorted by resolution then frame rate, largest first, with a resolution badge each (F43). The
     resolved mode is shown next to each automatic one.
-- **FR-008**: The default mode of a device MUST be Auto source when it is shown, else Auto max
-  FPS (F3; maintainer, 2026-11-06: the focus is playing with low latency and smooth motion).
-  Auto source stays in the menu for devices that report their input.
+- **FR-008**: The default mode of a device MUST be Auto source when it is shown; else
+  1920 × 1080 at its highest rate between 58 and 62 fps when the device has one (shown as that
+  mode in the menu); else Auto max resolution (maintainer, 2026-11-07, after T029: Auto max FPS
+  at 1080p120 with a 60 Hz source, the common case, measured about 5 ms slower than 1080p60;
+  the earlier default was Auto max FPS). Auto source stays in the menu for devices that report
+  their input; Auto max FPS stays in the menu for whoever wants it.
 - **FR-009**: The app MUST remember the chosen mode per device (automatic or manual) and use it
   the next time that device opens.
 - **FR-010**: A **Color range** choice per device (Auto, Full, Limited; default Auto) MUST

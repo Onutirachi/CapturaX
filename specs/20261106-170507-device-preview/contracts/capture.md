@@ -21,7 +21,7 @@ calls (research R12). Names are indicative; tasks fix the exact signatures.
 | `modes_from_caps(caps) -> Vec<Mode>` | One per resolution × rate, best format, sorted (research R3) |
 | `resolve(choice, &[Mode], signal) -> Option<Mode>` | data-model.md "Mode choice" |
 | `shown_automatic(&[Mode], signal) -> Vec<(ModeChoice, Mode)>` | The automatic entries to list, duplicates removed |
-| `default_choice(signal) -> ModeChoice` | FR-008 |
+| `default_choice(signal, &[Mode]) -> ModeChoice` | FR-008 |
 | `badge(height) -> Option<Badge>` | F43 |
 | `ModeChoice::parse / to_string` | Settings text |
 

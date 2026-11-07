@@ -13,6 +13,13 @@ Delays in ms, relative to the reference (the passthrough display for video).
 | capturax | L5 | 23 | 29.6 | 33.4 | 26.0 | 33.8 | n/a |
 | capturax | L6 | 24 | 37.9 | 46.0 | 20.6 | 48.7 | n/a |
 
+### windows, 1920x1080@120 NV12
+
+| Path | Variant | n | Median | p95 | Min | Max | Dropped |
+|---|---|---|---|---|---|---|---|
+| capturax | L3 | 24 | 34.0 | 39.6 | 28.2 | 41.1 | n/a |
+| capturax | L3b | 17 | 31.5 | 36.1 | 26.5 | 38.1 | n/a |
+
 ### windows, 1920x1080@60 NV12
 
 | Path | Variant | n | Median | p95 | Min | Max | Dropped |

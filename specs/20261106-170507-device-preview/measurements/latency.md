@@ -124,8 +124,8 @@ theme switches, then F11, chrome and menu in fullscreen, then Esc, in the L2 log
 
 | Run | Window | n | Median | p95 | Min | Max | Budget (SC-001) |
 |---|---|---|---|---|---|---|---|
-| L1 | fullscreen | 24 | **28.7** | **31.7** | 25.4 | 32.0 | median ≤ 32, p95 ≤ 35: **pass** |
-| L2 | windowed | 23 | **29.7** | **32.3** | 25.8 | 32.0 | **pass** |
+| L1 | fullscreen | 24 | **28.7** | **31.7** | 25.5 | 31.9 | median ≤ 32, p95 ≤ 35: **pass** |
+| L2 | windowed | 23 | **29.7** | **32.3** | 25.3 | 32.5 | **pass** |
 
 **SC-003 reading of the `--stats` logs**:
 
@@ -228,3 +228,44 @@ frame is dropped (`pres` 60). The maintainer accepted it as a known limit of ful
 (2026-11-07, recorded in spec SC-003), to be investigated only if it becomes a problem in use;
 likely causes to start from: the UI layer drawn at full screen size, or KWin leaving direct
 scanout while the chrome shows.
+
+## T029: The default mode with a 60 Hz and a 120 Hz source (research R3)
+
+### Windows 11 — 2026-11-07 (L3, L3b)
+
+Same setup as L1 (preview fullscreen on the Samsung at 143.98 Hz, passthrough on the right
+monitor, portable copy `target/t028`), with `mode = "auto-max-fps"`: the ezcap opens at
+1920 × 1080 · 120 NV12 and delivers about 112 frames a second with either source.
+
+- **L3**: PS5 at 1080p60 showing `flash.html`.
+- **L3b**: the CachyOS PC's HDMI output into the ezcap as its only display, set to 1920 × 1080 at
+  119.88 Hz (`kscreen-doctor`; KDE had picked 239.96 Hz), `flash.html` in Firefox `--kiosk` from
+  a file. The PS5's 120 Hz output is only on in games that support it, so it could not be held.
+
+| Run | Source | Card mode | n | Median | p95 | Min | Max |
+|---|---|---|---|---|---|---|---|
+| L1 (T028) | 60 Hz | 1080p60 | 24 | 28.7 | 31.7 | 25.5 | 31.9 |
+| L3 | 60 Hz | 1080p120 | 24 | **34.0** | **39.6** | 28.2 | 41.1 |
+| L3b | 119.88 Hz | 1080p120 | 17 | **31.5** | **36.1** | 26.5 | 38.1 |
+
+- L3b has 17 samples (8 rejected because the camera skipped frames), under the 20 the method
+  asks for.
+- **Cost of the default with a 60 Hz source**: +5.3 ms of median and +7.9 ms of p95 against the
+  60 mode, at the top of the 3–5 ms the spike measured. It is over SC-001's budget (median ≤ 32,
+  p95 ≤ 35), which is stated for the 1080p60 mode. The spread is wider too (28–41 ms against
+  25–32 ms): a new source frame waits for the card's next 120 Hz slot, which is not aligned with
+  the source.
+- **With a 120 Hz source** the median is 2.8 ms over L1, not under it. The delays are measured
+  against the passthrough, which also shows the source at 120 Hz, so the faster source helps
+  the reference as much as the preview; the camera cannot measure from the source itself. Read
+  as: against a 120 Hz display of the same source, the preview is about 31.5 ms behind.
+- Logs: [raw/t028/l3.txt](raw/t028/l3.txt), [raw/t028/l3b.txt](raw/t028/l3b.txt). Clean up to
+  the end of each clip (`ready_ms` median 0.5 ms, max ≤ 3.6 ms except one second at 21 ms in
+  L3), then focus-change stalls once the maintainer moved to other windows (T052).
+
+**Verdict (research R3, FR-008)**: the default Auto max FPS made the most common case (a
+console at 60 Hz) about 5 ms slower than the 1080p60 mode, over the SC-001 budget; it only pays
+off in smoothness with a 120 Hz source. The maintainer changed the default (2026-11-07): Auto
+source when shown, else 1920 × 1080 at about 60 fps when the device has it, else Auto max
+resolution (T065); Auto max FPS stays in the menu, and the bubbles show its effect. L3b was not
+filmed again for the 20 samples (the decision did not depend on it). Optional levers not tried.

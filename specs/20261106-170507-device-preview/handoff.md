@@ -101,6 +101,14 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   the maintainer**, investigate only if it becomes a problem (spec SC-003, latency.md).
   `flash.html` is also served from the Linux PC (`python3 -m http.server 8000` in `~/capx/t028`),
   but the PS5 uses `http://192.168.0.10/tools/latency/flash.html` (the Windows PC).
+- **T029** done (2026-11-07): L3 (Auto max FPS 1080p120, PS5 at 60 Hz) 34.0 / 39.6 ms, +5.3 ms
+  of median over L1; L3b (the CachyOS PC's HDMI output into the ezcap at 1080p 119.88 Hz,
+  `flash.html` in Firefox `--kiosk`; the PS5's 120 Hz cannot be held) 31.5 / 36.1 ms, 17
+  samples. **Default changed by the maintainer**: Auto source when shown, else 1920 × 1080 at
+  58–62 fps when the device has it, else Auto max resolution (spec FR-008, research R3,
+  data-model, product F3, new task T065). The ezcap stays on the Windows PC; it goes back to
+  CachyOS at T034 (batch the Linux checks then). The CachyOS HDMI cable goes back to its monitor
+  (KDE remembers each display's setup).
 
 Nothing pushed.
 
@@ -206,12 +214,11 @@ Nothing pushed.
 
 ## Next step
 
-1. T029 on the Windows setup (ezcap stays on the Windows PC; it goes back to CachyOS only at
-   T034, batch the Linux checks then): L3 = `mode = "auto-max-fps"` (1080p120) in
-   `target/t028/capturax.toml` with the PS5 at 60 Hz; L3b = the Windows PC's HDMI output into
-   the ezcap set to 1080p120 with `flash.html` fullscreen on it (the PS5's 120 Hz is only on in
-   games that support it, so it cannot be held). Record next to L1. System notifications (R15)
-   are validated at T061 before they are wired in.
+1. T065 (default mode 1080p at about 60 fps, FR-008 changed after T029): code in
+   `crates/capture/src/mode.rs` (`default_choice(signal, &[Mode])`) and `app/src/preview.rs`
+   (`mode_to_open`), after the maintainer approves it; smoke run with the ezcap on Windows
+   (`target/t028/capturax.toml` without its `mode` line). Then Phase 4 (US2, T030 onward).
+   System notifications (R15) are validated at T061 before they are wired in.
 
 Linux PC notes: `ydotoold` does not survive a reboot; start it as in the app-shell handoff before
 any GUI automation (started again for T027, 2026-11-07). The T027 copy is `~/capx/t027` (its own

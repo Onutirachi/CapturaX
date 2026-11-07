@@ -24,6 +24,6 @@ Rules:
 
 1. An unknown `presentation`, `latency`, `fps`, `mode` or `color_range` value takes its default
    (data-model.md "Settings additions").
-2. A `mode` naming a size and rate the device no longer offers opens the default automatic mode;
+2. A `mode` naming a size and rate the device no longer offers opens the default mode;
    the stored value is replaced only when the user picks again.
 3. At most 32 `devices` entries are kept; the least recently used is dropped on save.

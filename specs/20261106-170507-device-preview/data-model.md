@@ -41,9 +41,12 @@ What the user chose for a device; stored per device id.
 | `AutoSource` | The device's `signal` matched to a mode; hidden while `signal` is none |
 | `AutoMaxResolution` | Largest resolution at 58–62 fps, highest such rate; none at 58+ → largest resolution at the device's highest rate |
 | `AutoMaxFps` | Highest rate at 1080p; else at the largest resolution below 1080p; else at the smallest above |
-| `Manual(w, h, fps)` | The device's mode with that size and rate; missing → the default automatic mode (spec edge case) |
+| `Manual(w, h, fps)` | The device's mode with that size and rate; missing → the default mode (spec edge case) |
 
-- **Default**: `AutoSource` when shown, else `AutoMaxFps` (FR-008).
+- **Default** (FR-008): `AutoSource` when shown; else `Manual(1920, 1080, r)` with `r` the
+  device's highest rate within 58–62 fps at 1920 × 1080 (60 before 59.94), when it has one;
+  else `AutoMaxResolution`. Nothing is stored until the user chooses (a device with no stored
+  choice follows this rule each time it opens).
 - **Shown automatic modes**: in the order above, skipping one that resolves to the same mode as
   an earlier one (FR-007).
 - Stored as text: `auto-source`, `auto-max-resolution`, `auto-max-fps`, `1920x1080@60`,
@@ -173,7 +176,7 @@ Crate `settings`, format version stays 1 (new tables only, read leniently; contr
 | `overlay` | `latency` | `measured` \| `measured+estimated` \| `total` | `measured+estimated` |
 | `overlay` | `fps` | `presented` \| `presented/nominal` \| `nominal` | `presented/nominal` |
 | `devices."<id>"` | `name` | string (for people reading the file) | — |
-| `devices."<id>"` | `mode` | mode choice text | default automatic mode |
+| `devices."<id>"` | `mode` | mode choice text | default mode |
 | `devices."<id>"` | `color_range` | `auto` \| `full` \| `limited` | `auto` |
 
 Unknown values fall back to their defaults; at most 32 device entries are kept (the least

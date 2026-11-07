@@ -82,7 +82,7 @@ passthrough and preview filmed together at 240 fps, 25 s clips, ≥ 20 samples, 
 |---|---|---|---|---|
 | L1 | Windows | 1920 × 1080 · 60 | fullscreen | median ≤ 32, p95 ≤ 35 (SC-001) |
 | L2 | Windows | 1920 × 1080 · 60 | windowed | same |
-| L3 | Windows | Auto max FPS (1080p120, the default) with the PS5 at 60 Hz | fullscreen | recorded (cost of the 60 Hz signal in a 120 mode) |
+| L3 | Windows | Auto max FPS (1080p120, the default until T029) with the PS5 at 60 Hz | fullscreen | recorded (cost of the 60 Hz signal in a 120 mode) |
 | L3b | Windows | Auto max FPS with a 120 Hz source (PS5 at 120 Hz, or the PC's HDMI output) | fullscreen | recorded |
 | L4 | Linux, default power settings | 1920 × 1080 · 60 | fullscreen | median ≤ 35, p95 ≤ 40 (SC-002) |
 | L5 | Linux | 1920 × 1080 · 60 | windowed | same |

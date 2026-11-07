@@ -78,13 +78,20 @@ marks what was not run.
   reverse engineering it is out of scope. The capture crate keeps a `signal` slot in the device
   description (always none for now) so a device that reports its input can add Auto source
   without changing the menu logic. The spec allows it (FR-007: shown only when reported).
-- **Default: Auto max FPS** when Auto source is not shown (FR-008; maintainer, 2026-11-06: the
-  focus is playing with low latency and smooth motion).
-- **Consequence for the ezcap**: Auto max FPS is 1920 × 1080 at 120. With a 120 Hz source this is
+- **Default** (FR-008; maintainer, 2026-11-07, after T029): Auto source when shown; else
+  1920 × 1080 at the highest rate within 58–62 fps when the device has it; else Auto max
+  resolution. T029 measured Auto max FPS (1080p120 on the ezcap) with the PS5 at 60 Hz at a
+  34.0 ms median against 28.7 ms in the 1080p60 mode (measurements/latency.md, T029), so a
+  60 Hz source, the common case, opens in the 60 mode; a user with a 120 Hz source picks Auto
+  max FPS and sees the effect in the bubbles. Auto max resolution was not taken as the
+  fallback for every device because on the ezcap it is 2560 × 1440 at 60, which upscales a
+  1080p source and was not measured. Earlier default (2026-11-06): Auto max FPS, for low
+  latency and smooth motion.
+- **Auto max FPS on the ezcap**: 1920 × 1080 at 120. With a 120 Hz source this is
   the fastest mode (half the card's wait for a frame, spike "Remaining latency levers"); with the
   PS5 at 60 Hz the card delivers about 111 fps and the spike measured every path 3–5 ms slower
-  than in the 60 mode. The latency runs measure the default mode with a 60 Hz and a 120 Hz source
-  next to 1080p60 (quickstart L3, L3b), so the cost is known; the frame rate bubble's default
+  than in the 60 mode; T029 measured +5.3 ms with a 60 Hz source (quickstart L3) and 31.5 ms
+  against a 120 Hz passthrough (L3b), which led to the default above; the frame rate bubble's default
   ("111 / 120 fps") shows the mismatch to the user.
 - **Badges** (F43), by height: ≥ 2160 "4K", ≥ 1440 "QHD", ≥ 1080 "Full HD", ≥ 720 "HD", none
   below; colors from the spike's `Badge`.
