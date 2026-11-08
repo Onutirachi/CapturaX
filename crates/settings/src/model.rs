@@ -135,6 +135,7 @@ pub enum Presentation {
 pub struct Overlay {
     pub latency: LatencyDisplay,
     pub fps: FpsDisplay,
+    pub mode: ModeDisplay,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -151,6 +152,16 @@ pub enum FpsDisplay {
     #[default]
     PresentedNominal,
     Nominal,
+}
+
+/// The mode bubble: the size alone or with its name and aspect ratio tags (FR-017a).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ModeDisplay {
+    Size,
+    SizeName,
+    SizeAspect,
+    #[default]
+    SizeNameAspect,
 }
 
 /// A `[devices."<id>"]` entry.
@@ -194,6 +205,12 @@ text_values!(Background { Theme = "theme", Black = "black" });
 text_values!(Shadow { Always = "always", Ambient = "ambient", Off = "off" });
 text_values!(LatencyDisplay { Measured = "measured", MeasuredEstimated = "measured+estimated", Total = "total" });
 text_values!(FpsDisplay { Presented = "presented", PresentedNominal = "presented/nominal", Nominal = "nominal" });
+text_values!(ModeDisplay {
+    Size = "size",
+    SizeName = "size+name",
+    SizeAspect = "size+aspect",
+    SizeNameAspect = "size+name+aspect"
+});
 text_values!(ColorRange { Auto = "auto", Full = "full", Limited = "limited" });
 
 impl Settings {
@@ -298,6 +315,7 @@ impl Settings {
             overlay: Overlay {
                 latency: LatencyDisplay::parse(get(overlay, "latency").and_then(Value::as_str)),
                 fps: FpsDisplay::parse(get(overlay, "fps").and_then(Value::as_str)),
+                mode: ModeDisplay::parse(get(overlay, "mode").and_then(Value::as_str)),
             },
             devices: read_devices(table.get("devices").and_then(Value::as_table)),
         }
@@ -350,6 +368,7 @@ impl Settings {
         let overlay = category(table, "overlay");
         overlay.insert("latency".into(), Value::String(self.overlay.latency.as_str().into()));
         overlay.insert("fps".into(), Value::String(self.overlay.fps.as_str().into()));
+        overlay.insert("mode".into(), Value::String(self.overlay.mode.as_str().into()));
 
         // Rebuilt in order, most recently used first: entries past the limit are dropped (rule 3)
         // and the unknown keys of the kept ones survive.
@@ -591,6 +610,7 @@ mod tests {
         );
         assert_eq!(s.overlay.latency, LatencyDisplay::MeasuredEstimated);
         assert_eq!(s.overlay.fps, FpsDisplay::PresentedNominal);
+        assert_eq!(s.overlay.mode, ModeDisplay::SizeNameAspect);
         assert!(s.devices.is_empty());
         assert_eq!(read(""), Settings::default());
     }
@@ -609,6 +629,7 @@ mod tests {
             [overlay]
             latency = "total"
             fps = "nominal"
+            mode = "size+aspect"
             [devices."v4l2:32ed:3201:x@pci"]
             name = "ezcap"
             mode = "1920x1080@59.94"
@@ -628,7 +649,8 @@ mod tests {
             s.overlay,
             Overlay {
                 latency: LatencyDisplay::Total,
-                fps: FpsDisplay::Nominal
+                fps: FpsDisplay::Nominal,
+                mode: ModeDisplay::SizeAspect,
             }
         );
         assert_eq!(s.devices.len(), 2);
@@ -653,6 +675,7 @@ mod tests {
             [overlay]
             latency = "exact"
             fps = 60
+            mode = "size+tags"
             [devices]
             broken = 1
             [devices."mf:a"]
@@ -726,6 +749,7 @@ mod tests {
         s.remember_device(C920, "HD Pro Webcam C920");
         s.touch_device(C920, "HD Pro Webcam C920").mode = "1920x1080@30".into();
         s.overlay.fps = FpsDisplay::Presented;
+        s.overlay.mode = ModeDisplay::Size;
         s.preview.presentation = Presentation::FollowMonitor;
         s.preview.background = Background::Black;
         s.preview.watermark = false;

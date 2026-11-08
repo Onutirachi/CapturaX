@@ -20,6 +20,10 @@ use linux as os;
 
 pub use os::autostart;
 
+/// Built for Windows: the latency estimate counts the USB transfer there (device-preview
+/// data-model.md "Latency estimate"), so the app needs no platform condition of its own.
+pub const IS_WINDOWS: bool = cfg!(windows);
+
 mod gpu;
 pub use gpu::{PerformanceGuard, gpu_performance};
 

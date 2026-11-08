@@ -226,6 +226,60 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   sends `UserEvent::Second(Summary)`, stored in `App::second` (`#[allow(dead_code)]` until
   T038). Smoke run on Windows (test video 1080p60): `lat_ms=2.8/4.3 rep=0`; without `--stats`
   the app got one summary per second (60 frames, ~2.8 ms).
+- **T037** validated by the maintainer and committed (`feat: add the info bubbles`):
+  `app/ui/components/info-bubbles.slint` with `InfoBubbles` (source, mode with its name tag,
+  frame rate, latency; a bubble with an empty text is left out; a row, or a column when the row
+  does not fit; source at most 360 px, elided), placed in main.slint in the video area's bottom
+  right, 20 px from the edges (the row packed against the right edge, a column right-aligned;
+  **maintainer, 2026-11-07: the default corner is the spike's bottom right**, not the task's top
+  left; spec FR-016, research, plan and T037 updated), fading with the chrome (`1 - hidden`), Tab
+  order after the toolbar; `info.engaged` keeps the chrome shown while the pointer is on a bubble,
+  its controls or its menu. Hover controls: global `BubbleControls` + `BubbleControlsLayer` in the
+  top layer (under menus and tooltips), a 48 px raised panel 8 px above the bubble, aligned to its
+  right edge, with the
+  `adjustments_horizontal` button ("Display"), after 120 ms of hover, hidden 250 ms after the
+  pointer leaves (the gap counts), as the spike. The menu has a header ("Latency", "Frame rate")
+  then the three displays, the current one marked. Keyboard (not in the task, FR-020): the frame
+  rate and latency bubbles take the focus and Enter, Space, Up or Down open the menu. The latency
+  tooltip (500 ms hover or focus, on the left side so it does not cover the controls) follows the
+  display: measured only, measured + estimated on two lines, or total. Theme tokens `info-bubble`
+  (#0000008c) and `info-text` (#ffffff), same in both themes; contrast pair over white and black
+  video. Main window properties for T038: `info-source`, `info-mode`, `info-mode-tag`,
+  `info-mode-tag-kind`, `info-fps`, `info-latency`, `latency-display`/`fps-display` (0, 1, 2 in
+  the settings' order, default 1) and their `-changed` callbacks. Preview
+  `ui/previews/info-bubbles-preview.slint` (row and column over white/black). Nothing shows in
+  the app until T038 feeds the texts. fmt, clippy, tests pass on Windows.
+- **T038** validated by the maintainer and committed (`feat: feed the info bubbles`):
+  `App::show_info` (after each preview state shown, each `UserEvent::Second`, each
+  display change) sets the bubbles while the state is Playing, else empties them: name and mode
+  (`size_text`, name tag as the menus map it) from `App::source`, frame rate and latency only
+  once a second with frames came (`App::second` is reset on `close_session`). Estimate:
+  `latency::Platform::current()` from the new `platform::IS_WINDOWS`, source period from the open
+  mode, `App::monitor_refresh` (the monitor's reported rate, else 60 Hz; the pacing `refresh`
+  keeps its 16 ms default), `vrr = false`. Displays: `latency::{latency,fps}_display/_index`
+  (0, 1, 2, unknown → default, tested), set from `[overlay]` at start, `SettingChange::
+  LatencyDisplay`/`FpsDisplay` store them and show at once. `InfoBubbles` keeps its own copy of
+  the frame rate and latency texts, taken only while active (or when emptied): before that the
+  hidden bubbles' changes drew one UI image a second (`ui=1` with the chrome hidden), now `ui=0`.
+  Smoke run on Windows (C920, `--stats`, 16 s): 1080p30 NV12 at 24 FPS (low light), `lat_ms`
+  ~3.6, no new warnings (the NDI SDK error is GStreamer's NDI plugin, unrelated). Not checked by
+  hand yet: the look in the app, hover controls, menu, tooltip, saved choice after restart.
+- **Maintainer's check of T037/T038 (2026-11-07)**: liked it; asked for (1) the bottom right
+  corner (done, above), (2) the hover controls centered on the bubble, as the spike (done, kept
+  inside the window), (3) mode bubble displays: **FR-017a** (spec, data-model, settings-file
+  contract, T037/T038 updated): Resolution / + name / + aspect ratio / + name + aspect ratio,
+  default all (maintainer's pick). `settings::ModeDisplay` (`size`, `size+name`, `size+aspect`,
+  `size+name+aspect`) in `[overlay] mode`, read/write tests; `latency::mode_display/mode_index`
+  (0–3); the mode bubble got the menu (header "Mode"), the aspect tag (`info-mode-aspect` from
+  `Tags::aspect`) and `mode-display` (the bubble picks its tags itself; Rust only stores the
+  choice). Checks pass; validated by the maintainer in the app and committed with T037/T038.
+- **Latency tooltip reworded** (maintainer found it confusing, 2026-11-07; picked "with the
+  numbers"): each part of the bubble with its value, left-aligned (`Tooltip` text is now
+  left-aligned; single-line tooltips look the same): Measured "3 ms: inside CapturaX
+  (measured)"; Measured + estimated adds "~24 ms: capture card and monitor (estimated)"; Total
+  starts with "~27 ms in total" then both lines. `latency::LatencyParts` (measured, estimated,
+  total texts; `latency_text` builds on it) → `info-latency-measured/-estimated/-total`.
+  Validated by the maintainer and folded into both commits; `ui=0` with the chrome hidden.
 
 Nothing pushed.
 
@@ -345,6 +399,9 @@ Nothing pushed.
 ## Open questions
 
 
+- **For T063**: the device notice is planned at the video area's bottom right, above the dock,
+  where the info bubbles now are (maintainer moved them there, 2026-11-07). Decide with the
+  maintainer where the notice goes (or that it covers the bubbles for its ~5 s).
 - Windows error mapping for "in use" vs "failed" is a heuristic (R6), tested in acceptance
   (quickstart US4: card open in another app); if it misreads, Windows shows the generic Failed
   state instead (maintainer, 2026-11-06), no Media Foundation code of our own.
@@ -366,8 +423,9 @@ Nothing pushed.
 ## Next step
 
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
-   batch. Next agent task: T037 (the info bubbles, ported from the spike's info overlay), then
-   T038 (feeding them: `App::second`, the T035 estimate). T048 waits for
+   batch. T037 and T038 are committed. Next: T039, the US3 acceptance (maintainer, with the
+   ezcap and the PS5 at 1080p60 and 1080p120; the agent compares the bubbles with `--stats` and
+   records it in measurements/acceptance.md). T048 waits for
    T047 (US5); it adds Presentation as a segmented control. Recording T071's Windows check in
    measurements/acceptance.md goes with the Linux batch at T034.
    The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.

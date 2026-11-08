@@ -10,8 +10,8 @@ pub use file::LoadOutcome;
 pub use location::{FileTimes, Location, LocationKind};
 pub use model::{
     Background, ColorRange, DEVICES_LIMIT, DeviceChoices, FpsDisplay, General, LanguageSetting, LatencyDisplay,
-    MIN_HEIGHT, MIN_WIDTH, Overlay, Presentation, Preview, RECENT_LIMIT, Settings, Shadow, ThemeSetting, VERSION,
-    WindowSettings,
+    MIN_HEIGHT, MIN_WIDTH, ModeDisplay, Overlay, Presentation, Preview, RECENT_LIMIT, Settings, Shadow, ThemeSetting,
+    VERSION, WindowSettings,
 };
 pub use store::Store;
 

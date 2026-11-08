@@ -17,6 +17,7 @@ use crate::cli::StartupOptions;
 use crate::frame::{self, Escape};
 use crate::i18n;
 use crate::icon;
+use crate::latency;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
 use crate::preview::{self, Command, Preview, PreviewState};
@@ -98,6 +99,10 @@ pub enum SettingChange {
     Background(settings::Background),
     Watermark(bool),
     Shadow(settings::Shadow),
+    /// A bubble's display (FR-016a, FR-017), chosen from its menu.
+    LatencyDisplay(settings::LatencyDisplay),
+    FpsDisplay(settings::FpsDisplay),
+    ModeDisplay(settings::ModeDisplay),
 }
 
 /// What the UI asks the window to do.
@@ -139,7 +144,6 @@ pub struct App {
     /// The open device, for the `[source]` line of `--stats` (contracts/stats.md).
     source: Option<crate::stats::Source>,
     /// The video thread's summary of the last second, for the bubbles.
-    #[allow(dead_code)] // Read by the bubbles in T038.
     second: crate::stats::Summary,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
@@ -149,6 +153,8 @@ pub struct App {
     /// most once per refresh.
     last_ui: Instant,
     refresh: Duration,
+    /// The refresh interval the monitor reports, for the latency estimate; `None` when unknown.
+    monitor_refresh: Option<Duration>,
     /// The monitor the refresh interval was read from.
     monitor: Option<MonitorHandle>,
     /// The edge or corner under the pointer, where a press resizes the window.
@@ -215,6 +221,28 @@ impl App {
         ui.app.on_device_picked(move |index| on(UserEvent::DevicePicked(index)));
         let on = send.clone();
         ui.app.on_mode_picked(move |index| on(UserEvent::ModePicked(index)));
+        let overlay = store.get().overlay;
+        ui.app.set_latency_display(latency::latency_index(overlay.latency));
+        ui.app.set_fps_display(latency::fps_index(overlay.fps));
+        ui.app.set_mode_display(latency::mode_index(overlay.mode));
+        let on = send.clone();
+        ui.app.on_latency_display_changed(move |index| {
+            on(UserEvent::Setting(SettingChange::LatencyDisplay(
+                latency::latency_display(index),
+            )));
+        });
+        let on = send.clone();
+        ui.app.on_fps_display_changed(move |index| {
+            on(UserEvent::Setting(SettingChange::FpsDisplay(latency::fps_display(
+                index,
+            ))));
+        });
+        let on = send.clone();
+        ui.app.on_mode_display_changed(move |index| {
+            on(UserEvent::Setting(SettingChange::ModeDisplay(latency::mode_display(
+                index,
+            ))));
+        });
         bind_prefs(&ui, &store, send);
         Self {
             options,
@@ -239,6 +267,7 @@ impl App {
             backdrop,
             last_ui: Instant::now(),
             refresh: Duration::from_millis(16),
+            monitor_refresh: None,
             monitor: None,
             resize: None,
             placement_changed: false,
@@ -434,6 +463,66 @@ impl App {
         app.set_preview_state(id.into());
         app.set_state_title(title.into());
         app.set_state_detail(detail.into());
+        self.show_info();
+    }
+
+    /// Shows the info bubbles (FR-016) while a device plays: its name and mode, and the frame rate
+    /// and latency of the video thread's last second once one with frames came; empty (hidden)
+    /// otherwise.
+    fn show_info(&mut self) {
+        let app = &self.ui.app;
+        let texts = Texts::get(app);
+        let playing = self.preview.state() == PreviewState::Playing;
+        let source = self.source.as_ref().filter(|_| playing);
+        let (name, size, tag, tag_kind, aspect) = source.map_or_else(Default::default, |s| {
+            let tags = s.mode.tags();
+            let (tag, kind) = match tags.name {
+                Some(name) => (
+                    name.into(),
+                    tags.family.map_or_else(|| "custom".into(), |f| f.to_string().into()),
+                ),
+                None => (texts.get_custom_resolution(), "custom".into()),
+            };
+            let aspect = tags.aspect.to_string().into();
+            (s.device.as_str().into(), s.mode.size_text().into(), tag, kind, aspect)
+        });
+        let (fps, latency, parts) = match (source, self.second.latency_ms) {
+            (Some(s), Some(measured)) => {
+                let overlay = self.store.get().overlay;
+                // The estimate (data-model.md "Latency estimate"): no platform call reports
+                // variable refresh in this spec, so `vrr` is false; the calibration absorbs it.
+                let platform = latency::Platform::current();
+                let estimated = latency::estimate(
+                    platform,
+                    Duration::from_secs_f64(1.0 / s.mode.fps_f64()),
+                    self.monitor_refresh.unwrap_or(Duration::from_secs_f64(1.0 / 60.0)),
+                    false,
+                    platform.calibration(),
+                );
+                let measured = Duration::from_secs_f64(measured / 1e3);
+                (
+                    latency::fps_text(overlay.fps, self.second.presented, s.mode.fps),
+                    latency::latency_text(overlay.latency, measured, estimated),
+                    Some(latency::LatencyParts::new(measured, estimated)),
+                )
+            }
+            _ => Default::default(),
+        };
+        app.set_info_source(name);
+        app.set_info_mode(size);
+        app.set_info_mode_tag(tag);
+        app.set_info_mode_tag_kind(tag_kind);
+        app.set_info_mode_aspect(aspect);
+        app.set_info_fps(fps.into());
+        app.set_info_latency(latency.into());
+        let parts = parts.unwrap_or(latency::LatencyParts {
+            measured: String::new(),
+            estimated: String::new(),
+            total: String::new(),
+        });
+        app.set_info_latency_measured(parts.measured.into());
+        app.set_info_latency_estimated(parts.estimated.into());
+        app.set_info_latency_total(parts.total.into());
         self.request_redraw();
     }
 
@@ -441,6 +530,8 @@ impl App {
         self.inbox.set_session(None);
         self.inbox.clear_video();
         self.source = None;
+        // The next device's bubbles wait for its own first second.
+        self.second = crate::stats::Summary::EMPTY;
         if let Some((session, _)) = self.session.take() {
             session.close();
         }
@@ -697,6 +788,9 @@ impl App {
             .filter(|r| *r > 0)
         {
             self.refresh = Duration::from_secs_f64(1000.0 / f64::from(mhz));
+            self.monitor_refresh = Some(self.refresh);
+        } else {
+            self.monitor_refresh = None;
         }
         // The video thread presents UI changes between slow video frames when a refresh fits
         // (research R16).
@@ -1176,6 +1270,16 @@ impl ApplicationHandler<UserEvent> for App {
                     self.store.update(|s| s.preview.shadow = shadow);
                     self.apply_backdrop();
                 }
+                SettingChange::LatencyDisplay(display) => {
+                    self.store.update(|s| s.overlay.latency = display);
+                    self.show_info();
+                }
+                SettingChange::FpsDisplay(display) => {
+                    self.store.update(|s| s.overlay.fps = display);
+                    self.show_info();
+                }
+                // The bubble shows its tags itself; only the setting is stored.
+                SettingChange::ModeDisplay(display) => self.store.update(|s| s.overlay.mode = display),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);
                     self.sync_tray();
@@ -1222,7 +1326,10 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.reset_menus();
             }
-            UserEvent::Second(summary) => self.second = summary,
+            UserEvent::Second(summary) => {
+                self.second = summary;
+                self.show_info();
+            }
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();
                 match event {
