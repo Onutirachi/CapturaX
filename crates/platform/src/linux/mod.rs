@@ -10,6 +10,7 @@ use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
+pub mod camera;
 pub mod instance;
 mod nvml;
 pub mod snap;

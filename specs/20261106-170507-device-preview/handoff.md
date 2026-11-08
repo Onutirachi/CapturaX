@@ -280,6 +280,13 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   starts with "~27 ms in total" then both lines. `latency::LatencyParts` (measured, estimated,
   total texts; `latency_text` builds on it) → `info-latency-measured/-estimated/-total`.
   Validated by the maintainer and folded into both commits; `ui=0` with the chrome hidden.
+- **T041** committed after the checks (`feat: read the camera privacy switch`):
+  `platform::{Access, camera_access, open_camera_privacy}` in `crates/platform/src/camera.rs`,
+  `windows/camera.rs` (four `Value`s of the webcam consent store read with `RegGetValueW`; pure
+  `decide`: any `Deny` → Denied, none readable → Unknown, else Allowed; `ShellExecuteW` on
+  `ms-settings:privacy-webcam`, a failure logged), `linux/camera.rs` (Unknown, no-op). This PC:
+  three `Allow`, HKLM `NonPackaged` missing → Allowed. Not used by the app until T044; not built
+  on Linux yet (trivial, checked in the Linux batch).
 
 Nothing pushed.
 

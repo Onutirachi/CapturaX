@@ -19,6 +19,7 @@ use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowAttributes};
 
 pub mod autostart;
+pub mod camera;
 mod dpi_rect;
 pub mod instance;
 pub mod snap;
