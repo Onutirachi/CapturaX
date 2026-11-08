@@ -124,7 +124,7 @@ close the session, stop the monitor; the rest is the shell's sequence.
   them in the toolbar's row, narrower.
 - `components/menu.slint`: `MenuItem` gains `kind`, `detail` (second line), `rate`, `tag`, `tag-kind`, `aspect` (T066),
   `disabled`; group headers are not selectable; keyboard navigation skips them.
-- `components/tag.slint` (name, aspect and rate tags, T066), `components/progress-ring.slint` (T067), `components/info-bubbles.slint` (fixed top left;
+- `components/tag.slint` (name, aspect and rate tags, T066), `components/progress-ring.slint` (T067), `components/info-bubbles.slint` (fixed bottom right;
   hover settings buttons in the top layer).
 - `main.slint`: the state message shows the preview state's icon, title, detail and actions;
   `source-open` becomes the preview state.

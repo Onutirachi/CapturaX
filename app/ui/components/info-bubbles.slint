@@ -1,0 +1,461 @@
+// The first info bubbles (FR-016, F7), ported from the stack spike's `info-overlay.slint`: source,
+// mode, frame rate and latency in the video area's bottom right (the spike's default corner),
+// shown with the chrome, in the spike's shape (black at 55%, opaque white text, the same in both
+// themes). They sit in a row packed against the right edge, or in a right-aligned column when the
+// row does not fit. Pinning, ordering and corners are spec #6 (F42).
+// A bubble with display choices (frame rate, latency) shows its hover controls after a short hover:
+// for now one settings button, drawn in the top layer above the bubble (`BubbleControlsLayer` in
+// main.slint), opening a menu of its displays (FR-016a, FR-017) with the current one marked. From
+// the keyboard the bubble itself takes the focus, and Enter, Space, Up or Down opens that menu.
+import { Theme } from "../theme.slint";
+import { Raised } from "raised.slint";
+import { IconButton } from "icon-button.slint";
+import { Menus, MenuItem } from "menu.slint";
+import { Tooltips, Side } from "tooltip.slint";
+import { FocusRing, Input } from "focus-ring.slint";
+import { Tag } from "tag.slint";
+
+// The hover controls of one bubble, shown by the top layer (as `Tooltips` and `Menus`): the bubble
+// asks for them with its rectangle in window coordinates and its display menu.
+export global BubbleControls {
+    // The bubble whose controls show, by its id in `Menus`; 0 for none.
+    out property <int> owner;
+    out property <bool> shown: self.owner != 0;
+    out property <[MenuItem]> items;
+    out property <int> current;
+    out property <length> anchor-x;
+    out property <length> anchor-y;
+    out property <length> anchor-width;
+    out property <length> anchor-height;
+    // The pointer is on the controls or the gap between them and the bubble (set by the layer).
+    in-out property <bool> pointed;
+
+    public function show(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length,
+        height: length) {
+        self.items = items;
+        self.current = current;
+        self.anchor-x = x;
+        self.anchor-y = y;
+        self.anchor-width = width;
+        self.anchor-height = height;
+        self.pointed = false;
+        self.owner = owner;
+    }
+
+    // The bubble's display changed while its controls show.
+    public function update(owner: int, items: [MenuItem], current: int) {
+        if (owner == self.owner) {
+            self.items = items;
+            self.current = current;
+        }
+    }
+
+    // Hides the controls if `owner` still has them.
+    public function hide(owner: int) {
+        if (owner == self.owner) {
+            self.dismiss();
+        }
+    }
+
+    // Hides whatever controls show (the window's size changed, so their bubble moved).
+    public function dismiss() {
+        self.owner = 0;
+        self.pointed = false;
+    }
+
+    // Opens the display menu under the control at this rectangle.
+    public function open-menu(x: length, y: length, width: length, height: length) {
+        if (self.owner != 0) {
+            Menus.show(self.owner, self.items, self.current, x, y, width, height, 160px);
+        }
+    }
+}
+
+component BubbleText inherits Text {
+    color: Theme.c.info-text;
+    font-size: Theme.text-m;
+    vertical-alignment: center;
+    overflow: elide;
+}
+
+// One bubble: 44 px tall, as wide as its content up to `widest`.
+component Bubble inherits Rectangle {
+    // The chrome shows: the bubble takes the pointer and the keyboard.
+    in property <bool> active;
+    // False keeps it out of the Tab order (behind the settings panel).
+    in property <bool> focusable: true;
+    // Its display menu, empty for none, and the row marked in it.
+    in property <[MenuItem]> choices;
+    in property <int> choice;
+    // Shown after 500 ms of hover, or at once on keyboard focus.
+    in property <string> tip;
+    in property <length> widest;
+    // The pointer or the keyboard is on the bubble, its controls or its menu: the chrome stays.
+    out property <bool> engaged: root.pointed || (focus.has-focus && Input.keyboard);
+    callback picked(int);
+
+    property <bool> has-menu: root.choices.length > 0;
+    property <int> id;
+    init => { self.id = Menus.new-id(); }
+    property <bool> controls: root.id != 0 && BubbleControls.owner == root.id;
+    property <bool> menu-open: root.id != 0 && Menus.owner == root.id;
+    property <bool> pointed: area.has-hover || (root.controls && BubbleControls.pointed) || root.menu-open;
+
+    // Changes on each pick from this bubble's menu.
+    property <int> picks: Menus.picked-owner == root.id ? Menus.picks : 0;
+    changed picks => {
+        if (self.picks != 0) {
+            self.picked(Menus.picked-index);
+        }
+    }
+    changed choice => { BubbleControls.update(root.id, root.choices, root.choice); }
+    changed choices => { BubbleControls.update(root.id, root.choices, root.choice); }
+    changed active => {
+        if (!self.active) {
+            BubbleControls.hide(root.id);
+            root.hide-tip();
+            if (root.menu-open) {
+                Menus.close();
+            }
+        }
+    }
+    // The menu closed (not replaced by another one) after the keyboard opened it: the focus is
+    // already here, nothing to do; after the pointer opened it, the controls hide on their timer.
+
+    // The token of the tooltip shown, 0 when none.
+    property <int> tip-token;
+    property <bool> tip-shown: root.tip-token > 0 && root.tip-token == Tooltips.owner;
+
+    function show-tip() {
+        if (root.tip != "") {
+            root.tip-token = Tooltips.show(root.tip, Side.left, root.absolute-position.x, root.absolute-position.y,
+                root.width, root.height);
+        }
+    }
+
+    function hide-tip() {
+        Tooltips.hide(root.tip-token);
+        root.tip-token = 0;
+    }
+
+    function open-menu() {
+        if (root.has-menu) {
+            root.hide-tip();
+            Menus.show(root.id, root.choices, root.choice, root.absolute-position.x, root.absolute-position.y,
+                root.width, root.height, 160px);
+        }
+    }
+
+    // A language switch changes the text of a tooltip that shows (FR-024).
+    changed tip => {
+        if (root.tip-shown) {
+            root.show-tip();
+        }
+    }
+
+    height: 44px;
+    width: min(row.preferred-width, root.widest);
+    border-radius: Theme.radius-m;
+    background: Theme.c.info-bubble;
+
+    // A bubble with a display menu is a button (set where it is used: the role must be constant).
+    accessible-role: text;
+    accessible-description: root.tip;
+    accessible-action-default => { root.open-menu(); }
+
+    forward-focus: focus;
+
+    area := TouchArea {
+        enabled: root.active;
+        changed has-hover => {
+            if (!self.has-hover) {
+                root.hide-tip();
+            }
+        }
+    }
+
+    focus := FocusScope {
+        enabled: root.active && root.focusable && root.has-menu;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow
+                || event.text == Key.UpArrow) {
+                root.open-menu();
+                return accept;
+            }
+            reject
+        }
+        changed has-focus => {
+            if (self.has-focus) {
+                root.show-tip();
+            } else {
+                root.hide-tip();
+            }
+        }
+    }
+
+    // The controls open after a short hover, so sweeping the pointer across the bubbles opens none.
+    Timer {
+        interval: 120ms;
+        running: root.has-menu && root.active && area.has-hover && !root.controls;
+        triggered => {
+            BubbleControls.show(root.id, root.choices, root.choice, root.absolute-position.x,
+                root.absolute-position.y, root.width, root.height);
+        }
+    }
+
+    // They stay while the pointer is on the bubble, the controls, the gap between or the menu, and
+    // a moment after.
+    Timer {
+        interval: 250ms;
+        running: root.controls && !root.pointed;
+        triggered => { BubbleControls.hide(root.id); }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: root.active && area.has-hover && !root.tip-shown && !root.menu-open && root.tip != "";
+        triggered => { root.show-tip(); }
+    }
+
+    row := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 8px;
+        @children
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: root.border-radius;
+    }
+}
+
+// Covers the room the bubbles may take, its height the bubbles' (`used-height`), placed against the
+// video area's bottom right; only the bubbles take the pointer. A bubble with an empty text is left out.
+export component InfoBubbles inherits Rectangle {
+    // The chrome shows: the bubbles take the pointer and the keyboard.
+    in property <bool> active: true;
+    in property <bool> focusable: true;
+    in property <string> source;
+    // The mode's size ("1920 × 1080"), its name tag with the tag's ratio family, and its aspect
+    // ratio tag.
+    in property <string> mode;
+    in property <string> mode-tag;
+    in property <string> mode-tag-kind;
+    in property <string> mode-aspect;
+    in property <string> fps;
+    in property <string> latency;
+    // Each part of the latency, for the tooltip: "3 ms", "~24 ms", "~27 ms".
+    in property <string> latency-measured;
+    in property <string> latency-estimated;
+    in property <string> latency-total;
+    // The displays (data-model.md "Bubble displays"): latency 0 measured, 1 measured + estimated,
+    // 2 total; frame rate 0 presented, 1 presented / nominal, 2 nominal; mode 0 size, 1 size +
+    // name, 2 size + aspect ratio, 3 size + name + aspect ratio (FR-017a).
+    in-out property <int> latency-display: 1;
+    in-out property <int> fps-display: 1;
+    in-out property <int> mode-display: 3;
+    callback latency-display-changed(int);
+    callback fps-display-changed(int);
+    callback mode-display-changed(int);
+    out property <bool> engaged: source-bubble.engaged || mode-bubble.engaged || fps-bubble.engaged
+        || latency-bubble.engaged;
+    // The height the bubbles take.
+    out property <length> used-height: root.in-row ? 44px
+        : root.count() * 44px + max(0, root.count() - 1) * root.gap;
+
+    property <length> gap: Theme.gap-m;
+    // The frame rate and latency texts on screen: taken while the bubbles show, so the changes of
+    // each second do not redraw the UI while the chrome is hidden; cleared at once.
+    property <string> fps-text;
+    property <string> latency-text;
+    changed fps => {
+        if (self.active || self.fps == "") {
+            self.fps-text = self.fps;
+        }
+    }
+    changed latency => {
+        if (self.active || self.latency == "") {
+            self.latency-text = self.latency;
+        }
+    }
+    init => {
+        self.fps-text = self.fps;
+        self.latency-text = self.latency;
+    }
+    changed active => {
+        if (self.active) {
+            self.fps-text = self.fps;
+            self.latency-text = self.latency;
+        }
+    }
+    // Each menu starts with a header naming its bubble, so a display's row is its value plus one.
+    property <[MenuItem]> latency-items: [
+        { text: @tr("Latency"), kind: "header" },
+        { text: @tr("Measured") },
+        { text: @tr("Measured + estimated") },
+        { text: @tr("Total") },
+    ];
+    property <[MenuItem]> fps-items: [
+        { text: @tr("Frame rate"), kind: "header" },
+        { text: @tr("Presented") },
+        { text: @tr("Presented / nominal") },
+        { text: @tr("Nominal") },
+    ];
+    property <[MenuItem]> mode-items: [
+        { text: @tr("Mode"), kind: "header" },
+        { text: @tr("Resolution") },
+        { text: @tr("Resolution + name") },
+        { text: @tr("Resolution + aspect ratio") },
+        { text: @tr("Resolution + name + aspect ratio") },
+    ];
+    property <bool> name-shown: root.mode-display == 1 || root.mode-display == 3;
+    property <bool> aspect-shown: root.mode-display >= 2;
+
+    pure function shown(k: int) -> bool {
+        k == 0 ? root.source != "" : k == 1 ? root.mode != "" : k == 2 ? root.fps-text != "" : root.latency-text != ""
+    }
+    pure function w(k: int) -> length {
+        !root.shown(k) ? 0 : k == 0 ? source-bubble.width : k == 1 ? mode-bubble.width
+            : k == 2 ? fps-bubble.width : latency-bubble.width
+    }
+    pure function count() -> int {
+        (root.shown(0) ? 1 : 0) + (root.shown(1) ? 1 : 0) + (root.shown(2) ? 1 : 0) + (root.shown(3) ? 1 : 0)
+    }
+    // Bubble k's room along the row or the column: the shown bubbles before it with their gaps.
+    pure function before(k: int, size: length) -> length {
+        (k > 0 && root.shown(0) ? 1 : 0) * (root.in-row ? root.w(0) : size) + (k > 0 && root.shown(0) ? root.gap : 0)
+            + (k > 1 && root.shown(1) ? 1 : 0) * (root.in-row ? root.w(1) : size) + (k > 1 && root.shown(1) ? root.gap : 0)
+            + (k > 2 && root.shown(2) ? 1 : 0) * (root.in-row ? root.w(2) : size) + (k > 2 && root.shown(2) ? root.gap : 0)
+    }
+    property <length> row-width: root.w(0) + root.w(1) + root.w(2) + root.w(3) + max(0, root.count() - 1) * root.gap;
+    property <bool> in-row: root.row-width <= root.width;
+
+    source-bubble := Bubble {
+        x: root.in-row ? root.width - root.row-width + root.before(0, 0px) : root.width - self.width;
+        y: root.in-row ? 0 : root.before(0, 44px);
+        visible: root.shown(0);
+        active: root.active;
+        focusable: root.focusable;
+        widest: min(360px, root.width);
+        accessible-label: root.source;
+        BubbleText { text: root.source; }
+    }
+
+    mode-bubble := Bubble {
+        x: root.in-row ? root.width - root.row-width + root.before(1, 0px) : root.width - self.width;
+        y: root.in-row ? 0 : root.before(1, 44px);
+        visible: root.shown(1);
+        active: root.active;
+        focusable: root.focusable;
+        widest: root.width;
+        choices: root.mode-items;
+        accessible-role: button;
+        choice: root.mode-display + 1;
+        accessible-label: root.mode;
+        picked(index) => {
+            root.mode-display = index - 1;
+            root.mode-display-changed(root.mode-display);
+        }
+        BubbleText { text: root.mode; }
+        if root.name-shown && root.mode-tag != "": VerticalLayout {
+            alignment: center;
+            Tag { value: root.mode-tag; kind: root.mode-tag-kind; }
+        }
+        if root.aspect-shown && root.mode-aspect != "": VerticalLayout {
+            alignment: center;
+            Tag { value: root.mode-aspect; kind: "aspect"; }
+        }
+    }
+
+    fps-bubble := Bubble {
+        x: root.in-row ? root.width - root.row-width + root.before(2, 0px) : root.width - self.width;
+        y: root.in-row ? 0 : root.before(2, 44px);
+        visible: root.shown(2);
+        active: root.active;
+        focusable: root.focusable;
+        widest: root.width;
+        choices: root.fps-items;
+        accessible-role: button;
+        choice: root.fps-display + 1;
+        accessible-label: root.fps-text;
+        picked(index) => {
+            root.fps-display = index - 1;
+            root.fps-display-changed(root.fps-display);
+        }
+        BubbleText { text: root.fps-text; }
+    }
+
+    latency-bubble := Bubble {
+        x: root.in-row ? root.width - root.row-width + root.before(3, 0px) : root.width - self.width;
+        y: root.in-row ? 0 : root.before(3, 44px);
+        visible: root.shown(3);
+        active: root.active;
+        focusable: root.focusable;
+        widest: root.width;
+        choices: root.latency-items;
+        accessible-role: button;
+        choice: root.latency-display + 1;
+        // What each part of the bubble is, with its value (FR-016a); Total also shows the parts.
+        property <string> measured-line: @tr("{}: inside CapturaX (measured)", root.latency-measured);
+        property <string> estimated-line: @tr("{}: capture card and monitor (estimated)", root.latency-estimated);
+        tip: root.latency-measured == "" ? ""
+            : root.latency-display == 0 ? self.measured-line
+            : root.latency-display == 1 ? self.measured-line + "\n" + self.estimated-line
+            : @tr("{} in total", root.latency-total) + "\n" + self.measured-line + "\n" + self.estimated-line;
+        accessible-label: root.latency-text;
+        picked(index) => {
+            root.latency-display = index - 1;
+            root.latency-display-changed(root.latency-display);
+        }
+        BubbleText { text: root.latency-text; }
+    }
+}
+
+// Fills the window; place it in the top layer with the window's size, under the menus and the
+// tooltips. Shows the hover controls of `BubbleControls.owner` above its bubble, centered on it
+// and kept inside the window, as the spike (the bubbles sit in the bottom right).
+export component BubbleControlsLayer inherits Rectangle {
+    property <length> space: 8px;
+    property <length> margin: 8px;
+
+    if BubbleControls.shown: controls := TouchArea {
+        // The gap between the bubble and the controls belongs to them, so crossing it keeps them.
+        x: clamp(BubbleControls.anchor-x + (BubbleControls.anchor-width - self.width) / 2, root.margin,
+            max(root.margin, root.width - root.margin - self.width));
+        y: BubbleControls.anchor-y - self.height;
+        width: panel.width;
+        height: root.space + panel.height;
+        changed has-hover => { BubbleControls.pointed = self.has-hover; }
+
+        property <float> appear: 0;
+        animate appear { duration: Theme.quick; easing: ease-out; }
+        init => { self.appear = 1; }
+
+        panel := Raised {
+            fill: Theme.c.top;
+            y: 0;
+            width: 48px;
+            height: 48px;
+            opacity: controls.appear;
+
+            settings := IconButton {
+                x: 4px;
+                y: 4px;
+                size: 40px;
+                icon-size: 20px;
+                icon: @image-url("../assets/icons/adjustments_horizontal.svg");
+                tooltip: @tr("Display");
+                tooltip-side: Side.left;
+                active: Menus.open && Menus.owner == BubbleControls.owner;
+                // The bubble itself opens the menu from the keyboard.
+                focusable: false;
+                clicked => {
+                    BubbleControls.open-menu(self.absolute-position.x, self.absolute-position.y, self.width,
+                        self.height);
+                }
+            }
+        }
+    }
+}

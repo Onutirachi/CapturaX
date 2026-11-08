@@ -56,6 +56,10 @@ export struct Palette {
     tag-32-9: color,
     tag-custom: color,
     tag-aspect: color,
+    // Info bubbles over the video (FR-016), the same in both themes: black at 55%, the least that
+    // keeps white text at 4.5:1 over a white video.
+    info-bubble: color,
+    info-text: color,
 }
 
 export global Palettes {
@@ -97,6 +101,8 @@ export global Palettes {
         tag-32-9: #7e3fbf,
         tag-custom: #62666f,
         tag-aspect: #4a4d55,
+        info-bubble: #0000008c,
+        info-text: #ffffff,
     };
     out property <Palette> light: {
         deep: #dfe1e7,
@@ -136,6 +142,8 @@ export global Palettes {
         tag-32-9: #7e3fbf,
         tag-custom: #62666f,
         tag-aspect: #4a4d55,
+        info-bubble: #0000008c,
+        info-text: #ffffff,
     };
 }
 

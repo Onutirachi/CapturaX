@@ -16,6 +16,7 @@ shadow = "always"                  # "always", "ambient", "off" (F58)
 [overlay]
 latency = "measured+estimated"     # "measured", "measured+estimated", "total"
 fps = "presented/nominal"          # "presented", "presented/nominal", "nominal"
+mode = "size+name+aspect"          # "size", "size+name", "size+aspect", "size+name+aspect"
 
 [devices."mf:\\\\?\\usb#vid_32ed&pid_3201&mi_00#7&1a2b3c&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\\global"]
 name = "ezcap Live Gamer Ultra"    # for people; not used to match

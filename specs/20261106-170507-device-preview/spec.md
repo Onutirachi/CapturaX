@@ -310,8 +310,8 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 
 - **FR-016**: The app MUST show, over the video and with the chrome, the source name, the mode,
   the frame rate and the latency, updated once per second, as the first info bubbles in a fixed
-  spot; pinning, ordering and corners are spec #6 (F42). A bubble that has display choices shows
-  a settings button on hover, next to its other hover controls, which opens a small menu with
+  spot, the video area's bottom right (maintainer, 2026-11-07); pinning, ordering and corners are
+  spec #6 (F42). A bubble that has display choices shows a settings button on hover, next to its other hover controls, which opens a small menu with
   its choices; the choice is saved (maintainer, 2026-11-06).
 - **FR-016a**: The latency bubble MUST offer three displays (maintainer, 2026-11-06):
   - **Measured**: the app's own part, measured: from the frame's capture timestamp to its
@@ -327,6 +327,10 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   (default: presented against the mode's nominal rate, for example "111 / 120 FPS") and
   **Nominal** (the mode's rate). Dropped frames are not shown in the bubble; they are in the
   statistics (FR-018).
+- **FR-017a**: The mode bubble MUST offer four displays (maintainer, 2026-11-07): **Resolution**
+  ("1920 × 1080"), **Resolution + name** (with the name tag, "Full HD"), **Resolution + aspect
+  ratio** (with the aspect tag, "16:9") and **Resolution + name + aspect ratio** (default, both
+  tags, as the rows of the mode menu). The tags are the mode menu's (FR-007, data-model "Mode").
 - **FR-018**: The app shell's per-second statistics (app shell FR-005) MUST also cover a real
   device: frames reaching the app, frames presented, dropped and repeated frames, and frame
   ready → presented time, so the budget can be checked with a card. Frames the device drops

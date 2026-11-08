@@ -190,3 +190,51 @@ msgstr "Com luz ambiente"
 
 msgid "Off"
 msgstr "Desligada"
+
+msgid "Latency"
+msgstr "Latência"
+
+msgid "Measured"
+msgstr "Medida"
+
+msgid "Measured + estimated"
+msgstr "Medida + estimada"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Frame rate"
+msgstr "Taxa de quadros"
+
+msgid "Presented"
+msgstr "Exibidos"
+
+msgid "Presented / nominal"
+msgstr "Exibidos / nominal"
+
+msgid "Nominal"
+msgstr "Nominal"
+
+msgid "Display"
+msgstr "Exibição"
+
+msgid "Resolution"
+msgstr "Resolução"
+
+msgid "Resolution + name"
+msgstr "Resolução + nome"
+
+msgid "Resolution + aspect ratio"
+msgstr "Resolução + proporção"
+
+msgid "Resolution + name + aspect ratio"
+msgstr "Resolução + nome + proporção"
+
+msgid "{}: inside CapturaX (measured)"
+msgstr "{}: dentro do CapturaX (medido)"
+
+msgid "{}: capture card and monitor (estimated)"
+msgstr "{}: placa de captura e monitor (estimado)"
+
+msgid "{} in total"
+msgstr "{} no total"

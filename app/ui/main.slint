@@ -17,6 +17,7 @@ import { IconButton } from "components/icon-button.slint";
 import { SettingsPanel, Prefs } from "components/settings-panel.slint";
 import { Toolbar } from "components/toolbar.slint";
 import { ProgressRing } from "components/progress-ring.slint";
+import { InfoBubbles, BubbleControls, BubbleControlsLayer } from "components/info-bubbles.slint";
 
 export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs }
 
@@ -64,6 +65,25 @@ export component AppWindow inherits Window {
     in-out property <int> color-range;
     in property <bool> range-full;
     callback color-range-changed(int);
+    // The info bubbles (components/info-bubbles.slint), set by Rust once per second; a bubble with
+    // an empty text is left out. The displays are numbered as `InfoBubbles` documents them.
+    in property <string> info-source;
+    in property <string> info-mode;
+    in property <string> info-mode-tag;
+    in property <string> info-mode-tag-kind;
+    in property <string> info-mode-aspect;
+    in property <string> info-fps;
+    in property <string> info-latency;
+    // Each part of the latency for its tooltip: "3 ms", "~24 ms", "~27 ms".
+    in property <string> info-latency-measured;
+    in property <string> info-latency-estimated;
+    in property <string> info-latency-total;
+    in-out property <int> latency-display: 1;
+    in-out property <int> fps-display: 1;
+    in-out property <int> mode-display: 3;
+    callback latency-display-changed(int);
+    callback fps-display-changed(int);
+    callback mode-display-changed(int);
 
     // An action of the state message, by id.
     callback state-action(string /* action id */);
@@ -145,15 +165,15 @@ export component AppWindow inherits Window {
 
     // A size change moves the controls: an open tooltip or menu would stay where its control was,
     // so both close, as in native apps.
-    changed width => { Tooltips.dismiss(); Menus.close(); }
-    changed height => { Tooltips.dismiss(); Menus.close(); }
+    changed width => { Tooltips.dismiss(); Menus.close(); BubbleControls.dismiss(); }
+    changed height => { Tooltips.dismiss(); Menus.close(); BubbleControls.dismiss(); }
     // The chrome shows while the pointer is on the top of the video, the toolbar or a dock, while a
     // menu is open, or while a chrome control has the keyboard focus; it hides 2 s after (FR-008).
     // The focus counts only while the keyboard is in use (its ring shows): a dock button keeps the
     // focus after the mouse takes over, and the chrome would never hide.
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || right-area.has-hover || Menus.open
+        || right-area.has-hover || Menus.open || info.engaged
         || ((fullscreen-button.has-focus || settings-button.has-focus || toolbar.has-focus) && Input.keyboard);
     changed engaged => {
         if (self.engaged) {
@@ -244,6 +264,34 @@ export component AppWindow inherits Window {
             }
         }
 
+        // The info bubbles in the video area's bottom right; they fade with the chrome. The
+        // keyboard reaches them after the toolbar.
+        info := InfoBubbles {
+            x: Theme.gap-l;
+            y: parent.height - self.height - Theme.gap-l;
+            width: parent.width - 2 * Theme.gap-l;
+            height: self.used-height;
+            opacity: 1 - root.hidden;
+            active: root.chrome-shown && !root.settings-open;
+            focusable: !root.settings-open;
+            source: root.info-source;
+            mode: root.info-mode;
+            mode-tag: root.info-mode-tag;
+            mode-tag-kind: root.info-mode-tag-kind;
+            mode-aspect: root.info-mode-aspect;
+            fps: root.info-fps;
+            latency: root.info-latency;
+            latency-measured: root.info-latency-measured;
+            latency-estimated: root.info-latency-estimated;
+            latency-total: root.info-latency-total;
+            latency-display <=> root.latency-display;
+            fps-display <=> root.fps-display;
+            mode-display <=> root.mode-display;
+            latency-display-changed(display) => { root.latency-display-changed(display); }
+            fps-display-changed(display) => { root.fps-display-changed(display); }
+            mode-display-changed(display) => { root.mode-display-changed(display); }
+        }
+
         // Float: slides out to the left; compact: up with the toolbar's row.
         left-area := TouchArea {
             x: root.compact ? chrome.edge
@@ -325,8 +373,15 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Top layer (menus, dropdowns, tooltips): drawn last, so nothing covers them (FR-010). A menu
-    // takes every click while open; a click outside it closes it.
+    // Top layer (bubble controls, menus, dropdowns, tooltips): drawn last, so nothing covers them
+    // (FR-010). A menu takes every click while open; a click outside it closes it.
+    BubbleControlsLayer {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+    }
+
     if Menus.open: MenuLayer {
         x: 0;
         y: 0;

@@ -113,6 +113,16 @@ const fn icon(color: &'static str, layers: &'static [&'static str], used: &'stat
     }
 }
 
+const fn text_over_video(color: &'static str, layers: &'static [&'static str], used: &'static str) -> Pair {
+    Pair {
+        color,
+        layers,
+        behind: Behind::Video,
+        min: TEXT,
+        used,
+    }
+}
+
 const fn icon_over_video(color: &'static str, layers: &'static [&'static str], used: &'static str) -> Pair {
     Pair {
         color,
@@ -219,6 +229,8 @@ const PAIRS: &[Pair] = &[
     text("#ffffff", &["tag-32-9"], "32:9 tag"),
     text("#ffffff", &["tag-custom"], "custom tag"),
     text("#ffffff", &["tag-aspect"], "aspect tag"),
+    // Info bubbles over the video; their mode tag is a filled tag (listed above).
+    text_over_video("info-text", &["info-bubble"], "info bubble text"),
     // Notice.
     icon("accent-text", &["raised"], "notice info icon"),
     icon("warn", &["raised"], "notice warning icon"),

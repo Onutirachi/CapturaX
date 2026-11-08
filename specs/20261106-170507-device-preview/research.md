@@ -337,7 +337,7 @@ marks what was not run.
   line, for the resolved mode of an automatic mode and the device's detail line), `badge`
   (resolution badge) and `disabled`; the existing selects keep working with text only. The device select shows "No devices" as a disabled item when the list
   is empty (never an empty menu). Info bubbles (source, mode, frame rate, latency) sit in the
-  video area's top left corner with the chrome, in the spike's shape (black at 55%, opaque text);
+  video area's bottom right corner with the chrome (the spike's default; maintainer, 2026-11-07), in the spike's shape (black at 55%, opaque text);
   the frame rate and latency bubbles show a settings button on hover, drawn in the top layer (app
   shell plan), which opens a menu with their three displays. The settings panel gains **Preview**
   (Tabler `device-tv` icon) with the Presentation select and its tooltip.

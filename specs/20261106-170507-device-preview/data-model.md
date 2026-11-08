@@ -213,7 +213,8 @@ checks it within 5 ms. The display marks the estimate with "~".
 
 **Bubble displays**: `measured` → "3 ms"; `measured+estimated` (default) → "3 ms + ~24 ms";
 `total` → "~27 ms". Frame rate: `presented` → "60 FPS"; `presented/nominal` (default) → "111 / 120
-FPS"; `nominal` → "120 FPS".
+FPS"; `nominal` → "120 FPS". Mode: `size` → "1920 × 1080"; `size+name` → "1920 × 1080 [Full HD]";
+`size+aspect` → "1920 × 1080 [16:9]"; `size+name+aspect` (default) → "1920 × 1080 [Full HD] [16:9]".
 
 ## Settings additions
 
@@ -229,6 +230,7 @@ Crate `settings`, format version stays 1 (new tables only, read leniently; contr
 | `preview` | `shadow` | `always` \| `ambient` \| `off` | `always` |
 | `overlay` | `latency` | `measured` \| `measured+estimated` \| `total` | `measured+estimated` |
 | `overlay` | `fps` | `presented` \| `presented/nominal` \| `nominal` | `presented/nominal` |
+| `overlay` | `mode` | `size` \| `size+name` \| `size+aspect` \| `size+name+aspect` | `size+name+aspect` |
 | `devices."<id>"` | `name` | string (for people reading the file) | — |
 | `devices."<id>"` | `mode` | mode choice text | default mode |
 | `devices."<id>"` | `color_range` | `auto` \| `full` \| `limited` | `auto` |
