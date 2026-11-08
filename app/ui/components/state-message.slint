@@ -76,8 +76,6 @@ component ActionButton inherits Rectangle {
 
 export component StateMessage inherits Rectangle {
     in property <image> icon;
-    // The icon turns, one turn a second (the opening state's spinner).
-    in property <bool> spinning;
     in property <string> title;
     // One line; longer text is cut with an ellipsis.
     in property <string> detail;
@@ -97,7 +95,6 @@ export component StateMessage inherits Rectangle {
             height: 48px;
             image-fit: contain;
             colorize: Theme.c.text-muted;
-            transform-rotation: root.spinning ? animation-tick() / 1s * 360deg : 0deg;
             accessible-role: none;
         }
 

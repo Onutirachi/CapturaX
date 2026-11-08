@@ -35,11 +35,22 @@ export struct Palette {
     scrim: color,
     // Shadow images are drawn at this opacity: light surfaces need softer shadows.
     shadow: float,
-    // Resolution badges (F43): one fill per tier, white text, the same in both themes.
-    badge-hd: color,
-    badge-full-hd: color,
-    badge-qhd: color,
-    badge-4k: color,
+    // Mode tags (F43, data-model.md "Mode"): one fill per aspect ratio family, Custom and the
+    // aspect tag neutral; white text, the same in both themes.
+    tag-1-1: color,
+    tag-5-4: color,
+    tag-11-9: color,
+    tag-4-3: color,
+    tag-3-2: color,
+    tag-25-16: color,
+    tag-16-10: color,
+    tag-5-3: color,
+    tag-16-9: color,
+    tag-17-9: color,
+    tag-21-9: color,
+    tag-32-9: color,
+    tag-custom: color,
+    tag-aspect: color,
 }
 
 export global Palettes {
@@ -64,10 +75,20 @@ export global Palettes {
         panel: #0e0f13b8,
         scrim: #00000080,
         shadow: 1,
-        badge-hd: #5f6b7d,
-        badge-full-hd: #4974ab,
-        badge-qhd: #845a87,
-        badge-4k: #237323,
+        tag-1-1: #9c3d2e,
+        tag-5-4: #8f6a00,
+        tag-11-9: #6b4f3a,
+        tag-4-3: #5d6b25,
+        tag-3-2: #0f7a6e,
+        tag-25-16: #4b5f8a,
+        tag-16-10: #756f92,
+        tag-5-3: #c2410c,
+        tag-16-9: #6d6bbb,
+        tag-17-9: #2f7d32,
+        tag-21-9: #be185d,
+        tag-32-9: #7e3fbf,
+        tag-custom: #62666f,
+        tag-aspect: #4a4d55,
     };
     out property <Palette> light: {
         deep: #dfe1e7,
@@ -90,10 +111,20 @@ export global Palettes {
         panel: #f7f8fac4,
         scrim: #00000052,
         shadow: 0.35,
-        badge-hd: #5f6b7d,
-        badge-full-hd: #4974ab,
-        badge-qhd: #845a87,
-        badge-4k: #237323,
+        tag-1-1: #9c3d2e,
+        tag-5-4: #8f6a00,
+        tag-11-9: #6b4f3a,
+        tag-4-3: #5d6b25,
+        tag-3-2: #0f7a6e,
+        tag-25-16: #4b5f8a,
+        tag-16-10: #756f92,
+        tag-5-3: #c2410c,
+        tag-16-9: #6d6bbb,
+        tag-17-9: #2f7d32,
+        tag-21-9: #be185d,
+        tag-32-9: #7e3fbf,
+        tag-custom: #62666f,
+        tag-aspect: #4a4d55,
     };
 }
 

@@ -5,11 +5,11 @@
 // Menu placement; FR-010). A menu taller than the room it gets scrolls. One menu is open at a time.
 // Keys: Up, Down, Home, End move, skipping headers and disabled items; Enter or Space picks; Esc
 // or Tab closes (FR-020). Rows as the spike's dropdown menu (research R13): group headers 30 px in
-// faint text, items 36 px, 44 px with their detail on a second line; the menu slides open.
+// faint text, items 36 px, 48 px with their detail on a second line; the menu slides open.
 import { Theme } from "../theme.slint";
 import { Raised } from "raised.slint";
 import { FocusRing } from "focus-ring.slint";
-import { Badge } from "badge.slint";
+import { Tag } from "tag.slint";
 
 // One row of a menu. Every field but `text` may be left out: an empty `kind` is an item.
 export struct MenuItem {
@@ -18,8 +18,12 @@ export struct MenuItem {
     kind: string,
     // A second line under the text.
     detail: string,
-    // A resolution badge id (`4k`, `qhd`, `fhd`, `hd`), or empty.
-    badge: string,
+    // The frame rate tag ("60 FPS"), after the detail line when there is one, else after the text.
+    rate: string,
+    // The name tag ("Full HD") and its ratio family (`16:9`, `custom`), then the aspect tag.
+    tag: string,
+    tag-kind: string,
+    aspect: string,
     // Shown but not selectable (default false, so a menu built without it is all enabled).
     disabled: bool,
 }
@@ -75,6 +79,16 @@ export global Menus {
         self.anchor-width = width;
         self.anchor-height = height;
         self.owner = owner;
+    }
+
+    // The open menu's items changed (a device came or left): shown at once; the highlight stays
+    // unless its row is gone or no longer selectable.
+    public function update(items: [MenuItem], current: int) {
+        self.items = items;
+        self.current = current;
+        if (self.highlighted < 0 || self.highlighted >= items.length || !self.selectable(items[self.highlighted])) {
+            self.highlighted = current >= 0 ? current : self.next-selectable(items, -1, 1);
+        }
     }
 
     public function pick(index: int) {
@@ -193,7 +207,7 @@ export component MenuLayer inherits Rectangle {
                 for item[i] in Menus.items: row := Rectangle {
                     property <bool> header: item.kind == "header";
                     property <bool> selectable: Menus.selectable(item);
-                    height: self.header ? 30px : item.detail != "" ? 44px : 36px;
+                    height: self.header ? 30px : item.detail != "" ? 48px : 36px;
                     border-radius: Theme.radius-s;
                     background: !self.selectable ? transparent
                         : i == Menus.current ? Theme.c.press
@@ -224,25 +238,48 @@ export component MenuLayer inherits Rectangle {
 
                         VerticalLayout {
                             alignment: center;
-                            Text {
-                                text: item.text;
-                                color: row.header || item.disabled ? Theme.c.text-faint : Theme.c.text;
-                                font-size: row.header ? Theme.text-s : Theme.text-m;
-                                font-weight: row.header ? 600 : 400;
-                                overflow: elide;
+                            horizontal-stretch: 1;
+                            // Room between the text and its detail line with the rate tag.
+                            spacing: 4px;
+                            HorizontalLayout {
+                                alignment: start;
+                                spacing: 6px;
+                                Text {
+                                    text: item.text;
+                                    color: row.header || item.disabled ? Theme.c.text-faint : Theme.c.text;
+                                    font-size: row.header ? Theme.text-s : Theme.text-m;
+                                    font-weight: row.header ? 600 : 400;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                if item.detail == "" && item.rate != "": Tag { value: item.rate; kind: "rate"; }
                             }
-                            if item.detail != "": Text {
-                                text: item.detail;
-                                color: item.disabled ? Theme.c.text-faint : Theme.c.text-muted;
-                                font-size: Theme.text-s;
-                                overflow: elide;
+                            if item.detail != "": HorizontalLayout {
+                                alignment: start;
+                                spacing: 6px;
+                                Text {
+                                    text: item.detail;
+                                    color: item.disabled ? Theme.c.text-faint : Theme.c.text-muted;
+                                    font-size: Theme.text-s;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                if item.rate != "": Tag { value: item.rate; kind: "rate"; }
                             }
                         }
 
-                        if item.badge != "": VerticalLayout {
-                            alignment: center;
+                        if item.tag != "" || item.aspect != "": HorizontalLayout {
+                            alignment: end;
+                            spacing: 6px;
                             horizontal-stretch: 0;
-                            Badge { kind: item.badge; }
+                            VerticalLayout {
+                                alignment: center;
+                                Tag { value: item.tag; kind: item.tag-kind; }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                Tag { value: item.aspect; kind: "aspect"; }
+                            }
                         }
                     }
 

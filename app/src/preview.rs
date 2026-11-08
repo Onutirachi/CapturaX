@@ -2,7 +2,7 @@
 //! Pure: monitor events, session events, user choices and window visibility go in, commands for
 //! the app come out. No GStreamer call, no settings write.
 
-use capture::mode::{self, Badge, ModeChoice};
+use capture::mode::{self, ModeChoice, Tags};
 use capture::session::SessionEvent;
 use capture::{Device, Mode, MonitorEvent, Range, RangeChoice};
 use settings::{ColorRange, Settings};
@@ -25,7 +25,7 @@ pub enum PreviewState {
 }
 
 /// What goes into [`Preview::handle`].
-#[allow(dead_code)] // ChooseDevice comes with the device menu (T031), TryAgain with US4 (T045).
+#[allow(dead_code)] // TryAgain comes with US4 (T045).
 #[derive(Debug, Clone)]
 pub enum Event {
     Monitor(MonitorEvent),
@@ -154,9 +154,20 @@ impl Preview {
     }
 
     /// The devices listed now.
-    #[allow(dead_code)] // For the device menu (T031).
+    #[cfg(test)]
     pub fn devices(&self) -> &[Device] {
         &self.devices
+    }
+
+    /// The device menu and the open device's mode menu (empty with no open device).
+    pub fn menus(&self, settings: &Settings) -> (Vec<Item>, Vec<Item>) {
+        let open = self.device();
+        let devices = device_items(&self.devices, open.map(|d| d.id.as_str()), settings);
+        let modes = open.map_or_else(Vec::new, |device| {
+            let stored = settings.device(&device.id).map(|c| c.mode.as_str());
+            mode_items(device, &mode_choice(device, stored))
+        });
+        (devices, modes)
     }
 
     pub fn handle(&mut self, event: Event, settings: &Settings) -> Vec<Command> {
@@ -196,7 +207,9 @@ impl Preview {
             }
             Event::Session { session, event } => self.session_event(session, event, &mut out),
             Event::ChooseDevice(id) => {
-                if self.hidden {
+                if self.open.as_ref().is_some_and(|o| o.device == id) {
+                    log::info!("preview: {id} is already open");
+                } else if self.hidden {
                     self.resume = Some((id, true));
                 } else {
                     self.open_device(&id, true, settings, &mut out);
@@ -362,14 +375,16 @@ pub fn mode_to_open(device: &Device, stored: Option<&str>) -> Option<Mode> {
 
 /// One row of the device or mode menu (FR-002, FR-004, FR-007). Texts that need a catalog are
 /// named, not written: app/src/ui.rs turns each row into a Slint `MenuItem`.
-#[allow(dead_code)] // Shown by the device and mode selects (T031).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Item {
     pub text: Label,
     /// The second line: the mode a device opens in, or the mode an automatic choice resolves to.
     pub detail: Option<Detail>,
-    /// The resolution badge of the row's mode (F43).
-    pub badge: Option<Badge>,
+    /// The frame rate of the row's mode (`60`, `59.94`), shown in its tag after the size: on the
+    /// detail line when there is one, else after the text (data-model.md "Mode").
+    pub rate: Option<String>,
+    /// The name and aspect tags of the row's mode (F43).
+    pub tags: Option<Tags>,
     /// The open device, or the mode choice in use.
     pub current: bool,
     pub disabled: bool,
@@ -377,10 +392,9 @@ pub struct Item {
     pub pick: Option<Pick>,
 }
 
-#[allow(dead_code)] // T031.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Label {
-    /// Shown as is: a device's (numbered) name or a mode's label.
+    /// Shown as is: a device's (numbered) name or a mode's size.
     Plain(String),
     /// "No devices", the only row of an empty device menu.
     NoDevices,
@@ -393,22 +407,19 @@ pub enum Label {
 }
 
 impl Label {
-    #[allow(dead_code)] // T031.
     pub fn is_header(&self) -> bool {
         matches!(self, Self::Automatic | Self::Modes)
     }
 }
 
-/// A detail line: the mode's label, after the automatic choice's name when it is one
-/// ("Auto max resolution · 1920 × 1080 · 30").
-#[allow(dead_code)] // T031.
+/// A detail line: the mode's size, after the automatic choice's name when it is one
+/// ("Auto max resolution · 1920 × 1080"); the rate tag follows it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Detail {
     pub automatic: Option<ModeChoice>,
     pub mode: String,
 }
 
-#[allow(dead_code)] // T031, T032.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pick {
     Device(String),
@@ -416,15 +427,15 @@ pub enum Pick {
 }
 
 /// The device menu: each device with the mode it will open in (its stored choice, else its
-/// default) and that mode's badge, the open one marked; one disabled "No devices" row when the
+/// default) and that mode's tags, the open one marked; one disabled "No devices" row when the
 /// list is empty, never an empty menu.
-#[allow(dead_code)] // T031.
 pub fn device_items(devices: &[Device], open: Option<&str>, settings: &Settings) -> Vec<Item> {
     if devices.is_empty() {
         return vec![Item {
             text: Label::NoDevices,
             detail: None,
-            badge: None,
+            rate: None,
+            tags: None,
             current: false,
             disabled: true,
             pick: None,
@@ -439,9 +450,10 @@ pub fn device_items(devices: &[Device], open: Option<&str>, settings: &Settings)
                 text: Label::Plain(device.name.clone()),
                 detail: mode.as_ref().map(|m| Detail {
                     automatic: choice.is_automatic().then(|| choice.clone()),
-                    mode: m.label(),
+                    mode: m.size_text(),
                 }),
-                badge: mode.and_then(|m| mode::badge(m.height)),
+                rate: mode.as_ref().map(|m| mode::rate_text(m.fps)),
+                tags: mode.as_ref().map(Mode::tags),
                 current: open == Some(device.id.as_str()),
                 disabled: false,
                 pick: Some(Pick::Device(device.id.clone())),
@@ -452,14 +464,14 @@ pub fn device_items(devices: &[Device], open: Option<&str>, settings: &Settings)
 
 /// The mode menu of a device: the **Automatic** header and the automatic choices it shows (no
 /// two resolving to the same mode) with their resolved mode as detail, then the **Modes** header
-/// and each native mode, largest first, each with its badge; `choice` marked. An automatic choice
+/// and each native mode, largest first, each with its tags; `choice` marked. An automatic choice
 /// hidden as a duplicate marks the shown one that opens the same mode.
-#[allow(dead_code)] // T031.
 pub fn mode_items(device: &Device, choice: &ModeChoice) -> Vec<Item> {
     let header = |text| Item {
         text,
         detail: None,
-        badge: None,
+        rate: None,
+        tags: None,
         current: false,
         disabled: false,
         pick: None,
@@ -474,9 +486,10 @@ pub fn mode_items(device: &Device, choice: &ModeChoice) -> Vec<Item> {
             text: Label::Auto(auto.clone()),
             detail: Some(Detail {
                 automatic: None,
-                mode: resolved.label(),
+                mode: resolved.size_text(),
             }),
-            badge: mode::badge(resolved.height),
+            rate: Some(mode::rate_text(resolved.fps)),
+            tags: Some(resolved.tags()),
             current: false,
             disabled: false,
             pick: Some(Pick::Mode(auto.clone())),
@@ -487,9 +500,10 @@ pub fn mode_items(device: &Device, choice: &ModeChoice) -> Vec<Item> {
     }
     for native in &device.modes {
         items.push(Item {
-            text: Label::Plain(native.label()),
+            text: Label::Plain(native.size_text()),
             detail: None,
-            badge: mode::badge(native.height),
+            rate: Some(mode::rate_text(native.fps)),
+            tags: Some(native.tags()),
             current: false,
             disabled: false,
             pick: Some(Pick::Mode(ModeChoice::manual(native))),
@@ -690,6 +704,39 @@ mod tests {
     }
 
     #[test]
+    fn choosing_the_open_device_again_does_not_reopen_it() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let out = p.handle(listed(vec![card(), webcam()]), &settings);
+        let session = opened(&out).unwrap().2;
+        let out = p.handle(Event::ChooseDevice("card".into()), &settings);
+        assert!(opened(&out).is_none() && !closes(&out), "{out:?}");
+        assert_eq!(p.session(), Some(session));
+    }
+
+    #[test]
+    fn menus_follow_the_devices_and_the_open_one() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let (devices, modes) = p.menus(&settings);
+        assert_eq!(devices[0].text, Label::NoDevices);
+        assert!(modes.is_empty(), "no mode menu without an open device");
+
+        p.handle(listed(vec![card(), webcam()]), &settings);
+        let (devices, modes) = p.menus(&settings);
+        assert_eq!(current(&devices), [&Label::Plain("ezcap Live GAMER ULTRA".into())]);
+        assert_eq!(modes, mode_items(&card(), &mode_choice(&card(), None)));
+
+        // A device that leaves is gone from the menu at once (spec edge case).
+        p.handle(Event::Monitor(MonitorEvent::Removed("cam".into())), &settings);
+        assert_eq!(p.menus(&settings).0.len(), 1);
+        p.handle(Event::Monitor(MonitorEvent::Removed("card".into())), &settings);
+        let (devices, modes) = p.menus(&settings);
+        assert_eq!(devices[0].text, Label::NoDevices);
+        assert!(modes.is_empty());
+    }
+
+    #[test]
     fn a_session_error_fails_and_try_again_reopens() {
         let settings = Settings::default();
         let mut p = Preview::new();
@@ -851,25 +898,38 @@ mod tests {
         })
     }
 
-    /// Each row as (text, detail, badge id, current), for comparing whole menus.
-    fn rows(items: &[Item]) -> Vec<(String, String, &'static str, bool)> {
+    /// Each row as (text, detail, tags, current), for comparing whole menus; the rate tag reads
+    /// `[30 FPS]` after the line it is on.
+    fn rows(items: &[Item]) -> Vec<(String, String, String, bool)> {
         items
             .iter()
             .map(|i| {
-                let text = match &i.text {
+                let mut text = match &i.text {
                     Label::Plain(text) => text.clone(),
                     Label::NoDevices => "No devices".into(),
                     Label::Automatic => "# Automatic".into(),
                     Label::Modes => "# Modes".into(),
                     Label::Auto(choice) => choice.to_string(),
                 };
-                let detail = i.detail.as_ref().map_or_else(String::new, |d| match &d.automatic {
+                let mut detail = i.detail.as_ref().map_or_else(String::new, |d| match &d.automatic {
                     Some(choice) => format!("{choice} · {}", d.mode),
                     None => d.mode.clone(),
                 });
-                (text, detail, i.badge.map_or("", Badge::id), i.current)
+                if let Some(rate) = &i.rate {
+                    let line = if i.detail.is_some() { &mut detail } else { &mut text };
+                    line.push_str(&format!(" [{rate} FPS]"));
+                }
+                (text, detail, tag_text(i.tags), i.current)
             })
             .collect()
+    }
+
+    fn current_index(items: &[Item]) -> usize {
+        items.iter().position(|i| i.current).expect("a marked row")
+    }
+
+    fn tag_text(tags: Option<Tags>) -> String {
+        tags.map_or_else(String::new, |t| format!("{} {}", t.name.unwrap_or("Custom"), t.aspect))
     }
 
     fn current(items: &[Item]) -> Vec<&Label> {
@@ -884,8 +944,9 @@ mod tests {
             items[0],
             Item {
                 text: Label::Plain("HD Pro Webcam C920".into()),
-                detail: detail(Some(ModeChoice::AutoMaxResolution), "1920 × 1080 · 30"),
-                badge: Some(Badge::FullHd),
+                detail: detail(Some(ModeChoice::AutoMaxResolution), "1920 × 1080"),
+                rate: Some("30".into()),
+                tags: Some(capture::mode::tags(1920, 1080)),
                 current: false,
                 disabled: false,
                 pick: Some(Pick::Device(cam.id.clone())),
@@ -893,8 +954,8 @@ mod tests {
         );
         // The ezcap's default is the 1080p60 mode itself (FR-008), not an automatic choice.
         assert_eq!(items[1].text, Label::Plain("ezcap Live GAMER ULTRA: ezcap L".into()));
-        assert_eq!(items[1].detail, detail(None, "1920 × 1080 · 60"));
-        assert_eq!(items[1].badge, Some(Badge::FullHd));
+        assert_eq!(items[1].detail, detail(None, "1920 × 1080"));
+        assert_eq!(tag_text(items[1].tags), "Full HD 16:9");
         assert!(items[1].current);
         assert_eq!(items[1].pick, Some(Pick::Device(card.id.clone())));
         // Nothing open: nothing marked.
@@ -908,12 +969,9 @@ mod tests {
         settings.touch_device(&card.id, &card.base_name).mode = "1280x720@60".into();
         settings.touch_device(&cam.id, &cam.base_name).mode = "auto-max-fps".into();
         let items = device_items(&[cam.clone(), card.clone()], None, &settings);
-        assert_eq!(
-            items[0].detail,
-            detail(Some(ModeChoice::AutoMaxFps), "1920 × 1080 · 30")
-        );
-        assert_eq!(items[1].detail, detail(None, "1280 × 720 · 60"));
-        assert_eq!(items[1].badge, Some(Badge::Hd));
+        assert_eq!(items[0].detail, detail(Some(ModeChoice::AutoMaxFps), "1920 × 1080"));
+        assert_eq!(items[1].detail, detail(None, "1280 × 720"));
+        assert_eq!(tag_text(items[1].tags), "HD 16:9");
 
         // A stored mode the device lacks, or rubbish: the default.
         settings.touch_device(&card.id, &card.base_name).mode = "3840x2160@60".into();
@@ -921,9 +979,9 @@ mod tests {
         let items = device_items(&[cam, card], None, &settings);
         assert_eq!(
             items[0].detail,
-            detail(Some(ModeChoice::AutoMaxResolution), "1920 × 1080 · 30")
+            detail(Some(ModeChoice::AutoMaxResolution), "1920 × 1080")
         );
-        assert_eq!(items[1].detail, detail(None, "1920 × 1080 · 60"));
+        assert_eq!(items[1].detail, detail(None, "1920 × 1080"));
     }
 
     #[test]
@@ -933,9 +991,9 @@ mod tests {
         assert_eq!(items[0].text, Label::NoDevices);
         assert!(items[0].disabled);
         assert_eq!(items[0].pick, None);
-        // A device without modes is listed without a detail line or badge.
+        // A device without modes is listed without a detail line or tags.
         let items = device_items(&[Device::described("x", "Empty", vec![])], None, &Settings::default());
-        assert_eq!((&items[0].detail, items[0].badge), (&None, None));
+        assert_eq!((&items[0].detail, items[0].tags), (&None, None));
     }
 
     #[test]
@@ -945,21 +1003,21 @@ mod tests {
         let items = mode_items(&card, &choice);
         let expected = [
             ("# Automatic", "", "", false),
-            ("auto-max-resolution", "2560 × 1440 · 60", "qhd", false),
-            ("auto-max-fps", "1920 × 1080 · 120", "fhd", false),
+            ("auto-max-resolution", "2560 × 1440 [60 FPS]", "WQHD 16:9", false),
+            ("auto-max-fps", "1920 × 1080 [120 FPS]", "Full HD 16:9", false),
             ("# Modes", "", "", false),
-            ("3840 × 2160 · 30", "", "4k", false),
-            ("2560 × 1440 · 60", "", "qhd", false),
-            ("2560 × 1440 · 50", "", "qhd", false),
-            ("1920 × 1080 · 120", "", "fhd", false),
+            ("3840 × 2160 [30 FPS]", "", "4K UHD 16:9", false),
+            ("2560 × 1440 [60 FPS]", "", "WQHD 16:9", false),
+            ("2560 × 1440 [50 FPS]", "", "WQHD 16:9", false),
+            ("1920 × 1080 [120 FPS]", "", "Full HD 16:9", false),
             // The default (FR-008) marked in the Modes group.
-            ("1920 × 1080 · 60", "", "fhd", true),
-            ("1920 × 1080 · 30", "", "fhd", false),
-            ("1280 × 720 · 60", "", "hd", false),
+            ("1920 × 1080 [60 FPS]", "", "Full HD 16:9", true),
+            ("1920 × 1080 [30 FPS]", "", "Full HD 16:9", false),
+            ("1280 × 720 [60 FPS]", "", "HD 16:9", false),
         ];
         let expected: Vec<_> = expected
             .iter()
-            .map(|(t, d, b, c)| (t.to_string(), d.to_string(), *b, *c))
+            .map(|(t, d, b, c)| (t.to_string(), d.to_string(), b.to_string(), *c))
             .collect();
         assert_eq!(rows(&items), expected);
         assert!(items[0].text.is_header() && items[3].text.is_header());
@@ -982,10 +1040,15 @@ mod tests {
         assert_eq!(rows[0].0, "# Automatic");
         assert_eq!(
             rows[1],
-            ("auto-max-resolution".into(), "1920 × 1080 · 30".into(), "fhd", true)
+            (
+                "auto-max-resolution".into(),
+                "1920 × 1080 [30 FPS]".into(),
+                "Full HD 16:9".into(),
+                true
+            )
         );
         assert_eq!(rows[2].0, "# Modes");
-        assert_eq!(rows[3].0, "2304 × 1536 · 2");
+        assert_eq!(rows[3].0, "2304 × 1536 [2 FPS]");
         assert_eq!(rows.iter().filter(|r| r.0.starts_with("auto-")).count(), 1);
         assert_eq!(rows.len(), 3 + cam.modes.len());
         // Each native mode once.
@@ -1006,7 +1069,8 @@ mod tests {
         };
         let device = Device::described("x", "NTSC card", vec![ntsc]);
         let items = mode_items(&device, &ModeChoice::parse("1920x1080@60").unwrap());
-        assert_eq!(current(&items), [&Label::Plain("1920 × 1080 · 59.94".into())]);
+        assert_eq!(current(&items), [&Label::Plain("1920 × 1080".into())]);
+        assert_eq!(items[current_index(&items)].rate.as_deref(), Some("59.94"));
         // No mode: no menu rows at all, nothing marked.
         let empty = Device::described("y", "Empty", vec![]);
         assert!(mode_items(&empty, &mode_choice(&empty, None)).is_empty());

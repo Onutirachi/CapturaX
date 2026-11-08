@@ -107,18 +107,6 @@ msgstr "Configurações danificadas"
 msgid "No source"
 msgstr "Nenhuma fonte"
 
-msgid "4K"
-msgstr "4K"
-
-msgid "QHD"
-msgstr "QHD"
-
-msgid "Full HD"
-msgstr "Full HD"
-
-msgid "HD"
-msgstr "HD"
-
 msgid "Color range"
 msgstr "Faixa de cor"
 
@@ -140,9 +128,6 @@ msgstr "Auto (Limitada)"
 msgid "No devices"
 msgstr "Nenhum dispositivo"
 
-msgid "Opening {}"
-msgstr "Abrindo {}"
-
 msgid "{} disconnected"
 msgstr "{} desconectado"
 
@@ -151,3 +136,30 @@ msgstr "Não foi possível abrir {}"
 
 msgid "CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again."
 msgstr "O CapturaX não pode iniciar porque nenhum renderizador gráfico funciona neste computador. Atualize o driver de vídeo e tente de novo."
+
+msgid "Device"
+msgstr "Dispositivo"
+
+msgid "Mode"
+msgstr "Modo"
+
+msgid "Modes"
+msgstr "Modos"
+
+msgid "Auto source"
+msgstr "Auto fonte"
+
+msgid "Auto max resolution"
+msgstr "Auto resolução máxima"
+
+msgid "Auto max FPS"
+msgstr "Auto FPS máximo"
+
+msgid "{} · {}"
+msgstr "{} · {}"
+
+msgid "{} FPS"
+msgstr "{} FPS"
+
+msgid "Custom"
+msgstr "Custom"

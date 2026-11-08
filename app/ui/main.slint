@@ -16,6 +16,7 @@ import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
 import { SettingsPanel, Prefs } from "components/settings-panel.slint";
 import { Toolbar } from "components/toolbar.slint";
+import { ProgressRing } from "components/progress-ring.slint";
 
 export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs }
 
@@ -52,6 +53,12 @@ export component AppWindow inherits Window {
     property <bool> no-source: root.preview-state == "no-source";
     // The toolbar's choices for the open device (components/toolbar.slint), set by Rust.
     in property <bool> device-open;
+    in property <[MenuItem]> devices;
+    in-out property <int> device: -1;
+    callback device-picked(int);
+    in property <[MenuItem]> modes;
+    in-out property <int> mode: -1;
+    callback mode-picked(int);
     in-out property <int> color-range;
     in property <bool> range-full;
     callback color-range-changed(int);
@@ -61,21 +68,41 @@ export component AppWindow inherits Window {
 
     // Video area: drawn by the video thread, nothing here.
 
-    // State message layer: every state but `playing` fills the video area, never a black or
-    // blank area, nor the last frame of a closed device (FR-013).
-    if root.preview-state != "playing": StateMessage {
+    // State message layer: every state but `playing` and `opening` fills the video area, never a
+    // black or blank area, nor the last frame of a closed device (FR-013).
+    if root.preview-state != "playing" && root.preview-state != "opening": StateMessage {
         x: root.video-x;
         y: root.video-y;
         width: root.video-width;
         height: root.video-height;
         border-radius: root.video-radius;
-        icon: root.preview-state == "opening" ? @image-url("assets/icons/loader_2.svg")
-            : root.preview-state == "no-source" || root.preview-state == "no-devices" ? @image-url("assets/icons/device_tv_off.svg")
+        icon: root.preview-state == "no-source" || root.preview-state == "no-devices" ? @image-url("assets/icons/device_tv_off.svg")
             : @image-url("assets/icons/alert_triangle.svg");
-        spinning: root.preview-state == "opening";
         title: root.no-source ? @tr("No source") : root.state-title;
         detail: root.state-detail;
         action(id) => { root.state-action(id); }
+    }
+
+    // Opening (FR-013, research R17): nothing over the video area, where the video thread fades
+    // the old source out to the backdrop and the new one in; the progress ring alone only when
+    // opening takes over 1 s.
+    if root.preview-state == "opening": opening := Rectangle {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+
+        property <bool> slow;
+        Timer {
+            interval: 1s;
+            running: !opening.slow;
+            triggered => { opening.slow = true; }
+        }
+
+        if opening.slow: ProgressRing {
+            x: (opening.width - self.width) / 2;
+            y: (opening.height - self.height) / 2;
+        }
     }
 
     // Chrome layer: the title bar (its window buttons are not in the Tab order, FR-020), then the
@@ -189,6 +216,12 @@ export component AppWindow inherits Window {
                 compact: root.compact;
                 focusable: !root.settings-open;
                 device-open: root.device-open;
+                devices: root.devices;
+                device <=> root.device;
+                device-picked(index) => { root.device-picked(index); }
+                modes: root.modes;
+                mode <=> root.mode;
+                mode-picked(index) => { root.mode-picked(index); }
                 color-range <=> root.color-range;
                 range-full: root.range-full;
                 color-range-changed(index) => { root.color-range-changed(index); }

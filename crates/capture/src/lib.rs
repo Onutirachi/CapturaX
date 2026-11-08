@@ -11,6 +11,7 @@ pub mod mode;
 pub mod monitor;
 pub mod recorded;
 pub mod session;
+pub mod tags;
 pub mod test_source;
 
 pub use analysis::RangeChoice;

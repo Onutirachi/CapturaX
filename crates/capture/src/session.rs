@@ -119,7 +119,7 @@ impl Session {
             "session {session}: opening {} ({}) in {} {}",
             device.name,
             device.id,
-            mode.label(),
+            mode.text(),
             mode.format.name()
         );
         this

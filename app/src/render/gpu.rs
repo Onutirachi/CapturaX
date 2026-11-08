@@ -390,6 +390,11 @@ impl Gpu {
         self.upload(&layer.planes[0], &ui.pixels);
     }
 
+    /// A video frame is on the GPU.
+    pub fn has_video(&self) -> bool {
+        self.video.is_some()
+    }
+
     /// Drops the video layer: only the UI and the ground are drawn until the next frame.
     pub fn clear_video(&mut self) {
         if self.video.take().is_some() {
@@ -522,9 +527,10 @@ impl Gpu {
         );
     }
 
-    /// Composites the video (letterboxed in the scene's video area, corners rounded) and the UI
-    /// layer over the backdrop, then presents at once. False when the surface was not ready.
-    pub fn render(&mut self, scene: &Scene) -> bool {
+    /// Composites the video (letterboxed in the scene's video area, corners rounded, at
+    /// `video_opacity` over the backdrop) and the UI layer, then presents at once. False when the
+    /// surface was not ready.
+    pub fn render(&mut self, scene: &Scene, video_opacity: f32) -> bool {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             _ => {
@@ -535,7 +541,8 @@ impl Gpu {
         let (w, h) = (self.config.width as f32, self.config.height as f32);
         if let Some(video) = &self.video {
             let rect = letterbox(scene.video, (video.width, video.height));
-            let values = uniform(rect, scene.video[4], (w, h), video);
+            let mut values = uniform(rect, scene.video[4], (w, h), video);
+            values[OPACITY] = video_opacity;
             self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&values));
         }
         if let Some(ui) = &self.ui {
@@ -596,6 +603,9 @@ fn plane_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
 
 /// Floats in the shader's `Rect` uniform.
 const UNIFORM_LEN: usize = 24;
+
+/// Where the layer's opacity is in the uniform.
+const OPACITY: usize = 7;
 
 /// A layer's rectangle as the shader's uniform: bounds in clip space, size, corner radius,
 /// opacity, then the kind and picture size, then the YUV to RGB rows.

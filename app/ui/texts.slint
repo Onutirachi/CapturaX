@@ -28,15 +28,27 @@ export global Texts {
     }
     // The preview's state messages (FR-019); US4 gives each error state its own text and hint.
     out property <string> preview-no-devices: @tr("No devices");
-    public pure function preview-opening(device: string) -> string {
-        @tr("Opening {}", device)
-    }
     public pure function preview-disconnected(device: string) -> string {
         @tr("{} disconnected", device)
     }
     public pure function preview-cannot-open(device: string) -> string {
         @tr("Cannot open {}", device)
     }
+    // The mode menu (FR-007): its group headers, the automatic modes' names, and the detail line of
+    // an automatic choice, its name then the mode it opens ("Auto max FPS · 1920 × 1080 · 120").
+    out property <string> modes-automatic: @tr("Automatic");
+    out property <string> modes-native: @tr("Modes");
+    out property <string> mode-auto-source: @tr("Auto source");
+    out property <string> mode-auto-max-resolution: @tr("Auto max resolution");
+    out property <string> mode-auto-max-fps: @tr("Auto max FPS");
+    public pure function mode-auto-detail(choice: string, mode: string) -> string {
+        @tr("{} · {}", choice, mode)
+    }
+    // The frame rate tag ("60 FPS") and the name tag of a size outside the standards.
+    public pure function rate(fps: string) -> string {
+        @tr("{} FPS", fps)
+    }
+    out property <string> custom-resolution: @tr("Custom");
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
     out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
     out property <string> already-open: @tr("CapturaX is already open.");

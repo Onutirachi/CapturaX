@@ -56,6 +56,10 @@ pub enum UserEvent {
     },
     /// The toolbar's color range choice: 0 Auto, 1 Full, 2 Limited.
     ColorRange(i32),
+    /// A row of the device menu, by index.
+    DevicePicked(i32),
+    /// A row of the mode menu, by index.
+    ModePicked(i32),
 }
 
 /// A change made in the settings panel.
@@ -99,6 +103,8 @@ pub struct App {
     test_video: Option<(capture::Session, platform::TimerGuard)>,
     /// What the video area shows and which device is open (data-model.md "Preview state").
     preview: Preview,
+    /// The device and mode menus last shown, whose rows the toolbar's picks index.
+    menus: Option<(Vec<preview::Item>, Vec<preview::Item>)>,
     /// The device monitor, unless the test video plays or GStreamer cannot start.
     monitor_devices: Option<capture::Monitor>,
     /// The open device's session, and when it was asked for (SC-004).
@@ -172,6 +178,10 @@ impl App {
         let on = send.clone();
         ui.app
             .on_color_range_changed(move |index| on(UserEvent::ColorRange(index)));
+        let on = send.clone();
+        ui.app.on_device_picked(move |index| on(UserEvent::DevicePicked(index)));
+        let on = send.clone();
+        ui.app.on_mode_picked(move |index| on(UserEvent::ModePicked(index)));
         bind_prefs(&ui, &store, send);
         Self {
             options,
@@ -187,6 +197,7 @@ impl App {
             reopen_fullscreen: false,
             test_video: None,
             preview: Preview::new(),
+            menus: None,
             monitor_devices: None,
             session: None,
             source: None,
@@ -256,6 +267,48 @@ impl App {
         for command in self.preview.handle(event, &settings) {
             self.run(command);
         }
+        self.show_menus();
+    }
+
+    /// Shows the device and mode menus when they changed (a device came or left, another one
+    /// opened, a stored choice changed); an open menu follows at once (spec edge case).
+    fn show_menus(&mut self) {
+        let menus = self.preview.menus(&self.store.get());
+        if self.menus.as_ref() == Some(&menus) {
+            return;
+        }
+        let app = &self.ui.app;
+        let texts = Texts::get(app);
+        let model = |items: &[preview::Item]| {
+            let rows: Vec<MenuItem> = items.iter().map(|i| crate::ui::menu_item(i, &texts)).collect();
+            slint::ModelRc::new(slint::VecModel::from(rows))
+        };
+        let current = |items: &[preview::Item]| {
+            items
+                .iter()
+                .position(|i| i.current)
+                .map_or(-1, |i| i32::try_from(i).unwrap_or(-1))
+        };
+        app.set_device(current(&menus.0));
+        app.set_mode(current(&menus.1));
+        app.set_devices(model(&menus.0));
+        app.set_modes(model(&menus.1));
+        self.menus = Some(menus);
+        self.request_redraw();
+    }
+
+    /// Shows the menus again even if unchanged: a select marks the row picked itself, which the
+    /// preview may not follow.
+    fn reset_menus(&mut self) {
+        self.menus = None;
+        self.show_menus();
+    }
+
+    /// What a pick of row `index` of a menu does, if it does anything.
+    fn picked(&self, modes: bool, index: i32) -> Option<preview::Pick> {
+        let (devices, mode_rows) = self.menus.as_ref()?;
+        let rows = if modes { mode_rows } else { devices };
+        rows.get(usize::try_from(index).ok()?)?.pick.clone()
     }
 
     fn run(&mut self, command: Command) {
@@ -488,6 +541,8 @@ impl App {
             window.set_title(Texts::get(&self.ui.app).get_app_name().as_str());
         }
         set_language_items(&self.ui);
+        // The menus' named texts are read again from the new catalog.
+        self.reset_menus();
         self.show_notice();
         self.show_preview_state();
         self.switch = Some((format!("language switch {language}"), started));
@@ -1018,6 +1073,24 @@ impl ApplicationHandler<UserEvent> for App {
                     _ => capture::RangeChoice::Auto,
                 };
                 self.preview_event(preview::Event::ChooseRange(range));
+            }
+            UserEvent::DevicePicked(index) => {
+                match self.picked(false, index) {
+                    Some(preview::Pick::Device(id)) => {
+                        log::info!("device {id} chosen");
+                        self.preview_event(preview::Event::ChooseDevice(id));
+                    }
+                    pick => log::warn!("device menu: row {index} picks {pick:?}"),
+                }
+                self.reset_menus();
+            }
+            // Opening the chosen mode comes with T032.
+            UserEvent::ModePicked(index) => {
+                match self.picked(true, index) {
+                    Some(preview::Pick::Mode(choice)) => log::info!("mode {choice} chosen (not applied yet)"),
+                    pick => log::warn!("mode menu: row {index} picks {pick:?}"),
+                }
+                self.reset_menus();
             }
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();

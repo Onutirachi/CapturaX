@@ -29,17 +29,17 @@ fn ezcap_on_linux() {
         "v4l2:32ed:3201:ezcap_ezcap_Live_GAMER_ULTRA_00000001@pci-0000:03:00.0-usb-0:3:1.0"
     );
     let modes = device.modes;
-    let labels: Vec<String> = modes.iter().map(Mode::label).collect();
+    let labels: Vec<String> = modes.iter().map(Mode::text).collect();
     assert_eq!(
         labels,
         [
-            "3840 × 2160 · 30",
-            "2560 × 1440 · 60",
-            "2560 × 1440 · 50",
-            "1920 × 1080 · 120",
-            "1920 × 1080 · 60",
-            "1920 × 1080 · 30",
-            "1280 × 720 · 60",
+            "3840x2160@30",
+            "2560x1440@60",
+            "2560x1440@50",
+            "1920x1080@120",
+            "1920x1080@60",
+            "1920x1080@30",
+            "1280x720@60",
         ]
     );
     assert_eq!(format_of(&modes, 1920, 1080, 120), Format::Nv12);
@@ -48,16 +48,16 @@ fn ezcap_on_linux() {
     assert_eq!(format_of(&modes, 1920, 1080, 30), Format::Bgrx);
 
     let max_fps = resolve(&ModeChoice::AutoMaxFps, &modes, None).expect("Auto max FPS");
-    assert_eq!(max_fps.label(), "1920 × 1080 · 120");
+    assert_eq!(max_fps.text(), "1920x1080@120");
     let max_res = resolve(&ModeChoice::AutoMaxResolution, &modes, None).expect("Auto max res");
-    assert_eq!(max_res.label(), "2560 × 1440 · 60");
+    assert_eq!(max_res.text(), "2560x1440@60");
 
     let shown: Vec<ModeChoice> = shown_automatic(&modes, None).into_iter().map(|s| s.0).collect();
     assert_eq!(shown, [ModeChoice::AutoMaxResolution, ModeChoice::AutoMaxFps]);
 
     // The default is the 1080p60 mode from the list (FR-008, T029).
     let default = resolve(&default_choice(None, &modes), &modes, None).expect("default");
-    assert_eq!(default.label(), "1920 × 1080 · 60");
+    assert_eq!(default.text(), "1920x1080@60");
     assert_eq!(default.format, Format::Nv12);
 }
 
@@ -74,9 +74,9 @@ fn c920_on_windows() {
     assert_eq!(format_of(&modes, 1920, 1080, 30), Format::Nv12);
 
     let max_res = resolve(&ModeChoice::AutoMaxResolution, &modes, None).expect("Auto max res");
-    assert_eq!(max_res.label(), "1920 × 1080 · 30");
+    assert_eq!(max_res.text(), "1920x1080@30");
     let max_fps = resolve(&ModeChoice::AutoMaxFps, &modes, None).expect("Auto max FPS");
-    assert_eq!(max_fps.label(), "1920 × 1080 · 30");
+    assert_eq!(max_fps.text(), "1920x1080@30");
 
     // Both resolve to 1080p30: only Auto max resolution is shown, and no Auto source.
     let shown: Vec<ModeChoice> = shown_automatic(&modes, None).into_iter().map(|s| s.0).collect();
@@ -90,7 +90,7 @@ fn c920_on_windows() {
     for (i, a) in modes.iter().enumerate() {
         for b in &modes[i + 1..] {
             let same = a.width == b.width && a.height == b.height && (a.fps_f64() - b.fps_f64()).abs() < 0.5;
-            assert!(!same, "{} listed twice", a.label());
+            assert!(!same, "{} listed twice", a.text());
         }
     }
 }

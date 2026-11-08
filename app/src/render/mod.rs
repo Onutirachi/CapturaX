@@ -306,6 +306,42 @@ impl Drop for VideoThread {
 /// (research R3).
 const FLOWING: Duration = Duration::from_millis(50);
 
+/// How long the video fades out when its source closes and in on a new source's first frame
+/// (FR-013, research R17).
+const FADE: Duration = Duration::from_millis(150);
+
+/// The video's opacity going from `from` to `to` over [`FADE`] from `start`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Fade {
+    from: f32,
+    to: f32,
+    start: Instant,
+}
+
+impl Fade {
+    fn new(from: f32, to: f32, start: Instant) -> Self {
+        Self { from, to, start }
+    }
+
+    fn opacity(&self, now: Instant) -> f32 {
+        let t = now.saturating_duration_since(self.start).as_secs_f32() / FADE.as_secs_f32();
+        self.from + (self.to - self.from) * t.clamp(0.0, 1.0)
+    }
+
+    fn done(&self, now: Instant) -> bool {
+        now >= self.start + FADE
+    }
+}
+
+/// Between two presents of a fade with no video frame: the monitor's refresh, 60 Hz until known.
+fn fade_step(refresh: Duration) -> Duration {
+    if refresh.is_zero() {
+        Duration::from_millis(16)
+    } else {
+        refresh.max(Duration::from_millis(4))
+    }
+}
+
 /// Added to the monitor's refresh interval for the time a UI present may hold the swap chain:
 /// frame arrival jitter and the present's own cost (research R16).
 const PRESENT_MARGIN: Duration = Duration::from_millis(2);
@@ -380,6 +416,11 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
     let mut last_frame: Option<Instant> = None;
     // Dropped after the lock on return (declared before it).
     let mut performance: Option<Performance> = None;
+    // The video's fade, the session of the frame on the GPU (a frame of another one fades in) and
+    // the last present (fade steps with no video frame come one refresh apart).
+    let mut fade: Option<Fade> = None;
+    let mut video_session: Option<u64> = None;
+    let mut last_present: Option<Instant> = None;
     loop {
         let (frame, ui, present, wants_performance) = {
             let mut state = inbox.lock();
@@ -393,7 +434,12 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
                         print_stats(&line);
                     }
                 }
-                let deadline = if state.changed {
+                // A fade step is due like a UI change: on the next video frame when one is near.
+                let step = fade_step(state.refresh);
+                let next_step = fade.and(last_present.map(|at| at + step));
+                let fade_due = fade.is_some() && next_step.is_none_or(|at| now >= at);
+                let pending = state.changed || fade_due || state.clear_video;
+                let deadline = if pending {
                     ui_deadline(last_frame, state.pace.period(), state.refresh, now)
                 } else {
                     None
@@ -403,7 +449,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
                     state.hold = None;
                 }
                 let held = state.hidden || state.hold.is_some();
-                let ready = state.frame.is_some() || (state.changed && deadline.is_none());
+                let ready = state.frame.is_some() || (pending && deadline.is_none());
                 // A request no longer wanted is released outside the lock.
                 let release = performance.is_some() && !state.wants_performance();
                 if state.stop || (!held && ready) || release {
@@ -420,6 +466,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
                     stats.as_ref().map(Stats::next_report),
                     deadline.filter(|_| !held),
                     state.hold.map(|hold| hold.until),
+                    next_step.filter(|_| !fade_due && !held),
                 ]
                 .into_iter()
                 .flatten()
@@ -449,8 +496,16 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
             if frame.is_some() {
                 last_frame = Some(Instant::now());
             }
+            // The source closed: its last frame fades out, then goes (no old frame under the next
+            // state or device, FR-013); no video frame is expected any more.
             if std::mem::take(&mut state.clear_video) {
-                gpu.clear_video();
+                last_frame = None;
+                video_session = None;
+                if gpu.has_video() {
+                    let now = Instant::now();
+                    let from = fade.map_or(1.0, |f| f.opacity(now));
+                    fade = Some(Fade::new(from, 0.0, now));
+                }
             }
             (frame, state.ui.take(), present, state.wants_performance())
         };
@@ -468,11 +523,28 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
             continue;
         };
         gpu.resize(scene.size.0, scene.size.1);
+        let now = Instant::now();
+        // A new source's first frame fades in, also over the old one fading out.
+        if let Some(frame) = &frame
+            && video_session != Some(frame.session)
+        {
+            video_session = Some(frame.session);
+            fade = Some(Fade::new(0.0, 1.0, now));
+        }
         let ready = frame.map(|frame| {
             gpu.set_video(&frame);
             frame.ready
         });
-        if gpu.render(&scene) {
+        let opacity = fade.map_or(1.0, |f| f.opacity(now));
+        if let Some(done) = fade.filter(|f| f.done(now)) {
+            fade = None;
+            if done.to == 0.0 {
+                gpu.clear_video();
+            }
+        }
+        // Also when the surface was not ready: the next fade step waits one refresh either way.
+        last_present = Some(now);
+        if gpu.render(&scene, opacity) {
             if let Some(process_start) = first_present.take() {
                 log::info!(
                     "first present {:.0} ms after start",
@@ -499,6 +571,22 @@ pub fn print_stats(line: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_fade_goes_from_its_start_to_its_end_in_150_ms() {
+        let start = Instant::now();
+        let fade = Fade::new(0.0, 1.0, start);
+        assert_eq!(fade.opacity(start), 0.0);
+        assert!((fade.opacity(start + FADE / 2) - 0.5).abs() < 1e-3);
+        assert_eq!(fade.opacity(start + FADE), 1.0);
+        assert_eq!(fade.opacity(start + FADE * 2), 1.0, "stays at its end");
+        assert!(!fade.done(start + FADE / 2) && fade.done(start + FADE));
+        // A fade out from where a fade in stopped.
+        let out = Fade::new(0.4, 0.0, start);
+        assert!((out.opacity(start + FADE / 2) - 0.2).abs() < 1e-3);
+        assert_eq!(fade_step(Duration::ZERO), Duration::from_millis(16));
+        assert_eq!(fade_step(Duration::from_millis(7)), Duration::from_millis(7));
+    }
 
     #[test]
     fn a_hold_ends_with_a_scene_of_another_size() {

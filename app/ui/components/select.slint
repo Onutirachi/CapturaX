@@ -3,11 +3,12 @@
 // Space, Up or Down opens it from the keyboard; the focus comes back here when it closes (FR-020).
 // Two looks: plain (36 px, for the settings panel's 44 px rows) and, with a `title`, the spike's
 // dropdown (research R13): a raised control 48 px tall with its title inside, above the chosen
-// value in bold and that item's badge, whose menu is at least 320 px wide.
+// value in bold, its frame rate tag (when it is on the item's first line) and its name tag, whose
+// menu is at least 320 px wide.
 import { Theme } from "../theme.slint";
 import { FocusRing } from "focus-ring.slint";
 import { Menus, MenuItem } from "menu.slint";
-import { Badge } from "badge.slint";
+import { Tag } from "tag.slint";
 
 export component Select inherits Rectangle {
     in property <[MenuItem]> items;
@@ -27,7 +28,10 @@ export component Select inherits Rectangle {
     property <bool> titled: root.title != "";
     property <bool> valid: root.current >= 0 && root.current < root.items.length;
     property <string> chosen: root.valid ? root.items[root.current].text : "";
-    property <string> badge: root.valid ? root.items[root.current].badge : "";
+    property <string> tag: root.valid ? root.items[root.current].tag : "";
+    property <string> tag-kind: root.valid ? root.items[root.current].tag-kind : "";
+    // The rate tag shows when it follows the item's text (no detail line).
+    property <string> rate: root.valid && root.items[root.current].detail == "" ? root.items[root.current].rate : "";
 
     property <int> id;
     init => { self.id = Menus.new-id(); }
@@ -38,6 +42,22 @@ export component Select inherits Rectangle {
         if (self.picks != 0) {
             self.current = Menus.picked-index;
             self.selected(self.current);
+        }
+    }
+    // New items while the menu is open (a device came or left) reach the menu at once; a select
+    // left with no item closes it.
+    changed items => {
+        if (self.open) {
+            if (self.items.length > 0) {
+                Menus.update(self.items, self.current);
+            } else {
+                Menus.close();
+            }
+        }
+    }
+    changed enabled => {
+        if (!self.enabled && self.open) {
+            Menus.close();
         }
     }
     // Closed (not replaced by another menu): the keyboard comes back here.
@@ -140,10 +160,16 @@ export component Select inherits Rectangle {
                     horizontal-stretch: 1;
                 }
 
-                if root.titled && root.badge != "": VerticalLayout {
+                if root.titled && root.rate != "": VerticalLayout {
                     alignment: center;
                     horizontal-stretch: 0;
-                    Badge { kind: root.badge; }
+                    Tag { value: root.rate; kind: "rate"; }
+                }
+
+                if root.titled && root.tag != "": VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Tag { value: root.tag; kind: root.tag-kind; }
                 }
             }
         }

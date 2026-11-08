@@ -32,7 +32,8 @@ pub fn state_message(
         S::Playing => ("playing", Default::default()),
         S::NoSource => ("no-source", Default::default()),
         S::NoDevices => ("no-devices", texts.get_preview_no_devices()),
-        S::Opening(_) => ("opening", texts.invoke_preview_opening(name)),
+        // No text: the video area fades, then shows the progress ring (research R17).
+        S::Opening(_) => ("opening", Default::default()),
         S::Disconnected(_) => ("disconnected", texts.invoke_preview_disconnected(name)),
         // Provisional: US4 (T045) gives each its own text, hint and actions.
         S::Blocked(_) => ("blocked", texts.invoke_preview_cannot_open(name)),
@@ -41,6 +42,64 @@ pub fn state_message(
         S::Failed(_) => ("failed", texts.invoke_preview_cannot_open(name)),
     };
     (id, title.into(), String::new())
+}
+
+/// A row of the device or mode menu as Slint shows it, its named texts read from the catalog.
+pub fn menu_item(item: &crate::preview::Item, texts: &Texts) -> MenuItem {
+    use crate::preview::Label;
+    let text = match &item.text {
+        Label::Plain(text) => text.as_str().into(),
+        Label::NoDevices => texts.get_preview_no_devices(),
+        Label::Automatic => texts.get_modes_automatic(),
+        Label::Modes => texts.get_modes_native(),
+        Label::Auto(choice) => auto_name(choice, texts),
+    };
+    let detail = item
+        .detail
+        .as_ref()
+        .map_or_else(Default::default, |d| match &d.automatic {
+            Some(choice) => texts.invoke_mode_auto_detail(auto_name(choice, texts), d.mode.as_str().into()),
+            None => d.mode.as_str().into(),
+        });
+    let (tag, tag_kind, aspect) = item.tags.map_or_else(Default::default, |t| {
+        let aspect = t.aspect.to_string().into();
+        match t.name {
+            Some(name) => (
+                name.into(),
+                t.family.map_or_else(|| "custom".into(), |f| f.to_string().into()),
+                aspect,
+            ),
+            None => (texts.get_custom_resolution(), "custom".into(), aspect),
+        }
+    });
+    MenuItem {
+        text,
+        kind: if item.text.is_header() {
+            "header".into()
+        } else {
+            Default::default()
+        },
+        detail,
+        rate: item
+            .rate
+            .as_ref()
+            .map_or_else(Default::default, |r| texts.invoke_rate(r.as_str().into())),
+        tag,
+        tag_kind,
+        aspect,
+        disabled: item.disabled,
+    }
+}
+
+/// The name of an automatic mode choice; a manual one has none.
+fn auto_name(choice: &capture::mode::ModeChoice, texts: &Texts) -> slint::SharedString {
+    use capture::mode::ModeChoice as C;
+    match choice {
+        C::AutoSource => texts.get_mode_auto_source(),
+        C::AutoMaxResolution => texts.get_mode_auto_max_resolution(),
+        C::AutoMaxFps => texts.get_mode_auto_max_fps(),
+        C::Manual { .. } => Default::default(),
+    }
 }
 
 /// The kinds of menu rows, by height (menu.slint).
@@ -56,7 +115,7 @@ impl MenuRow {
         match self {
             Self::Header => 30.0,
             Self::Item => 36.0,
-            Self::WithDetail => 44.0,
+            Self::WithDetail => 48.0,
         }
     }
 }
@@ -412,9 +471,9 @@ mod tests {
         assert_eq!(item_top(&rows, 0), 0.0);
         assert_eq!(item_top(&rows, 1), 32.0);
         assert_eq!(item_top(&rows, 2), 70.0);
-        assert_eq!(item_top(&rows, 3), 116.0);
+        assert_eq!(item_top(&rows, 3), 120.0);
         // The list's height is the end minus one spacing.
-        assert_eq!(item_top(&rows, 4) - MENU_SPACING, 152.0);
+        assert_eq!(item_top(&rows, 4) - MENU_SPACING, 156.0);
         assert_eq!(item_top(&rows, 9), item_top(&rows, 4));
         assert_eq!(item_top(&rows, -1), 0.0);
     }

@@ -1,8 +1,10 @@
-//! Modes from a device's caps, the automatic modes and the badges (research R3, data-model.md
-//! "Mode" and "Mode choice"), ported from the stack spike's `capture/src/mode.rs`. Pure: no
-//! device needed.
+//! Modes from a device's caps and the automatic modes (research R3, data-model.md "Mode" and
+//! "Mode choice"), ported from the stack spike's `capture/src/mode.rs`. Pure: no device needed.
+//! A mode's tags are in [`crate::tags`].
 
 use std::fmt;
+
+pub use crate::tags::{Ratio, Tags, tags};
 
 /// Two frame rates closer than this are the same rate (59.94 and 60).
 const SAME_RATE: f64 = 0.5;
@@ -89,9 +91,18 @@ impl Mode {
         self.width == width && self.height == height && (self.fps_f64() - fps).abs() < SAME_RATE
     }
 
-    /// `1920 × 1080 · 60`, `1920 × 1080 · 59.94` when fractional.
-    pub fn label(&self) -> String {
-        format!("{} × {} · {}", self.width, self.height, rate_text(self.fps))
+    /// The size as the menus show it: `1920 × 1080` (the rate goes in its own tag).
+    pub fn size_text(&self) -> String {
+        format!("{} × {}", self.width, self.height)
+    }
+
+    /// The settings text: `1920x1080@60`, `1920x1080@59.94` (`--list-devices`, the log).
+    pub fn text(&self) -> String {
+        ModeChoice::manual(self).to_string()
+    }
+
+    pub fn tags(&self) -> Tags {
+        tags(self.width, self.height)
     }
 
     /// Caps that open the device in exactly this mode.
@@ -452,38 +463,6 @@ pub fn default_choice(signal: Option<Signal>, modes: &[Mode]) -> ModeChoice {
         .map_or(ModeChoice::AutoMaxResolution, ModeChoice::manual)
 }
 
-/// The resolution badge of a mode (F43).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Badge {
-    Uhd4k,
-    Qhd,
-    FullHd,
-    Hd,
-}
-
-impl Badge {
-    /// The id the UI uses (`4k`, `qhd`, `fhd`, `hd`).
-    pub fn id(self) -> &'static str {
-        match self {
-            Self::Uhd4k => "4k",
-            Self::Qhd => "qhd",
-            Self::FullHd => "fhd",
-            Self::Hd => "hd",
-        }
-    }
-}
-
-/// ≥ 2160 4K, ≥ 1440 QHD, ≥ 1080 Full HD, ≥ 720 HD, none below.
-pub fn badge(height: u32) -> Option<Badge> {
-    match height {
-        2160.. => Some(Badge::Uhd4k),
-        1440.. => Some(Badge::Qhd),
-        1080.. => Some(Badge::FullHd),
-        720.. => Some(Badge::Hd),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -582,15 +561,15 @@ mod tests {
 
     #[test]
     fn sorted_largest_first() {
-        let order: Vec<String> = ezcap().iter().map(Mode::label).collect();
+        let order: Vec<String> = ezcap().iter().map(Mode::text).collect();
         assert_eq!(
             order,
             [
-                "3840 × 2160 · 30",
-                "2560 × 1440 · 60",
-                "1920 × 1080 · 120",
-                "1920 × 1080 · 60",
-                "1280 × 720 · 60"
+                "3840x2160@30",
+                "2560x1440@60",
+                "1920x1080@120",
+                "1920x1080@60",
+                "1280x720@60"
             ]
         );
     }
@@ -625,17 +604,17 @@ mod tests {
         );
         let labels: Vec<String> = modes_from_caps(&caps, false)
             .iter()
-            .map(|m| format!("{} {}", m.label(), m.format.name()))
+            .map(|m| format!("{} {}", m.text(), m.format.name()))
             .collect();
         assert_eq!(
             labels,
             [
-                "1920 × 1080 · 120 NV12",
-                "1920 × 1080 · 60 NV12",
-                "640 × 480 · 30 MJPG",
-                "640 × 480 · 25 MJPG",
-                "640 × 480 · 24 MJPG",
-                "640 × 480 · 5 MJPG"
+                "1920x1080@120 NV12",
+                "1920x1080@60 NV12",
+                "640x480@30 MJPG",
+                "640x480@25 MJPG",
+                "640x480@24 MJPG",
+                "640x480@5 MJPG"
             ]
         );
     }
@@ -649,20 +628,24 @@ mod tests {
     }
 
     #[test]
-    fn labels() {
-        assert_eq!(mode(1920, 1080, 60, Format::Nv12).label(), "1920 × 1080 · 60");
+    fn texts() {
+        let full_hd = mode(1920, 1080, 60, Format::Nv12);
+        assert_eq!(
+            (full_hd.size_text().as_str(), full_hd.text().as_str()),
+            ("1920 × 1080", "1920x1080@60")
+        );
         let ntsc = Mode {
             width: 1920,
             height: 1080,
             fps: (60000, 1001),
             format: Format::Nv12,
         };
-        assert_eq!(ntsc.label(), "1920 × 1080 · 59.94");
+        assert_eq!(ntsc.text(), "1920x1080@59.94");
         let quarter = Mode {
             fps: (10_000_000, 1_333_333),
             ..mode(160, 90, 0, Format::Mjpg)
         };
-        assert_eq!(quarter.label(), "160 × 90 · 7.50");
+        assert_eq!(quarter.text(), "160x90@7.50");
     }
 
     #[test]
@@ -715,20 +698,18 @@ mod tests {
     #[test]
     fn auto_max_resolution() {
         assert_eq!(
-            resolve(&ModeChoice::AutoMaxResolution, &ezcap(), None).unwrap().label(),
-            "2560 × 1440 · 60"
+            resolve(&ModeChoice::AutoMaxResolution, &ezcap(), None).unwrap().text(),
+            "2560x1440@60"
         );
         assert_eq!(
-            resolve(&ModeChoice::AutoMaxResolution, &webcam(), None)
-                .unwrap()
-                .label(),
-            "1920 × 1080 · 30"
+            resolve(&ModeChoice::AutoMaxResolution, &webcam(), None).unwrap().text(),
+            "1920x1080@30"
         );
         // 120 fps does not count as 58–62.
         let fast = vec![mode(1920, 1080, 120, Format::Nv12), mode(1280, 720, 60, Format::Nv12)];
         assert_eq!(
-            resolve(&ModeChoice::AutoMaxResolution, &fast, None).unwrap().label(),
-            "1280 × 720 · 60"
+            resolve(&ModeChoice::AutoMaxResolution, &fast, None).unwrap().text(),
+            "1280x720@60"
         );
         assert_eq!(resolve(&ModeChoice::AutoMaxResolution, &[], None), None);
     }
@@ -736,8 +717,8 @@ mod tests {
     #[test]
     fn auto_max_fps() {
         assert_eq!(
-            resolve(&ModeChoice::AutoMaxFps, &ezcap(), None).unwrap().label(),
-            "1920 × 1080 · 120"
+            resolve(&ModeChoice::AutoMaxFps, &ezcap(), None).unwrap().text(),
+            "1920x1080@120"
         );
         let below = vec![
             mode(3840, 2160, 60, Format::Nv12),
@@ -746,8 +727,8 @@ mod tests {
             mode(640, 480, 90, Format::Nv12),
         ];
         assert_eq!(
-            resolve(&ModeChoice::AutoMaxFps, &below, None).unwrap().label(),
-            "1280 × 720 · 60"
+            resolve(&ModeChoice::AutoMaxFps, &below, None).unwrap().text(),
+            "1280x720@60"
         );
         let above = vec![
             mode(3840, 2160, 60, Format::Nv12),
@@ -755,8 +736,8 @@ mod tests {
             mode(2560, 1440, 50, Format::Nv12),
         ];
         assert_eq!(
-            resolve(&ModeChoice::AutoMaxFps, &above, None).unwrap().label(),
-            "2560 × 1440 · 50"
+            resolve(&ModeChoice::AutoMaxFps, &above, None).unwrap().text(),
+            "2560x1440@50"
         );
     }
 
@@ -769,10 +750,8 @@ mod tests {
         };
         assert_eq!(resolve(&ModeChoice::AutoSource, &ezcap(), None), None);
         assert_eq!(
-            resolve(&ModeChoice::AutoSource, &ezcap(), Some(signal))
-                .unwrap()
-                .label(),
-            "1920 × 1080 · 60"
+            resolve(&ModeChoice::AutoSource, &ezcap(), Some(signal)).unwrap().text(),
+            "1920x1080@60"
         );
         assert_eq!(default_choice(Some(signal), &ezcap()), ModeChoice::AutoSource);
     }
@@ -829,15 +808,5 @@ mod tests {
             .collect();
         assert_eq!(shown, [ModeChoice::AutoSource, ModeChoice::AutoMaxFps]);
         assert!(shown_automatic(&[], None).is_empty());
-    }
-
-    #[test]
-    fn badges() {
-        assert_eq!(badge(2160), Some(Badge::Uhd4k));
-        assert_eq!(badge(1536), Some(Badge::Qhd));
-        assert_eq!(badge(1440), Some(Badge::Qhd));
-        assert_eq!(badge(1080), Some(Badge::FullHd));
-        assert_eq!(badge(720), Some(Badge::Hd));
-        assert_eq!(badge(719), None);
     }
 }

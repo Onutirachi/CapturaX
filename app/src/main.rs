@@ -265,14 +265,32 @@ fn list_devices() -> i32 {
     for device in &devices {
         println!("{}", device.name);
         println!("  id: {}", device.id);
+        let automatic = capture::mode::shown_automatic(&device.modes, device.signal);
+        // Aligned columns; the settings text first, so a line can be copied into the settings
+        // file (contracts/cli.md).
+        let width = device.modes.iter().map(|m| m.text().len()).max().unwrap_or(0);
+        let choices = automatic.iter().map(|(c, _)| c.to_string().len()).max().unwrap_or(0);
         println!("  automatic:");
-        for (choice, mode) in capture::mode::shown_automatic(&device.modes, device.signal) {
-            println!("    {choice} -> {} {}", mode.label(), mode.format.name());
+        for (choice, mode) in &automatic {
+            let choice = choice.to_string();
+            println!("    {choice:<choices$} -> {}", mode_line(mode, width));
         }
         println!("  modes:");
         for mode in &device.modes {
-            println!("    {} {}", mode.label(), mode.format.name());
+            println!("    {}", mode_line(mode, width));
         }
     }
     0
+}
+
+/// `1920x1080@60   NV12  [Full HD] [16:9]`, the settings text padded to `width`.
+fn mode_line(mode: &capture::Mode, width: usize) -> String {
+    let tags = mode.tags();
+    format!(
+        "{:<width$}  {:<4}  [{}] [{}]",
+        mode.text(),
+        mode.format.name(),
+        tags.name.unwrap_or("Custom"),
+        tags.aspect
+    )
 }

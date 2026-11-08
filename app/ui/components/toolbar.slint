@@ -5,6 +5,7 @@
 // keyboard reaches it before the docks (it comes first in main.slint).
 import { Theme } from "../theme.slint";
 import { Select } from "select.slint";
+import { MenuItem } from "menu.slint";
 
 export component Toolbar inherits Rectangle {
     in property <bool> compact;
@@ -12,12 +13,23 @@ export component Toolbar inherits Rectangle {
     in property <bool> focusable: true;
     // A device is open or opening: its choices can change.
     in property <bool> device-open;
+    // The device and mode menus (app/src/ui.rs builds them from app/src/preview.rs) and the row
+    // each marks, -1 for none; a pick reports its row.
+    in property <[MenuItem]> devices;
+    in-out property <int> device;
+    callback device-picked(int);
+    in property <[MenuItem]> modes;
+    in-out property <int> mode;
+    callback mode-picked(int);
     // Color range chosen: 0 Auto, 1 Full, 2 Limited; with Auto, `range-full` says which range is
     // in use, shown in the button as "Auto (Full)" or "Auto (Limited)" (data-model.md).
     in-out property <int> color-range;
     in property <bool> range-full;
     callback color-range-changed(int);
-    out property <bool> has-focus: range-select.has-focus;
+    out property <bool> has-focus: device-select.has-focus || mode-select.has-focus || range-select.has-focus;
+
+    // The narrowest a select gets: three fit between the docks in the compact layout.
+    property <length> narrow: root.compact ? 96px : 140px;
 
     background: Theme.c.panel;
 
@@ -28,9 +40,40 @@ export component Toolbar inherits Rectangle {
 
         VerticalLayout {
             alignment: center;
+            device-select := Select {
+                preferred-width: 240px;
+                min-width: root.narrow;
+                horizontal-stretch: 0;
+                title: @tr("Device");
+                label: @tr("Device");
+                focusable: root.focusable;
+                items: root.devices;
+                current <=> root.device;
+                selected(index) => { root.device-picked(index); }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            mode-select := Select {
+                preferred-width: 240px;
+                min-width: root.narrow;
+                horizontal-stretch: 0;
+                title: @tr("Mode");
+                label: @tr("Mode");
+                enabled: root.device-open;
+                focusable: root.focusable;
+                items: root.modes;
+                current <=> root.mode;
+                selected(index) => { root.mode-picked(index); }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
             range-select := Select {
                 preferred-width: 240px;
-                min-width: 140px;
+                min-width: root.narrow;
                 horizontal-stretch: 0;
                 title: @tr("Color range");
                 label: @tr("Color range");
