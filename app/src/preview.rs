@@ -36,6 +36,8 @@ pub enum Event {
     },
     /// The user picked a device.
     ChooseDevice(String),
+    /// The user picked a mode for the open device.
+    ChooseMode(ModeChoice),
     /// The user picked a color range for the open device.
     ChooseRange(RangeChoice),
     /// The user pressed Try again.
@@ -60,6 +62,12 @@ pub enum Command {
     Close,
     /// Remember the device the user chose: `preview.device`, `preview.recent` and its entry.
     SaveChoice { id: String, name: String },
+    /// Store a device's mode choice (`devices."<id>".mode`, FR-009).
+    SaveMode {
+        id: String,
+        name: String,
+        choice: ModeChoice,
+    },
     /// Apply a color range choice to the open session (no restart, FR-010).
     SetRange(RangeChoice),
     /// Store a device's color range choice (`devices."<id>".color_range`).
@@ -79,6 +87,8 @@ pub enum Command {
 struct Open {
     device: String,
     session: u64,
+    /// The mode it was opened in.
+    mode: Mode,
     /// Opened because the user chose it (saved when it plays), not a fallback.
     chosen: bool,
     range: RangeChoice,
@@ -212,9 +222,10 @@ impl Preview {
                 } else if self.hidden {
                     self.resume = Some((id, true));
                 } else {
-                    self.open_device(&id, true, settings, &mut out);
+                    self.open_device(&id, true, None, settings, &mut out);
                 }
             }
+            Event::ChooseMode(choice) => self.choose_mode(choice, settings, &mut out),
             Event::ChooseRange(range) => {
                 if let Some(open) = self.open.as_mut()
                     && open.range != range
@@ -234,7 +245,7 @@ impl Preview {
                 if let Some(id) = self.failed_device()
                     && !self.hidden
                 {
-                    self.open_device(&id, false, settings, &mut out);
+                    self.open_device(&id, false, None, settings, &mut out);
                 }
             }
             Event::Hidden => {
@@ -250,7 +261,7 @@ impl Preview {
                 if self.hidden {
                     self.hidden = false;
                     if let Some((id, chosen)) = self.resume.take() {
-                        self.open_device(&id, chosen, settings, &mut out);
+                        self.open_device(&id, chosen, None, settings, &mut out);
                     } else if self.listed && self.state == Some(PreviewState::NoDevices) {
                         self.start(settings, &mut out);
                     }
@@ -275,33 +286,70 @@ impl Preview {
         match chosen {
             None => self.state = Some(PreviewState::NoDevices),
             Some(id) if self.hidden => self.resume = Some((id, false)),
-            Some(id) => self.open_device(&id, false, settings, out),
+            Some(id) => self.open_device(&id, false, None, settings, out),
         }
     }
 
-    fn open_device(&mut self, id: &str, chosen: bool, settings: &Settings, out: &mut Vec<Command>) {
+    /// The user picked a mode for the open device: stored when it differs from the stored text
+    /// (a stored mode the device lacks is replaced only here, contracts settings-file.md rule 2),
+    /// and the device reopened when it resolves to another mode (FR-009).
+    fn choose_mode(&mut self, choice: ModeChoice, settings: &Settings, out: &mut Vec<Command>) {
+        let Some(open) = &self.open else {
+            log::info!("preview: mode {choice} chosen with no open device");
+            return;
+        };
+        let Some(device) = capture::device::find(&open.device, &self.devices).cloned() else {
+            return;
+        };
+        let Some(mode) = mode::resolve(&choice, &device.modes, device.signal) else {
+            log::warn!("preview: {} cannot open {choice}", device.name);
+            return;
+        };
+        let stored = settings.device(&device.id).and_then(|c| ModeChoice::parse(&c.mode));
+        if stored.as_ref() != Some(&choice) {
+            out.push(Command::SaveMode {
+                id: device.id.clone(),
+                name: device.base_name.clone(),
+                choice,
+            });
+        }
+        if mode == open.mode {
+            log::info!("preview: {} is already open in {}", device.name, mode.text());
+        } else {
+            let chosen = open.chosen;
+            self.open_device(&device.id, chosen, Some(mode), settings, out);
+        }
+    }
+
+    /// Opens a device in `mode`, else in the mode its stored choice resolves to, with its stored
+    /// color range.
+    fn open_device(&mut self, id: &str, chosen: bool, mode: Option<Mode>, settings: &Settings, out: &mut Vec<Command>) {
         let Some(device) = capture::device::find(id, &self.devices).cloned() else {
             log::warn!("preview: device {id} is not listed");
             return;
         };
-        self.sessions += 1;
-        let session = self.sessions;
         let stored = settings.device(&device.id);
         let range = range_choice(stored.map(|c| c.color_range).unwrap_or_default());
+        let Some(mode) = mode.or_else(|| mode_to_open(&device, stored.map(|c| c.mode.as_str()))) else {
+            log::error!("preview: {} ({}) offers no mode", device.name, device.id);
+            if self.open.take().is_some() {
+                out.push(Command::Close);
+            }
+            out.push(Command::ShowRange);
+            self.state = Some(PreviewState::Failed(device.id));
+            return;
+        };
+        self.sessions += 1;
+        let session = self.sessions;
         self.open = Some(Open {
             device: device.id.clone(),
             session,
+            mode: mode.clone(),
             chosen,
             range,
             in_use: None,
         });
         out.push(Command::ShowRange);
-        let Some(mode) = mode_to_open(&device, stored.map(|c| c.mode.as_str())) else {
-            log::error!("preview: {} ({}) offers no mode", device.name, device.id);
-            self.open = None;
-            self.state = Some(PreviewState::Failed(device.id));
-            return;
-        };
         self.state = Some(PreviewState::Opening(device.id.clone()));
         out.push(Command::Open {
             device,
@@ -876,6 +924,136 @@ mod tests {
         assert!(p.handle(Event::ChooseRange(RangeChoice::Full), &settings).is_empty());
         assert_eq!(color_range(RangeChoice::Full), ColorRange::Full);
         assert_eq!(range_choice(color_range(RangeChoice::Limited)), RangeChoice::Limited);
+    }
+
+    /// The (id, choice) of the commands' SaveMode, if any.
+    fn saved_mode(commands: &[Command]) -> Option<(String, ModeChoice)> {
+        commands.iter().find_map(|c| match c {
+            Command::SaveMode { id, choice, .. } => Some((id.clone(), choice.clone())),
+            _ => None,
+        })
+    }
+
+    fn choice(text: &str) -> ModeChoice {
+        ModeChoice::parse(text).unwrap()
+    }
+
+    #[test]
+    fn picking_a_device_opens_it_with_its_stored_mode_and_range() {
+        let mut settings = Settings::default();
+        let entry = settings.touch_device("cam", "HD Pro Webcam C920");
+        entry.mode = "640x480@30".into();
+        entry.color_range = ColorRange::Limited;
+        let mut p = Preview::new();
+        p.handle(listed(vec![card(), webcam()]), &settings);
+        let out = p.handle(Event::ChooseDevice("cam".into()), &settings);
+        let (id, mode, _) = opened(&out).unwrap();
+        assert_eq!((id.as_str(), mode), ("cam", self::mode(640, 480, 30)));
+        assert_eq!(p.range().0, RangeChoice::Limited);
+        assert!(saved_mode(&out).is_none());
+        // Without a stored choice: its defaults.
+        let out = p.handle(Event::ChooseDevice("card".into()), &settings);
+        assert_eq!(opened(&out).unwrap().1, self::mode(1920, 1080, 60));
+        assert_eq!(p.range().0, RangeChoice::Auto);
+    }
+
+    #[test]
+    fn picking_a_mode_reopens_the_device_and_stores_it() {
+        let mut settings = Settings::default();
+        let mut p = Preview::new();
+        let first = opened(&p.handle(listed(vec![card(), webcam()]), &settings)).unwrap().2;
+        p.handle(first_frame(first), &settings);
+        let out = p.handle(Event::ChooseMode(choice("1280x720@60")), &settings);
+        let (id, mode, session) = opened(&out).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+        assert!(session > first);
+        assert_eq!(p.state(), PreviewState::Opening("card".into()));
+        assert_eq!(saved_mode(&out), Some(("card".into(), choice("1280x720@60"))));
+        // A fallback start device is not remembered by picking its mode.
+        assert!(!saves(&p.handle(first_frame(session), &settings)));
+        assert_eq!(p.state(), PreviewState::Playing);
+
+        // Stored by the app; the mode menu marks it.
+        settings.touch_device("card", "ezcap Live GAMER ULTRA").mode = "1280x720@60".into();
+        let current = p.menus(&settings).1.into_iter().find(|i| i.current).unwrap();
+        assert_eq!(current.pick, Some(Pick::Mode(choice("1280x720@60"))));
+
+        // The same choice again does nothing.
+        assert!(p.handle(Event::ChooseMode(choice("1280x720@60")), &settings).is_empty());
+        // An automatic choice that opens another mode reopens too.
+        let out = p.handle(Event::ChooseMode(ModeChoice::AutoMaxFps), &settings);
+        assert_eq!(opened(&out).unwrap().1, self::mode(1920, 1080, 120));
+        assert_eq!(saved_mode(&out), Some(("card".into(), ModeChoice::AutoMaxFps)));
+    }
+
+    #[test]
+    fn a_mode_that_opens_the_same_mode_is_stored_without_reopening() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![card()]), &settings);
+        // The default opens 1080p60, as does this manual choice.
+        let out = p.handle(Event::ChooseMode(choice("1920x1080@60")), &settings);
+        assert!(opened(&out).is_none() && !closes(&out), "{out:?}");
+        assert_eq!(saved_mode(&out), Some(("card".into(), choice("1920x1080@60"))));
+    }
+
+    #[test]
+    fn a_stored_mode_the_device_lacks_is_replaced_only_by_a_pick() {
+        let mut settings = Settings::default();
+        settings.touch_device("card", "ezcap Live GAMER ULTRA").mode = "3840x2160@60".into();
+        let mut p = Preview::new();
+        let out = p.handle(listed(vec![card()]), &settings);
+        // Opens the default and leaves the stored text alone.
+        assert_eq!(opened(&out).unwrap().1, mode(1920, 1080, 60));
+        assert!(saved_mode(&out).is_none());
+        // Picking the mode it already plays stores it.
+        let out = p.handle(Event::ChooseMode(choice("1920x1080@60")), &settings);
+        assert!(opened(&out).is_none());
+        assert_eq!(saved_mode(&out), Some(("card".into(), choice("1920x1080@60"))));
+    }
+
+    #[test]
+    fn a_mode_pick_without_a_device_or_offered_mode_does_nothing() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![]), &settings);
+        assert!(
+            p.handle(Event::ChooseMode(ModeChoice::AutoMaxFps), &settings)
+                .is_empty()
+        );
+        p.handle(Event::Monitor(MonitorEvent::Added(webcam())), &settings);
+        assert!(
+            p.handle(Event::ChooseMode(choice("1920x1080@60")), &settings)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_mode_pick_while_opening_reopens_and_ignores_the_old_session() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![card()]), &settings);
+        let old = p.session().unwrap();
+        let new = opened(&p.handle(Event::ChooseMode(choice("1280x720@60")), &settings))
+            .unwrap()
+            .2;
+        assert!(p.handle(first_frame(old), &settings).is_empty());
+        assert_eq!(p.state(), PreviewState::Opening("card".into()));
+        p.handle(first_frame(new), &settings);
+        assert_eq!(p.state(), PreviewState::Playing);
+    }
+
+    #[test]
+    fn the_remembered_device_plugged_in_while_another_plays_does_not_switch() {
+        let mut settings = Settings::default();
+        settings.preview.device = Some("cam".into());
+        let mut p = Preview::new();
+        let session = opened(&p.handle(listed(vec![card()]), &settings)).unwrap().2;
+        p.handle(first_frame(session), &settings);
+        let out = p.handle(Event::Monitor(MonitorEvent::Added(webcam())), &settings);
+        assert!(opened(&out).is_none() && !closes(&out), "{out:?}");
+        assert_eq!(p.session(), Some(session));
+        assert_eq!(p.menus(&settings).0.len(), 2);
     }
 
     /// A device from the caps recorded for the capture crate's tests.

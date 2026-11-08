@@ -181,6 +181,20 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   fmt, clippy, tests (run with `CARGO_TARGET_DIR=target/check`: the maintainer had the app open);
   the shader compiles (a run with black, watermark and Always); `ready_ms` with the backdrop on vs
   off, 1080p60 test video alternated twice: medians 1.1–1.4 vs 1.2–1.7 ms, no measurable cost.
+- **T032** implemented and validated by the maintainer (2026-11-07), committed (`feat: open
+  and store the picked mode`):
+  `Event::ChooseMode(ModeChoice)` and `Command::SaveMode { id, name, choice }` in preview.rs;
+  `Open` keeps the mode it opened in. A mode pick stores the choice when it differs from the
+  stored text (so a stored mode the device lacks is replaced only by a pick, rule 2) and reopens
+  the same device only when the choice resolves to another mode (a choice opening the mode
+  already playing is stored without a reopen, no fade); the reopen keeps the open's `chosen`
+  flag (picking a mode of a fallback start device does not remember the device).
+  `open_device(id, chosen, mode, ..)` takes the picked mode; a device with no mode now also
+  closes the previous session (it was left running). The app logs "mode … chosen" and writes
+  `devices."<id>".mode`. Tests: device pick with stored mode/range and defaults, mode pick
+  reopen + store + menu mark, same mode stored without reopen, stale stored mode, no device or
+  unoffered mode, a pick while opening, the remembered device plugged in while another plays.
+  fmt, clippy, tests pass on Windows (`CARGO_TARGET_DIR=target/check`).
 
 Nothing pushed.
 
@@ -309,7 +323,7 @@ Nothing pushed.
 
 ## Next step
 
-1. T032 (mode pick → reopen and store; a mode pick is only logged until then), T033, and T048
+1. T033 (the `NoSource`/`NoDevices` actions open the device menu), and T048
    later with Presentation as a segmented control. T071's CachyOS half (and recording the
    Windows check in measurements/acceptance.md) goes with the Linux batch at T034.
    The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.

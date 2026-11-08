@@ -379,6 +379,10 @@ impl App {
                 log::info!("device {id} remembered");
                 self.store.update(|s| s.remember_device(&id, &name));
             }
+            Command::SaveMode { id, name, choice } => {
+                self.store
+                    .update(|s| s.touch_device(&id, &name).mode = choice.to_string());
+            }
             Command::SetRange(range) => {
                 if let Some((session, _)) = &self.session {
                     session.set_range(range);
@@ -1197,10 +1201,12 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.reset_menus();
             }
-            // Opening the chosen mode comes with T032.
             UserEvent::ModePicked(index) => {
                 match self.picked(true, index) {
-                    Some(preview::Pick::Mode(choice)) => log::info!("mode {choice} chosen (not applied yet)"),
+                    Some(preview::Pick::Mode(choice)) => {
+                        log::info!("mode {choice} chosen");
+                        self.preview_event(preview::Event::ChooseMode(choice));
+                    }
                     pick => log::warn!("mode menu: row {index} picks {pick:?}"),
                 }
                 self.reset_menus();
