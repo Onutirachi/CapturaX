@@ -16,7 +16,7 @@ The toolbar gets device, mode and color range selects; the first info bubbles sh
 frame rate and latency (measured plus an estimate), each with its display choice. On Linux the
 app asks the NVIDIA driver for its performance mode while previewing, so idle clocks no longer
 cost latency. A notice says when a device is connected or disconnected, in the app when focused and as a
-system notification otherwise, with **Open** for a new device. A Video settings category adds
+system notification otherwise, with **Open** for a new device. A Preview settings category adds
 the Follow the monitor presentation. The Windows
 stalls at presentation mode changes and the language switch stalls are investigated with
 PresentMon and a present log, and fixed if the cause is the app's.
@@ -122,9 +122,9 @@ close the session, stop the monitor; the rest is the shell's sequence.
 - `components/toolbar.slint`: the toolbar panel in the shell's slot with the device, mode and
   color range selects (R13), in the spike's dropdown look (title inside); compact layout keeps
   them in the toolbar's row, narrower.
-- `components/menu.slint`: `MenuItem` gains `kind`, `detail` (second line), `badge`,
+- `components/menu.slint`: `MenuItem` gains `kind`, `detail` (second line), `rate`, `tag`, `tag-kind`, `aspect` (T066),
   `disabled`; group headers are not selectable; keyboard navigation skips them.
-- `components/badge.slint` (from the spike), `components/info-bubbles.slint` (fixed top left;
+- `components/tag.slint` (name, aspect and rate tags, T066), `components/progress-ring.slint` (T067), `components/info-bubbles.slint` (fixed top left;
   hover settings buttons in the top layer).
 - `main.slint`: the state message shows the preview state's icon, title, detail and actions;
   `source-open` becomes the preview state.
@@ -179,7 +179,7 @@ crates/capture/            # NEW: GStreamer devices, modes, session (contracts/c
 │   ├── lib.rs
 │   ├── monitor.rs         # device monitor thread, events, preferred provider (R1)
 │   ├── device.rs          # Device, identity, numbering (R2)
-│   ├── mode.rs            # modes from caps, format rank, automatic modes, badges (R3, pure)
+│   ├── mode.rs            # modes from caps, format rank, automatic modes (R3, pure); tags.rs: tags (F43)
 │   ├── session.rs         # pipeline, appsink, errors, no-signal timer (R4, R6)
 │   ├── frame.rs           # Frame, plane pool, captured time (R11)
 │   ├── analysis.rs        # range detector (R5, pure)
@@ -193,10 +193,10 @@ app/src/
 ├── latency.rs             # NEW: estimate and bubble texts (pure)
 ├── render/{mod.rs, gpu.rs, composite.wgsl}   # YUV planes, refresh-driven loop
 ├── stats.rs               # lat_ms, rep, [source]
-├── ui.rs                  # toolbar, bubbles, states, Video category bridge
+├── ui.rs                  # toolbar, bubbles, states, Preview category bridge
 ├── cli.rs                 # --list-devices, --present-log
 └── app.rs, main.rs        # wiring; arranged rect around fullscreen (R10)
-app/ui/components/{toolbar, badge, info-bubbles, notice}.slint   # NEW
+app/ui/components/{toolbar, tag, progress-ring, info-bubbles, notice}.slint   # NEW
 app/ui/components/{menu, select, settings-panel, state-message}.slint, main.slint, texts.slint
 app/tests/platform_boundary.rs   # + crates/capture
 

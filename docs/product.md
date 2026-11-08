@@ -48,11 +48,14 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 | F6 | Preview the device with the lowest possible latency. | |
 | F7 | Measured latency and frame rate, updated live. Its spec defines which frame rate is shown (what the source delivers, what reaches the app or what is presented) and whether dropped frames are shown. | |
 | F8 | Frameless window with its own title bar; fullscreen with F11, or from the start with the **Start in fullscreen** setting (a command-line option overrides it for one start, for shortcuts). Esc closes an open menu first, then leaves fullscreen; it never quits the app. In small windows the main screen switches to a compact layout instead of overlapping its controls (the stack spike's Float needs 800 × 520 without it). | |
-| F9 | Optional ambient light: the area around the video glows with the video's colors. | |
+| F9 | Optional ambient light: the area around the video glows with the video's colors. It lights over the chosen video background (F56); the watermark (F57) shows clearer over it and the shadow (F58) sits on it. | |
+| F56 | **Video background** setting: **Theme** (default, the theme's deepest tone) or **Black**, the ground around the video (bars of a capture that does not fill the window, between source switches, behind the states) (maintainer, 2026-11-07). | |
+| F57 | **Watermark** setting, on by default: the CapturaX X in the video background, as tall as the video area, at its bottom right with a part cut off by the right edge; it shows between source switches, behind the states and in the bars. Soft over the background, clearer over the ambient light (F9). Off leaves the bars plain (maintainer, 2026-11-07). | |
+| F58 | **Video shadow** setting: **Always** (default), **With ambient light** or **Off**: a soft shadow around the video, over the background and the ambient light (maintainer, 2026-11-07). | |
 | F10 | Hide the preview to save resources; recording and streaming continue. Hiding it releases the device (capture stops, a webcam's light turns off) unless recording or streaming uses it: the old app kept capturing while hidden. The video area then shows a "preview hidden" state (F11's component, icon `preview_off`) with a **Show preview** action, and says that recording and streaming continue when they do. Whether hiding also stops the preview's audio (C) is open (see To reconsider). | |
 | F11 | Explicit empty and error states with the next action: no devices, access blocked by the OS, device in use, device disconnected, no signal. Never an empty list. A black image while a signal is present gets no hint: it is not a reliable sign of HDCP (a console that is off, an RCA to HDMI adapter, a VHS tape being converted), so HDCP is explained in the getting started guide (F54) instead (maintainer, 2026-11-06). | |
 | F42 | Capture info overlay (source, mode, measured FPS and latency, recording/live status) over the video, as bubbles: each can be pinned, moved in the order and anchored to any of the four corners; with the controls hidden only the pinned ones show, packed against their corner. | |
-| F43 | Resolution badges (for example HD, Full HD, QHD, 4K) in device and mode lists. | |
+| F43 | Resolution tags in device and mode lists: the standard's name (for example HD, Full HD, WQHD, 4K UHD; the nearest standard above, else Custom) and the aspect ratio (for example 16:9). | |
 | F52 | Presentation setting with two modes. **Lowest latency** (default): one present per video frame; on a variable refresh monitor (G-SYNC, FreeSync) the monitor follows the video, so frames show at once and evenly, but while the app has focus the whole desktop, cursor included, runs at the video's rate (60 Hz). **Follow the monitor**: present at every monitor refresh, repeating the last frame, so the cursor stays smooth; each new frame waits for the next refresh (up to 6.9 ms at 144 Hz) and the cadence is uneven (2 or 3 refreshes per frame at 60 fps on 144 Hz). Only matters with variable refresh; the setting says so. Found in the app shell's latency run (its research R4). | |
 
 ### C. Listening (preview audio)
@@ -126,7 +129,7 @@ do not change (maintainer, 2026-11-06).
 
 | ID | Feature | Spec |
 |---|---|---|
-| F38 | Plays in any browser, with volume and mute, fullscreen (double click), ambient light and "click for sound". Uses the viewer's browser language. | |
+| F38 | Plays in any browser, with volume and mute, fullscreen (double click), ambient light and "click for sound". Uses the viewer's browser language. The page has the app's look around the video: the video background (F56), the watermark (F57), the shadow (F58) and the theme; whether the viewer or the streamer chooses them is decided in its spec (maintainer, 2026-11-07). | |
 
 ### K. General
 

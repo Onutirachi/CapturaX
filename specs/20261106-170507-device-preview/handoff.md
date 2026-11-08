@@ -127,6 +127,60 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   New `capture::recorded::device(text)` reads a `gst-device-monitor-1.0` block (name, caps,
   identity, modes); the capture `modes.rs` test and the preview menu tests use it on the
   recorded C920 and ezcap. fmt, clippy, tests pass on Windows.
+- **T031** implemented and validated by the maintainer (2026-11-07), committed: **Device** and **Mode** selects in front of Color range (toolbar.slint, min width
+  96 px in the compact layout, 140 px in Float); `Preview::menus(&Settings)` gives both models
+  (mode menu empty with no open device, from `mode_choice` of the stored text);
+  `App::show_menus` runs after every preview event, compares with the last menus and only then
+  sets the Slint models (`ui::menu_item` maps `Label`/`Detail` through new `Texts` entries:
+  `modes-automatic`, `modes-native`, `mode-auto-*`, `mode-auto-detail` "{} · {}"; pt-BR "Auto
+  fonte", "Auto resolução máxima", "Auto FPS máximo", "Modos", "Dispositivo", "Modo"); an open
+  menu follows new items through `Menus.update` (Select `changed items`), closes when its select
+  is disabled or left empty. Picks come back as row indexes (`UserEvent::DevicePicked` /
+  `ModePicked`) mapped to `Item::pick`; a device pick already sends `Event::ChooseDevice` (choosing
+  the open device again does nothing, new test); a mode pick is only logged until T032, and the
+  menus are reset after each pick (the select marks the picked row itself). With no open device
+  the Device button shows only its title (no placeholder). fmt, clippy, tests pass on Windows;
+  smoke run opened the C920 with no new warnings.
+- **T066** implemented and validated by the maintainer (2026-11-07), committed: `crates/capture/src/tags.rs` (55 standards, name tag rule, aspect snapped within 3%,
+  ratio family; re-exported from `mode`); `Mode::label` replaced by `size_text` ("1920 × 1080")
+  and `text` (settings text "1920x1080@60", used by `--list-devices`, the session log and the
+  tests); `Badge`/`badge` removed. `Item` carries `rate` (number text) and `tags`; `MenuItem`
+  has `rate`, `tag`, `tag-kind` (the family as "16:9" or "custom"), `aspect`; `badge.slint`
+  became `tag.slint` (`Tag { value, kind }`, kind a family, `custom`, `aspect` or `rate` for the
+  outlined tag; its property is `value` because `text` shadowed `accessible-role: text`). Menu
+  rows: text then the rate tag (on the detail line when there is one), tags on the right; the
+  select button: text, rate tag (when no detail line) and name tag. Theme tokens `tag-1-1` …
+  `tag-32-9`, `tag-custom`, `tag-aspect` (contrast test); texts `rate` ("{} FPS") and
+  `custom-resolution` ("Custom"); "4K", "QHD", "Full HD", "HD" left the catalog.
+  `--list-devices`: `1920x1080@30    NV12  [Full HD] [16:9]`, aligned per device.
+- **T067** implemented and validated by the maintainer (2026-11-07), committed: the video thread keeps a `Fade` (150 ms) and the session of the frame on the GPU;
+  `Inbox::clear_video` now fades the last frame out, then clears it (`last_frame` reset, so the
+  fade steps do not wait for frames that will not come); a frame of a new session fades in from
+  0; fade steps without a video frame are presented one refresh apart, riding on video frames
+  when one is near (the R16 rule); the opacity goes in the video layer's uniform (the shader
+  already had it). Opening shows no `StateMessage`: an empty area over the video area and, after
+  1 s (a Slint `Timer`), `ProgressRing` (components/progress-ring.slint, a `Path` arc with the
+  mockup's spinner B motion); "Opening {}" and `loader_2.svg` removed. `ready_ms` unchanged:
+  test video 1080p60, debug builds of HEAD and the working tree alternated twice, median 1.3–1.4
+  and max 1.7–2.3 ms on both. The ezcap is on the Windows PC (the app opened it at 1080p60).
+- **T068–T070** implemented and validated by the maintainer on Windows (2026-11-07, after a
+  softer shadow, half on the light theme, and an accent-filled segment with 8/6 px corners; the
+  shadow is now Always by default), committed (`feat: add the video backdrop settings`). T068: `segmented.slint` (`Segmented { options, current, label }`, radio group,
+  arrows/Home/End, accent-text dot), the **Preview** category (icon `device_tv.svg`, Tabler) with
+  Video background and Video shadow as segmented rows (stacked under the name when narrow) and
+  Watermark as a switch row (an on/off setting, like General; tasks and research updated);
+  `settings::Background`, `settings::Shadow`, `Preview.watermark` (default true, custom
+  `Default`). T069: `build.rs` writes `watermark.a8` (1024² coverage of brand/X.svg); `Kind::Mask`
+  (shader kind 6, tint in `to_r`); `Scene.watermark` (RGB, opacity 0.06; white on the dark theme
+  and on black, black on the light theme); the watermark and shadow are drawn under a scissor of
+  the video area; `Scene.backdrop` is black with Black; `StateMessage` has no fill and takes
+  `on-black` (tokens `ground-black`, `on-black-text`, `on-black-muted`, also the progress ring);
+  `App::apply_backdrop` on each change. T070: `Kind::Shadow` (shader kind 7, distance to the
+  video's rounded rectangle, two Gaussian shadows as the mockup's CSS, in logical pixels times
+  `Scene.shadow` = the display scale), faded with the video; only with Always for now. Checks:
+  fmt, clippy, tests (run with `CARGO_TARGET_DIR=target/check`: the maintainer had the app open);
+  the shader compiles (a run with black, watermark and Always); `ready_ms` with the backdrop on vs
+  off, 1080p60 test video alternated twice: medians 1.1–1.4 vs 1.2–1.7 ms, no measurable cost.
 
 Nothing pushed.
 
@@ -220,6 +274,29 @@ Nothing pushed.
   Off: never, On: whenever needed). Research R7 points to it. Tooltips on the more complex
   settings go with the getting started guide (F54, roadmap #16).
 
+- **Mode tags, "FPS" and the switch fade** (maintainer, 2026-11-07, chosen on a mockup page:
+  https://claude.ai/artifact/XuSNprmZCbdSX3DeEpqo3P, private): mode text `1920 × 1080 • 60 FPS`,
+  "FPS" upper case everywhere; two tags per mode, a name tag by the old CapturaX rule (nearest
+  standard at or above, else `Custom` in both languages) over a completed standards list, and an
+  aspect ratio tag (gcd, snapped to a listed ratio within 3%); the rate as an outlined tag next
+  to the size, `1920 × 1080 [60 FPS]` (variant F1, no separator character), and `--list-devices`
+  printing each mode's settings text (`1920x1080@60`) in aligned columns with the tags in brackets; our own fills per ratio family, all
+  white text; a fade of about 150 ms out and in on device and mode switches and at start, the
+  Fluent progress ring alone after 1 s of opening (no text). Spec FR-002, FR-007, FR-013, FR-017,
+  data-model "Mode" (rules, fills, list), research R3, R13, new R17, product F43,
+  contracts/capture.md, new tasks T066 (tags) and T067 (fade).
+
+- **Video backdrop** (maintainer, 2026-11-07, chosen on a second mockup page:
+  https://claude.ai/artifact/5vWgGWi4i6VvkMk4Vr8YiD, private): Video background Theme (default) or
+  Black; Watermark on by default (the X, as tall as the video area, bottom right, cut 12% by the
+  right edge, 6% soft, 12% over the ambient light); Video shadow Always (default since the check) / With ambient light
+  / Off; a segmented control for these choices. Product F56–F58 (roadmap #3), F9 and F38
+  notes (the live page gets the same backdrop, spec #10 decides who chooses), spec FR-028 to
+  FR-031, data-model "Video backdrop" and settings, contracts/settings-file.md, research R18,
+  tasks Phase 4b (T068–T071); T048 now only adds Presentation to the Preview category of T068. The category is named
+  **Preview** in both languages (maintainer, 2026-11-07), not Video: recording and live will
+  have video settings of their own.
+
 ## Open questions
 
 
@@ -232,9 +309,10 @@ Nothing pushed.
 
 ## Next step
 
-1. Phase 4 (US2): T031 device and mode selects in the toolbar, from the T030 models (remove
-   their `#[allow(dead_code)]` lines and the one on `Preview::devices`). The ezcap stays on the Windows
-   PC until T034. System notifications (R15) are validated at T061 before they are wired in.
+1. T032 (mode pick → reopen and store; a mode pick is only logged until then), T033, and T048
+   later with Presentation as a segmented control. T071's CachyOS half (and recording the
+   Windows check in measurements/acceptance.md) goes with the Linux batch at T034.
+   The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.
 
 Linux PC notes: `ydotoold` does not survive a reboot; start it as in the app-shell handoff before
 any GUI automation (started again for T027, 2026-11-07). The T027 copy is `~/capx/t027` (its own

@@ -92,9 +92,14 @@ marks what was not run.
   PS5 at 60 Hz the card delivers about 111 fps and the spike measured every path 3–5 ms slower
   than in the 60 mode; T029 measured +5.3 ms with a 60 Hz source (quickstart L3) and 31.5 ms
   against a 120 Hz passthrough (L3b), which led to the default above; the frame rate bubble's default
-  ("111 / 120 fps") shows the mismatch to the user.
-- **Badges** (F43), by height: ≥ 2160 "4K", ≥ 1440 "QHD", ≥ 1080 "Full HD", ≥ 720 "HD", none
-  below; colors from the spike's `Badge`.
+  ("111 / 120 FPS") shows the mismatch to the user.
+- **Tags** (F43; maintainer, 2026-11-07, replacing the four badges by height): a name tag by the
+  old CapturaX rule over its list of standards (nearest standard at or above, else Custom) and an
+  aspect ratio tag (the real ratio, snapped to a listed ratio within 3%), fills by ratio family
+  with white text; rules, list and fills in data-model.md "Mode". Chosen on a mockup page with
+  the real C920 and ezcap modes. The old rule gives a loose name between standards (960 × 720
+  reads "HD"), kept for continuity with the old app; the aspect tag tells the real shape. The
+  ratio list keeps 11:9 (CIF) and 25:16 (WQSXGA) so they are not snapped to a neighbour.
 - **Alternatives**: infer the source rate from delivered frames (a 120 mode delivering about 111
   fps means a 60 Hz source): cannot infer the source resolution, and switching modes by guess
   would restart the device under the user; rejected.
@@ -310,7 +315,7 @@ marks what was not run.
   sits outside `platform` without breaking principle IV; the boundary test is extended to it. The
   test video moves into it as a source like any other, producing NV12 so the YUV path is the one
   measured. `app` gains `preview.rs` (the state machine of data-model.md, settings, reconnect),
-  the UI bridge for the toolbar, bubbles and the Video category, and the YUV composite in
+  the UI bridge for the toolbar, bubbles and the Preview category, and the YUV composite in
   `render/`. `platform` gains `camera_access`, `open_camera_privacy`, `gpu_performance`,
   `qpc`, `arranged_rect`, `set_outer_rect` (contracts/platform.md).
 - **Rationale**: the mode logic and the analysis are pure and unit tested without a device;
@@ -334,11 +339,12 @@ marks what was not run.
   is empty (never an empty menu). Info bubbles (source, mode, frame rate, latency) sit in the
   video area's top left corner with the chrome, in the spike's shape (black at 55%, opaque text);
   the frame rate and latency bubbles show a settings button on hover, drawn in the top layer (app
-  shell plan), which opens a menu with their three displays. The settings panel gains **Video**
+  shell plan), which opens a menu with their three displays. The settings panel gains **Preview**
   (Tabler `device-tv` icon) with the Presentation select and its tooltip.
 - **States** (FR-019): the app shell's `StateMessage` with icons from Tabler (`device_tv_off` no
   devices / disconnected, `lock` blocked, `player_pause` in use, `antenna_bars_off` no signal,
-  `alert_triangle` failed, a spinner for opening).
+  `alert_triangle` failed); opening shows the Fluent progress ring (an arc that grows, shrinks
+  and turns, as in Windows 11), drawn by the app, no text, only after 1 s (R17).
 
 ## R14. Dependencies
 
@@ -412,3 +418,53 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
 - **Alternatives**: presenting every UI change at once (the spike; fails SC-001 while
   animating, T041); predicting the vsync (rejected in the app shell as fragile); a deeper swap
   chain (a vsync more latency).
+
+## R17. Source switch fade (FR-013)
+
+- **Decision** (maintainer, 2026-11-07, chosen on the mockup page): a switch of device or mode
+  fades the current video to the backdrop over about 150 ms and the first frame of the next one
+  in over about 150 ms; the start fades in too. The opening state shows nothing for its first
+  second, then the Fluent progress ring alone (no text; replaces `loader_2` and "Opening <name>").
+  Errors and a disconnect show their state at once (no fade wait).
+- **How**: the video thread draws the video with an opacity uniform it eases itself at each
+  present (no main thread round trip, no extra frame of delay: a new frame is presented at once,
+  only dimmed during the fade-in). On a switch the old session closes at once and the video
+  thread keeps its last frame only to fade it out (the inbox's `clear_video` becomes a fade-out,
+  then clear); the new session opens meanwhile, so the fade adds no time to the switch (opening
+  takes 300–400 ms, longer than the fade). The 1 s spinner delay is a Slint timer on the opening
+  state.
+- **Rationale**: the spinner and its text flashed for a few hundred ms on every switch; a fade
+  reads as one smooth change, and the spinner still tells the user when a device is slow.
+- **Alternatives**: crossfade old and new: needs both sessions open at once, which a USB card
+  cannot do for two of its modes, and doubles the bandwidth for two devices; spinner with text:
+  the previous design, found heavy by the maintainer.
+
+## R18. Video backdrop: background, watermark, shadow (FR-028 to FR-031)
+
+- **Decision** (maintainer, 2026-11-07, chosen on a mockup page:
+  https://claude.ai/artifact/5vWgGWi4i6VvkMk4Vr8YiD, private): the ground around the video is the
+  theme's deepest tone or black; the CapturaX X lies on it as a watermark (on by default, soft,
+  cut a little by the right edge), and a soft shadow around the video is **Always**, **With
+  ambient light** or **Off** (Always by default since 2026-11-07). Every combination is possible: plain black bars (black,
+  watermark off), the theme's ground with the X, and later the ambient light over either.
+- **How**: the UI layer is drawn over the video, so the backdrop is the video thread's: the
+  composite pass clears to the ground color, draws the watermark as one more textured rectangle
+  (an alpha mask of `brand/X.svg` rasterized by `build.rs` with `resvg`, like the icons, 1024 px
+  tall, tinted and faded by its uniform), then the shadow (a rectangle larger than the video whose
+  fragment shader computes the blurred rounded-rectangle falloff from the same signed distance as
+  the video's corners), then the video. Two more draws per present, no texture upload after the
+  first: no measurable cost expected; `ready_ms` is compared before and after, as for R17. The
+  state messages lose their own fill so the ground and the X show behind them; their text tones
+  stay checked against the theme's deep tone, and against black for the black background
+  (app/tests/contrast.rs). The settings reach the video thread through the `Scene`.
+- **Segmented control** (FR-031): one Slint component, `segmented.slint`, used for the choices of
+  two or three short options (Video background, Video shadow, Presentation; Watermark is an on/off
+  switch): a deep-toned track with 8 px corners, the chosen segment filled with the accent (6 px
+  corners, accent ink text; maintainer, 2026-11-07, instead of a raised segment with a dot);
+  arrows move the choice, radio group semantics per segment. The shadow is drawn half as strong
+  on the light theme's ground, where a black shadow looked dirty.
+- **Live viewers** (F38, spec #10): the viewer page gets the same backdrop (background, watermark,
+  shadow, theme, ambient light); who chooses them is that spec's question.
+- **Alternatives**: the watermark in the UI layer: it would cover the video. A fixed watermark
+  image per window size: a new texture on every resize; the mask scaled by the GPU is enough at
+  this opacity.

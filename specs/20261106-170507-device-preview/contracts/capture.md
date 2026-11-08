@@ -22,7 +22,7 @@ calls (research R12). Names are indicative; tasks fix the exact signatures.
 | `resolve(choice, &[Mode], signal) -> Option<Mode>` | data-model.md "Mode choice" |
 | `shown_automatic(&[Mode], signal) -> Vec<(ModeChoice, Mode)>` | The automatic entries to list, duplicates removed |
 | `default_choice(signal, &[Mode]) -> ModeChoice` | FR-008 |
-| `badge(height) -> Option<Badge>` | F43 |
+| `tags(width, height) -> Tags { name: Option<&'static str>, family: Option<Ratio>, aspect: Ratio }` | F43, data-model.md "Mode": `name` None is Custom; `family` the standard's ratio family; `aspect` the snapped or exact ratio |
 | `ModeChoice::parse / to_string` | Settings text |
 
 ## Session

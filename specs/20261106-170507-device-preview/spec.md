@@ -87,11 +87,11 @@ contents against what the drivers report, and switch between devices and modes.
 
 1. **Given** devices are connected, **When** the user opens the device menu, **Then** it lists
    every capture card and webcam (not screens or windows: product.md F5), each with its name, a
-   detail line (FR-004) and its resolution badge (F43), the open one marked.
+   detail line (FR-004) and its resolution tags (F43), the open one marked.
 2. **Given** a device is open, **When** the user opens the mode menu, **Then** it shows an
    Automatic group (only the automatic modes the device supports, without duplicates of each
    other, FR-007) and a Modes group with each native resolution × frame rate once, largest first,
-   each with its badge.
+   each with its tags.
 3. **Given** the mode menu is open, **When** the user picks a mode, **Then** the preview switches
    to it and shows video within the time of SC-004; the choice is remembered for that device.
 4. **Given** the user picks another device, **When** it opens, **Then** it uses that device's
@@ -118,7 +118,7 @@ compare the values shown with the app's per-second statistics (app shell FR-005)
    the source, the mode, the frame rate and the latency, updated every second (FR-016).
 2. **Given** a 60 Hz source captured in a 120 fps mode, **When** the frame rate bubble is read
    in its default display, **Then** it shows what is presented against the mode's rate (about
-   "111 / 120 fps" on the ezcap).
+   "111 / 120 FPS" on the ezcap).
 3. **Given** the pointer is over the latency or frame rate bubble, **When** the user opens its
    settings button, **Then** a menu offers that bubble's displays (FR-016a, FR-017); the choice
    applies at once and is kept after a restart.
@@ -176,7 +176,7 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 
 **Acceptance Scenarios**:
 
-1. **Given** the settings panel, **When** the user opens its Video category, **Then** it shows
+1. **Given** the settings panel, **When** the user opens its Preview category, **Then** it shows
    **Presentation** with **Lowest latency** (default) and **Follow the monitor**, and a tooltip
    says it only matters with variable refresh.
 2. **Given** Follow the monitor is chosen, **When** the app has focus on a variable refresh
@@ -237,7 +237,7 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   webcams) on Windows and Linux, and update the list when a device is plugged in or removed,
   without the user asking (F1).
 - **FR-002**: The device menu MUST be the toolbar's video source dropdown (Float direction):
-  devices only, each with its name, a detail line and its resolution badge (F43), the open device
+  devices only, each with its name, a detail line and its resolution tags (F43), the open device
   marked. The "no source" state's action opens this same menu.
 - **FR-003**: Each device MUST have a stable identity used to remember its choices across
   restarts and reconnects; devices with the same name are numbered in the list. A device whose
@@ -262,8 +262,10 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   - **Auto max FPS**: the highest frame rate at 1080p, or at the largest resolution below 1080p;
   - an automatic mode that resolves to the same mode as another automatic mode is not shown;
   - Modes: each native resolution × frame rate once, in its lowest-latency format (Edge Cases),
-    sorted by resolution then frame rate, largest first, with a resolution badge each (F43). The
-    resolved mode is shown next to each automatic one.
+    sorted by resolution then frame rate, largest first. The resolved mode is shown next to each
+    automatic one. Every mode reads `1920 × 1080 [60 FPS]` with a name tag (the nearest standard
+    at or above, else Custom) and an aspect ratio tag (F43, data-model.md "Mode"; maintainer,
+    2026-11-07).
 - **FR-008**: The default mode of a device MUST be Auto source when it is shown; else
   1920 × 1080 at its highest rate between 58 and 62 fps when the device has one (shown as that
   mode in the menu); else Auto max resolution (maintainer, 2026-11-07, after T029: Auto max FPS
@@ -292,8 +294,12 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   measured and with no known way to raise their clocks without root (research R7), to be checked
   when one is available (maintainer, 2026-11-06).
 - **FR-013**: Opening, switching and reopening a device MUST NOT block the interface or the
-  window; while a device is opening, the video area shows an opening state (no frozen last
-  frame from another device).
+  window. A switch of device or mode fades the current video out over about 150 ms while the next
+  one opens (the old session closes at once; its last frame shows only during the fade, never
+  frozen after it), and the first frame of the new one, also at start, fades in over about 150 ms
+  (frames are presented at once, only dimmed). While a device is opening, the video area shows
+  the backdrop, and a spinner alone (no text) only when opening takes over 1 s (maintainer,
+  2026-11-07; research R17). Errors and a disconnect show their state at once.
 - **FR-014**: When the open device disappears, the app MUST show the disconnected state and reopen
   the same device in the same mode when it comes back (F4); a system sleep and wake is treated as
   a reconnect.
@@ -317,8 +323,8 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   A tooltip says what each part is. The estimate is computed from the source's frame rate and
   the monitor's refresh; it is checked against the glass-to-glass measurement (SC-007).
 - **FR-017**: The frame rate bubble MUST offer three displays (maintainer, 2026-11-06):
-  **Presented** (frames presented per second, for example "60 fps"), **Presented / nominal**
-  (default: presented against the mode's nominal rate, for example "111 / 120 fps") and
+  **Presented** (frames presented per second, for example "60 FPS"), **Presented / nominal**
+  (default: presented against the mode's nominal rate, for example "111 / 120 FPS") and
   **Nominal** (the mode's rate). Dropped frames are not shown in the bubble; they are in the
   statistics (FR-018).
 - **FR-018**: The app shell's per-second statistics (app shell FR-005) MUST also cover a real
@@ -358,7 +364,24 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 
 **Presentation setting (F52)**
 
-- **FR-022**: The settings panel MUST gain a **Video** category with **Presentation**: **Lowest
+- **FR-028**: The settings panel's **Preview** category MUST offer **Video background**: **Theme**
+  (default) or **Black**, the ground around the video wherever the video does not cover it (F56;
+  maintainer, 2026-11-07).
+- **FR-029**: The video background MUST show the CapturaX X as a watermark when **Watermark** is on
+  (default): as tall as the video area, at its bottom right, cut by the right edge, behind the
+  video and the states, so it shows between source switches, behind every state and in the bars
+  (F57; maintainer, 2026-11-07). The ambient light (F9, spec #6) lights over the background and
+  makes the watermark clearer.
+- **FR-030**: **Video shadow** MUST offer **Always** (default), **With ambient light** and **Off**:
+  a soft shadow around the video over the background (and over the ambient light, spec #6);
+  until spec #6, **With ambient light** draws none (F58; maintainer, 2026-11-07: Always by
+  default after seeing it).
+- **FR-031**: A choice of two or three short options in the settings panel MUST use one segmented
+  control (one segment per option in a track with rounded corners like the settings rows, the
+  chosen segment filled with the accent), keyboard usable (arrows move the choice) and read as a radio group (maintainer,
+  2026-11-07).
+- **FR-022**: The settings panel MUST gain a **Preview** category (the same name in both
+  languages; maintainer, 2026-11-07) with **Presentation**: **Lowest
   latency** (default: one present per video frame) and **Follow the monitor** (present at every
   monitor refresh, repeating the last frame). A tooltip says it only matters with variable
   refresh. The change applies at once, without reopening the device.

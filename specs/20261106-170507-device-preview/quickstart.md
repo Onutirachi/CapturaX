@@ -40,12 +40,12 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
 1. **US1**: restart the app → same device and mode; play in fullscreen and windowed; color range
    Auto shows `Auto (Full)` and the image matches the passthrough; Full and Limited change it at
    once.
-2. **US2**: device menu lists the card and the webcam with badges, no screens; mode menu shows
+2. **US2**: device menu lists the card and the webcam with their name and aspect tags, no screens; mode menu shows
    Automatic (with resolved modes, no duplicates) and Modes largest first; switching modes and
    devices shows video within 2 s (SC-004); each device keeps its own mode and range; with the
    device menu open, plugging and unplugging the webcam adds and removes it within 3 s (SC-004).
 3. **US3**: bubbles show source, mode, frame rate, latency; in the 1080p120 mode with the PS5 at
-   60 Hz the frame rate reads about "111 / 120 fps"; the hover settings button of each bubble
+   60 Hz the frame rate reads about "111 / 120 FPS"; the hover settings button of each bubble
    offers its three displays; the choice survives a restart.
 4. **US4**, one by one:
    - unplug every device → "No devices", the device menu shows the same state; plug the card →
