@@ -209,6 +209,12 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   in Settings → Cameras or Device Manager left the phone's virtual camera listed): with it off
   Media Foundation lists no device. After T043 that shows Blocked (NoDevices checks
   `camera_access()` first), so NoDevices on Windows will need the cameras really gone.
+- **T035** committed after the checks (`feat: add the latency estimate and bubble texts`):
+  `app/src/latency.rs` with `Platform { Windows, Linux }` (passed in; T038 gets it from the
+  platform crate, no `cfg` in app), `C_WINDOWS`/`C_LINUX` = 5 ms (`Platform::calibration`),
+  `estimate`, `latency_text` (whole ms rounded to the nearest; Total rounds the sum once) and
+  `fps_text` (nominal through `mode::rate_text`). Not wired: `#[allow(dead_code)]` on the module
+  in main.rs until T038.
 
 Nothing pushed.
 
@@ -349,7 +355,7 @@ Nothing pushed.
 ## Next step
 
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
-   batch. Next agent task: T035 (pure `app/src/latency.rs`), then T036–T038. T048 waits for
+   batch. Next agent task: T036 (`lat_ms`/`rep` in stats and the per-second summary), then T037–T038. T048 waits for
    T047 (US5); it adds Presentation as a segmented control. Recording T071's Windows check in
    measurements/acceptance.md goes with the Linux batch at T034.
    The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.

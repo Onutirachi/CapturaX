@@ -5,6 +5,8 @@ mod cli;
 mod frame;
 mod i18n;
 mod icon;
+#[allow(dead_code)] // Wired to the bubbles in T038.
+mod latency;
 mod log;
 mod notices;
 mod placement;
