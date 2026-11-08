@@ -1,6 +1,6 @@
 # Handoff: Device Preview
 
-**Updated**: 2026-11-07 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
+**Updated**: 2026-11-08 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
 
 ## State
 
@@ -423,9 +423,12 @@ Nothing pushed.
 ## Next step
 
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
-   batch. T037 and T038 are committed. Next: T039, the US3 acceptance (maintainer, with the
-   ezcap and the PS5 at 1080p60 and 1080p120; the agent compares the bubbles with `--stats` and
-   records it in measurements/acceptance.md). T048 waits for
+   batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
+   120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives
+   about 112 FPS at 1080p120 on Windows even with a 120 Hz source (judder the maintainer
+   noticed; known since T029), and present stalls of 17–40 ms in 31 of 396 s, for T052. Next:
+   T040, calibrate `C_WINDOWS` and `C_LINUX` from the T028 L1 and L4 medians (agent), then the
+   maintainer checks the Total display. T048 waits for
    T047 (US5); it adds Presentation as a segmented control. Recording T071's Windows check in
    measurements/acceptance.md goes with the Linux batch at T034.
    The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.
