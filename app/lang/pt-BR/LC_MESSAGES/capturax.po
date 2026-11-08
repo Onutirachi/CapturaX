@@ -107,6 +107,9 @@ msgstr "Configurações danificadas"
 msgid "No source"
 msgstr "Nenhuma fonte"
 
+msgid "Choose device"
+msgstr "Escolher dispositivo"
+
 msgid "Color range"
 msgstr "Faixa de cor"
 

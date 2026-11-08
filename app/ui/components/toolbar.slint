@@ -28,6 +28,11 @@ export component Toolbar inherits Rectangle {
     callback color-range-changed(int);
     out property <bool> has-focus: device-select.has-focus || mode-select.has-focus || range-select.has-focus;
 
+    // Opens the device menu, which takes the keyboard (the state message's action, US2 scenario 5).
+    public function open-device-menu() {
+        device-select.open-menu();
+    }
+
     // The narrowest a select gets: three fit between the docks in the compact layout.
     property <length> narrow: root.compact ? 96px : 140px;
 

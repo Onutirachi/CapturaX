@@ -195,6 +195,20 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   reopen + store + menu mark, same mode stored without reopen, stale stored mode, no device or
   unoffered mode, a pick while opening, the remembered device plugged in while another plays.
   fmt, clippy, tests pass on Windows (`CARGO_TARGET_DIR=target/check`).
+- **T033** implemented and validated by the maintainer (2026-11-07, all cameras disabled in
+  by turning off "Let desktop apps access your camera"), committed (`feat: open the device menu from the empty states`): the
+  `no-source` and `no-devices` state messages show a primary action **Choose device**
+  ("Escolher dispositivo"), id `open-devices`; `ui.rs` routes it to `AppWindow.open-device-menu()`,
+  which (unless the settings panel is open) shows the chrome at once (`reveal-chrome`, no slide,
+  so the menu anchors where the select stands) and calls `Toolbar.open-device-menu()` →
+  `Select.open-menu()` (now public); the menu takes the keyboard and gives it back to the Device
+  select when it closes. With no devices the menu shows the one disabled "No devices" row.
+  Disconnected's action is T045's. fmt, clippy, tests pass on Windows
+  (`CARGO_TARGET_DIR=target/check`). The only way the maintainer found to reach NoDevices on
+  Windows was Privacy & security → Camera → "Let desktop apps access your camera" off (disabling
+  in Settings → Cameras or Device Manager left the phone's virtual camera listed): with it off
+  Media Foundation lists no device. After T043 that shows Blocked (NoDevices checks
+  `camera_access()` first), so NoDevices on Windows will need the cameras really gone.
 
 Nothing pushed.
 
@@ -320,12 +334,24 @@ Nothing pushed.
 - The ezcap's Windows identity (USB serial or port-based) is unknown until it is plugged into the
   Windows PC (`Get-PnpDevice`); without a serial its choices only follow it on the same port
   (accepted by the maintainer).
+- **Found during T033 (2026-11-07)**: turning camera access off (most likely the desktop apps
+  privacy switch, the only way that worked; to confirm) while the phone's virtual camera plays
+  gives a session error ("Internal data stream error", `streaming
+  stopped, reason error (-5)`) but the monitor never reports it removed: no `device removed`
+  line, the device stays in the menu, and picking it fails at once ("Failed to start") back to
+  Failed. If it was the privacy switch, this is T043's "error while Playing with access now
+  Denied → Blocked" edge case and the device staying listed is expected. Not yet checked whether
+  a USB device (C920, ezcap) unplugged while playing is reported removed. T042's Windows "not listed → Gone" and T043's 3 s re-read (now only for a missed add)
+  depend on the list being right: re-read the list on a session error too, and drop a device the
+  re-read no longer has. Also seen: in Failed the Device select shows nothing (`open` is None);
+  whether it keeps showing the failed device is for T043/T045.
 
 ## Next step
 
-1. T033 (the `NoSource`/`NoDevices` actions open the device menu), and T048
-   later with Presentation as a segmented control. T071's CachyOS half (and recording the
-   Windows check in measurements/acceptance.md) goes with the Linux batch at T034.
+1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
+   batch. Next agent task: T035 (pure `app/src/latency.rs`), then T036–T038. T048 waits for
+   T047 (US5); it adds Presentation as a segmented control. Recording T071's Windows check in
+   measurements/acceptance.md goes with the Linux batch at T034.
    The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.
 
 Linux PC notes: `ydotoold` does not survive a reboot; start it as in the app-shell handoff before

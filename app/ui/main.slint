@@ -7,7 +7,7 @@ import { Theme, Palette } from "theme.slint";
 import { Texts } from "texts.slint";
 import { WindowState } from "window-state.slint";
 import { Notice, NoticeKind } from "components/notice.slint";
-import { StateMessage } from "components/state-message.slint";
+import { StateMessage, StateAction } from "components/state-message.slint";
 import { Input } from "components/focus-ring.slint";
 import { Menus, MenuItem, MenuLayer } from "components/menu.slint";
 import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
@@ -82,6 +82,9 @@ export component AppWindow inherits Window {
             : @image-url("assets/icons/alert_triangle.svg");
         title: root.no-source ? @tr("No source") : root.state-title;
         detail: root.state-detail;
+        // No device open: the action opens the toolbar's device menu (US2 scenario 5).
+        primary: root.preview-state == "no-source" || root.preview-state == "no-devices"
+            ? { id: "open-devices", label: @tr("Choose device") } : { id: "", label: "" };
         on-black: root.video-black;
         action(id) => { root.state-action(id); }
     }
@@ -173,6 +176,15 @@ export component AppWindow inherits Window {
         if (!root.chrome-shown && !root.settings-open) {
             root.instant = true;
             root.chrome-shown = true;
+        }
+    }
+
+    // Shows the chrome at once (the menu opens under the select where it stands, not where it
+    // slides from) and opens the device menu, which takes the keyboard (US2 scenario 5).
+    public function open-device-menu() {
+        if (!root.settings-open) {
+            root.reveal-chrome();
+            toolbar.open-device-menu();
         }
     }
 

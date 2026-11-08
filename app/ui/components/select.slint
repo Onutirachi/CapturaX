@@ -67,7 +67,7 @@ export component Select inherits Rectangle {
         }
     }
 
-    function open-menu() {
+    public function open-menu() {
         if (root.enabled && root.items.length > 0) {
             Menus.show(root.id, root.items, root.current, root.absolute-position.x, root.absolute-position.y,
                 root.width, root.height, root.titled ? 320px : 160px);
