@@ -161,7 +161,7 @@ start ─► devices? ── none ─► NoDevices ── added ─► Opening(c
 
 Playing ── user picks mode / device ─► Opening
 Playing ── window to tray ─► (device closed) ── window shown ─► Opening
-any ── system sleep → wake errors ─► Disconnected ─► Opening when listed again
+any ── system sleep → wake ─► Opening (same device and mode) ── errors ─► Disconnected ─► Opening when listed again (3 s re-read)
 ```
 
 - **Start order (FR-005)**: the last used device if listed; else the most

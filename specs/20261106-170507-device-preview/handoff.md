@@ -301,6 +301,25 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   every error as Failed, so the one visible change is a device that never sends a frame: Failed
   after 5 s instead of the progress ring forever. Smoke run on Windows (phone's virtual camera)
   normal. Linux build not checked yet (no platform code in the change).
+- **T043** committed after the checks (`feat: complete the preview states`,
+  2026-11-08): `app/src/preview.rs` maps each `DeviceError` to its state (Blocked keeps the
+  Linux node: `PreviewState::Blocked { device: Option<String>, node: Option<String> }`, `device:
+  None` = no device listed while access is denied); `Again { device, mode, chosen }` keeps the
+  device of an error or Disconnected state, so Try again and a return reopen it **in the same
+  mode** and still save a user choice once it plays (`resume` for the tray uses the same struct,
+  so the tray also keeps the mode now); a device of an error state that leaves → Disconnected;
+  the open device removed while access is Denied → Blocked (waits for it like Disconnected);
+  `Preview::with_access(reader)` (the app passes `camera_access`) is read only when no device is
+  listed or one leaves; `Preview::waiting()` for T044's 3 s timer; `Event::Relisted { devices,
+  timer }` adds/removes what the monitor missed, and only with `timer` reopens a Disconnected
+  device that is still listed (the re-read right after an error must not loop); every session
+  error sends `Command::Relist` (the app reads `Monitor::devices()` now; the T033 open question);
+  `Event::Resumed` reopens the open device at once and, until it plays, its errors →
+  Disconnected (data-model diagram updated). 20 new tests; fmt, clippy, all tests pass on
+  Windows. Smoke run: with the ezcap open in another program the app showed **In use**
+  (`mapped to InUse ... since playing 34 ms`: R6's heuristic right in a real case), and once
+  freed it played (first frame 466 ms). T044 got the wake detection and the timer's re-read
+  (tasks.md).
 
 Nothing pushed.
 
@@ -443,10 +462,13 @@ Nothing pushed.
 
 ## Next step
 
-0. **US4 on Windows**: T041 and T042 done. Next T043 (complete the preview state machine in
-   app/src/preview.rs: each `DeviceError` to its state, Try again, Disconnected waiting for the
-   same id, the 3 s re-read, NoDevices → Blocked when access is denied, sleep and wake), then
-   T044 (only the 3 s timer, the privacy action and the state logs are left), T045, T060–T063.
+0. **US4 on Windows**: T041–T043 done. Next T044: the 3 s timer
+   (`Preview::waiting()` → `Monitor::devices()` → `Event::Relisted { timer: true }`), wake
+   detection → `Event::Resumed`, the privacy action, the state logs; check whether
+   `Monitor::devices()` is only the running monitor's cached list (then `Command::Relist` and
+   the timer need a fresh probe off the main thread, like `monitor::listed_now`). Then T045
+   (Failed/In use etc. still show the provisional "Cannot open <name>"; in an error state the
+   Device select shows nothing, `open` is None: decide there), T060–T063.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives

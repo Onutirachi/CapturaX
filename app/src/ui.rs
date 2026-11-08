@@ -36,7 +36,7 @@ pub fn state_message(
         S::Opening(_) => ("opening", Default::default()),
         S::Disconnected(_) => ("disconnected", texts.invoke_preview_disconnected(name)),
         // Provisional: US4 (T045) gives each its own text, hint and actions.
-        S::Blocked(_) => ("blocked", texts.invoke_preview_cannot_open(name)),
+        S::Blocked { .. } => ("blocked", texts.invoke_preview_cannot_open(name)),
         S::InUse(_) => ("in-use", texts.invoke_preview_cannot_open(name)),
         S::NoSignal(_) => ("no-signal", texts.invoke_preview_cannot_open(name)),
         S::Failed(_) => ("failed", texts.invoke_preview_cannot_open(name)),

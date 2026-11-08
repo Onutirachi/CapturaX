@@ -3,19 +3,23 @@
 //! the app come out. No GStreamer call, no settings write.
 
 use capture::mode::{self, ModeChoice, Tags};
-use capture::session::SessionEvent;
-use capture::{Device, Mode, MonitorEvent, Range, RangeChoice};
+use capture::session::{DeviceError, SessionEvent};
+use capture::{Access, Device, Mode, MonitorEvent, Range, RangeChoice};
 use settings::{ColorRange, Settings};
 
 /// What the video area shows; one at a time. The string is the device id.
-#[allow(dead_code)] // Blocked, InUse and NoSignal come from the error mapping of US4 (T042).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PreviewState {
     /// No capture device is connected.
     NoDevices,
     Opening(String),
     Playing,
-    Blocked(String),
+    /// The system blocks access: a device that cannot be opened, or none listed while camera
+    /// access is denied (Windows, research R6); on Linux the node that could not be opened.
+    Blocked {
+        device: Option<String>,
+        node: Option<String>,
+    },
     InUse(String),
     Disconnected(String),
     NoSignal(String),
@@ -25,10 +29,19 @@ pub enum PreviewState {
 }
 
 /// What goes into [`Preview::handle`].
-#[allow(dead_code)] // TryAgain comes with US4 (T045).
+#[allow(dead_code)] // TryAgain comes with T045; Resumed and the timer's re-read with T044.
 #[derive(Debug, Clone)]
 pub enum Event {
     Monitor(MonitorEvent),
+    /// The devices listed now, read again ([`Command::Relist`], or the 3 s re-read while
+    /// [`Preview::waiting`], research R1, with `timer` set): what the monitor missed is added or
+    /// removed.
+    Relisted {
+        devices: Vec<Device>,
+        timer: bool,
+    },
+    /// The system woke from sleep: the open device opens again as after a reconnect (FR-014).
+    Resumed,
     /// A session's event, tagged with its session number.
     Session {
         session: u64,
@@ -60,6 +73,9 @@ pub enum Command {
     },
     /// Close the current session.
     Close,
+    /// Read the device list again and hand it back as [`Event::Relisted`] (after a session error:
+    /// the running monitor may still list a device that left).
+    Relist,
     /// Remember the device the user chose: `preview.device`, `preview.recent` and its entry.
     SaveChoice { id: String, name: String },
     /// Store a device's mode choice (`devices."<id>".mode`, FR-009).
@@ -80,6 +96,41 @@ pub enum Command {
     ShowRange,
     /// The state changed: show [`Preview::state`].
     ShowState,
+}
+
+/// A device to open again in the mode it had: after the tray, Try again or a disconnect.
+#[derive(Debug, Clone)]
+struct Again {
+    device: String,
+    /// `None` when unknown (opened again in its stored choice).
+    mode: Option<Mode>,
+    /// Chosen by the user: saved once it plays.
+    chosen: bool,
+}
+
+impl Again {
+    fn of(open: &Open) -> Self {
+        Self {
+            device: open.device.clone(),
+            mode: Some(open.mode.clone()),
+            chosen: open.chosen,
+        }
+    }
+}
+
+/// Reads whether the system lets the app use cameras (`platform::camera_access()` in the app).
+struct AccessReader(Box<dyn Fn() -> Access + Send>);
+
+impl Default for AccessReader {
+    fn default() -> Self {
+        Self(Box::new(|| Access::Unknown))
+    }
+}
+
+impl std::fmt::Debug for AccessReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AccessReader")
+    }
 }
 
 /// The open (or opening) session.
@@ -109,13 +160,40 @@ pub struct Preview {
     /// Session numbers handed out so far.
     sessions: u64,
     hidden: bool,
-    /// The device to open again when the window is shown, and whether the user had chosen it.
-    resume: Option<(String, bool)>,
+    /// The device to open again when the window is shown.
+    resume: Option<Again>,
+    /// The device of an error or disconnected state: Try again, or its return, opens it again.
+    again: Option<Again>,
+    /// The device was opened again after a wake: until it plays, its errors are a disconnect.
+    woke: bool,
+    access: AccessReader,
 }
 
 impl Preview {
+    #[cfg(test)]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// A preview that reads camera access with `access` (only when a state depends on it).
+    pub fn with_access(access: impl Fn() -> Access + Send + 'static) -> Self {
+        Self {
+            access: AccessReader(Box::new(access)),
+            ..Self::default()
+        }
+    }
+
+    /// Waiting for a device to come (no devices, the open one disconnected, or blocked while it
+    /// is not listed): the app reads the list again every 3 s meanwhile (research R1).
+    #[allow(dead_code)] // The 3 s timer comes with T044.
+    pub fn waiting(&self) -> bool {
+        match self.state.as_ref() {
+            Some(PreviewState::NoDevices | PreviewState::Disconnected(_)) => true,
+            Some(PreviewState::Blocked { device, .. }) => device
+                .as_ref()
+                .is_none_or(|id| capture::device::find(id, &self.devices).is_none()),
+            _ => false,
+        }
     }
 
     /// What the video area shows. Before the monitor's first list: opening nothing yet, shown as
@@ -183,7 +261,7 @@ impl Preview {
     pub fn handle(&mut self, event: Event, settings: &Settings) -> Vec<Command> {
         let mut out = Vec::new();
         let before = self.state.clone();
-        if let Event::Monitor(_) = &event {
+        if let Event::Monitor(_) | Event::Relisted { .. } = &event {
             // Learnt after the change too (renumbering); before it for a device about to leave.
             self.learn_names();
         }
@@ -194,25 +272,24 @@ impl Preview {
                 self.start(settings, &mut out);
             }
             Event::Monitor(MonitorEvent::Added(device)) => {
-                self.devices.retain(|d| d.id != device.id);
+                let id = device.id.clone();
+                self.devices.retain(|d| d.id != id);
                 self.devices.push(device);
                 capture::device::numbered(&mut self.devices);
-                if self.listed && self.state == Some(PreviewState::NoDevices) {
-                    self.start(settings, &mut out);
-                }
+                self.came(&id, settings, &mut out);
             }
             Event::Monitor(MonitorEvent::Removed(id)) => {
                 self.devices.retain(|d| d.id != id);
                 capture::device::numbered(&mut self.devices);
-                if self.open.as_ref().is_some_and(|o| o.device == id) {
-                    self.open = None;
-                    out.push(Command::Close);
-                    self.state = Some(PreviewState::Disconnected(id));
-                } else if self.resume.as_ref().is_some_and(|(r, _)| *r == id) {
-                    self.resume = None;
-                    self.state = Some(PreviewState::Disconnected(id));
-                } else if self.devices.is_empty() && self.open.is_none() {
-                    self.state = Some(PreviewState::NoDevices);
+                self.left(&id, &mut out);
+            }
+            Event::Relisted { devices, timer } => self.relisted(devices, timer, settings, &mut out),
+            Event::Resumed => {
+                if let Some(open) = &self.open {
+                    log::info!("preview: woke from sleep, opening {} again", open.device);
+                    self.again = Some(Again::of(open));
+                    self.woke = true;
+                    self.reopen(settings, &mut out);
                 }
             }
             Event::Session { session, event } => self.session_event(session, event, &mut out),
@@ -220,7 +297,13 @@ impl Preview {
                 if self.open.as_ref().is_some_and(|o| o.device == id) {
                     log::info!("preview: {id} is already open");
                 } else if self.hidden {
-                    self.resume = Some((id, true));
+                    // No longer waiting for another device either.
+                    self.again = None;
+                    self.resume = Some(Again {
+                        device: id,
+                        mode: None,
+                        chosen: true,
+                    });
                 } else {
                     self.open_device(&id, true, None, settings, &mut out);
                 }
@@ -241,18 +324,12 @@ impl Preview {
                     out.push(Command::ShowRange);
                 }
             }
-            Event::TryAgain => {
-                if let Some(id) = self.failed_device()
-                    && !self.hidden
-                {
-                    self.open_device(&id, false, None, settings, &mut out);
-                }
-            }
+            Event::TryAgain => self.try_again(settings, &mut out),
             Event::Hidden => {
                 if !self.hidden {
                     self.hidden = true;
                     if let Some(open) = self.open.take() {
-                        self.resume = Some((open.device, open.chosen));
+                        self.resume = Some(Again::of(&open));
                         out.push(Command::Close);
                     }
                 }
@@ -260,9 +337,10 @@ impl Preview {
             Event::Shown => {
                 if self.hidden {
                     self.hidden = false;
-                    if let Some((id, chosen)) = self.resume.take() {
-                        self.open_device(&id, chosen, None, settings, &mut out);
-                    } else if self.listed && self.state == Some(PreviewState::NoDevices) {
+                    if let Some(again) = self.resume.take() {
+                        let mode = self.offered(&again);
+                        self.open_device(&again.device, again.chosen, mode, settings, &mut out);
+                    } else if self.listed && self.none_listed_state() {
                         self.start(settings, &mut out);
                     }
                 }
@@ -284,10 +362,192 @@ impl Preview {
         )
         .map(|d| d.id.clone());
         match chosen {
-            None => self.state = Some(PreviewState::NoDevices),
-            Some(id) if self.hidden => self.resume = Some((id, false)),
+            None => self.none_listed(),
+            Some(id) if self.hidden => {
+                self.resume = Some(Again {
+                    device: id,
+                    mode: None,
+                    chosen: false,
+                });
+            }
             Some(id) => self.open_device(&id, false, None, settings, out),
         }
+    }
+
+    /// No device is listed: "No devices", or Blocked when camera access is denied (on Windows a
+    /// denied device is not listed at all, research R6).
+    fn none_listed(&mut self) {
+        self.state = Some(if (self.access.0)() == Access::Denied {
+            PreviewState::Blocked {
+                device: None,
+                node: None,
+            }
+        } else {
+            PreviewState::NoDevices
+        });
+    }
+
+    /// The state says that no device is listed (No devices, or Blocked without a device).
+    fn none_listed_state(&self) -> bool {
+        matches!(
+            self.state,
+            Some(PreviewState::NoDevices | PreviewState::Blocked { device: None, .. })
+        )
+    }
+
+    /// The device an error or disconnected state names.
+    fn state_device(&self) -> Option<&str> {
+        match self.state.as_ref()? {
+            PreviewState::Blocked { device, .. } => device.as_deref(),
+            PreviewState::InUse(id)
+            | PreviewState::Disconnected(id)
+            | PreviewState::NoSignal(id)
+            | PreviewState::Failed(id) => Some(id),
+            _ => None,
+        }
+    }
+
+    /// A device came (from the monitor or a re-read): the device a state waits for opens again
+    /// in the same mode (F4); with none listed before, the start device opens; any other only
+    /// appears in the menu (spec edge case).
+    fn came(&mut self, id: &str, settings: &Settings, out: &mut Vec<Command>) {
+        if !self.listed {
+            return;
+        }
+        let waited = matches!(
+            &self.state,
+            Some(PreviewState::Disconnected(w) | PreviewState::Blocked { device: Some(w), .. }) if w == id
+        );
+        if waited {
+            log::info!("preview: {id} is back");
+            self.reopen(settings, out);
+        } else if self.none_listed_state() {
+            self.start(settings, out);
+        }
+    }
+
+    /// A device left: the open one (or the one to open when shown) disconnects, or shows Blocked
+    /// when camera access is now denied (spec edge case); so does the device of an error state;
+    /// with none left and nothing waited for, "No devices".
+    fn left(&mut self, id: &str, out: &mut Vec<Command>) {
+        if let Some(open) = self.open.take_if(|o| o.device == id) {
+            out.push(Command::Close);
+            self.again = Some(Again::of(&open));
+            self.state = Some(self.lost(id));
+        } else if let Some(again) = self.resume.take_if(|r| r.device == id) {
+            self.again = Some(again);
+            self.state = Some(self.lost(id));
+        } else if self.state_device() == Some(id) {
+            if !matches!(self.state, Some(PreviewState::Disconnected(_))) {
+                self.state = Some(self.lost(id));
+            }
+        } else if self.devices.is_empty() && self.open.is_none() && self.state_device().is_none() {
+            self.none_listed();
+        }
+    }
+
+    /// The state of a device that left: Blocked when camera access is denied, else Disconnected.
+    fn lost(&self, id: &str) -> PreviewState {
+        if (self.access.0)() == Access::Denied {
+            PreviewState::Blocked {
+                device: Some(id.to_string()),
+                node: None,
+            }
+        } else {
+            PreviewState::Disconnected(id.to_string())
+        }
+    }
+
+    /// The list read again: what the monitor missed is added or removed; on the timer, a
+    /// disconnected device still (or again) listed opens again (after a wake it may never have
+    /// left); with none listed, camera access is read again.
+    fn relisted(&mut self, devices: Vec<Device>, timer: bool, settings: &Settings, out: &mut Vec<Command>) {
+        let gone: Vec<String> = self
+            .devices
+            .iter()
+            .filter(|d| capture::device::find(&d.id, &devices).is_none())
+            .map(|d| d.id.clone())
+            .collect();
+        let new: Vec<String> = devices
+            .iter()
+            .filter(|d| capture::device::find(&d.id, &self.devices).is_none())
+            .map(|d| d.id.clone())
+            .collect();
+        self.devices = devices;
+        self.learn_names();
+        for id in &gone {
+            log::info!("preview: {id} is no longer listed");
+            self.left(id, out);
+        }
+        for id in &new {
+            log::info!("preview: {id} is listed now");
+            self.came(id, settings, out);
+        }
+        if timer
+            && let Some(PreviewState::Disconnected(id)) = &self.state
+            && capture::device::find(id, &self.devices).is_some()
+        {
+            log::info!("preview: {id} is listed, opening it again");
+            self.reopen(settings, out);
+        }
+        if self.listed && self.devices.is_empty() && self.none_listed_state() {
+            self.none_listed();
+        }
+    }
+
+    /// Opens the device of `again` in its mode (its stored choice when it no longer offers that
+    /// mode); while hidden, it opens when the window is shown.
+    fn reopen(&mut self, settings: &Settings, out: &mut Vec<Command>) {
+        let Some(again) = self.again.clone() else {
+            return;
+        };
+        if self.hidden {
+            self.resume = Some(again);
+            return;
+        }
+        let mode = self.offered(&again);
+        self.open_device(&again.device, again.chosen, mode, settings, out);
+    }
+
+    /// The mode of `again` when its device still offers it.
+    fn offered(&self, again: &Again) -> Option<Mode> {
+        let device = capture::device::find(&again.device, &self.devices)?;
+        again.mode.clone().filter(|m| device.modes.contains(m))
+    }
+
+    /// Try again: the device of an error state opens again in the same mode; one no longer
+    /// listed disconnects (or stays Blocked while access is denied); Blocked without a device
+    /// goes through the start order again (list and access read again).
+    fn try_again(&mut self, settings: &Settings, out: &mut Vec<Command>) {
+        if self.hidden {
+            return;
+        }
+        let id = match self.state.as_ref() {
+            Some(PreviewState::Blocked { device: None, .. }) => {
+                self.start(settings, out);
+                return;
+            }
+            Some(
+                PreviewState::Blocked { .. }
+                | PreviewState::InUse(_)
+                | PreviewState::NoSignal(_)
+                | PreviewState::Failed(_),
+            ) => self.state_device().map(str::to_string),
+            _ => None,
+        };
+        let Some(id) = id else { return };
+        if capture::device::find(&id, &self.devices).is_none() {
+            self.state = Some(self.lost(&id));
+            return;
+        }
+        if self.again.as_ref().is_none_or(|a| a.device != id) {
+            self.again = Some(Again {
+                device: id,
+                mode: None,
+                chosen: false,
+            });
+        }
+        self.reopen(settings, out);
     }
 
     /// The user picked a mode for the open device: stored when it differs from the stored text
@@ -336,9 +596,15 @@ impl Preview {
                 out.push(Command::Close);
             }
             out.push(Command::ShowRange);
+            self.again = Some(Again {
+                device: device.id.clone(),
+                mode: None,
+                chosen,
+            });
             self.state = Some(PreviewState::Failed(device.id));
             return;
         };
+        self.again = None;
         self.sessions += 1;
         let session = self.sessions;
         self.open = Some(Open {
@@ -367,6 +633,7 @@ impl Preview {
         match event {
             SessionEvent::FirstFrame => {
                 self.state = Some(PreviewState::Playing);
+                self.woke = false;
                 if open.chosen {
                     open.chosen = false;
                     if let Some(device) = capture::device::find(&open.device, &self.devices) {
@@ -380,27 +647,26 @@ impl Preview {
             SessionEvent::Error(error) => {
                 let id = open.device.clone();
                 log::warn!("preview: session {session} on {id} failed: {error:?}");
+                self.again = Some(Again::of(open));
                 self.open = None;
                 out.push(Command::Close);
-                // Every error is Failed for now; US4 maps each to its own state.
-                self.state = Some(PreviewState::Failed(id));
+                // The running monitor may still list a device that left (T033).
+                out.push(Command::Relist);
+                self.state = Some(match error {
+                    DeviceError::Blocked { node } => PreviewState::Blocked { device: Some(id), node },
+                    // After a wake: a reconnect (FR-014), opened again once listed.
+                    _ if self.woke => PreviewState::Disconnected(id),
+                    DeviceError::Gone => PreviewState::Disconnected(id),
+                    DeviceError::InUse => PreviewState::InUse(id),
+                    DeviceError::NoSignal => PreviewState::NoSignal(id),
+                    DeviceError::Failed(_) => PreviewState::Failed(id),
+                });
             }
             SessionEvent::Range(range) => {
                 open.in_use = Some(range);
                 out.push(Command::ShowRange);
             }
             SessionEvent::Playing { .. } => {}
-        }
-    }
-
-    /// The device of a state that offers Try again.
-    fn failed_device(&self) -> Option<String> {
-        match self.state.as_ref()? {
-            PreviewState::Blocked(id)
-            | PreviewState::InUse(id)
-            | PreviewState::NoSignal(id)
-            | PreviewState::Failed(id) => Some(id.clone()),
-            _ => None,
         }
     }
 }
@@ -595,7 +861,6 @@ pub fn color_range(choice: RangeChoice) -> ColorRange {
 mod tests {
     use super::*;
     use capture::mode::Format;
-    use capture::session::DeviceError;
 
     fn mode(width: u32, height: u32, fps: i32) -> Mode {
         Mode {
@@ -806,6 +1071,346 @@ mod tests {
         assert_eq!(id, "card");
         assert!(new_session > session);
         assert_eq!(p.state(), PreviewState::Opening("card".into()));
+    }
+
+    fn error(session: u64, error: DeviceError) -> Event {
+        Event::Session {
+            session,
+            event: SessionEvent::Error(error),
+        }
+    }
+
+    fn added(device: Device) -> Event {
+        Event::Monitor(MonitorEvent::Added(device))
+    }
+
+    fn removed(id: &str) -> Event {
+        Event::Monitor(MonitorEvent::Removed(id.into()))
+    }
+
+    fn relisted(devices: Vec<Device>, timer: bool) -> Event {
+        Event::Relisted { devices, timer }
+    }
+
+    fn blocked(device: Option<&str>, node: Option<&str>) -> PreviewState {
+        PreviewState::Blocked {
+            device: device.map(Into::into),
+            node: node.map(Into::into),
+        }
+    }
+
+    /// A preview whose camera access reads from the returned cell.
+    fn with_access(access: Access) -> (Preview, std::sync::Arc<std::sync::Mutex<Access>>) {
+        let cell = std::sync::Arc::new(std::sync::Mutex::new(access));
+        let read = std::sync::Arc::clone(&cell);
+        (Preview::with_access(move || *read.lock().unwrap()), cell)
+    }
+
+    /// The card playing in 1280 × 720 (not its default mode); returns its session.
+    fn playing_720(p: &mut Preview, settings: &Settings, devices: Vec<Device>) -> u64 {
+        p.handle(listed(devices), settings);
+        let session = opened(&p.handle(Event::ChooseMode(choice("1280x720@60")), settings))
+            .unwrap()
+            .2;
+        p.handle(first_frame(session), settings);
+        assert_eq!(p.state(), PreviewState::Playing);
+        session
+    }
+
+    #[test]
+    fn each_session_error_shows_its_state_and_asks_for_the_list() {
+        let cases = [
+            (DeviceError::InUse, PreviewState::InUse("card".into())),
+            (
+                DeviceError::Blocked {
+                    node: Some("/dev/video0".into()),
+                },
+                blocked(Some("card"), Some("/dev/video0")),
+            ),
+            (DeviceError::Blocked { node: None }, blocked(Some("card"), None)),
+            (DeviceError::Gone, PreviewState::Disconnected("card".into())),
+            (DeviceError::NoSignal, PreviewState::NoSignal("card".into())),
+            (DeviceError::Failed("boom".into()), PreviewState::Failed("card".into())),
+        ];
+        for (err, state) in cases {
+            let settings = Settings::default();
+            let mut p = Preview::new();
+            let session = opened(&p.handle(listed(vec![card()]), &settings)).unwrap().2;
+            let out = p.handle(error(session, err.clone()), &settings);
+            assert_eq!(p.state(), state, "{err:?}");
+            assert!(closes(&out), "{err:?}");
+            assert!(has(&out, |c| matches!(c, Command::Relist)), "{err:?}");
+            assert!(has(&out, |c| matches!(c, Command::ShowState)), "{err:?}");
+            assert_eq!(p.session(), None);
+        }
+    }
+
+    #[test]
+    fn try_again_reopens_in_the_same_mode() {
+        for err in [
+            DeviceError::InUse,
+            DeviceError::NoSignal,
+            DeviceError::Blocked { node: None },
+            DeviceError::Failed("x".into()),
+        ] {
+            let settings = Settings::default();
+            let mut p = Preview::new();
+            let session = playing_720(&mut p, &settings, vec![card()]);
+            p.handle(error(session, err.clone()), &settings);
+            let (id, mode, new) = opened(&p.handle(Event::TryAgain, &settings)).unwrap();
+            assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)), "{err:?}");
+            assert!(new > session);
+            assert_eq!(p.state(), PreviewState::Opening("card".into()));
+        }
+    }
+
+    #[test]
+    fn try_again_keeps_a_user_choice_to_save() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![card(), webcam()]), &settings);
+        let session = opened(&p.handle(Event::ChooseDevice("cam".into()), &settings))
+            .unwrap()
+            .2;
+        p.handle(error(session, DeviceError::InUse), &settings);
+        let session = opened(&p.handle(Event::TryAgain, &settings)).unwrap().2;
+        assert!(saves(&p.handle(first_frame(session), &settings)));
+    }
+
+    #[test]
+    fn try_again_does_nothing_where_not_offered() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![]), &settings);
+        assert!(p.handle(Event::TryAgain, &settings).is_empty());
+        let session = opened(&p.handle(added(card()), &settings)).unwrap().2;
+        assert!(p.handle(Event::TryAgain, &settings).is_empty(), "opening");
+        p.handle(first_frame(session), &settings);
+        assert!(p.handle(Event::TryAgain, &settings).is_empty(), "playing");
+        p.handle(removed("card"), &settings);
+        p.handle(added(webcam()), &settings);
+        assert!(p.handle(Event::TryAgain, &settings).is_empty(), "disconnected");
+    }
+
+    #[test]
+    fn try_again_on_a_device_no_longer_listed_disconnects() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = opened(&p.handle(listed(vec![card(), webcam()]), &settings)).unwrap().2;
+        p.handle(error(session, DeviceError::Failed("x".into())), &settings);
+        // The re-read after the error no longer lists it.
+        p.handle(relisted(vec![webcam()], false), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(opened(&p.handle(Event::TryAgain, &settings)).is_none());
+    }
+
+    #[test]
+    fn disconnected_reopens_the_same_device_in_the_same_mode() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card(), webcam()]);
+        let out = p.handle(removed("card"), &settings);
+        assert!(closes(&out));
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(p.waiting());
+        // Another device plugged in meanwhile only appears in the menu (spec edge case).
+        p.handle(removed("cam"), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        let out = p.handle(added(webcam()), &settings);
+        assert!(opened(&out).is_none());
+        assert_eq!(p.menus(&settings).0.len(), 1);
+        let (id, mode, new) = opened(&p.handle(added(card()), &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+        assert!(new > session);
+        assert!(!p.waiting());
+    }
+
+    #[test]
+    fn a_device_that_comes_back_without_the_mode_opens_its_stored_choice() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(removed("card"), &settings);
+        let back = Device::described("card", "ezcap Live GAMER ULTRA", vec![mode(1920, 1080, 60)]);
+        assert_eq!(
+            opened(&p.handle(added(back), &settings)).unwrap().1,
+            mode(1920, 1080, 60)
+        );
+    }
+
+    #[test]
+    fn gone_waits_and_the_user_can_pick_another_device() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = opened(&p.handle(listed(vec![card(), webcam()]), &settings)).unwrap().2;
+        p.handle(error(session, DeviceError::Gone), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        let (id, ..) = opened(&p.handle(Event::ChooseDevice("cam".into()), &settings)).unwrap();
+        assert_eq!(id, "cam");
+        // No longer waited for: its return does not switch.
+        p.handle(removed("card"), &settings);
+        assert!(opened(&p.handle(added(card()), &settings)).is_none());
+    }
+
+    #[test]
+    fn the_re_read_adds_and_removes_what_the_monitor_missed() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![]), &settings);
+        assert!(p.waiting());
+        // A missed add while waiting with no devices: the start device opens.
+        let out = p.handle(relisted(vec![card()], true), &settings);
+        assert_eq!(opened(&out).map(|o| o.0).as_deref(), Some("card"));
+        let session = p.session().unwrap();
+        p.handle(first_frame(session), &settings);
+        // A missed remove of the open device disconnects.
+        let out = p.handle(relisted(vec![webcam()], false), &settings);
+        assert!(closes(&out));
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert_eq!(p.devices().len(), 1);
+        // The same list again changes nothing.
+        assert!(p.handle(relisted(vec![webcam()], true), &settings).is_empty());
+        // Its return through a re-read reopens it.
+        let out = p.handle(relisted(vec![webcam(), card()], true), &settings);
+        assert_eq!(opened(&out).map(|o| o.0).as_deref(), Some("card"));
+    }
+
+    #[test]
+    fn a_device_of_an_error_state_that_leaves_disconnects() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = opened(&p.handle(listed(vec![card(), webcam()]), &settings)).unwrap().2;
+        p.handle(error(session, DeviceError::InUse), &settings);
+        p.handle(removed("card"), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(opened(&p.handle(added(card()), &settings)).is_some());
+    }
+
+    #[test]
+    fn no_devices_with_camera_access_denied_is_blocked() {
+        let settings = Settings::default();
+        let (mut p, access) = with_access(Access::Denied);
+        p.handle(listed(vec![]), &settings);
+        assert_eq!(p.state(), blocked(None, None));
+        assert!(p.waiting());
+        // Still denied: Try again stays Blocked.
+        let out = p.handle(Event::TryAgain, &settings);
+        assert!(opened(&out).is_none());
+        assert_eq!(p.state(), blocked(None, None));
+        // Allowed again, still nothing listed: the re-read shows No devices.
+        *access.lock().unwrap() = Access::Allowed;
+        p.handle(relisted(vec![], true), &settings);
+        assert_eq!(p.state(), PreviewState::NoDevices);
+        *access.lock().unwrap() = Access::Denied;
+        p.handle(relisted(vec![], true), &settings);
+        assert_eq!(p.state(), blocked(None, None));
+        // The device listed once allowed opens.
+        *access.lock().unwrap() = Access::Allowed;
+        assert!(opened(&p.handle(added(card()), &settings)).is_some());
+    }
+
+    #[test]
+    fn unknown_access_is_not_blocked() {
+        let (mut p, _) = with_access(Access::Unknown);
+        p.handle(listed(vec![]), &Settings::default());
+        assert_eq!(p.state(), PreviewState::NoDevices);
+    }
+
+    #[test]
+    fn access_turned_off_while_playing_is_blocked() {
+        let settings = Settings::default();
+        // Windows: the session error is mapped to Blocked by the capture crate.
+        let mut p = Preview::new();
+        let session = opened(&p.handle(listed(vec![card()]), &settings)).unwrap().2;
+        p.handle(first_frame(session), &settings);
+        p.handle(error(session, DeviceError::Blocked { node: None }), &settings);
+        assert_eq!(p.state(), blocked(Some("card"), None));
+        assert!(!p.waiting(), "still listed");
+
+        // The device leaves the list as access goes off: Blocked, not Disconnected, and it opens
+        // again when it is listed again.
+        let (mut p, access) = with_access(Access::Allowed);
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        *access.lock().unwrap() = Access::Denied;
+        let out = p.handle(removed("card"), &settings);
+        assert!(closes(&out));
+        assert_eq!(p.state(), blocked(Some("card"), None));
+        assert!(p.waiting());
+        assert!(opened(&p.handle(Event::TryAgain, &settings)).is_none());
+        *access.lock().unwrap() = Access::Allowed;
+        let (id, mode, new) = opened(&p.handle(added(card()), &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+        assert!(new > session);
+    }
+
+    #[test]
+    fn errors_after_a_wake_disconnect_and_reopen_once_listed() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        // The wake reopens the device at once.
+        let out = p.handle(Event::Resumed, &settings);
+        // Open closes the old session first.
+        let (_, mode, woke) = opened(&out).unwrap();
+        assert_eq!(mode, self::mode(1280, 720, 60));
+        assert!(woke > session);
+        // Not ready yet: a disconnect, not Failed.
+        let out = p.handle(error(woke, DeviceError::Failed("x".into())), &settings);
+        assert!(has(&out, |c| matches!(c, Command::Relist)));
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        // The re-read right after the error does not reopen (no loop); the timer's does.
+        assert!(opened(&p.handle(relisted(vec![card()], false), &settings)).is_none());
+        let again = opened(&p.handle(relisted(vec![card()], true), &settings)).unwrap();
+        assert_eq!(again.1, self::mode(1280, 720, 60));
+        p.handle(first_frame(again.2), &settings);
+        assert_eq!(p.state(), PreviewState::Playing);
+        // Playing again: errors map as usual.
+        p.handle(error(again.2, DeviceError::Failed("x".into())), &settings);
+        assert_eq!(p.state(), PreviewState::Failed("card".into()));
+    }
+
+    #[test]
+    fn a_wake_with_nothing_open_does_nothing() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![]), &settings);
+        assert!(p.handle(Event::Resumed, &settings).is_empty());
+        let session = opened(&p.handle(added(card()), &settings)).unwrap().2;
+        p.handle(Event::Hidden, &settings);
+        assert!(p.handle(Event::Resumed, &settings).is_empty());
+        assert!(session > 0);
+    }
+
+    #[test]
+    fn a_device_that_returns_while_hidden_opens_when_shown() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(removed("card"), &settings);
+        p.handle(Event::Hidden, &settings);
+        let out = p.handle(added(card()), &settings);
+        assert!(opened(&out).is_none(), "nothing opens in the tray");
+        let (id, mode, _) = opened(&p.handle(Event::Shown, &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+
+        // Removed while in the tray: Disconnected, and it opens when shown after it came back.
+        p.handle(Event::Hidden, &settings);
+        p.handle(removed("card"), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(opened(&p.handle(Event::Shown, &settings)).is_none());
+        assert!(opened(&p.handle(added(card()), &settings)).is_some());
+    }
+
+    #[test]
+    fn hidden_and_shown_keep_the_mode() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(Event::Hidden, &settings);
+        assert_eq!(
+            opened(&p.handle(Event::Shown, &settings)).unwrap().1,
+            mode(1280, 720, 60)
+        );
     }
 
     #[test]

@@ -257,7 +257,7 @@ impl App {
             window_gone: false,
             reopen_fullscreen: false,
             test_video: None,
-            preview: Preview::new(),
+            preview: Preview::with_access(camera_access),
             menus: None,
             monitor_devices: None,
             session: None,
@@ -414,6 +414,12 @@ impl App {
                 });
             }
             Command::Close => self.close_session(),
+            Command::Relist => {
+                if let Some(monitor) = &self.monitor_devices {
+                    let devices = monitor.devices();
+                    self.preview_event(preview::Event::Relisted { devices, timer: false });
+                }
+            }
             Command::SaveChoice { id, name } => {
                 log::info!("device {id} remembered");
                 self.store.update(|s| s.remember_device(&id, &name));
@@ -453,8 +459,10 @@ impl App {
     fn show_preview_state(&mut self) {
         let state = self.preview.state();
         let name = match &state {
+            PreviewState::Blocked { device, .. } => {
+                device.as_deref().map(|id| self.preview.name(id)).unwrap_or_default()
+            }
             PreviewState::Opening(id)
-            | PreviewState::Blocked(id)
             | PreviewState::InUse(id)
             | PreviewState::Disconnected(id)
             | PreviewState::NoSignal(id)
