@@ -287,6 +287,20 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   `ms-settings:privacy-webcam`, a failure logged), `linux/camera.rs` (Unknown, no-op). This PC:
   three `Allow`, HKLM `NonPackaged` missing → Allowed. Not used by the app until T044; not built
   on Linux yet (trivial, checked in the Linux batch).
+- **T042** committed after the checks (`feat: map device errors`): `session::map_error(windows,
+  ErrorCode, message, debug, since_playing, still_listed, Access) -> DeviceError` (pure, R6
+  branches; `ErrorCode::of` reads the GStreamer domain/code; `node_in` takes `/dev/...` from the
+  message or debug text); `Session::open(.., context: ErrorContext { windows, access }, ..)`, the
+  app passes `platform::IS_WINDOWS` and a closure over `platform::camera_access()` (so T044's
+  "access passed to the mapping" is done); `since_playing` counts from the call to
+  set_state(Playing); "still listed" is a fresh `gst::DeviceMonitor` probe at error time
+  (`monitor::listed_now`), not the running monitor's list, which lagged in the T033 case. The
+  mapped error and its inputs are logged. NoSignal: the open worker waits after Playing and sends
+  it when no frame came within 5 s (`NO_SIGNAL_AFTER`). `Session::test_without_frames`
+  (doc-hidden, `num-buffers=0`) for the pipeline test (5.5 s). Until T043 the preview still shows
+  every error as Failed, so the one visible change is a device that never sends a frame: Failed
+  after 5 s instead of the progress ring forever. Smoke run on Windows (phone's virtual camera)
+  normal. Linux build not checked yet (no platform code in the change).
 
 Nothing pushed.
 
@@ -429,6 +443,10 @@ Nothing pushed.
 
 ## Next step
 
+0. **US4 on Windows**: T041 and T042 done. Next T043 (complete the preview state machine in
+   app/src/preview.rs: each `DeviceError` to its state, Try again, Disconnected waiting for the
+   same id, the 3 s re-read, NoDevices → Blocked when access is denied, sleep and wake), then
+   T044 (only the 3 s timer, the privacy action and the state logs are left), T045, T060–T063.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives

@@ -396,6 +396,10 @@ impl App {
                     &mode,
                     range,
                     session,
+                    capture::ErrorContext {
+                        windows: platform::IS_WINDOWS,
+                        access: Box::new(camera_access),
+                    },
                     move |frame| inbox.send_frame(frame),
                     move |event| {
                         let _ = proxy.send_event(UserEvent::Session { session, event });
@@ -1479,5 +1483,14 @@ impl ApplicationHandler<UserEvent> for App {
         self.snap = None;
         self.window = None;
         log::info!("quit");
+    }
+}
+
+/// The camera privacy switch, for the session's error mapping (research R6).
+fn camera_access() -> capture::Access {
+    match platform::camera_access() {
+        platform::Access::Allowed => capture::Access::Allowed,
+        platform::Access::Denied => capture::Access::Denied,
+        platform::Access::Unknown => capture::Access::Unknown,
     }
 }

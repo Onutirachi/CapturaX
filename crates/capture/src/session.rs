@@ -29,6 +29,122 @@ pub enum DeviceError {
     Failed(String),
 }
 
+/// Whether the system lets the app use cameras, as `platform::camera_access()` reads it; the app
+/// passes it in, this crate makes no OS calls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Access {
+    Allowed,
+    Denied,
+    Unknown,
+}
+
+/// What the app tells a session about the system, for mapping its errors (research R6); this
+/// crate makes no OS calls and has no platform conditions.
+pub struct ErrorContext {
+    /// Built for Windows (`platform::IS_WINDOWS`): Media Foundation's errors are generic.
+    pub windows: bool,
+    /// Reads the camera privacy switch (`platform::camera_access()`) when the device fails.
+    pub access: Box<dyn Fn() -> Access + Send + Sync>,
+}
+
+impl ErrorContext {
+    /// No platform knowledge: the test video, and tests.
+    pub fn none() -> Self {
+        Self {
+            windows: false,
+            access: Box::new(|| Access::Unknown),
+        }
+    }
+}
+
+/// The GStreamer errors the mapping tells apart (research R6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorCode {
+    ResourceBusy,
+    ResourceOpenReadWrite,
+    ResourceNotFound,
+    ResourceRead,
+    StreamFailed,
+    Other,
+}
+
+impl ErrorCode {
+    fn of(error: &gst::glib::Error) -> Self {
+        if let Some(code) = error.kind::<gst::ResourceError>() {
+            match code {
+                gst::ResourceError::Busy => Self::ResourceBusy,
+                gst::ResourceError::OpenReadWrite => Self::ResourceOpenReadWrite,
+                gst::ResourceError::NotFound => Self::ResourceNotFound,
+                gst::ResourceError::Read => Self::ResourceRead,
+                _ => Self::Other,
+            }
+        } else if error.kind::<gst::StreamError>() == Some(gst::StreamError::Failed) {
+            Self::StreamFailed
+        } else {
+            Self::Other
+        }
+    }
+}
+
+/// A `STREAM/FAILED` this soon after asking for Playing means another app holds the device on
+/// Windows (research R6).
+const IN_USE_WITHIN: Duration = Duration::from_secs(2);
+
+/// No frame this long after Playing → [`DeviceError::NoSignal`].
+pub const NO_SIGNAL_AFTER: Duration = Duration::from_secs(5);
+
+/// Maps a pipeline error to why the device cannot play (research R6). `message` is GStreamer's
+/// error text, `debug` its debug text; `since_playing` is the time since Playing was asked for
+/// (None before); `still_listed` whether the device is listed now; `access` the camera privacy
+/// switch (Windows).
+pub fn map_error(
+    windows: bool,
+    code: ErrorCode,
+    message: &str,
+    debug: &str,
+    since_playing: Option<Duration>,
+    still_listed: bool,
+    access: Access,
+) -> DeviceError {
+    if windows {
+        if access == Access::Denied {
+            DeviceError::Blocked { node: None }
+        } else if !still_listed {
+            DeviceError::Gone
+        } else if code == ErrorCode::StreamFailed && since_playing.is_some_and(|t| t <= IN_USE_WITHIN) {
+            DeviceError::InUse
+        } else {
+            DeviceError::Failed(message.to_string())
+        }
+    } else {
+        match code {
+            ErrorCode::ResourceBusy => DeviceError::InUse,
+            ErrorCode::ResourceOpenReadWrite
+                if message.contains("Permission denied") || debug.contains("Permission denied") =>
+            {
+                DeviceError::Blocked {
+                    node: node_in(message).or_else(|| node_in(debug)),
+                }
+            }
+            ErrorCode::ResourceNotFound => DeviceError::Gone,
+            ErrorCode::ResourceRead if !still_listed => DeviceError::Gone,
+            _ => DeviceError::Failed(message.to_string()),
+        }
+    }
+}
+
+/// The first `/dev/...` path in a text, as v4l2src writes it ("Could not open device
+/// '/dev/video0' for reading and writing.").
+fn node_in(text: &str) -> Option<String> {
+    let start = text.find("/dev/")?;
+    let node: String = text[start..]
+        .chars()
+        .take_while(|c| !c.is_whitespace() && !matches!(c, '\'' | '"' | ':' | ')' | ','))
+        .collect();
+    let node = node.trim_end_matches('.');
+    (node.len() > "/dev/".len()).then(|| node.to_string())
+}
+
 /// What a session reports, on a GStreamer thread.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SessionEvent {
@@ -58,6 +174,12 @@ struct Shared {
     /// When the luma was last sampled for the range detector.
     sampled: Mutex<Option<Instant>>,
     session: u64,
+    /// The open device's id, to check whether it is still listed when it fails; None for the
+    /// test video.
+    device_id: Option<String>,
+    context: ErrorContext,
+    /// When Playing was asked for.
+    play_requested: Mutex<Option<Instant>>,
     on_frame: Box<FrameSink>,
     on_event: Box<EventSink>,
 }
@@ -90,22 +212,40 @@ const JPEG_DECODERS: [&str; 3] = ["nvjpegdec", "d3d12mjpegdec", "jpegdec"];
 
 /// How the pipeline's source is made.
 enum Source {
-    Device { device: gst::Device, mode: Mode },
-    Test { width: u32, height: u32, fps: u32 },
+    Device {
+        device: gst::Device,
+        mode: Mode,
+    },
+    /// `frames`: stop after this many (Some(0) never produces one, for the no-signal test).
+    Test {
+        width: u32,
+        height: u32,
+        fps: u32,
+        frames: Option<u32>,
+    },
 }
 
 impl Session {
     /// Opens a device in a mode. Returns at once: the pipeline is built and set to Playing on a
     /// short-lived worker (that can block on Windows), and the outcome arrives as events.
+    /// `context` maps the device's errors (research R6).
     pub fn open(
         device: &Device,
         mode: &Mode,
         range: RangeChoice,
         session: u64,
+        context: ErrorContext,
         on_frame: impl Fn(Frame) + Send + Sync + 'static,
         on_event: impl Fn(SessionEvent) + Send + Sync + 'static,
     ) -> Self {
-        let this = Self::new(range, session, Box::new(on_frame), Box::new(on_event));
+        let this = Self::new(
+            range,
+            session,
+            Some(device.id.clone()),
+            context,
+            Box::new(on_frame),
+            Box::new(on_event),
+        );
         match &device.gst {
             Some(gst_device) => this.start(Source::Device {
                 device: gst_device.clone(),
@@ -131,16 +271,36 @@ impl Session {
         width: u32,
         height: u32,
         fps: u32,
+        frames: Option<u32>,
         session: u64,
         on_frame: Box<FrameSink>,
         on_event: Box<EventSink>,
     ) -> Self {
-        let this = Self::new(RangeChoice::Auto, session, on_frame, on_event);
-        this.start(Source::Test { width, height, fps });
+        let this = Self::new(
+            RangeChoice::Auto,
+            session,
+            None,
+            ErrorContext::none(),
+            on_frame,
+            on_event,
+        );
+        this.start(Source::Test {
+            width,
+            height,
+            fps,
+            frames,
+        });
         this
     }
 
-    fn new(range: RangeChoice, session: u64, on_frame: Box<FrameSink>, on_event: Box<EventSink>) -> Self {
+    fn new(
+        range: RangeChoice,
+        session: u64,
+        device_id: Option<String>,
+        context: ErrorContext,
+        on_frame: Box<FrameSink>,
+        on_event: Box<EventSink>,
+    ) -> Self {
         Self {
             shared: Arc::new(Shared {
                 pipeline: Mutex::new(None),
@@ -150,6 +310,9 @@ impl Session {
                 detector: Mutex::new(RangeDetector::new(range, None)),
                 sampled: Mutex::new(None),
                 session,
+                device_id,
+                context,
+                play_requested: Mutex::new(None),
                 on_frame,
                 on_event,
             }),
@@ -179,6 +342,9 @@ impl Session {
                     }
                     *slot = Some(pipeline.clone());
                 }
+                if let Ok(mut requested) = shared.play_requested.lock() {
+                    *requested = Some(Instant::now());
+                }
                 if let Err(err) = pipeline.set_state(gst::State::Playing) {
                     // The bus carries the reason; this is only the fallback text.
                     log::error!("session {}: cannot play: {err}", shared.session);
@@ -192,6 +358,8 @@ impl Session {
                     shared.session,
                     started.elapsed().as_millis()
                 );
+                drop(pipeline);
+                wait_for_signal(&shared);
             });
         if let Err(err) = spawned {
             self.shared
@@ -257,11 +425,17 @@ fn build(source: &Source, shared: &Arc<Shared>) -> Result<gst::Pipeline, String>
                 .map_err(|e| format!("cannot create the device's source: {e}"))?;
             (src, mode.caps(), mode.format.clone())
         }
-        Source::Test { width, height, fps } => {
+        Source::Test {
+            width,
+            height,
+            fps,
+            frames,
+        } => {
             let src = gst::ElementFactory::make("videotestsrc")
                 .name("source")
                 .property("is-live", true)
                 .property_from_str("pattern", "ball")
+                .property("num-buffers", frames.map_or(-1, to_i32))
                 .build()
                 .map_err(|_| "the GStreamer element videotestsrc is missing".to_string())?;
             let caps = gst_video::VideoCapsBuilder::new()
@@ -336,7 +510,31 @@ fn to_i32(value: u32) -> i32 {
     i32::try_from(value).unwrap_or(i32::MAX)
 }
 
-/// Logs every error and warning with its debug text; the first error ends the session.
+/// Waits on the open worker until the first frame, an error or the close; no frame within
+/// [`NO_SIGNAL_AFTER`] → [`DeviceError::NoSignal`].
+fn wait_for_signal(shared: &Shared) {
+    const STEP: Duration = Duration::from_millis(50);
+    let deadline = Instant::now() + NO_SIGNAL_AFTER;
+    let settled = || {
+        shared.closed.load(Ordering::SeqCst)
+            || shared.errored.load(Ordering::SeqCst)
+            || shared.first_frame.load(Ordering::SeqCst)
+    };
+    while !settled() && Instant::now() < deadline {
+        std::thread::sleep(STEP);
+    }
+    if !settled() {
+        log::warn!(
+            "session {}: no frame within {} s",
+            shared.session,
+            NO_SIGNAL_AFTER.as_secs()
+        );
+        shared.fail(DeviceError::NoSignal);
+    }
+}
+
+/// Logs every error and warning with its debug text; the first error ends the session, mapped
+/// to why the device cannot play (research R6).
 fn on_message(shared: &Shared, message: &gst::Message) {
     match message.view() {
         gst::MessageView::Error(err) => {
@@ -347,7 +545,35 @@ fn on_message(shared: &Shared, message: &gst::Message) {
                 err.error(),
                 err.src().map(|s| s.path_string())
             );
-            shared.fail(DeviceError::Failed(err.error().to_string()));
+            if shared.errored.load(Ordering::SeqCst) || shared.closed.load(Ordering::SeqCst) {
+                return;
+            }
+            let since_playing = shared
+                .play_requested
+                .lock()
+                .ok()
+                .and_then(|requested| *requested)
+                .map(|at| at.elapsed());
+            let access = (shared.context.access)();
+            // Read again from the providers: the monitor's own list may lag the device leaving.
+            let still_listed = shared
+                .device_id
+                .as_ref()
+                .is_none_or(|id| crate::monitor::listed_now().iter().any(|device| &device.id == id));
+            let error = map_error(
+                shared.context.windows,
+                ErrorCode::of(&err.error()),
+                &err.error().to_string(),
+                &debug,
+                since_playing,
+                still_listed,
+                access,
+            );
+            log::info!(
+                "session {}: mapped to {error:?} (since playing {since_playing:?}, listed {still_listed}, access {access:?})",
+                shared.session
+            );
+            shared.fail(error);
         }
         gst::MessageView::Warning(warning) => {
             // v4l2src warns here when it judges the driver's timestamps bad (research R11).
@@ -544,5 +770,169 @@ fn range_of(info: &gst_video::VideoInfo) -> Option<Range> {
         gst_video::VideoColorRange::Range0_255 => Some(Range::Full),
         gst_video::VideoColorRange::Range16_235 => Some(Range::Limited),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SOON: Option<Duration> = Some(Duration::from_millis(300));
+    const LATE: Option<Duration> = Some(Duration::from_secs(30));
+
+    fn windows(code: ErrorCode, since: Option<Duration>, listed: bool, access: Access) -> DeviceError {
+        map_error(true, code, "Internal data stream error.", "", since, listed, access)
+    }
+
+    fn linux(code: ErrorCode, message: &str, debug: &str, listed: bool) -> DeviceError {
+        map_error(false, code, message, debug, SOON, listed, Access::Unknown)
+    }
+
+    #[test]
+    fn windows_denied_access_is_blocked_before_anything_else() {
+        let error = windows(ErrorCode::StreamFailed, SOON, false, Access::Denied);
+        assert_eq!(error, DeviceError::Blocked { node: None });
+    }
+
+    #[test]
+    fn windows_device_not_listed_is_gone() {
+        for access in [Access::Allowed, Access::Unknown] {
+            assert_eq!(windows(ErrorCode::StreamFailed, SOON, false, access), DeviceError::Gone);
+        }
+    }
+
+    #[test]
+    fn windows_stream_failed_soon_after_playing_is_in_use() {
+        let error = windows(ErrorCode::StreamFailed, SOON, true, Access::Allowed);
+        assert_eq!(error, DeviceError::InUse);
+        let edge = windows(ErrorCode::StreamFailed, Some(IN_USE_WITHIN), true, Access::Allowed);
+        assert_eq!(edge, DeviceError::InUse);
+    }
+
+    #[test]
+    fn windows_other_errors_fail_with_the_text() {
+        let failed = DeviceError::Failed("Internal data stream error.".into());
+        // Late, before Playing, or another code.
+        assert_eq!(windows(ErrorCode::StreamFailed, LATE, true, Access::Allowed), failed);
+        assert_eq!(windows(ErrorCode::StreamFailed, None, true, Access::Allowed), failed);
+        assert_eq!(windows(ErrorCode::Other, SOON, true, Access::Allowed), failed);
+        // Linux codes mean nothing special on Windows.
+        assert_eq!(windows(ErrorCode::ResourceBusy, SOON, true, Access::Unknown), failed);
+    }
+
+    #[test]
+    fn linux_busy_is_in_use() {
+        assert_eq!(
+            linux(ErrorCode::ResourceBusy, "Device is busy", "", true),
+            DeviceError::InUse
+        );
+    }
+
+    #[test]
+    fn linux_permission_denied_is_blocked_naming_the_node() {
+        let error = linux(
+            ErrorCode::ResourceOpenReadWrite,
+            "Could not open device '/dev/video2' for reading and writing.",
+            "../sys/v4l2/v4l2_calls.c(637): gst_v4l2_open (): system error: Permission denied",
+            true,
+        );
+        assert_eq!(
+            error,
+            DeviceError::Blocked {
+                node: Some("/dev/video2".into())
+            }
+        );
+        // The node from the debug text when the message lacks it.
+        let error = linux(
+            ErrorCode::ResourceOpenReadWrite,
+            "Could not open device.",
+            "Cannot open /dev/video0: Permission denied",
+            true,
+        );
+        assert_eq!(
+            error,
+            DeviceError::Blocked {
+                node: Some("/dev/video0".into())
+            }
+        );
+    }
+
+    #[test]
+    fn linux_open_failure_without_permission_text_fails() {
+        let error = linux(
+            ErrorCode::ResourceOpenReadWrite,
+            "Could not open device.",
+            "No such device",
+            true,
+        );
+        assert_eq!(error, DeviceError::Failed("Could not open device.".into()));
+    }
+
+    #[test]
+    fn linux_not_found_is_gone() {
+        assert_eq!(
+            linux(ErrorCode::ResourceNotFound, "Cannot identify device", "", true),
+            DeviceError::Gone
+        );
+    }
+
+    #[test]
+    fn linux_read_error_is_gone_only_when_no_longer_listed() {
+        assert_eq!(
+            linux(ErrorCode::ResourceRead, "Failed to read", "", false),
+            DeviceError::Gone
+        );
+        assert_eq!(
+            linux(ErrorCode::ResourceRead, "Failed to read", "", true),
+            DeviceError::Failed("Failed to read".into())
+        );
+    }
+
+    #[test]
+    fn linux_other_errors_fail_and_ignore_access() {
+        let error = map_error(false, ErrorCode::StreamFailed, "boom", "", SOON, true, Access::Denied);
+        assert_eq!(error, DeviceError::Failed("boom".into()));
+    }
+
+    #[test]
+    fn node_in_texts() {
+        assert_eq!(node_in("device '/dev/video10' busy").as_deref(), Some("/dev/video10"));
+        assert_eq!(node_in("at /dev/video3.").as_deref(), Some("/dev/video3"));
+        assert_eq!(node_in("(/dev/video1)").as_deref(), Some("/dev/video1"));
+        assert_eq!(node_in("no node here"), None);
+        assert_eq!(node_in("just /dev/ alone"), None);
+    }
+
+    #[test]
+    fn error_codes_from_gstreamer_errors() {
+        let of = |e: gst::glib::Error| ErrorCode::of(&e);
+        assert_eq!(
+            of(gst::glib::Error::new(gst::ResourceError::Busy, "x")),
+            ErrorCode::ResourceBusy
+        );
+        assert_eq!(
+            of(gst::glib::Error::new(gst::ResourceError::OpenReadWrite, "x")),
+            ErrorCode::ResourceOpenReadWrite
+        );
+        assert_eq!(
+            of(gst::glib::Error::new(gst::ResourceError::NotFound, "x")),
+            ErrorCode::ResourceNotFound
+        );
+        assert_eq!(
+            of(gst::glib::Error::new(gst::ResourceError::Read, "x")),
+            ErrorCode::ResourceRead
+        );
+        assert_eq!(
+            of(gst::glib::Error::new(gst::StreamError::Failed, "x")),
+            ErrorCode::StreamFailed
+        );
+        assert_eq!(
+            of(gst::glib::Error::new(gst::CoreError::StateChange, "x")),
+            ErrorCode::Other
+        );
+        assert_eq!(
+            of(gst::glib::Error::new(gst::ResourceError::Write, "x")),
+            ErrorCode::Other
+        );
     }
 }

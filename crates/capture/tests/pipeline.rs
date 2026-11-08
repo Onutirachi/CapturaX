@@ -5,7 +5,7 @@
 use std::sync::mpsc;
 use std::time::Duration;
 
-use capturax_capture::{Frame, PixelFormat, Range, RangeChoice, Session, SessionEvent};
+use capturax_capture::{DeviceError, Frame, PixelFormat, Range, RangeChoice, Session, SessionEvent};
 
 /// What the callbacks saw, in order.
 enum Seen {
@@ -121,5 +121,30 @@ fn set_range_applies_to_the_next_frames_without_a_restart() {
         !events.iter().any(|e| matches!(e, SessionEvent::Playing { .. })),
         "no restart: {events:?}"
     );
+    session.close();
+}
+
+#[test]
+fn no_frame_within_five_seconds_is_no_signal() {
+    if !gstreamer_available() {
+        return;
+    }
+    let (tx, rx) = mpsc::channel();
+    let tx = std::sync::Mutex::new(tx);
+    let started = std::time::Instant::now();
+    let session = Session::test_without_frames(3, move |event| {
+        let _ = tx.lock().unwrap().send(event);
+    });
+    let error = loop {
+        match rx.recv_timeout(Duration::from_secs(10)).expect("an error within 10 s") {
+            SessionEvent::Error(error) => break error,
+            SessionEvent::FirstFrame => panic!("num-buffers=0 gave a frame"),
+            _ => {}
+        }
+    };
+    let waited = started.elapsed();
+    assert_eq!(error, DeviceError::NoSignal);
+    assert!(waited >= Duration::from_secs(5), "after {waited:?}");
+    assert!(rx.recv_timeout(Duration::from_millis(500)).is_err(), "one error only");
     session.close();
 }

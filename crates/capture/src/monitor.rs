@@ -151,6 +151,15 @@ fn run(
     }
 }
 
+/// The devices the providers list now, from a probe of their own: a started monitor may still
+/// list a device that has left (research R1, R6).
+pub(crate) fn listed_now() -> Vec<Device> {
+    let monitor = gst::DeviceMonitor::new();
+    monitor.add_filter(Some("Video/Source"), None);
+    monitor.set_show_all_devices(true);
+    described(monitor.devices())
+}
+
 /// The preferred devices among those listed, numbered.
 fn described(devices: impl IntoIterator<Item = gst::Device>) -> Vec<Device> {
     let mut found: Vec<Device> = Vec::new();

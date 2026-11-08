@@ -19,7 +19,7 @@ pub use device::Device;
 pub use frame::{Frame, Matrix, PixelFormat, Plane, Range};
 pub use mode::{Mode, ModeChoice};
 pub use monitor::{Monitor, MonitorEvent};
-pub use session::{DeviceError, Session, SessionEvent};
+pub use session::{Access, DeviceError, ErrorContext, Session, SessionEvent};
 
 /// GStreamer cannot start, or an element the capture needs is missing (exit code 69,
 /// contracts/cli.md).

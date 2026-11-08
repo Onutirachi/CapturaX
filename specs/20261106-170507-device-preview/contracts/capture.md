@@ -31,13 +31,13 @@ One open device; owns its pipeline (constitution III: later specs attach outputs
 
 | Item | Meaning |
 |---|---|
-| `Session::open(device, mode, range_choice, on_frame, on_event) -> Session` | Builds and plays `source ! capsfilter [! decoder] [! videoconvert] ! appsink` (research R4); returns at once, the outcome arrives as events |
+| `Session::open(device, mode, range_choice, session, context, on_frame, on_event) -> Session` | Builds and plays `source ! capsfilter [! decoder] [! videoconvert] ! appsink` (research R4); returns at once, the outcome arrives as events |
 | `Session::test_video(width, height, fps, …)` | Same, from `videotestsrc` in NV12 (replaces `app/src/test_video.rs`) |
 | `Session::set_range(choice)` | Full, Limited or Auto; applies to the next frame, no restart |
 | `Session::close()` | Pipeline to Null; idempotent; also on drop |
 | `on_frame(Frame)` | Called on the streaming thread for each frame (data-model.md "Frame") |
 | `on_event(SessionEvent)` | `Playing { format, matrix }`, `FirstFrame`, `Range(in_use)`, `Error(DeviceError)` |
-| `DeviceError` | `InUse`, `Blocked`, `Gone`, `NoSignal`, `Failed(String)`; mapping in research R6 (Windows `Blocked` needs `platform::camera_access()`, passed in by `app`) |
+| `DeviceError` | `InUse`, `Blocked`, `Gone`, `NoSignal`, `Failed(String)`; mapping in research R6 (Windows `Blocked` needs `platform::camera_access()`, passed in by `app` with `platform::IS_WINDOWS` as `ErrorContext { windows, access }`; the crate has no platform conditions); `map_error` is pure and public; "still listed" comes from a fresh probe of the providers at error time |
 
 Rules:
 

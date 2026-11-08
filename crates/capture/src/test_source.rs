@@ -28,6 +28,20 @@ impl Session {
         on_event: impl Fn(SessionEvent) + Send + Sync + 'static,
     ) -> Self {
         log::info!("session {session}: test video {width}x{height}@{fps}");
-        Self::open_test(width, height, fps, session, Box::new(on_frame), Box::new(on_event))
+        Self::open_test(
+            width,
+            height,
+            fps,
+            None,
+            session,
+            Box::new(on_frame),
+            Box::new(on_event),
+        )
+    }
+
+    /// A test video that never produces a frame (`num-buffers=0`), for the no-signal check.
+    #[doc(hidden)]
+    pub fn test_without_frames(session: u64, on_event: impl Fn(SessionEvent) + Send + Sync + 'static) -> Self {
+        Self::open_test(640, 360, 30, Some(0), session, Box::new(|_| {}), Box::new(on_event))
     }
 }
