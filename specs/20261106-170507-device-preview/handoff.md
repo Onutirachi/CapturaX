@@ -215,6 +215,17 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   `estimate`, `latency_text` (whole ms rounded to the nearest; Total rounds the sum once) and
   `fps_text` (nominal through `mode::rate_text`). Not wired: `#[allow(dead_code)]` on the module
   in main.rs until T038.
+- **T036** committed after the checks (`feat: add the measured latency to the stats`):
+  `Stats::new(now, lines)` always runs on the video thread; `presented(captured, ready, now)`
+  records `presented − captured`; without `--stats` only the presented count and the latency are
+  kept (the other line fields are skipped). `report` returns `Report { summary: Summary {
+  presented, latency_ms }, line: Option<String> }`; `[loop]` ends with `lat_ms=<median>/<max>
+  rep=<n>` (`repeated` stays 0 until T047 counts it). `next_report()` is `None` without
+  `--stats` while idle (no wakeups), so the summary goes while frames are presented and once
+  more (empty) after they stop. `VideoThread::start(.., on_second: OnSecond)`: the app's closure
+  sends `UserEvent::Second(Summary)`, stored in `App::second` (`#[allow(dead_code)]` until
+  T038). Smoke run on Windows (test video 1080p60): `lat_ms=2.8/4.3 rep=0`; without `--stats`
+  the app got one summary per second (60 frames, ~2.8 ms).
 
 Nothing pushed.
 
@@ -355,7 +366,8 @@ Nothing pushed.
 ## Next step
 
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
-   batch. Next agent task: T036 (`lat_ms`/`rep` in stats and the per-second summary), then T037–T038. T048 waits for
+   batch. Next agent task: T037 (the info bubbles, ported from the spike's info overlay), then
+   T038 (feeding them: `App::second`, the T035 estimate). T048 waits for
    T047 (US5); it adds Presentation as a segmented control. Recording T071's Windows check in
    measurements/acceptance.md goes with the Linux batch at T034.
    The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.

@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use winit::window::Window;
 
 use crate::cli::{Backend, PresentMode};
-use crate::stats::Stats;
+use crate::stats::{Stats, Summary};
 use crate::ui::UiImage;
 
 pub use capture::Frame;
@@ -238,6 +238,10 @@ impl Inbox {
     }
 }
 
+/// Called by the video thread with each second's summary while frames are presented, and once
+/// after they stop (the bubbles, FR-016).
+pub type OnSecond = Box<dyn Fn(Summary) + Send>;
+
 /// Presentation forced from the command line (research R4); none = the platform's order.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Presentation {
@@ -255,20 +259,22 @@ impl VideoThread {
     /// Sets up the GPU for `window` and starts the thread on `inbox`, which outlives it: a window
     /// made again after hiding on Wayland gets a new thread on the same inbox, so the source keeps
     /// sending (research R11). With `process_start` the time to the first present is logged
-    /// (SC-004); with `stats` the thread prints contracts/stats.md.
+    /// (SC-004); with `stats` the thread prints contracts/stats.md. `on_second` gets each second's
+    /// summary.
     pub fn start(
         window: Arc<Window>,
         inbox: Arc<Inbox>,
         presentation: Presentation,
         process_start: Option<Instant>,
         stats: bool,
+        on_second: OnSecond,
     ) -> Result<Self, RendererError> {
         let gpu = gpu::Gpu::new(window, presentation)?;
         inbox.begin();
         let thread_inbox = inbox.clone();
         let handle = std::thread::Builder::new()
             .name("video".into())
-            .spawn(move || run(gpu, &thread_inbox, process_start, stats))
+            .spawn(move || run(gpu, &thread_inbox, process_start, stats, &on_second))
             .map_err(|e| RendererError(format!("video thread: {e}")))?;
         Ok(Self {
             inbox,
@@ -410,11 +416,13 @@ impl State {
     }
 }
 
-fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: bool) {
-    let mut stats = stats.then(|| {
+fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: bool, on_second: &OnSecond) {
+    if lines {
         print_stats(&gpu.header());
-        Stats::new(Instant::now())
-    });
+    }
+    let mut stats = Stats::new(Instant::now(), lines);
+    // The last summary handed over: empty seconds are handed over once.
+    let mut last_summary = Summary::EMPTY;
     let mut scene: Option<Scene> = None;
     let mut first_present = process_start;
     // When the last video frame was taken from the inbox.
@@ -427,16 +435,22 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
     let mut video_session: Option<u64> = None;
     let mut last_present: Option<Instant> = None;
     loop {
+        // Handed over outside the lock.
+        let mut second: Option<Summary> = None;
         let (frame, ui, present, wants_performance) = {
             let mut state = inbox.lock();
             let present = loop {
                 let now = Instant::now();
-                if let Some(stats) = &mut stats {
-                    stats.received(std::mem::take(&mut state.received));
-                    stats.replaced(std::mem::take(&mut state.replaced));
-                    stats.window_moved(std::mem::take(&mut state.moves));
-                    if let Some(line) = stats.report(now) {
-                        print_stats(&line);
+                stats.received(std::mem::take(&mut state.received));
+                stats.replaced(std::mem::take(&mut state.replaced));
+                stats.window_moved(std::mem::take(&mut state.moves));
+                if let Some(report) = stats.report(now) {
+                    if let Some(line) = &report.line {
+                        print_stats(line);
+                    }
+                    if report.summary != Summary::EMPTY || last_summary != Summary::EMPTY {
+                        last_summary = report.summary;
+                        second = Some(report.summary);
                     }
                 }
                 // A fade step is due like a UI change: on the next video frame when one is near.
@@ -468,7 +482,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
                 // Wake for the next stats line, a waiting change and the hold's end, even when
                 // nothing arrives.
                 let wake_at = [
-                    stats.as_ref().map(Stats::next_report),
+                    stats.next_report(),
                     deadline.filter(|_| !held),
                     state.hold.map(|hold| hold.until),
                     next_step.filter(|_| !fade_due && !held),
@@ -514,14 +528,15 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
             }
             (frame, state.ui.take(), present, state.wants_performance())
         };
+        if let Some(summary) = second {
+            on_second(summary);
+        }
         if !wants_performance {
             performance = None;
         }
         if let Some(ui) = ui {
             gpu.set_ui(&ui);
-            if let Some(stats) = &mut stats {
-                stats.ui_image(ui.draw_ms);
-            }
+            stats.ui_image(ui.draw_ms);
         }
         // Nothing to draw until the main thread has handed over the first scene.
         let Some(scene) = scene.filter(|_| present) else {
@@ -536,9 +551,9 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
             video_session = Some(frame.session);
             fade = Some(Fade::new(0.0, 1.0, now));
         }
-        let ready = frame.map(|frame| {
+        let times = frame.map(|frame| {
             gpu.set_video(&frame);
-            frame.ready
+            (frame.captured, frame.ready)
         });
         let opacity = fade.map_or(1.0, |f| f.opacity(now));
         if let Some(done) = fade.filter(|f| f.done(now)) {
@@ -556,11 +571,11 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, stats: 
                     process_start.elapsed().as_secs_f64() * 1e3
                 );
             }
-            if let (Some(stats), Some(ready)) = (&mut stats, ready) {
-                stats.presented(ready, Instant::now());
+            if let Some((captured, ready)) = times {
+                stats.presented(captured, ready, Instant::now());
             }
             // After the first frame is on screen, so loading the GPU library does not delay it.
-            if ready.is_some() && wants_performance && performance.is_none() {
+            if times.is_some() && wants_performance && performance.is_none() {
                 performance = Some(Performance::acquire(gpu.pci_bus_id()));
             }
         }

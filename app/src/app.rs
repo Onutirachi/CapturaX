@@ -60,6 +60,8 @@ pub enum UserEvent {
     DevicePicked(i32),
     /// A row of the mode menu, by index.
     ModePicked(i32),
+    /// The video thread's summary of the last second (FR-016).
+    Second(crate::stats::Summary),
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -136,6 +138,9 @@ pub struct App {
     session: Option<(capture::Session, Instant)>,
     /// The open device, for the `[source]` line of `--stats` (contracts/stats.md).
     source: Option<crate::stats::Source>,
+    /// The video thread's summary of the last second, for the bubbles.
+    #[allow(dead_code)] // Read by the bubbles in T038.
+    second: crate::stats::Summary,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
     /// The video background and watermark settings (F56, F57), for the scene.
@@ -229,6 +234,7 @@ impl App {
             monitor_devices: None,
             session: None,
             source: None,
+            second: crate::stats::Summary::EMPTY,
             scene: None,
             backdrop,
             last_ui: Instant::now(),
@@ -904,12 +910,17 @@ impl App {
             present: self.options.present,
         };
         let first = (!self.video_started).then_some(self.process_start);
+        let proxy = self.proxy.clone();
+        let on_second = Box::new(move |summary| {
+            let _ = proxy.send_event(UserEvent::Second(summary));
+        });
         match VideoThread::start(
             window.clone(),
             self.inbox.clone(),
             presentation,
             first,
             self.options.stats,
+            on_second,
         ) {
             Ok(video) => self.video = Some(video),
             Err(err) => {
@@ -1211,6 +1222,7 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.reset_menus();
             }
+            UserEvent::Second(summary) => self.second = summary,
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();
                 match event {
