@@ -7,18 +7,22 @@ use std::time::Duration;
 use capture::mode;
 use settings::{FpsDisplay, LatencyDisplay, ModeDisplay};
 
-/// The platform the estimate is for: on Linux the USB transfer is already inside the measured part.
+/// The platform the estimate is for: on Linux the frame's arrival from the card is already inside
+/// the measured part.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Platform {
     Windows,
     Linux,
 }
 
-/// Card processing and the monitor's own delay on Windows (calibrated in T040).
-pub const C_WINDOWS: Duration = Duration::from_millis(5);
+/// Card processing and the monitor's own delay on Windows: from the L1 run (T040,
+/// measurements/latency.md), 28.7 − 2.2 measured − 16.7 − 3.5 = 6.3 ms.
+pub const C_WINDOWS: Duration = Duration::from_micros(6_300);
 
-/// Card processing and the monitor's own delay on Linux (calibrated in T040).
-pub const C_LINUX: Duration = Duration::from_millis(5);
+/// Card processing and the monitor's own delay on Linux: provisional, from the L4 run with the
+/// measured part assumed at 17.5 ms (L4 predates it), 30.1 − 17.5 − 4.2 = 8.4 ms; set from a Linux
+/// run with `lat_ms` in the Linux batch (T040).
+pub const C_LINUX: Duration = Duration::from_micros(8_400);
 
 impl Platform {
     /// The platform this build runs on.
@@ -40,7 +44,7 @@ impl Platform {
 }
 
 /// The part of glass-to-glass latency the app cannot measure:
-/// `F + (Windows ? F : 0) + C_platform + (vrr ? 0 : R / 2)`.
+/// `(Windows ? F : 0) + C_platform + (vrr ? 0 : R / 2)`.
 pub fn estimate(
     platform: Platform,
     source_period: Duration,
@@ -48,13 +52,13 @@ pub fn estimate(
     vrr: bool,
     c_platform: Duration,
 ) -> Duration {
-    // The card receiving the whole frame from HDMI.
-    let mut total = source_period;
-    // The USB transfer, already inside the measured part on Linux.
+    // The frame arriving from the card: it sends over USB while it receives from HDMI, so the
+    // whole frame is at the host one frame period after it starts. On Windows the measured part
+    // starts after that; on Linux it starts at the first packet and already holds it.
+    let mut total = c_platform;
     if platform == Platform::Windows {
         total += source_period;
     }
-    total += c_platform;
     // The average wait for the next refresh.
     if !vrr {
         total += refresh_period / 2;
@@ -175,27 +179,39 @@ mod tests {
     const R60: Duration = Duration::from_micros(16_666);
 
     #[test]
-    fn windows_counts_the_usb_transfer() {
+    fn windows_counts_the_frame_arriving() {
         let e = estimate(Platform::Windows, F60, R60, false, ms(5));
-        assert_eq!(e, F60 + F60 + ms(5) + R60 / 2);
-    }
-
-    #[test]
-    fn linux_leaves_the_usb_transfer_to_the_measured_part() {
-        let e = estimate(Platform::Linux, F60, R60, false, ms(5));
         assert_eq!(e, F60 + ms(5) + R60 / 2);
     }
 
     #[test]
+    fn linux_leaves_the_frame_arriving_to_the_measured_part() {
+        let e = estimate(Platform::Linux, F60, R60, false, ms(5));
+        assert_eq!(e, ms(5) + R60 / 2);
+    }
+
+    #[test]
     fn variable_refresh_has_no_refresh_wait() {
-        assert_eq!(estimate(Platform::Windows, F60, R60, true, ms(5)), F60 + F60 + ms(5));
-        assert_eq!(estimate(Platform::Linux, F60, R60, true, ms(5)), F60 + ms(5));
+        assert_eq!(estimate(Platform::Windows, F60, R60, true, ms(5)), F60 + ms(5));
+        assert_eq!(estimate(Platform::Linux, F60, R60, true, ms(5)), ms(5));
     }
 
     #[test]
     fn the_constant_is_added_as_given() {
         let base = estimate(Platform::Linux, F60, R60, false, Duration::ZERO);
         assert_eq!(estimate(Platform::Linux, F60, R60, false, ms(12)), base + ms(12));
+    }
+
+    #[test]
+    fn windows_total_matches_the_l1_median() {
+        // L1 (measurements/latency.md, T028): 1080p60 on a 143.98 Hz monitor, camera median
+        // 28.7 ms, measured part 2.2 ms (T039).
+        let refresh = Duration::from_secs_f64(1.0 / 143.98);
+        let e = estimate(Platform::Windows, F60, refresh, false, C_WINDOWS);
+        assert_eq!(
+            latency_text(LatencyDisplay::Total, Duration::from_micros(2_200), e),
+            "~29 ms"
+        );
     }
 
     #[test]

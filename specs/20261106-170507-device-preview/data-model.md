@@ -201,15 +201,22 @@ monitor refresh period `R`, variable refresh engaged (`vrr`, true while focused 
 **Lowest latency** setting on a VRR monitor when known, else false).
 
 ```text
-estimated = F                       # the card receiving the whole frame from HDMI
-          + (Windows ? F : 0)       # USB transfer, already inside the measured part on Linux
+estimated = (Windows ? F : 0)       # the frame arriving from the card, before the measured part
           + C_platform              # card processing and the monitor's own delay, calibrated
           + (vrr ? 0 : R / 2)       # average wait for the next refresh
 ```
 
-`C_platform` starts at 5 ms on both platforms and is set from the first glass-to-glass runs
-(quickstart "Latency budget"), so that measured + estimated matches the camera's median; SC-007
-checks it within 5 ms. The display marks the estimate with "~".
+The card sends a frame over USB while it receives it from HDMI, so the frame arrives at the
+host about one source frame period after it starts: on Windows that period comes before the
+measured part (which starts when the whole frame reaches the app), on Linux it is inside it
+(the driver stamps the first packet). The first version counted one period for HDMI and, on
+Windows, one more for USB; the calibration (T040, measurements/latency.md) found one period too
+many on Windows, and the same reasoning applies to Linux, where the L4 run predates the measured
+part and the check waits for the Linux batch (maintainer, 2026-11-08).
+
+`C_platform` started at 5 ms on both platforms and is set from the first glass-to-glass runs
+(quickstart "Latency budget", L1 and L4), so that measured + estimated matches the camera's
+median; SC-007 checks it within 5 ms. The display marks the estimate with "~".
 
 **Bubble displays**: `measured` → "3 ms"; `measured+estimated` (default) → "3 ms + ~24 ms";
 `total` → "~27 ms". Frame rate: `presented` → "60 FPS"; `presented/nominal` (default) → "111 / 120

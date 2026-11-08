@@ -269,3 +269,51 @@ off in smoothness with a 120 Hz source. The maintainer changed the default (2026
 source when shown, else 1920 × 1080 at about 60 fps when the device has it, else Auto max
 resolution (T065); Auto max FPS stays in the menu, and the bubbles show its effect. L3b was not
 filmed again for the 20 samples (the decision did not depend on it). Optional levers not tried.
+
+## T040: Calibrating the latency estimate (SC-007)
+
+### Windows 11 — 2026-11-08
+
+**Inputs**: L1 (T028), 1080p60, fullscreen on the 143.98 Hz monitor (`R/2` = 3.5 ms, no
+variable refresh in the estimate), camera median **28.7 ms**. L1's log predates the measured
+part (T036), so the measured part comes from T039 (`raw/t039/run2.txt`, same card, 1080p60,
+same PC): `lat_ms` median **2.2 ms** (2.1 over all 521 seconds of both runs at 60 and 120 fps;
+it is the app's own part and does not depend on the mode).
+
+**With the first formula** (`F + (Windows ? F : 0) + C + R/2`, C = 5 ms): estimate 16.7 + 16.7 +
+5 + 3.5 = 41.8 ms, Total 2.2 + 41.8 = **44 ms**, 15.3 ms over the median, so SC-007 fails.
+Calibrating C on it gives 28.7 − 2.2 − 33.3 − 3.5 = **−10.3 ms**, which cannot be card
+processing plus the monitor's delay.
+
+**Why**: one frame period too many. The card spreads the USB transfer over the whole frame
+period (research R11: 8.2 ms at 1080p120 at the source pad), so it sends while it receives from
+HDMI, and reception and transfer overlap: the whole frame is at the host about one frame period
+after it starts, not two. On Windows the measured part starts when the whole frame reaches the
+app; on Linux the driver stamps the first packet, so that period is already inside the measured
+part. Corrected formula (data-model.md, maintainer 2026-11-08):
+`(Windows ? F : 0) + C + (vrr ? 0 : R/2)`.
+
+**`C_WINDOWS`** = 28.7 − 2.2 − 16.7 − 3.5 = **6.3 ms** (close to the spike's 5 ms). Total for L1:
+2.2 + 16.7 + 6.3 + 3.5 = 28.7 → "~29 ms" (unit test `windows_total_matches_the_l1_median`).
+Against L2 (windowed, median 29.7 ms, same monitor): "~29 ms", 0.7 ms off. Both within SC-007's
+5 ms. Against L3 (the 1080p120 mode with a 60 Hz source, median 34.0 ms) the estimate gives
+2.2 + 8.3 + 6.3 + 3.5 = 20.3 → "~20 ms", 14 ms under: the card's wait for its next 120 Hz slot
+with an unaligned source (T029) is not in the formula. With a 119.88 Hz source in the same mode
+the maintainer's screenshot (2026-11-08) shows "~20 ms" against L3b's 31.5 ms, 11 ms under: the
+card seems to hold the frame longer in its 120 modes, and that is not in the formula either.
+SC-007 is stated for the 1080p60 setups only; the bubble reads low in the 1080p120 mode.
+
+**Maintainer check** (2026-11-08, release build of the corrected formula, windowed on the 144 Hz
+monitor, the CachyOS PC's HDMI output at 1920 × 1080 · 60 Hz into the ezcap in the 1080p60
+mode): the Total display shows **"~28 ms"** with `60 / 60 FPS`, 0.7 ms under L1 and 1.7 ms under
+L2: **SC-007 passes on Windows**.
+
+### CachyOS — provisional
+
+L4 (fullscreen, 120 Hz without VRR, `R/2` = 4.2 ms): median **30.1 ms**, but no Linux log with
+`lat_ms` exists at 1080p60 (L4 and T027 predate T036, and the ezcap is at the Windows PC). With
+the measured part assumed at about 17.5 ms (the transfer over one frame period plus about 1 ms in
+the app), `C_LINUX` = 30.1 − 17.5 − 4.2 ≈ **8.4 ms**, set as provisional. To finish in the Linux
+batch (with T034): a `--stats` run with the L4 setup (1080p60, fullscreen, same monitor, no clip
+needed), `C_LINUX` = 30.1 − `lat_ms` median − 4.2, then the maintainer checks the Total against
+L4 and L5.

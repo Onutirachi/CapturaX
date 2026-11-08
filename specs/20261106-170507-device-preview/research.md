@@ -294,12 +294,15 @@ marks what was not run.
     sample reaches GStreamer and ignores Media Foundation's sample time, so the measured part is
     "frame reaches the app → presented" (≈ 1–3 ms).
   - **Estimate** (pure function, data-model.md "Latency estimate"): what precedes the measured
-    part plus what follows the present: the card receiving the whole frame from HDMI (one source
-    frame period), on Windows also its USB transfer (one more frame period), a fixed card and
-    display constant per platform, and the wait for the monitor's refresh (half a refresh period
+    part plus what follows the present: on Windows the frame arriving from the card (one source
+    frame period: the card sends over USB while it receives from HDMI, so reception and transfer
+    overlap; on Linux that period is inside the measured part), a fixed card and display
+    constant per platform, and the wait for the monitor's refresh (half a refresh period
     without variable refresh, zero with it while focused). The constants start from the spike's
     numbers and are calibrated once from this spec's glass-to-glass runs (SC-001, SC-002); SC-007
-    then checks the Total against those medians within 5 ms.
+    then checks the Total against those medians within 5 ms. The first version counted one period
+    for HDMI and, on Windows, one more for USB; T040 found one period too many (measurements/
+    latency.md "T040") and the formula was corrected (maintainer, 2026-11-08).
 - **Rationale**: real numbers where the platform gives them, an explicit, testable estimate for
   the rest, as the maintainer chose (FR-016a).
 - **Alternatives**: one cross-platform definition (arrival in the app on both): throws away the

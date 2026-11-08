@@ -427,8 +427,16 @@ Nothing pushed.
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives
    about 112 FPS at 1080p120 on Windows even with a 120 Hz source (judder the maintainer
    noticed; known since T029), and present stalls of 17–40 ms in 31 of 396 s, for T052. Next:
-   T040, calibrate `C_WINDOWS` and `C_LINUX` from the T028 L1 and L4 medians (agent), then the
-   maintainer checks the Total display. T048 waits for
+   T040 on Windows (2026-11-08): the first estimate formula counted one frame
+   period too many (Total 44 ms against L1's 28.7 ms; `C_WINDOWS` would have been −10.3 ms), so
+   the maintainer approved the corrected formula `(Windows ? F : 0) + C + (vrr ? 0 : R/2)`
+   (data-model.md, research R11, measurements/latency.md "T040"). `C_WINDOWS` = 6.3 ms from L1
+   with T039's `lat_ms` 2.2; `C_LINUX` = 8.4 ms provisional. The maintainer saw "~28 ms" in
+   the Total on Windows at 1080p60 (SC-007 passes on Windows); committed
+   (`feat: calibrate the latency estimate`). T040 stays open for Linux. In the Linux batch (T034): a `--stats` run with the
+   L4 setup to read `lat_ms` and set `C_LINUX` = 30.1 − `lat_ms` − 4.2, then the Total check
+   against L4 and L5. Known: in the 1080p120 mode with a 60 Hz source the Total reads about
+   14 ms low (L3), outside SC-007. T048 waits for
    T047 (US5); it adds Presentation as a segmented control. Recording T071's Windows check in
    measurements/acceptance.md goes with the Linux batch at T034.
    The ezcap stays on the Windows PC until T034. System notifications (R15) are validated at T061 before they are wired in.
