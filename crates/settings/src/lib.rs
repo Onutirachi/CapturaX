@@ -9,8 +9,9 @@ mod store;
 pub use file::LoadOutcome;
 pub use location::{FileTimes, Location, LocationKind};
 pub use model::{
-    ColorRange, DEVICES_LIMIT, DeviceChoices, FpsDisplay, General, LanguageSetting, LatencyDisplay, MIN_HEIGHT,
-    MIN_WIDTH, Overlay, Presentation, Preview, RECENT_LIMIT, Settings, ThemeSetting, VERSION, WindowSettings,
+    Background, ColorRange, DEVICES_LIMIT, DeviceChoices, FpsDisplay, General, LanguageSetting, LatencyDisplay,
+    MIN_HEIGHT, MIN_WIDTH, Overlay, Presentation, Preview, RECENT_LIMIT, Settings, Shadow, ThemeSetting, VERSION,
+    WindowSettings,
 };
 pub use store::Store;
 

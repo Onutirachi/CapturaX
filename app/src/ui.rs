@@ -416,6 +416,11 @@ impl Ui {
         .map(|v| v * self.scale)
     }
 
+    /// Physical pixels per logical pixel.
+    pub fn scale(&self) -> f32 {
+        self.scale
+    }
+
     /// The theme's deepest tone, the ground around the video: RGB from 0 to 1.
     pub fn backdrop(&self) -> [f64; 3] {
         let deep = self.app.global::<Theme>().get_c().deep;

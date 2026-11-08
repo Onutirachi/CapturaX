@@ -75,13 +75,51 @@ impl Default for WindowSettings {
 }
 
 /// The `[preview]` table (device preview data-model.md "Settings additions").
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Preview {
     /// The last device the user chose.
     pub device: Option<String>,
     /// Device ids, most recent first, at most [`RECENT_LIMIT`].
     pub recent: Vec<String>,
     pub presentation: Presentation,
+    /// The ground around the video (F56).
+    pub background: Background,
+    /// The X in the video background (F57).
+    pub watermark: bool,
+    /// The shadow around the video (F58).
+    pub shadow: Shadow,
+}
+
+impl Default for Preview {
+    fn default() -> Self {
+        Self {
+            device: None,
+            recent: Vec::new(),
+            presentation: Presentation::default(),
+            background: Background::default(),
+            watermark: true,
+            shadow: Shadow::default(),
+        }
+    }
+}
+
+/// The ground around the video (F56).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Background {
+    /// The theme's deepest tone.
+    #[default]
+    Theme,
+    Black,
+}
+
+/// When the video has a shadow around it (F58).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Shadow {
+    #[default]
+    Always,
+    /// Only over the ambient light (spec #6); none until then.
+    Ambient,
+    Off,
 }
 
 /// How the preview meets a variable refresh monitor (F52).
@@ -152,6 +190,8 @@ macro_rules! text_values {
 }
 
 text_values!(Presentation { LowestLatency = "lowest-latency", FollowMonitor = "follow-monitor" });
+text_values!(Background { Theme = "theme", Black = "black" });
+text_values!(Shadow { Always = "always", Ambient = "ambient", Off = "off" });
 text_values!(LatencyDisplay { Measured = "measured", MeasuredEstimated = "measured+estimated", Total = "total" });
 text_values!(FpsDisplay { Presented = "presented", PresentedNominal = "presented/nominal", Nominal = "nominal" });
 text_values!(ColorRange { Auto = "auto", Full = "full", Limited = "limited" });
@@ -251,6 +291,9 @@ impl Settings {
                     })
                     .unwrap_or_default(),
                 presentation: Presentation::parse(get(preview, "presentation").and_then(Value::as_str)),
+                background: Background::parse(get(preview, "background").and_then(Value::as_str)),
+                watermark: flag(preview, "watermark", defaults.preview.watermark),
+                shadow: Shadow::parse(get(preview, "shadow").and_then(Value::as_str)),
             },
             overlay: Overlay {
                 latency: LatencyDisplay::parse(get(overlay, "latency").and_then(Value::as_str)),
@@ -300,6 +343,9 @@ impl Settings {
         let recent = p.recent.iter().take(RECENT_LIMIT).cloned().map(Value::String).collect();
         preview.insert("recent".into(), Value::Array(recent));
         preview.insert("presentation".into(), Value::String(p.presentation.as_str().into()));
+        preview.insert("background".into(), Value::String(p.background.as_str().into()));
+        preview.insert("watermark".into(), Value::Boolean(p.watermark));
+        preview.insert("shadow".into(), Value::String(p.shadow.as_str().into()));
 
         let overlay = category(table, "overlay");
         overlay.insert("latency".into(), Value::String(self.overlay.latency.as_str().into()));
@@ -539,6 +585,10 @@ mod tests {
         let s = read("[preview]\n[overlay]\n[devices]");
         assert_eq!(s.preview, Preview::default());
         assert_eq!(s.preview.presentation, Presentation::LowestLatency);
+        assert_eq!(
+            (s.preview.background, s.preview.watermark, s.preview.shadow),
+            (Background::Theme, true, Shadow::Always)
+        );
         assert_eq!(s.overlay.latency, LatencyDisplay::MeasuredEstimated);
         assert_eq!(s.overlay.fps, FpsDisplay::PresentedNominal);
         assert!(s.devices.is_empty());
@@ -553,6 +603,9 @@ mod tests {
             device = "v4l2:32ed:3201:x@pci"
             recent = ["v4l2:32ed:3201:x@pci", "mf:a", "mf:a", 5]
             presentation = "follow-monitor"
+            background = "black"
+            watermark = false
+            shadow = "always"
             [overlay]
             latency = "total"
             fps = "nominal"
@@ -567,6 +620,10 @@ mod tests {
         assert_eq!(s.preview.device.as_deref(), Some("v4l2:32ed:3201:x@pci"));
         assert_eq!(s.preview.recent, ["v4l2:32ed:3201:x@pci", "mf:a"]);
         assert_eq!(s.preview.presentation, Presentation::FollowMonitor);
+        assert_eq!(
+            (s.preview.background, s.preview.watermark, s.preview.shadow),
+            (Background::Black, false, Shadow::Always)
+        );
         assert_eq!(
             s.overlay,
             Overlay {
@@ -590,6 +647,9 @@ mod tests {
             device = 3
             recent = "mf:a"
             presentation = "fast"
+            background = "white"
+            watermark = "yes"
+            shadow = 2
             [overlay]
             latency = "exact"
             fps = 60
@@ -667,6 +727,9 @@ mod tests {
         s.touch_device(C920, "HD Pro Webcam C920").mode = "1920x1080@30".into();
         s.overlay.fps = FpsDisplay::Presented;
         s.preview.presentation = Presentation::FollowMonitor;
+        s.preview.background = Background::Black;
+        s.preview.watermark = false;
+        s.preview.shadow = Shadow::Off;
         s.devices.push((
             "mf:old".into(),
             DeviceChoices {

@@ -50,6 +50,8 @@ export component AppWindow inherits Window {
     in property <string> preview-state: "no-source";
     in property <string> state-title;
     in property <string> state-detail;
+    // The video background is black (F56): the states and the progress ring use light tones.
+    in property <bool> video-black;
     property <bool> no-source: root.preview-state == "no-source";
     // The toolbar's choices for the open device (components/toolbar.slint), set by Rust.
     in property <bool> device-open;
@@ -80,6 +82,7 @@ export component AppWindow inherits Window {
             : @image-url("assets/icons/alert_triangle.svg");
         title: root.no-source ? @tr("No source") : root.state-title;
         detail: root.state-detail;
+        on-black: root.video-black;
         action(id) => { root.state-action(id); }
     }
 
@@ -100,6 +103,7 @@ export component AppWindow inherits Window {
         }
 
         if opening.slow: ProgressRing {
+            ring: root.video-black ? Theme.c.on-black-muted : Theme.c.text-muted;
             x: (opening.width - self.width) / 2;
             y: (opening.height - self.height) / 2;
         }

@@ -14,6 +14,7 @@ import { PanelHeader } from "panel-header.slint";
 import { FocusRing, Input } from "focus-ring.slint";
 import { Select } from "select.slint";
 import { MenuItem } from "menu.slint";
+import { Segmented } from "segmented.slint";
 
 export global Prefs {
     in-out property <bool> start-fullscreen;
@@ -28,6 +29,14 @@ export global Prefs {
     // The chosen entries: of `languages`, and of Automatic, Dark, Light.
     in-out property <int> language;
     in-out property <int> theme;
+    // Preview (F56–F58): the video background (0 Theme, 1 Black), the watermark, and the video
+    // shadow (0 Always, 1 With ambient light, 2 Off).
+    in-out property <int> background;
+    in-out property <bool> watermark: true;
+    in-out property <int> shadow: 0;
+    callback background-changed(int);
+    callback watermark-changed(bool);
+    callback shadow-changed(int);
     callback start-fullscreen-changed(bool);
     callback keep-in-tray-changed(bool);
     callback start-with-system-changed(bool);
@@ -38,7 +47,7 @@ export global Prefs {
 }
 
 // Later specs add their categories here (F40), with their names in `CategoryItem`.
-enum Category { general, appearance, about }
+enum Category { general, appearance, preview, about }
 
 // No text here: a translated name in the list would make a language switch build the items
 // again, losing the keyboard focus and leaving a shown tooltip in the old language.
@@ -67,6 +76,7 @@ component CategoryItem inherits Rectangle {
 
     property <string> text: root.id == Category.general ? @tr("General")
         : root.id == Category.appearance ? @tr("Appearance")
+        : root.id == Category.preview ? @tr("Preview")
         : @tr("About");
 
     // The token of the tooltip shown, 0 when none.
@@ -224,6 +234,42 @@ component SelectRow inherits Rectangle {
     }
 }
 
+// One setting with two or three short choices: its name and a segmented control (FR-031); the
+// control goes under the name when both do not fit on one line.
+component SegmentedRow inherits Rectangle {
+    in property <string> text;
+    in property <[string]> options;
+    in-out property <int> current;
+    callback selected(int);
+
+    property <bool> stacked: label.preferred-width + segmented.preferred-width + 3 * Theme.gap-m > root.width;
+
+    height: root.stacked ? label.preferred-height + segmented.height + 3 * Theme.gap-m
+        : max(48px, label.preferred-height + 2 * Theme.gap-m);
+    border-radius: Theme.radius-s;
+    background: Theme.c.base;
+
+    label := Text {
+        x: Theme.gap-m;
+        y: root.stacked ? Theme.gap-m : (parent.height - self.height) / 2;
+        width: root.stacked ? parent.width - 2 * Theme.gap-m : parent.width - segmented.width - 3 * Theme.gap-m;
+        text: root.text;
+        color: Theme.c.text;
+        font-size: Theme.text-m;
+        wrap: word-wrap;
+    }
+
+    segmented := Segmented {
+        x: root.stacked ? Theme.gap-m : parent.width - self.width - Theme.gap-s - 4px;
+        y: root.stacked ? label.y + label.height + Theme.gap-m : (parent.height - self.height) / 2;
+        width: min(self.preferred-width, parent.width - 2 * Theme.gap-m);
+        label: root.text;
+        options: root.options;
+        current <=> root.current;
+        selected(index) => { root.selected(index); }
+    }
+}
+
 export component SettingsPanel inherits Raised {
     // The compact layout (FR-009): the categories become a row of tabs.
     in property <bool> compact;
@@ -236,6 +282,7 @@ export component SettingsPanel inherits Raised {
     property <[CategoryEntry]> categories: [
         { id: Category.general, icon: @image-url("../assets/icons/adjustments_horizontal.svg") },
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
+        { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ];
 
@@ -324,6 +371,26 @@ export component SettingsPanel inherits Raised {
                 items: [{ text: @tr("Automatic") }, { text: @tr("Dark") }, { text: @tr("Light") }];
                 current <=> Prefs.theme;
                 selected(index) => { Prefs.theme-changed(index); }
+            }
+
+            if root.category == Category.preview: SegmentedRow {
+                text: @tr("Video background");
+                options: [@tr("Theme"), @tr("Black")];
+                current <=> Prefs.background;
+                selected(index) => { Prefs.background-changed(index); }
+            }
+
+            if root.category == Category.preview: ToggleRow {
+                text: @tr("Watermark");
+                checked <=> Prefs.watermark;
+                toggled(on) => { Prefs.watermark-changed(on); }
+            }
+
+            if root.category == Category.preview: SegmentedRow {
+                text: @tr("Video shadow");
+                options: [@tr("Always"), @tr("With ambient light"), @tr("Off")];
+                current <=> Prefs.shadow;
+                selected(index) => { Prefs.shadow-changed(index); }
             }
 
             if root.category == Category.about: VerticalLayout {

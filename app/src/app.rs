@@ -62,6 +62,28 @@ pub enum UserEvent {
     ModePicked(i32),
 }
 
+/// The watermark's opacity over the background (data-model.md "Video backdrop").
+const WATERMARK_OPACITY: f32 = 0.06;
+
+/// What the video thread draws around the video, from the settings (F56, F57).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Backdrop {
+    black: bool,
+    watermark: bool,
+    /// The shadow is drawn (Always; With ambient light draws none until spec #6).
+    shadow: bool,
+}
+
+impl From<&settings::Preview> for Backdrop {
+    fn from(p: &settings::Preview) -> Self {
+        Self {
+            black: p.background == settings::Background::Black,
+            watermark: p.watermark,
+            shadow: p.shadow == settings::Shadow::Always,
+        }
+    }
+}
+
 /// A change made in the settings panel.
 #[derive(Debug, Clone, Copy)]
 pub enum SettingChange {
@@ -71,6 +93,9 @@ pub enum SettingChange {
     StartFullscreen(bool),
     KeepInTray(bool),
     StartWithSystem(bool),
+    Background(settings::Background),
+    Watermark(bool),
+    Shadow(settings::Shadow),
 }
 
 /// What the UI asks the window to do.
@@ -113,6 +138,8 @@ pub struct App {
     source: Option<crate::stats::Source>,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
+    /// The video background and watermark settings (F56, F57), for the scene.
+    backdrop: Backdrop,
     /// When the UI was last handed over and the monitor's refresh interval: animations redraw at
     /// most once per refresh.
     last_ui: Instant,
@@ -158,6 +185,7 @@ impl App {
     ) -> Self {
         let state = ui.app.global::<WindowState>();
         let tray_available = tray::available();
+        let backdrop = Backdrop::from(&store.get().preview);
         ui.app.global::<Prefs>().set_tray_available(tray_available);
         let sender = proxy.clone();
         let send = move |event: UserEvent| {
@@ -202,6 +230,7 @@ impl App {
             session: None,
             source: None,
             scene: None,
+            backdrop,
             last_ui: Instant::now(),
             refresh: Duration::from_millis(16),
             monitor: None,
@@ -573,6 +602,38 @@ impl App {
         self.apply_theme();
     }
 
+    /// The watermark's color and opacity for the scene: the ground's text tone (white on the dark
+    /// theme and on black, black on the light theme) at 6%, none when off (data-model.md "Video
+    /// backdrop").
+    fn watermark(&self) -> [f32; 4] {
+        if !self.backdrop.watermark {
+            return [0.0; 4];
+        }
+        let light = !self.backdrop.black && !self.ui.app.global::<UiTheme>().get_dark();
+        let tone = if light { 0.0 } else { 1.0 };
+        [tone, tone, tone, WATERMARK_OPACITY]
+    }
+
+    /// The shadow's strength: half on the light theme's ground, where a black shadow looks dirty;
+    /// none when off (With ambient light draws none until the ambient light exists, spec #6).
+    fn shadow_strength(&self) -> f32 {
+        if !self.backdrop.shadow {
+            0.0
+        } else if !self.backdrop.black && !self.ui.app.global::<UiTheme>().get_dark() {
+            0.5
+        } else {
+            1.0
+        }
+    }
+
+    /// Applies the video background and watermark settings: the scene and the state messages'
+    /// tones (light text on black in both themes).
+    fn apply_backdrop(&mut self) {
+        self.backdrop = Backdrop::from(&self.store.get().preview);
+        self.ui.app.set_video_black(self.backdrop.black);
+        self.request_redraw();
+    }
+
     fn request_redraw(&self) {
         if let Some(w) = &self.window {
             w.request_redraw();
@@ -641,7 +702,13 @@ impl App {
         let size = self.ui.size();
         let scene = Scene {
             video: self.ui.video_area(),
-            backdrop: self.ui.backdrop(),
+            backdrop: if self.backdrop.black {
+                [0.0; 3]
+            } else {
+                self.ui.backdrop()
+            },
+            watermark: self.watermark(),
+            shadow: [self.ui.scale(), self.shadow_strength()],
             size: (size.width, size.height),
         };
         if image.is_some() || self.scene != Some(scene) {
@@ -915,7 +982,41 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     prefs.on_start_fullscreen_changed(move |v| on(UserEvent::Setting(SettingChange::StartFullscreen(v))));
     let on = send.clone();
     prefs.on_keep_in_tray_changed(move |v| on(UserEvent::Setting(SettingChange::KeepInTray(v))));
-    prefs.on_start_with_system_changed(move |v| send(UserEvent::Setting(SettingChange::StartWithSystem(v))));
+    let on = send.clone();
+    prefs.on_start_with_system_changed(move |v| on(UserEvent::Setting(SettingChange::StartWithSystem(v))));
+    // Preview (F56–F58): the segments' order is the enums' order.
+    let preview = store.get().preview;
+    prefs.set_background(match preview.background {
+        settings::Background::Theme => 0,
+        settings::Background::Black => 1,
+    });
+    prefs.set_watermark(preview.watermark);
+    ui.app
+        .set_video_black(preview.background == settings::Background::Black);
+    prefs.set_shadow(match preview.shadow {
+        settings::Shadow::Always => 0,
+        settings::Shadow::Ambient => 1,
+        settings::Shadow::Off => 2,
+    });
+    let on = send.clone();
+    prefs.on_background_changed(move |index| {
+        let background = if index == 1 {
+            settings::Background::Black
+        } else {
+            settings::Background::Theme
+        };
+        on(UserEvent::Setting(SettingChange::Background(background)));
+    });
+    let on = send.clone();
+    prefs.on_watermark_changed(move |v| on(UserEvent::Setting(SettingChange::Watermark(v))));
+    prefs.on_shadow_changed(move |index| {
+        let shadow = match index {
+            0 => settings::Shadow::Always,
+            2 => settings::Shadow::Off,
+            _ => settings::Shadow::Ambient,
+        };
+        send(UserEvent::Setting(SettingChange::Shadow(shadow)));
+    });
 }
 
 /// The settings panel's Language entries (FR-024): Automatic in the interface's language, then
@@ -1048,6 +1149,18 @@ impl ApplicationHandler<UserEvent> for App {
                     self.apply_theme();
                 }
                 SettingChange::StartFullscreen(on) => self.store.update(|s| s.general.start_fullscreen = on),
+                SettingChange::Background(background) => {
+                    self.store.update(|s| s.preview.background = background);
+                    self.apply_backdrop();
+                }
+                SettingChange::Watermark(on) => {
+                    self.store.update(|s| s.preview.watermark = on);
+                    self.apply_backdrop();
+                }
+                SettingChange::Shadow(shadow) => {
+                    self.store.update(|s| s.preview.shadow = shadow);
+                    self.apply_backdrop();
+                }
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);
                     self.sync_tray();

@@ -163,3 +163,27 @@ msgstr "{} FPS"
 
 msgid "Custom"
 msgstr "Custom"
+
+msgid "Preview"
+msgstr "Preview"
+
+msgid "Video background"
+msgstr "Fundo do vídeo"
+
+msgid "Black"
+msgstr "Preto"
+
+msgid "Watermark"
+msgstr "Marca d'água"
+
+msgid "Video shadow"
+msgstr "Sombra no vídeo"
+
+msgid "Always"
+msgstr "Sempre"
+
+msgid "With ambient light"
+msgstr "Com luz ambiente"
+
+msgid "Off"
+msgstr "Desligada"

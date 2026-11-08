@@ -35,6 +35,11 @@ export struct Palette {
     scrim: color,
     // Shadow images are drawn at this opacity: light surfaces need softer shadows.
     shadow: float,
+    // The black video background (F56): its ground and the state message tones on it, the same
+    // in both themes.
+    ground-black: color,
+    on-black-text: color,
+    on-black-muted: color,
     // Mode tags (F43, data-model.md "Mode"): one fill per aspect ratio family, Custom and the
     // aspect tag neutral; white text, the same in both themes.
     tag-1-1: color,
@@ -75,6 +80,9 @@ export global Palettes {
         panel: #0e0f13b8,
         scrim: #00000080,
         shadow: 1,
+        ground-black: #000000,
+        on-black-text: #f2f3f6,
+        on-black-muted: #a8abb5,
         tag-1-1: #9c3d2e,
         tag-5-4: #8f6a00,
         tag-11-9: #6b4f3a,
@@ -111,6 +119,9 @@ export global Palettes {
         panel: #f7f8fac4,
         scrim: #00000052,
         shadow: 0.35,
+        ground-black: #000000,
+        on-black-text: #f2f3f6,
+        on-black-muted: #a8abb5,
         tag-1-1: #9c3d2e,
         tag-5-4: #8f6a00,
         tag-11-9: #6b4f3a,

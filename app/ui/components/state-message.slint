@@ -1,6 +1,7 @@
 // The one component for empty and error states (FR-033): an icon, a short title, an optional
 // one-line detail and zero, one or two actions (primary and secondary), centered in the area it
-// fills (the video area). It sits on the window's deepest tone, where the video would be. An
+// fills (the video area). It has no fill: the video background and its watermark show behind it
+// (device preview FR-029), the theme's deepest tone or black (`on-black`). An
 // action reports its id; Rust decides what it does. Enter or Space activates the focused action
 // (FR-020).
 import { Theme } from "../theme.slint";
@@ -81,9 +82,9 @@ export component StateMessage inherits Rectangle {
     in property <string> detail;
     in property <StateAction> primary;
     in property <StateAction> secondary;
+    // The black video background is behind it: light tones in both themes.
+    in property <bool> on-black;
     callback action(string /* action id */);
-
-    background: Theme.c.deep;
 
     VerticalLayout {
         alignment: center;
@@ -94,13 +95,13 @@ export component StateMessage inherits Rectangle {
             source: root.icon;
             height: 48px;
             image-fit: contain;
-            colorize: Theme.c.text-muted;
+            colorize: root.on-black ? Theme.c.on-black-muted : Theme.c.text-muted;
             accessible-role: none;
         }
 
         Text {
             text: root.title;
-            color: Theme.c.text;
+            color: root.on-black ? Theme.c.on-black-text : Theme.c.text;
             font-size: Theme.text-l;
             font-weight: 600;
             horizontal-alignment: center;
@@ -109,7 +110,7 @@ export component StateMessage inherits Rectangle {
 
         if root.detail != "": Text {
             text: root.detail;
-            color: Theme.c.text-muted;
+            color: root.on-black ? Theme.c.on-black-muted : Theme.c.text-muted;
             font-size: Theme.text-m;
             horizontal-alignment: center;
             overflow: elide;

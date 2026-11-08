@@ -24,8 +24,13 @@ pub use gpu::RendererError;
 pub struct Scene {
     /// Where the video is letterboxed, in physical pixels: x, y, width, height, corner radius.
     pub video: [f32; 5],
-    /// The ground around the video (the theme's deepest tone): RGB from 0 to 1.
+    /// The ground around the video (the theme's deepest tone, or black): RGB from 0 to 1.
     pub backdrop: [f64; 3],
+    /// The watermark's color (RGB from 0 to 1) and opacity; opacity 0 draws none (research R18).
+    pub watermark: [f32; 4],
+    /// The video's shadow: the display scale it is drawn at and its strength, 0 for none
+    /// (research R18).
+    pub shadow: [f32; 2],
     /// The surface size in physical pixels.
     pub size: (u32, u32),
 }
@@ -593,6 +598,8 @@ mod tests {
         let scene = |size| Scene {
             video: [0.0; 5],
             backdrop: [0.0; 3],
+            watermark: [0.0; 4],
+            shadow: [1.0, 0.0],
             size,
         };
         let inbox = Inbox::default();
@@ -667,6 +674,8 @@ mod tests {
             Scene {
                 video: [0.0; 5],
                 backdrop: [0.0; 3],
+                watermark: [0.0; 4],
+                shadow: [1.0, 0.0],
                 size: (1280, 720),
             },
         );

@@ -113,6 +113,10 @@ enum Kind {
     I420,
     Yuy2,
     Uyvy,
+    /// A coverage mask drawn in one color (the watermark).
+    Mask,
+    /// The video's shadow, computed in the shader (its texture is unused).
+    Shadow,
 }
 
 impl Kind {
@@ -134,6 +138,8 @@ impl Kind {
             Self::I420 => 3.0,
             Self::Yuy2 => 4.0,
             Self::Uyvy => 5.0,
+            Self::Mask => 6.0,
+            Self::Shadow => 7.0,
         }
     }
 
@@ -145,6 +151,7 @@ impl Kind {
             Self::Ui | Self::Rgb(PixelFormat::Rgba) => vec![(T::Rgba8Unorm, width, height, 4)],
             Self::Rgb(_) => vec![(T::Bgra8Unorm, width, height, 4)],
             Self::Nv12 => vec![(T::R8Unorm, width, height, 1), (T::Rg8Unorm, half_w, half_h, 2)],
+            Self::Mask | Self::Shadow => vec![(T::R8Unorm, width, height, 1)],
             Self::I420 => vec![
                 (T::R8Unorm, width, height, 1),
                 (T::R8Unorm, half_w, half_h, 1),
@@ -186,6 +193,10 @@ pub struct Gpu {
     sampler: wgpu::Sampler,
     video: Option<Layer>,
     ui: Option<Layer>,
+    /// The watermark's mask, uploaded once when first drawn.
+    watermark: Option<Layer>,
+    /// The video's shadow, made when first drawn.
+    shadow: Option<Layer>,
     /// The `[present]` line of contracts/stats.md for the presentation in use.
     header: String,
     /// The adapter's PCI bus id when the backend gives one (e.g. `0000:01:00.0`).
@@ -353,6 +364,8 @@ impl Gpu {
             sampler,
             video: None,
             ui: None,
+            watermark: None,
+            shadow: None,
             header,
             pci_bus_id: None,
         }
@@ -539,11 +552,34 @@ impl Gpu {
             }
         };
         let (w, h) = (self.config.width as f32, self.config.height as f32);
+        let watermark = scene.watermark[3] > 0.0 && scene.video[3] > 0.0;
+        if watermark && self.watermark.is_none() {
+            let layer = self.make_layer(Kind::Mask, WATERMARK_SIZE, WATERMARK_SIZE);
+            self.upload(&layer.planes[0], WATERMARK);
+            self.watermark = Some(layer);
+        }
+        let watermark = self.watermark.as_ref().filter(|_| watermark);
+        if let Some(mark) = watermark {
+            let mut values = uniform(watermark_rect(scene.video), 0.0, (w, h), mark);
+            values[OPACITY] = scene.watermark[3];
+            values[12..15].copy_from_slice(&scene.watermark[..3]);
+            self.queue.write_buffer(&mark.rect, 0, bytemuck::cast_slice(&values));
+        }
+        let shadow = scene.shadow[1] > 0.0 && self.video.is_some();
+        if shadow && self.shadow.is_none() {
+            self.shadow = Some(self.make_layer(Kind::Shadow, 1, 1));
+        }
+        let shadow = self.shadow.as_ref().filter(|_| shadow);
         if let Some(video) = &self.video {
             let rect = letterbox(scene.video, (video.width, video.height));
             let mut values = uniform(rect, scene.video[4], (w, h), video);
             values[OPACITY] = video_opacity;
             self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&values));
+            if let Some(layer) = shadow {
+                let [scale, strength] = scene.shadow;
+                let values = shadow_uniform(rect, scene.video[4], scale, video_opacity * strength, (w, h), layer);
+                self.queue.write_buffer(&layer.rect, 0, bytemuck::cast_slice(&values));
+            }
         }
         if let Some(ui) = &self.ui {
             let values = uniform([0.0, 0.0, w, h], 0.0, (w, h), ui);
@@ -567,6 +603,19 @@ impl Gpu {
                 ..Default::default()
             });
             pass.set_pipeline(&self.pipeline);
+            // The watermark and the shadow stay inside the video area: the watermark's cut side is
+            // cut there, and the shadow does not reach under the title bar.
+            let backdrop = [watermark, shadow];
+            if backdrop.iter().any(Option::is_some)
+                && let Some([x, y, sw, sh]) = scissor(scene.video, (self.config.width, self.config.height))
+            {
+                pass.set_scissor_rect(x, y, sw, sh);
+                for layer in backdrop.into_iter().flatten() {
+                    pass.set_bind_group(0, &layer.bind_group, &[]);
+                    pass.draw(0..4, 0..1);
+                }
+                pass.set_scissor_rect(0, 0, self.config.width, self.config.height);
+            }
             for layer in [self.video.as_ref(), self.ui.as_ref()].into_iter().flatten() {
                 pass.set_bind_group(0, &layer.bind_group, &[]);
                 pass.draw(0..4, 0..1);
@@ -576,6 +625,67 @@ impl Gpu {
         self.queue.present(frame);
         true
     }
+}
+
+/// The watermark's mask (`build.rs`), `WATERMARK_SIZE` square, one byte of coverage per pixel.
+const WATERMARK: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/watermark.a8"));
+const WATERMARK_SIZE: u32 = 1024;
+
+/// How much of the watermark's width the video area's right edge cuts (data-model.md "Video
+/// backdrop").
+const WATERMARK_CUT: f32 = 0.12;
+
+/// The watermark's rectangle: a square as tall as the video area, its bottom on the area's bottom,
+/// its right side past the area's right edge by [`WATERMARK_CUT`] of its width.
+fn watermark_rect(area: [f32; 5]) -> [f32; 4] {
+    let [ax, ay, aw, ah, _] = area;
+    [ax + aw - ah * (1.0 - WATERMARK_CUT), ay, ah, ah]
+}
+
+/// The video's shadow in logical pixels (data-model.md "Video backdrop"; softer than the mockup,
+/// maintainer 2026-11-07): strength, spread, blur of the near and the far shadow.
+const SHADOWS: [[f32; 3]; 2] = [[0.35, 0.0, 24.0], [0.2, 4.0, 64.0]];
+
+/// Past the video, the shadow's rectangle reaches the far shadow's spread plus one and a half
+/// blurs, where it is gone.
+fn shadow_margin(scale: f32) -> f32 {
+    (SHADOWS[1][1] + SHADOWS[1][2] * 1.5) * scale
+}
+
+/// The shadow layer's uniform for the letterboxed video `rect`: its rectangle grown by the margin,
+/// the video's corner radius, the shadows at `scale` (physical pixels per logical pixel), faded
+/// with the video.
+fn shadow_uniform(
+    rect: [f32; 4],
+    radius: f32,
+    scale: f32,
+    opacity: f32,
+    surface: (f32, f32),
+    layer: &Layer,
+) -> [f32; UNIFORM_LEN] {
+    let margin = shadow_margin(scale);
+    let [x, y, w, h] = rect;
+    let mut values = uniform(
+        [x - margin, y - margin, w + 2.0 * margin, h + 2.0 * margin],
+        radius,
+        surface,
+        layer,
+    );
+    values[OPACITY] = opacity;
+    let [[k1, s1, b1], [k2, s2, b2]] = SHADOWS;
+    values[12..16].copy_from_slice(&[margin, k1, s1 * scale, b1 * scale]);
+    values[16..20].copy_from_slice(&[k2, s2 * scale, b2 * scale, 0.0]);
+    values
+}
+
+/// The video area as a scissor rectangle inside the surface, whole pixels; `None` when empty.
+fn scissor(area: [f32; 5], (sw, sh): (u32, u32)) -> Option<[u32; 4]> {
+    let [ax, ay, aw, ah, _] = area;
+    let x0 = (ax.max(0.0).round() as u32).min(sw);
+    let y0 = (ay.max(0.0).round() as u32).min(sh);
+    let x1 = ((ax + aw).max(0.0).round() as u32).min(sw);
+    let y1 = ((ay + ah).max(0.0).round() as u32).min(sh);
+    (x1 > x0 && y1 > y0).then(|| [x0, y0, x1 - x0, y1 - y0])
 }
 
 /// The video's rectangle (x, y, width, height in pixels) fitted inside `area`, centered, whole
@@ -673,6 +783,30 @@ mod tests {
 
     fn forced(backend: Option<Backend>, present: Option<PresentMode>) -> Presentation {
         Presentation { backend, present }
+    }
+
+    #[test]
+    fn the_shadow_rectangle_grows_around_the_video() {
+        let layer_values = |scale: f32| {
+            let margin = shadow_margin(scale);
+            [margin, SHADOWS[0][1] * scale, SHADOWS[1][2] * scale]
+        };
+        assert_eq!(layer_values(1.0), [100.0, 0.0, 64.0]);
+        assert_eq!(layer_values(1.5), [150.0, 0.0, 96.0]);
+    }
+
+    #[test]
+    fn the_watermark_fills_the_area_height_and_is_cut_on_the_right() {
+        let area = [0.0, 32.0, 1920.0, 1048.0, 0.0];
+        let [x, y, w, h] = watermark_rect(area);
+        assert_eq!((y, w, h), (32.0, 1048.0, 1048.0));
+        assert!((x + w - 1920.0 - 0.12 * 1048.0).abs() < 1e-3, "12% past the right edge");
+        assert_eq!(scissor(area, (1920, 1080)), Some([0, 32, 1920, 1048]));
+        assert_eq!(scissor([0.0, 0.0, 0.0, 0.0, 0.0], (1920, 1080)), None);
+        assert_eq!(
+            scissor([-10.0, 0.0, 3000.0, 2000.0, 0.0], (1920, 1080)),
+            Some([0, 0, 1920, 1080])
+        );
     }
 
     #[test]

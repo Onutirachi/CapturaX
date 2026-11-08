@@ -191,7 +191,19 @@ const PAIRS: &[Pair] = &[
     // above) and its primary one the accent.
     text("text", &["deep"], "state message title"),
     text("text-muted", &["deep"], "state message detail"),
+    text("on-black-text", &["ground-black"], "state message title on black"),
+    text("on-black-muted", &["ground-black"], "state message detail on black"),
+    icon(
+        "on-black-muted",
+        &["ground-black"],
+        "state message icon and progress ring on black",
+    ),
     icon("text-muted", &["deep"], "state message icon"),
+    // Segmented control: its track is the deep tone, the chosen segment the accent.
+    text("text-muted", &["deep"], "segment"),
+    text("text", &["deep", "hover"], "segment hovered"),
+    text("accent-ink", &["accent"], "segment chosen"),
+    text("accent-ink", &["accent-hover"], "segment chosen hovered"),
     // Mode tags: white text on each fill (the rate tag is the text color on the menu).
     text("#ffffff", &["tag-1-1"], "1:1 tag"),
     text("#ffffff", &["tag-5-4"], "5:4 tag"),

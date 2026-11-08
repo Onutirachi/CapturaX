@@ -12,7 +12,9 @@ struct Rect {
     radius: f32,
     opacity: f32,
     // Layer kind, then the picture's width and height in pixels. Kinds: 0 premultiplied RGBA
-    // (UI), 1 opaque RGB, 2 NV12, 3 I420, 4 YUY2, 5 UYVY.
+    // (UI), 1 opaque RGB, 2 NV12, 3 I420, 4 YUY2, 5 UYVY, 6 coverage mask tinted with `to_r`'s
+    // RGB (the watermark), 7 the video's shadow (`to_r`: margin, then strength, spread, blur of
+    // the near shadow; `to_g`: strength, spread, blur of the far one, in pixels).
     picture: vec4<f32>,
     to_r: vec4<f32>,
     to_g: vec4<f32>,
@@ -72,6 +74,26 @@ fn packed(uv: vec2<f32>, uyvy: bool) -> vec3<f32> {
     return mix(top, bottom, f.y);
 }
 
+// One soft shadow at `d` pixels outside the video: full strength within `spread`, then a Gaussian
+// fall-off of `blur` / 2 deviation, as a CSS box shadow.
+fn soft(d: f32, strength: f32, spread: f32, blur: f32) -> f32 {
+    let deviation = max(blur * 0.5, 0.001);
+    let x = max(d - spread, 0.0);
+    return strength * exp(-x * x / (2.0 * deviation * deviation));
+}
+
+// The video's shadow: the distance to the video's rounded rectangle, which sits `margin` pixels
+// inside this layer's rectangle; nothing under the video itself.
+fn shadow(uv: vec2<f32>) -> vec4<f32> {
+    let margin = rect.to_r.x;
+    let half_size = rect.size * 0.5;
+    let inner = half_size - vec2<f32>(margin);
+    let q = abs(uv * rect.size - half_size) - (inner - vec2<f32>(rect.radius));
+    let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - rect.radius;
+    let a = soft(d, rect.to_r.y, rect.to_r.z, rect.to_r.w) + soft(d, rect.to_g.x, rect.to_g.y, rect.to_g.z);
+    return vec4<f32>(0.0, 0.0, 0.0, min(a, 1.0) * clamp(d + 0.5, 0.0, 1.0));
+}
+
 @fragment
 fn fs(in: VertexOut) -> @location(0) vec4<f32> {
     // Every plane is sampled before branching, so the samples stay in uniform control flow.
@@ -92,6 +114,12 @@ fn fs(in: VertexOut) -> @location(0) vec4<f32> {
         }
         case 3u: {
             color = convert(vec3<f32>(s0.r, s1.r, s2.r));
+        }
+        case 6u: {
+            color = vec4<f32>(rect.to_r.rgb * s0.r, s0.r);
+        }
+        case 7u: {
+            color = shadow(in.uv);
         }
         default: {
             color = convert(packed(in.uv, kind == 5u));
