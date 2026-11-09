@@ -2,7 +2,7 @@
 //! thread, the Slint UI drawn there and handed to the video thread with the scene.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use slint::{ComponentHandle, Global};
 use winit::application::ApplicationHandler;
@@ -32,6 +32,14 @@ use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
 pub const EXIT_NO_RENDERER: i32 = 2;
 /// Exit code when `--test-video` cannot play: GStreamer or `videotestsrc` is missing.
 pub const EXIT_NO_TEST_VIDEO: i32 = 69;
+
+/// The main loop's tick, which notices a wake from sleep and runs the device list's re-read.
+const TICK: Duration = Duration::from_secs(1);
+/// A tick this much later than due, by the wall clock, means the system slept: the process does
+/// not run meanwhile, and on Linux `Instant` does not count the suspended time.
+const WAKE_GAP: Duration = Duration::from_secs(10);
+/// How often the device list is read again while the preview waits for a device (research R1).
+const RELIST_EVERY: Duration = Duration::from_secs(3);
 
 /// Events reaching the main thread from the UI's callbacks, the platform layer and the capture
 /// crate's threads.
@@ -63,6 +71,11 @@ pub enum UserEvent {
     ModePicked(i32),
     /// The video thread's summary of the last second (FR-016).
     Second(crate::stats::Summary),
+    /// The device list read again ([`capture::Monitor::relist`]); `timer` for the 3 s re-read.
+    Relisted {
+        devices: Vec<capture::Device>,
+        timer: bool,
+    },
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -139,6 +152,16 @@ pub struct App {
     menus: Option<(Vec<preview::Item>, Vec<preview::Item>)>,
     /// The device monitor, unless the test video plays or GStreamer cannot start.
     monitor_devices: Option<capture::Monitor>,
+    /// A re-read of the device list is running (`Some(timer)`), and one asked for meanwhile, run
+    /// once it is back (a list read before a session error may still hold the device).
+    relisting: Option<bool>,
+    relist_queued: Option<bool>,
+    /// The next tick, and the wall clock at the last one (a wake from sleep); `None` before the
+    /// first, so a slow start is not taken for a sleep.
+    tick_at: Instant,
+    tick_wall: Option<SystemTime>,
+    /// The next 3 s re-read while the preview waits for a device.
+    relist_at: Instant,
     /// The open device's session, and when it was asked for (SC-004).
     session: Option<(capture::Session, Instant)>,
     /// The open device, for the `[source]` line of `--stats` (contracts/stats.md).
@@ -260,6 +283,11 @@ impl App {
             preview: Preview::with_access(camera_access),
             menus: None,
             monitor_devices: None,
+            relisting: None,
+            relist_queued: None,
+            tick_at: Instant::now(),
+            tick_wall: None,
+            relist_at: Instant::now(),
             session: None,
             source: None,
             second: crate::stats::Summary::EMPTY,
@@ -325,13 +353,64 @@ impl App {
         }
     }
 
-    /// Hands an event to the preview and runs the commands it gives.
+    /// Hands an event to the preview and runs the commands it gives; a state change is logged
+    /// with the event that caused it.
     fn preview_event(&mut self, event: preview::Event) {
         let settings = self.store.get();
-        for command in self.preview.handle(event, &settings) {
+        let reason = event.reason();
+        let before = self.preview.state();
+        let was_waiting = self.preview.waiting();
+        let commands = self.preview.handle(event, &settings);
+        let after = self.preview.state();
+        if after != before {
+            log::info!("preview state {before:?} -> {after:?} ({reason})");
+        }
+        if self.preview.waiting() && !was_waiting {
+            // The first re-read comes a full period after the state's own (no reopen loop faster
+            // than the period after an error).
+            self.relist_at = Instant::now() + RELIST_EVERY;
+        }
+        for command in commands {
             self.run(command);
         }
         self.show_menus();
+    }
+
+    /// Reads the device list again off the main thread; the result comes back as
+    /// [`UserEvent::Relisted`]. One at a time: a request meanwhile runs once the first is back.
+    fn relist(&mut self, timer: bool) {
+        let Some(monitor) = &self.monitor_devices else {
+            return;
+        };
+        if self.relisting.is_some() {
+            self.relist_queued = Some(self.relist_queued.unwrap_or(false) | timer);
+            return;
+        }
+        self.relisting = Some(timer);
+        let proxy = self.proxy.clone();
+        monitor.relist(move |devices| {
+            let _ = proxy.send_event(UserEvent::Relisted { devices, timer });
+        });
+    }
+
+    /// The main loop's tick: a wake from sleep reopens the device (spec edge case), and while the
+    /// preview waits for a device the list is read again every 3 s (research R1).
+    fn tick(&mut self, now: Instant) {
+        let wall = SystemTime::now();
+        let since = self
+            .tick_wall
+            .replace(wall)
+            .and_then(|last| wall.duration_since(last).ok())
+            .unwrap_or_default();
+        self.tick_at = now + TICK;
+        if since > WAKE_GAP {
+            log::info!("woke from sleep: {:.0} s since the last tick", since.as_secs_f64());
+            self.preview_event(preview::Event::Resumed);
+        }
+        if self.preview.waiting() && now >= self.relist_at {
+            self.relist_at = now + RELIST_EVERY;
+            self.relist(true);
+        }
     }
 
     /// Shows the device and mode menus when they changed (a device came or left, another one
@@ -414,12 +493,7 @@ impl App {
                 });
             }
             Command::Close => self.close_session(),
-            Command::Relist => {
-                if let Some(monitor) = &self.monitor_devices {
-                    let devices = monitor.devices();
-                    self.preview_event(preview::Event::Relisted { devices, timer: false });
-                }
-            }
+            Command::Relist => self.relist(false),
             Command::SaveChoice { id, name } => {
                 log::info!("device {id} remembered");
                 self.store.update(|s| s.remember_device(&id, &name));
@@ -448,10 +522,7 @@ impl App {
                 app.set_range_full(in_use == Some(capture::Range::Full));
                 self.request_redraw();
             }
-            Command::ShowState => {
-                log::info!("preview state {:?}", self.preview.state());
-                self.show_preview_state();
-            }
+            Command::ShowState => self.show_preview_state(),
         }
     }
 
@@ -1342,6 +1413,19 @@ impl ApplicationHandler<UserEvent> for App {
                 self.second = summary;
                 self.show_info();
             }
+            UserEvent::Relisted { devices, timer } => {
+                self.relisting = None;
+                let names: Vec<&str> = devices.iter().map(|d| d.name.as_str()).collect();
+                if timer {
+                    log::debug!("devices read again (3 s timer): {names:?}");
+                } else {
+                    log::info!("devices read again after the error: {names:?}");
+                }
+                self.preview_event(preview::Event::Relisted { devices, timer });
+                if let Some(timer) = self.relist_queued.take() {
+                    self.relist(timer);
+                }
+            }
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();
                 match event {
@@ -1465,6 +1549,11 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(at) = self.leave_fullscreen_at {
             wake = Some(wake.map_or(at, |w| w.min(at)));
         }
+        let now = Instant::now();
+        if now >= self.tick_at {
+            self.tick(now);
+        }
+        wake = Some(wake.map_or(self.tick_at, |w| w.min(self.tick_at)));
         event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 

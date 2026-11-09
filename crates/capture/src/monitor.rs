@@ -1,6 +1,12 @@
 //! The device monitor (research R1), ported from the stack spike's `capture/src/devices.rs`: one
 //! `gst::DeviceMonitor` on `Video/Source` for the app's lifetime, its add and remove messages
 //! read on a thread of its own.
+//!
+//! Only one `gst::DeviceMonitor` may exist while it runs: GStreamer shares one provider per
+//! factory in the process, and a second monitor takes the provider's bus sync handler, then
+//! clears it when dropped, so the running monitor never hears an add or remove again (T044,
+//! `gst_device_provider_factory_get` and `gst_device_monitor_remove_provider` in GStreamer core).
+//! Every read of the list goes through the running monitor ([`listed_now`]).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -11,6 +17,9 @@ use gst::prelude::*;
 use crate::Unavailable;
 use crate::device::{self, Device};
 use crate::mode;
+
+/// The running monitor, for [`listed_now`].
+static RUNNING: Mutex<Option<gst::DeviceMonitor>> = Mutex::new(None);
 
 /// What the monitor reports.
 #[derive(Debug, Clone)]
@@ -41,6 +50,9 @@ impl Monitor {
         monitor
             .start()
             .map_err(|e| Unavailable(format!("device monitor: {e}")))?;
+        if let Ok(mut running) = RUNNING.lock() {
+            *running = Some(monitor.clone());
+        }
         let known = Arc::new(Mutex::new(Vec::new()));
         let stopping = Arc::new(AtomicBool::new(false));
         let thread = {
@@ -60,14 +72,25 @@ impl Monitor {
         })
     }
 
-    /// The devices listed now, read again from the providers (the 3 s re-read while waiting,
-    /// research R1).
-    pub fn devices(&self) -> Vec<Device> {
-        let devices = described(self.monitor.devices());
-        if let Ok(mut known) = self.known.lock() {
-            known.clone_from(&devices);
+    /// Reads the device list again on a thread of its own and hands it to `on_listed` (the 3 s
+    /// re-read while waiting and the re-read after a session error, research R1): the providers'
+    /// list, which each provider keeps by probing again on every device change; the monitor's
+    /// list takes it, so a later add or remove of the same device is not reported twice.
+    pub fn relist(&self, on_listed: impl FnOnce(Vec<Device>) + Send + 'static) {
+        let known = Arc::clone(&self.known);
+        let spawned = std::thread::Builder::new().name("device-relist".into()).spawn(move || {
+            let started = std::time::Instant::now();
+            let devices = listed_now();
+            let ids: Vec<&str> = devices.iter().map(|d| d.name.as_str()).collect();
+            log::debug!("devices read again in {} ms: {ids:?}", started.elapsed().as_millis());
+            if let Ok(mut known) = known.lock() {
+                known.clone_from(&devices);
+            }
+            on_listed(devices);
+        });
+        if let Err(err) = spawned {
+            log::error!("device re-read thread: {err}");
         }
-        devices
     }
 
     /// Stops the thread and the monitor; idempotent.
@@ -78,6 +101,9 @@ impl Monitor {
                 log::error!("device monitor thread panicked");
             }
             self.monitor.stop();
+            if let Ok(mut running) = RUNNING.lock() {
+                *running = None;
+            }
             log::info!("device monitor stopped");
         }
     }
@@ -151,9 +177,13 @@ fn run(
     }
 }
 
-/// The devices the providers list now, from a probe of their own: a started monitor may still
-/// list a device that has left (research R1, R6).
+/// The devices the providers list now: from the running monitor, else from a monitor of its own
+/// (none runs, for example in tests); never a second monitor beside a running one (module docs).
 pub(crate) fn listed_now() -> Vec<Device> {
+    let running = RUNNING.lock().ok().and_then(|r| r.clone());
+    if let Some(monitor) = running {
+        return described(monitor.devices());
+    }
     let monitor = gst::DeviceMonitor::new();
     monitor.add_filter(Some("Video/Source"), None);
     monitor.set_show_all_devices(true);

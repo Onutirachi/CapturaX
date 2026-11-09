@@ -90,6 +90,11 @@ impl ErrorCode {
 /// Windows (research R6).
 const IN_USE_WITHIN: Duration = Duration::from_secs(2);
 
+/// How long an error after Playing was asked for waits on Windows before the device list is read:
+/// the list still has an unplugged device for a moment after its error, which read as Failed before
+/// Disconnected (T044, research R6).
+const LISTED_AFTER: Duration = Duration::from_secs(1);
+
 /// No frame this long after Playing → [`DeviceError::NoSignal`].
 pub const NO_SIGNAL_AFTER: Duration = Duration::from_secs(5);
 
@@ -169,6 +174,8 @@ struct Shared {
     pipeline: Mutex<Option<gst::Pipeline>>,
     closed: AtomicBool,
     errored: AtomicBool,
+    /// An error is being mapped (the first one; later ones are only logged).
+    mapping: AtomicBool,
     first_frame: AtomicBool,
     detector: Mutex<RangeDetector>,
     /// When the luma was last sampled for the range detector.
@@ -306,6 +313,7 @@ impl Session {
                 pipeline: Mutex::new(None),
                 closed: AtomicBool::new(false),
                 errored: AtomicBool::new(false),
+                mapping: AtomicBool::new(false),
                 first_frame: AtomicBool::new(false),
                 detector: Mutex::new(RangeDetector::new(range, None)),
                 sampled: Mutex::new(None),
@@ -535,7 +543,7 @@ fn wait_for_signal(shared: &Shared) {
 
 /// Logs every error and warning with its debug text; the first error ends the session, mapped
 /// to why the device cannot play (research R6).
-fn on_message(shared: &Shared, message: &gst::Message) {
+fn on_message(shared: &Arc<Shared>, message: &gst::Message) {
     match message.view() {
         gst::MessageView::Error(err) => {
             let debug = err.debug().map(|d| d.to_string()).unwrap_or_default();
@@ -545,7 +553,10 @@ fn on_message(shared: &Shared, message: &gst::Message) {
                 err.error(),
                 err.src().map(|s| s.path_string())
             );
-            if shared.errored.load(Ordering::SeqCst) || shared.closed.load(Ordering::SeqCst) {
+            if shared.errored.load(Ordering::SeqCst)
+                || shared.closed.load(Ordering::SeqCst)
+                || shared.mapping.swap(true, Ordering::SeqCst)
+            {
                 return;
             }
             let since_playing = shared
@@ -554,26 +565,45 @@ fn on_message(shared: &Shared, message: &gst::Message) {
                 .ok()
                 .and_then(|requested| *requested)
                 .map(|at| at.elapsed());
-            let access = (shared.context.access)();
-            // Read again from the providers: the monitor's own list may lag the device leaving.
-            let still_listed = shared
-                .device_id
-                .as_ref()
-                .is_none_or(|id| crate::monitor::listed_now().iter().any(|device| &device.id == id));
-            let error = map_error(
-                shared.context.windows,
-                ErrorCode::of(&err.error()),
-                &err.error().to_string(),
-                &debug,
-                since_playing,
-                still_listed,
-                access,
-            );
-            log::info!(
-                "session {}: mapped to {error:?} (since playing {since_playing:?}, listed {still_listed}, access {access:?})",
-                shared.session
-            );
-            shared.fail(error);
+            let code = ErrorCode::of(&err.error());
+            let message = err.error().to_string();
+            // On Windows a device asked to play may be leaving: the list is read once it caught
+            // up (also within `IN_USE_WITHIN`: an unplug there read as In use), on a thread of its own (a close meanwhile must not wait for it).
+            let wait = shared.context.windows && since_playing.is_some();
+            let shared = Arc::clone(shared);
+            let decide = move || {
+                if wait {
+                    std::thread::sleep(LISTED_AFTER);
+                    if shared.closed.load(Ordering::SeqCst) {
+                        return;
+                    }
+                }
+                let access = (shared.context.access)();
+                // Read again from the providers: the monitor's own list may lag the device leaving.
+                let still_listed = shared
+                    .device_id
+                    .as_ref()
+                    .is_none_or(|id| crate::monitor::listed_now().iter().any(|device| &device.id == id));
+                let error = map_error(
+                    shared.context.windows,
+                    code,
+                    &message,
+                    &debug,
+                    since_playing,
+                    still_listed,
+                    access,
+                );
+                log::info!(
+                    "session {}: mapped to {error:?} (since playing {since_playing:?}, listed {still_listed}, access {access:?})",
+                    shared.session
+                );
+                shared.fail(error);
+            };
+            if !wait {
+                decide();
+            } else if let Err(err) = std::thread::Builder::new().name("session-error".into()).spawn(decide) {
+                log::error!("session error thread: {err}");
+            }
         }
         gst::MessageView::Warning(warning) => {
             // v4l2src warns here when it judges the driver's timestamps bad (research R11).

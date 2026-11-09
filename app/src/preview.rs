@@ -29,7 +29,7 @@ pub enum PreviewState {
 }
 
 /// What goes into [`Preview::handle`].
-#[allow(dead_code)] // TryAgain comes with T045; Resumed and the timer's re-read with T044.
+#[allow(dead_code)] // TryAgain comes with T045.
 #[derive(Debug, Clone)]
 pub enum Event {
     Monitor(MonitorEvent),
@@ -40,7 +40,8 @@ pub enum Event {
         devices: Vec<Device>,
         timer: bool,
     },
-    /// The system woke from sleep: the open device opens again as after a reconnect (FR-014).
+    /// The system woke from sleep: the open device opens again as after a reconnect (FR-014), and
+    /// so does the device of an error state (its error came before the wake was noticed).
     Resumed,
     /// A session's event, tagged with its session number.
     Session {
@@ -59,6 +60,30 @@ pub enum Event {
     Hidden,
     /// The window came back from the tray.
     Shown,
+}
+
+impl Event {
+    /// A short description for the log line of a state change (the event's reason).
+    pub fn reason(&self) -> String {
+        match self {
+            Self::Monitor(MonitorEvent::Listed(devices)) => format!("first list, {} devices", devices.len()),
+            Self::Monitor(MonitorEvent::Added(device)) => format!("{} added", device.id),
+            Self::Monitor(MonitorEvent::Removed(id)) => format!("{id} removed"),
+            Self::Relisted { devices, timer } => format!(
+                "list read again{}, {} devices",
+                if *timer { " (3 s timer)" } else { "" },
+                devices.len()
+            ),
+            Self::Resumed => "woke from sleep".into(),
+            Self::Session { session, event } => format!("session {session}: {event:?}"),
+            Self::ChooseDevice(id) => format!("{id} chosen"),
+            Self::ChooseMode(choice) => format!("mode {choice} chosen"),
+            Self::ChooseRange(range) => format!("color range {range:?} chosen"),
+            Self::TryAgain => "try again".into(),
+            Self::Hidden => "window hidden".into(),
+            Self::Shown => "window shown".into(),
+        }
+    }
 }
 
 /// What the app does for the preview.
@@ -185,7 +210,6 @@ impl Preview {
 
     /// Waiting for a device to come (no devices, the open one disconnected, or blocked while it
     /// is not listed): the app reads the list again every 3 s meanwhile (research R1).
-    #[allow(dead_code)] // The 3 s timer comes with T044.
     pub fn waiting(&self) -> bool {
         match self.state.as_ref() {
             Some(PreviewState::NoDevices | PreviewState::Disconnected(_)) => true,
@@ -288,6 +312,21 @@ impl Preview {
                 if let Some(open) = &self.open {
                     log::info!("preview: woke from sleep, opening {} again", open.device);
                     self.again = Some(Again::of(open));
+                    self.woke = true;
+                    self.reopen(settings, &mut out);
+                } else if !self.hidden
+                    && matches!(
+                        self.state,
+                        Some(PreviewState::InUse(_) | PreviewState::NoSignal(_) | PreviewState::Failed(_))
+                    )
+                    && let Some(again) = &self.again
+                {
+                    // The session failed in the second before the wake was noticed: an error
+                    // after the wake, as above.
+                    log::info!(
+                        "preview: woke from sleep, opening {} again after its error",
+                        again.device
+                    );
                     self.woke = true;
                     self.reopen(settings, &mut out);
                 }
@@ -1367,6 +1406,32 @@ mod tests {
         // Playing again: errors map as usual.
         p.handle(error(again.2, DeviceError::Failed("x".into())), &settings);
         assert_eq!(p.state(), PreviewState::Failed("card".into()));
+    }
+
+    #[test]
+    fn an_error_just_before_the_wake_is_noticed_reopens() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        p.handle(error(session, DeviceError::InUse), &settings);
+        assert_eq!(p.state(), PreviewState::InUse("card".into()));
+        // The wake is noticed after the error: the device opens again in its mode.
+        let (_, mode, woke) = opened(&p.handle(Event::Resumed, &settings)).unwrap();
+        assert_eq!(mode, self::mode(1280, 720, 60));
+        // Still not ready: a disconnect, reopened by the timer once listed.
+        p.handle(error(woke, DeviceError::Failed("x".into())), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(p.waiting());
+
+        // Blocked and Disconnected are left to access and the list.
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        p.handle(error(session, DeviceError::Blocked { node: None }), &settings);
+        assert!(opened(&p.handle(Event::Resumed, &settings)).is_none());
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(removed("card"), &settings);
+        assert!(opened(&p.handle(Event::Resumed, &settings)).is_none());
     }
 
     #[test]

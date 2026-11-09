@@ -253,6 +253,8 @@ impl Ui {
                     app.invoke_open_device_menu();
                 }
             }
+            // Blocked on Windows (research R6); the button comes with T045.
+            "open-privacy" => platform::open_camera_privacy(),
             _ => log::warn!("state message: unknown action {id:?}"),
         });
         app.show()?;

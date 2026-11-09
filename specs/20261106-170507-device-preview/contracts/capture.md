@@ -8,7 +8,7 @@ calls (research R12). Names are indicative; tasks fix the exact signatures.
 | Item | Meaning |
 |---|---|
 | `Monitor::start(on_event) -> Monitor` | Starts the device monitor on its own thread (research R1); `on_event` gets `Added(Device)`, `Removed(id)` and, once at start, `Listed(Vec<Device>)` |
-| `Monitor::devices() -> Vec<Device>` | The current list (also used for the 3 s re-read while waiting) |
+| `Monitor::relist(on_listed)` | Reads the running monitor's list again on a thread and hands it to `on_listed`; the 3 s re-read while waiting and the re-read after a session error. No second `DeviceMonitor` while one runs (research R1) |
 | `Monitor::stop()` | Stops the thread; called at quit |
 | `Device` | data-model.md "Device" |
 | `find(remembered_id, devices) -> Option<&Device>` | Exact id (research R2) |

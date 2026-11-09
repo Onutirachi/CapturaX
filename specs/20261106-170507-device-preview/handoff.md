@@ -320,6 +320,44 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   (`mapped to InUse ... since playing 34 ms`: R6's heuristic right in a real case), and once
   freed it played (first frame 466 ms). T044 got the wake detection and the timer's re-read
   (tasks.md).
+- **T044** implemented, checks pass (fmt, clippy, all tests on Windows), **not committed: waits
+  for the maintainer's test** (no smoke run: a release `capturax.exe` was running, single
+  instance). `Monitor::devices()` was the started monitor's cached list (GStreamer returns a
+  started provider's cache), so it became `Monitor::relist(on_listed)`: a probe of its own
+  (`listed_now`) on a `device-relist` thread, the monitor's `known` list takes the result
+  (contracts/capture.md, research R1 updated). App: `UserEvent::Relisted { devices, timer }`,
+  one re-read at a time (`relisting`, a request meanwhile queued in `relist_queued`); a 1 s tick
+  in `about_to_wait` (`TICK`, `ControlFlow::WaitUntil`): a wall-clock gap over 10 s
+  (`WAKE_GAP`; on Linux `Instant` excludes suspend, so the wall clock; the first tick only sets
+  it, so a slow start is not a wake) → `Event::Resumed`; while `Preview::waiting()` a
+  `Relisted { timer: true }` every 3 s, the first one 3 s after the state starts waiting (no
+  reopen loop faster than 3 s). `Event::Resumed` now also reopens the device of an InUse,
+  NoSignal or Failed state (its error came in the second before the tick noticed the wake;
+  data-model's "any → wake → Opening"), new test. State changes are logged in
+  `preview_event` as `preview state <before> -> <after> (<reason>)` (`Event::reason`). The
+  state action `open-privacy` calls `platform::open_camera_privacy()` (the button comes with
+  T045). Known limit: a wall-clock step over 10 s (manual change) or a main-thread stall that
+  long reads as a wake and reopens the open device once.
+- **T044 tests on Windows (2026-11-08)**: the running monitor stopped reporting adds and removes
+  after the first session error. **Cause found**: GStreamer shares one provider per factory, a
+  second `DeviceMonitor` takes the provider bus's sync handler and clears it when dropped
+  (research R1). T042's "still listed" probe (`monitor::listed_now`) and the first T044 relist
+  made a second monitor. Fixed: `listed_now` reads the running monitor (a static `RUNNING`),
+  a monitor of its own only when none runs; `Monitor::relist` reads it on a thread. The GST log
+  run confirmed it (first unplug reported, none after the first probe). **Retested and accepted
+  by the maintainer (2026-11-08)**: three unplugs of the playing C920 (one 1.6 s after its first
+  frame) each logged `device removed` / `device added`, went straight to Disconnected and played
+  again by itself; with the ezcap playing, the C920 leaving and coming back was heard too.
+  Committed as `feat: wire the device timers and wake`. Not tried on hardware yet: sleep and
+  wake, and starting with no device then plugging one in.
+- **Maintainer, 2026-11-08**: on Windows any error after Playing was asked for is mapped 1 s
+  later (also within the 2 s In use window: an unplug there read as In use) (`LISTED_AFTER` in session.rs, on a `session-error` thread; the last frame stays), so an
+  unplug goes straight to Disconnected instead of showing Failed for a second (research R6).
+- **State icons** (maintainer, 2026-11-08, picked on
+  https://claude.ai/artifact/8bpmiFnSGKFnXyReHEyTsc, private): as planned except Disconnected
+  `plug_connected_x` (same as the disconnect notice); Blocked keeps `lock` on both platforms.
+  Titles and detail lines chosen by the maintainer, listed in research R13 (English by the
+  agent); T045 updated.
 
 Nothing pushed.
 
@@ -462,11 +500,9 @@ Nothing pushed.
 
 ## Next step
 
-0. **US4 on Windows**: T041–T043 done. Next T044: the 3 s timer
-   (`Preview::waiting()` → `Monitor::devices()` → `Event::Relisted { timer: true }`), wake
-   detection → `Event::Resumed`, the privacy action, the state logs; check whether
-   `Monitor::devices()` is only the running monitor's cached list (then `Command::Relist` and
-   the timer need a fresh probe off the main thread, like `monitor::listed_now`). Then T045
+0. **US4 on Windows**: T041–T044 done (unplug and replug accepted). Still to try on hardware
+   when convenient: sleep and wake with a device playing (log `woke from sleep: N s`, the
+   device reopens), and start with no device then plug one in. Next: T045
    (Failed/In use etc. still show the provisional "Cannot open <name>"; in an error state the
    Device select shows nothing, `open` is None: decide there), T060–T063.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux

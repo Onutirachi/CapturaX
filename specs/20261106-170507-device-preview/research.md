@@ -16,8 +16,14 @@ marks what was not run.
   preferred provider, decided from the device itself, not by `cfg`: `device.api ==
   "mediafoundation"` or a device type named `GstV4l2Device` (the spike's rule; on Linux the
   PipeWire provider lists the same card again and is skipped). While the app waits for a device
-  (no devices, or the open one disconnected) it also re-reads `monitor.devices()` every 3 s, so a
-  missed add is caught.
+  (no devices, or the open one disconnected) it also reads the list again every 3 s, so a
+  missed add is caught. The re-read runs off the main thread and reads the running monitor's
+  `devices()`: the providers' list, which each provider keeps by probing again on every device
+  change. **Never a second `DeviceMonitor` while one runs** (found at T044, 2026-11-08):
+  GStreamer shares one provider per factory in the process (`gst_device_provider_factory_get`),
+  a second monitor's `add_filter` takes the provider bus's sync handler and its dispose sets it
+  to NULL (`gst_device_monitor_remove_provider`), so the running monitor never hears an add or
+  remove again; T042's "still listed" probe did that on every session error.
 - **Windows**: `mfdeviceprovider` registers for `KSCATEGORY_CAPTURE` interface notifications on a
   hidden window and re-probes every device on each arrival or removal (each opened for about
   40 ms), so events arrive tens to hundreds of ms late, and an audio interface of the same card
@@ -162,7 +168,10 @@ marks what was not run.
     desktop apps is denied (`platform::camera_access()`, reading
     `CapabilityAccessManager\ConsentStore\webcam` and `webcam\NonPackaged` `Value` under HKCU and
     HKLM) → Blocked; else if the device is no longer listed → Gone; else a `STREAM/FAILED` right
-    after PLAYING → InUse; else Failed. Because a denied device disappears from the list (R1),
+    after PLAYING → InUse; else Failed. The list is read 1 s after any error once Playing was
+    asked for (maintainer, 2026-11-08; an unplug within the 2 s of InUse read as In use): an unplugged C920 was still listed at its error, so the
+    preview showed Failed for a second before Disconnected; meanwhile the last frame stays.
+    Because a denied device disappears from the list (R1),
     "No devices" on Windows first checks the consent and shows Blocked when it is denied.
   - **No signal**: the pipeline plays but no frame arrives within 5 s.
   - The GStreamer error and debug text always go to the log.
@@ -345,8 +354,20 @@ marks what was not run.
   shell plan), which opens a menu with their three displays. The settings panel gains **Preview**
   (Tabler `device-tv` icon) with the Presentation select and its tooltip.
 - **States** (FR-019): the app shell's `StateMessage` with icons from Tabler (`device_tv_off` no
-  devices / disconnected, `lock` blocked, `player_pause` in use, `antenna_bars_off` no signal,
-  `alert_triangle` failed); opening shows the Fluent progress ring (an arc that grows, shrinks
+  devices, `plug_connected_x` disconnected (the same icon as the disconnect notice), `lock`
+  blocked, `player_pause` in use, `antenna_bars_off`
+  no signal, `alert_triangle` failed; maintainer's picks on a mockup page, 2026-11-08:
+  https://claude.ai/artifact/8bpmiFnSGKFnXyReHEyTsc, private). Texts (maintainer, 2026-11-08), title
+  then detail, pt-BR · en: No devices "Nenhum dispositivo" / "Conecte um dispositivo de vídeo" ·
+  "No devices" / "Connect a video device"; Blocked (Windows) "Acesso bloqueado" / "Permissão para
+  aplicativos da área de trabalho desativada" · "Access blocked" / "Desktop app permission is
+  off"; Blocked (Linux) "Não foi possível abrir /dev/videoN" / "Sem permissão para usar o
+  dispositivo" · "Cannot open /dev/videoN" / "No permission to use the device"; In use "Em uso"
+  / "<name> está sendo usado em outro lugar" · "In use" / "<name> is being used elsewhere";
+  Disconnected "<name> desconectado" / "Aguardando reconexão" · "<name> disconnected" /
+  "Waiting to reconnect"; No signal "Sem sinal" / "Nenhum sinal de vídeo detectado" · "No
+  signal" / "No video signal detected"; Failed "Não foi possível abrir <name>", no detail ·
+  "Cannot open <name>". Opening shows the Fluent progress ring (an arc that grows, shrinks
   and turns, as in Windows 11), drawn by the app, no text, only after 1 s (R17).
 
 ## R14. Dependencies
