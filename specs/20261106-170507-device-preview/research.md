@@ -353,6 +353,39 @@ marks what was not run.
   the frame rate and latency bubbles show a settings button on hover, drawn in the top layer (app
   shell plan), which opens a menu with their three displays. The settings panel gains **Preview**
   (Tabler `device-tv` icon) with the Presentation select and its tooltip.
+- **Toolbar and docks at any size** (FR-002a; maintainer, 2026-11-09, option D of a mockup page:
+  https://claude.ai/artifact/SSttGFEnjq4oXXKe3wubc5, private). The app shell's compact layout put
+  the docks in the toolbar's row; with four dropdowns (audio comes in spec #4) each got about
+  96 px and read "ez…", and the future docks (left: fullscreen, ambient light, volume; right:
+  preview, screenshot, record, stream, settings) would not fit at all. Now:
+  - The toolbar is a dock (the maintainer picked it over the band and a band with rounded lower
+    corners): the side docks' panel (`panel` fill, 22 px corners, 8 px padding), 12 px from the
+    video area's top, centered, as wide as its selects with 6 px gaps; 64 px tall.
+  - Every titled select gets a leading icon (Tabler, picked at implementation and shown to the
+    maintainer). Two looks, both 48 px tall: **full** (icon, title, value, arrow; from 176 px up
+    to the maximum) and **icon** (icon and arrow, 56 px). The toolbar computes once for all
+    selects: full when `n × 176 + (n − 1) × 6 + 16` fits the video area's width less 2 × 12,
+    the room above that shared up to the maximum; icon otherwise. With four selects the full
+    look needs a window about 762 px wide. 176 px is the mockup's estimate for the mode
+    select's value and tags; if they need more, the number changes here first. The maximum is
+    305 px: the maintainer wanted the toolbar at 1920 the same as at 1280, and 305 px is what
+    four selects reach at 1280 ((1280 − 24 − 16 − 3 × 6) / 4); it stops growing there.
+  - Docks by role (maintainer, 2026-11-09): left = adjustments (fullscreen, ambient light,
+    volume, settings), right = features (preview, screenshot, record, stream), 4 and 4.
+    Settings moves to the left dock now, under fullscreen; the right dock is hidden while
+    empty (app shell FR-015).
+  - Icon look: tooltip "<title>: <value>"; its menu starts with the title as a group header.
+  - Float (800 × 520 and above): dock buttons 44 px, side docks centered on the video area's
+    height, as today. Compact: dock buttons 40 px, side docks centered in the space under the
+    toolbar dock (76 px from the top). At 640 × 360 the video area is 328 px: 252 px under the
+    toolbar against 194 px for a 4-button dock (4 × 40 + 3 × 6 + 16).
+  - Info bubbles keep their row (as T035 built it: a row against the right edge, a right-aligned
+    column when the row does not fit). New: when a side dock's bottom is below the row's top,
+    the row's room is between the docks (8 px from each); the column, when needed, sits left
+    of the right dock if it meets it.
+  - Alternatives: titles dropped and values kept (option A; four values in 148 px each still
+    truncate); icons only at every size (B); one "Source" button opening a panel (C; two
+    clicks to change mode).
 - **States** (FR-019): the app shell's `StateMessage` with icons from Tabler (`device_tv_off` no
   devices, `plug_connected_x` disconnected (the same icon as the disconnect notice), `lock`
   blocked, `player_pause` in use, `antenna_bars_off`

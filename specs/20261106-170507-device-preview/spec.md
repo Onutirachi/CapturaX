@@ -239,6 +239,28 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 - **FR-002**: The device menu MUST be the toolbar's video source dropdown (Float direction):
   devices only, each with its name, a detail line and its resolution tags (F43), the open device
   marked. The "no source" state's action opens this same menu.
+- **FR-002a**: The toolbar and the docks MUST fit every window down to the minimum size (640 ×
+  360) without overlaps (maintainer, 2026-11-09, on a mockup page; replaces the docks' placement
+  of app shell FR-009):
+  - The toolbar is a dock like the side docks, in every layout: a floating panel at the top
+    center of the video area, as wide as its dropdowns (no longer a band across the video).
+  - Each toolbar dropdown shows an icon before its title and value, in every window size.
+  - The dropdowns grow with the room: while the toolbar fits all of them at their narrowest full
+    width (the width at which the mode's value and tags still read, about 176 px), they show
+    icon, title and value, sharing the room up to 305 px each (so the toolbar stops growing
+    at 1280 px wide and looks the same at 1920 as at 1280). Below that, all of them show only the icon and the
+    arrow, together; the tooltip gives the title and the value, and the menu shows the title at
+    its top.
+  - The side docks stay in the middle of the video area's sides in every layout, never in the
+    toolbar's row. In the compact layout (below 800 × 520) the dock buttons are smaller and the
+    side docks are centered in the space under the toolbar, so the future docks fit at 640 × 360.
+  - The left dock holds the adjustments and the right dock the features: settings moves to the
+    left dock, under fullscreen (future: fullscreen, ambient light, volume, settings on the
+    left; preview, screenshot, record, stream on the right, 4 and 4). Until a later spec adds
+    the first feature, the right dock is not shown (app shell FR-015).
+  - The info bubbles stay in one row at the bottom right. When a side dock reaches down to the
+    row, the row fits between the docks; only when it still does not fit do they stack in a
+    right-aligned column, left of the right dock.
 - **FR-003**: Each device MUST have a stable identity used to remember its choices across
   restarts and reconnects; devices with the same name are numbered in the list. A device whose
   identity depends on its USB port (no serial) moved to another port counts as a new device: its
@@ -486,7 +508,7 @@ added the real interface and settings since; this spec must not lose what the sp
   app runs on them, with possibly a few ms more latency on Linux if they do (FR-012).
 - The look is the app shell's (Float direction): the device, mode and color range menus are the
   toolbar's dropdowns, built with the app shell's select and menu components; the toolbar slot the shell
-  left empty gets its panel here. The audio dropdown is spec #4.
+  left empty gets its panel here. The audio dropdown is spec #4; FR-002a already counts it.
 - The info bubbles here are a fixed first version (source, mode, frame rate, latency) shown with
   the chrome; spec #6 adds pinning, order, corners and the recording and live status (F42).
 - The automatic modes are computed from the modes the driver reports; reading the incoming signal

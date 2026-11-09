@@ -120,8 +120,12 @@ close the session, stop the monitor; the rest is the shell's sequence.
 ### UI (`app/ui/`)
 
 - `components/toolbar.slint`: the toolbar panel in the shell's slot with the device, mode and
-  color range selects (R13), in the spike's dropdown look (title inside); compact layout keeps
-  them in the toolbar's row, narrower.
+  color range selects (R13), in the spike's dropdown look (title inside) with a leading icon;
+  all of them switch to the icon look when the toolbar cannot fit them full (FR-002a, R13
+  "Toolbar and docks at any size"). The toolbar is a dock (floating panel at the top center),
+  no longer a band. `main.slint` keeps the side docks in the middle of the sides in the compact
+  layout (under the toolbar dock, 40 px buttons) and narrows the bubbles' row to the room
+  between the docks when they meet.
 - `components/menu.slint`: `MenuItem` gains `kind`, `detail` (second line), `rate`, `tag`, `tag-kind`, `aspect` (T066),
   `disabled`; group headers are not selectable; keyboard navigation skips them.
 - `components/tag.slint` (name, aspect and rate tags, T066), `components/progress-ring.slint` (T067), `components/info-bubbles.slint` (fixed bottom right;

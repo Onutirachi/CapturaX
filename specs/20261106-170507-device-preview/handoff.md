@@ -505,6 +505,17 @@ Nothing pushed.
   **Preview** in both languages (maintainer, 2026-11-07), not Video: recording and live will
   have video settings of their own.
 
+- **Toolbar and docks at any size** (maintainer, 2026-11-09, option D of the mockup page
+  https://claude.ai/artifact/SSttGFEnjq4oXXKe3wubc5): the toolbar becomes a dock (floating, top
+  center); every toolbar dropdown gets an icon; they show icon + title + value while all fit
+  (176 px up to a maximum, growing with the room), else all icon only; the side docks stay in
+  the middle of the sides in the compact layout (no longer in the toolbar's row; app shell
+  FR-009 revised); the bubbles keep one row, between the docks when they meet; dropdowns at
+  most 305 px (the toolbar stops growing at 1280); settings moves to the left dock (left = adjustments, right = features, 4 + 4 in
+  the future; right dock hidden while empty).
+  Spec FR-002a, research R13, plan UI, task T072 (not implemented yet; spec changes
+  committed in `docs: turn the toolbar into a dock and fit it at any size`).
+
 ## Open questions
 
 
@@ -531,6 +542,8 @@ Nothing pushed.
 
 ## Next step
 
+- **T072** (toolbar and docks at any size, FR-002a) is approved in the spec and waits for its
+  turn; it can go before T060 if the maintainer prefers.
 0. **US4 on Windows**: T041–T044 done (unplug and replug accepted). Still to try on hardware
    when convenient: sleep and wake with a device playing (log `woke from sleep: N s`, the
    device reopens), and start with no device then plug one in. T045 is done and committed. Next:

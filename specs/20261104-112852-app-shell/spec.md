@@ -255,6 +255,9 @@ change that only breaks one platform's build; each is reported and blocks the me
   screen in Windows' snap layouts). Below the size the Float layout needs (800 × 520 in the
   spike), the main screen MUST switch to a compact layout in which no control overlaps another
   (F8).
+  *Revised 2026-11-09*: the docks no longer move into the toolbar's row in the compact layout;
+  they stay in the middle of the sides, and settings moves to the left dock (device preview
+  spec FR-002a).
 - **FR-010**: Menus, dropdowns and tooltips MUST stay inside the window, and a control's hover
   area MUST never be covered by another control (spike open question).
 - **FR-011**: On Windows 11 the app SHOULD show the snap layouts flyout when the pointer rests
