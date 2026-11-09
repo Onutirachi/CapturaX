@@ -57,6 +57,9 @@ export global Menus {
     // The top of row `index` in the list (`index` = the count: the list's height plus one
     // spacing); set by Rust (`item_top`) with the row heights below and a 2 px spacing.
     pure callback item-top(items: [MenuItem], index: int) -> length;
+    // `items` after a group header named `title` (the icon look's menu); set by Rust, since Slint
+    // cannot join arrays.
+    pure callback with-header(title: string, items: [MenuItem]) -> [MenuItem];
 
     public pure function selectable(item: MenuItem) -> bool {
         return item.kind != "header" && !item.disabled;

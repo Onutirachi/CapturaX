@@ -508,7 +508,7 @@ Nothing pushed.
 - **Toolbar and docks at any size** (maintainer, 2026-11-09, option D of the mockup page
   https://claude.ai/artifact/SSttGFEnjq4oXXKe3wubc5): the toolbar becomes a dock (floating, top
   center); every toolbar dropdown gets an icon; they show icon + title + value while all fit
-  (176 px up to a maximum, growing with the room), else all icon only; the side docks stay in
+  (280 px up to a maximum, growing with the room; 176 px at first, raised at T072), else all icon only; the side docks stay in
   the middle of the sides in the compact layout (no longer in the toolbar's row; app shell
   FR-009 revised); the bubbles keep one row, between the docks when they meet; dropdowns at
   most 305 px (the toolbar stops growing at 1280); settings moves to the left dock (left = adjustments, right = features, 4 + 4 in
@@ -542,8 +542,19 @@ Nothing pushed.
 
 ## Next step
 
-- **T072** (toolbar and docks at any size, FR-002a) is approved in the spec and waits for its
-  turn; it can go before T060 if the maintainer prefers.
+- **T072** (toolbar and docks at any size, FR-002a) done, accepted by the maintainer on Windows
+  and committed (2026-11-09). Icons `video`, `aspect_ratio`, `color_filter` (maintainer's picks,
+  research R13); the toolbar counts the selects it has (3 now: the full look from a window about
+  892 px wide, the icon look below); full look from 280 px (measured: at 176 px the mode read
+  "192..."); every dock has 24 px corners (the controls' 16 px plus the 8 px padding) and the dock
+  buttons are 48 px in every layout, so the side docks are as thick as the toolbar (64 px); all
+  in spec FR-002a and R13 (maintainer). Notes: surfaces take their corner radius
+  (`Theme.surface(.., radius, ..)`, `Raised.radius`, `Theme.radius-dock`); the icon look's menu
+  gets its title header from Rust (`Menus.with-header`, Slint cannot join arrays), picks are
+  shifted back by one in select.slint; the bubbles take `row-start` / `row-end` / `column-end`
+  (main.slint sets `row-start` when the left dock reaches the row; with two dock buttons it
+  never does, only with the future four); the toolbar is a `Raised` panel in a row (Dock is a
+  column). Next: T060.
 0. **US4 on Windows**: T041–T044 done (unplug and replug accepted). Still to try on hardware
    when convenient: sleep and wake with a device playing (log `woke from sleep: N s`, the
    device reopens), and start with no device then plug one in. T045 is done and committed. Next:

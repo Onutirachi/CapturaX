@@ -124,7 +124,7 @@ close the session, stop the monitor; the rest is the shell's sequence.
   all of them switch to the icon look when the toolbar cannot fit them full (FR-002a, R13
   "Toolbar and docks at any size"). The toolbar is a dock (floating panel at the top center),
   no longer a band. `main.slint` keeps the side docks in the middle of the sides in the compact
-  layout (under the toolbar dock, 40 px buttons) and narrows the bubbles' row to the room
+  layout (under the toolbar dock; 48 px buttons, as thick as the toolbar) and narrows the bubbles' row to the room
   between the docks when they meet.
 - `components/menu.slint`: `MenuItem` gains `kind`, `detail` (second line), `rate`, `tag`, `tag-kind`, `aspect` (T066),
   `disabled`; group headers are not selectable; keyboard navigation skips them.

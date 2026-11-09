@@ -152,10 +152,10 @@ export global Theme {
     in property <bool> dark: true;
     out property <Palette> c: dark ? Palettes.dark : Palettes.light;
 
-    // A raised surface of this logical size at the window's scale: its fill over its shadow at
-    // `shadow` strength, made in Rust in physical pixels so it is drawn 1:1 (research R8). Empty
-    // in the preview.
-    pure callback surface(width: length, height: length, scale: float, fill: color, shadow: float) -> image;
+    // A raised surface of this logical size and corner radius at the window's scale: its fill
+    // over its shadow at `shadow` strength, made in Rust in physical pixels so it is drawn 1:1
+    // (research R8). Empty in the preview.
+    pure callback surface(width: length, height: length, radius: length, scale: float, fill: color, shadow: float) -> image;
 
     out property <string> font: "Inter";
     out property <length> text-s: 12px;
@@ -166,6 +166,9 @@ export global Theme {
     out property <length> radius-s: 10px;
     out property <length> radius-m: 16px;
     out property <length> radius-l: 22px;
+    // A dock's corners: a control's (`radius-m`) plus the dock's 8 px padding, so the gap between
+    // a control and the dock's edge stays even around the corners.
+    out property <length> radius-dock: 24px;
     out property <length> gap-s: 6px;
     out property <length> gap-m: 12px;
     out property <length> gap-l: 20px;

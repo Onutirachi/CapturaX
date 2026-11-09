@@ -6,13 +6,14 @@ import { Theme } from "../theme.slint";
 
 export component Raised inherits Rectangle {
     in property <color> fill: Theme.c.raised;
+    in property <length> radius: Theme.radius-m;
 
     Image {
         x: -36px;
         y: -36px;
         width: root.width + 72px;
         height: root.height + 72px + 10px;
-        source: Theme.surface(root.width, root.height, 1px / 1phx, root.fill, Theme.c.shadow);
+        source: Theme.surface(root.width, root.height, root.radius, 1px / 1phx, root.fill, Theme.c.shadow);
     }
 
     Rectangle {

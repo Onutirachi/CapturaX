@@ -359,26 +359,34 @@ marks what was not run.
   96 px and read "ez…", and the future docks (left: fullscreen, ambient light, volume; right:
   preview, screenshot, record, stream, settings) would not fit at all. Now:
   - The toolbar is a dock (the maintainer picked it over the band and a band with rounded lower
-    corners): the side docks' panel (`panel` fill, 22 px corners, 8 px padding), 12 px from the
-    video area's top, centered, as wide as its selects with 6 px gaps; 64 px tall.
-  - Every titled select gets a leading icon (Tabler, picked at implementation and shown to the
-    maintainer). Two looks, both 48 px tall: **full** (icon, title, value, arrow; from 176 px up
-    to the maximum) and **icon** (icon and arrow, 56 px). The toolbar computes once for all
-    selects: full when `n × 176 + (n − 1) × 6 + 16` fits the video area's width less 2 × 12,
-    the room above that shared up to the maximum; icon otherwise. With four selects the full
-    look needs a window about 762 px wide. 176 px is the mockup's estimate for the mode
-    select's value and tags; if they need more, the number changes here first. The maximum is
-    305 px: the maintainer wanted the toolbar at 1920 the same as at 1280, and 305 px is what
-    four selects reach at 1280 ((1280 − 24 − 16 − 3 × 6) / 4); it stops growing there.
+    corners): the side docks' panel (`panel` fill, 8 px padding), 12 px from the video area's
+    top, centered, as wide as its selects with 6 px gaps; 64 px tall. Every dock has 24 px
+    corners, the controls' 16 px plus the padding, so the gap between a control and the dock's
+    edge stays even around the corners (maintainer, 2026-11-09).
+  - Every titled select gets a leading icon (Tabler 3.31.0, maintainer's picks on a mockup page,
+    2026-11-09: https://claude.ai/artifact/Fc23hHf9iyKs9CGv9dtJ8r, private): device `video`, mode
+    `aspect_ratio`, color range `color_filter`. Two looks, both 48 px tall: **full** (icon, title,
+    value, arrow; from 280 px up to the maximum) and **icon** (icon and arrow, 56 px). The toolbar
+    computes once for all selects, counting the selects it has (three until spec #4 adds audio;
+    maintainer, 2026-11-09): full when `n × 280 + (n − 1) × 6 + 16` fits the video area's width
+    less 2 × 12, the room above that shared up to the maximum; icon otherwise. Three selects show
+    the full look from a window about 892 px wide, four from about 1178 px. 280 px is the mode
+    select's need measured in the app at T072 (icon 42 px, "1920 × 1080" 82 px, its two tags
+    119 px with the gap, the arrow 36 px); the mockup's estimate of 176 px cut the value to "192…"
+    (maintainer, 2026-11-09, over dropping the name tag from the toolbar or unequal widths). The
+    maximum is 305 px: the maintainer wanted the toolbar at 1920 the same as at 1280, and 305 px is
+    what four selects reach at 1280 ((1280 − 24 − 16 − 3 × 6) / 4); it stops growing there.
   - Docks by role (maintainer, 2026-11-09): left = adjustments (fullscreen, ambient light,
     volume, settings), right = features (preview, screenshot, record, stream), 4 and 4.
     Settings moves to the left dock now, under fullscreen; the right dock is hidden while
     empty (app shell FR-015).
   - Icon look: tooltip "<title>: <value>"; its menu starts with the title as a group header.
-  - Float (800 × 520 and above): dock buttons 44 px, side docks centered on the video area's
-    height, as today. Compact: dock buttons 40 px, side docks centered in the space under the
-    toolbar dock (76 px from the top). At 640 × 360 the video area is 328 px: 252 px under the
-    toolbar against 194 px for a 4-button dock (4 × 40 + 3 × 6 + 16).
+  - Dock buttons 48 px in every layout, as tall as the toolbar's selects, so the side docks are
+    as thick as the toolbar dock (64 px; maintainer, 2026-11-09, over 44 px in Float and 40 px
+    in compact). Float (800 × 520 and above): side docks centered on the video area's height,
+    as today. Compact: side docks centered in the space under the toolbar dock (76 px from the
+    top). At 640 × 360 the video area is 328 px: 252 px under the toolbar against 226 px for a
+    4-button dock (4 × 48 + 3 × 6 + 16).
   - Info bubbles keep their row (as T035 built it: a row against the right edge, a right-aligned
     column when the row does not fit). New: when a side dock's bottom is below the row's top,
     the row's room is between the docks (8 px from each); the column, when needed, sits left

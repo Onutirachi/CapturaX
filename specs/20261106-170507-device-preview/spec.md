@@ -246,14 +246,15 @@ previewing and watch the cursor; read the presentation statistics in both modes.
     center of the video area, as wide as its dropdowns (no longer a band across the video).
   - Each toolbar dropdown shows an icon before its title and value, in every window size.
   - The dropdowns grow with the room: while the toolbar fits all of them at their narrowest full
-    width (the width at which the mode's value and tags still read, about 176 px), they show
+    width (the width at which the mode's value and tags still read, 280 px, measured at T072), they show
     icon, title and value, sharing the room up to 305 px each (so the toolbar stops growing
     at 1280 px wide and looks the same at 1920 as at 1280). Below that, all of them show only the icon and the
     arrow, together; the tooltip gives the title and the value, and the menu shows the title at
     its top.
   - The side docks stay in the middle of the video area's sides in every layout, never in the
-    toolbar's row. In the compact layout (below 800 × 520) the dock buttons are smaller and the
-    side docks are centered in the space under the toolbar, so the future docks fit at 640 × 360.
+    toolbar's row. The side docks are as thick as the toolbar dock. In the compact layout (below
+    800 × 520) the side docks are centered in the space under the toolbar, so the future docks
+    fit at 640 × 360.
   - The left dock holds the adjustments and the right dock the features: settings moves to the
     left dock, under fullscreen (future: fullscreen, ambient light, volume, settings on the
     left; preview, screenshot, record, stream on the right, 4 and 4). Until a later spec adds

@@ -1,14 +1,17 @@
-// The toolbar (research R13, FR-002, FR-010), as the stack spike's: a semi-transparent band across
-// the top of the video holding the preview's dropdowns (240 × 48, title inside) in the Float order
-// device, mode, color range. It slides away with the docks. In the compact layout it sits between
-// the docks, in the same row, and the dropdowns narrow so nothing overlaps (shell FR-009). The
-// keyboard reaches it before the docks (it comes first in main.slint).
+// The toolbar (research R13, FR-002, FR-002a, FR-010): a dock like the side docks, floating at the
+// top center of the video area, holding the preview's dropdowns in the Float order device, mode,
+// color range, as wide as they are with 6 px gaps. It slides away with the docks. The dropdowns
+// show their full look (icon, title, value) while the room fits all of them at 280 px, sharing it
+// up to 305 px each; below that all of them show the icon look together. The keyboard reaches it
+// before the docks (it comes first in main.slint).
 import { Theme } from "../theme.slint";
 import { Select } from "select.slint";
 import { MenuItem } from "menu.slint";
+import { Raised } from "raised.slint";
 
-export component Toolbar inherits Rectangle {
-    in property <bool> compact;
+export component Toolbar inherits Raised {
+    // The widest the toolbar may get: the video area's width less its edges.
+    in property <length> room;
     // False while the settings panel holds the keyboard.
     in property <bool> focusable: true;
     // A device is open or opening: its choices can change.
@@ -39,64 +42,64 @@ export component Toolbar inherits Rectangle {
         device-select.open-menu();
     }
 
-    // The narrowest a select gets: three fit between the docks in the compact layout.
-    property <length> narrow: root.compact ? 96px : 140px;
+    // The dropdowns' widths (research R13 "Toolbar and docks at any size"): the full look from
+    // 280 px (the mode's value and its two tags, measured) up to 305 px, else the icon look's 56 px.
+    property <int> count: 3;
+    property <length> gap: 6px;
+    property <length> pad: 8px;
+    property <length> chrome: 2 * root.pad + (root.count - 1) * root.gap;
+    property <bool> full: root.count * 280px + root.chrome <= root.room;
+    property <length> select-width: root.full ? min(305px, floor((root.room - root.chrome) / root.count / 1px) * 1px) : 56px;
 
-    background: Theme.c.panel;
+    // The side docks' panel (dock.slint), in a row.
+    fill: Theme.c.panel;
+    radius: Theme.radius-dock;
+    width: root.count * root.select-width + root.chrome;
+    height: 48px + 2 * root.pad;
 
     HorizontalLayout {
-        padding: Theme.gap-l;
-        spacing: root.compact ? Theme.gap-m : Theme.gap-l;
-        alignment: start;
+        padding: root.pad;
+        spacing: root.gap;
 
-        VerticalLayout {
-            alignment: center;
-            device-select := Select {
-                preferred-width: 240px;
-                min-width: root.narrow;
-                horizontal-stretch: 0;
-                title: @tr("Device");
-                label: @tr("Device");
-                focusable: root.focusable;
-                items: root.devices;
-                shown: root.device-missing;
-                shown-muted: true;
-                current <=> root.device;
-                selected(index) => { root.device-picked(index); }
-            }
+        device-select := Select {
+            width: root.select-width;
+            title: @tr("Device");
+            label: @tr("Device");
+            icon: @image-url("../assets/icons/video.svg");
+            icon-only: !root.full;
+            focusable: root.focusable;
+            items: root.devices;
+            shown: root.device-missing;
+            shown-muted: true;
+            current <=> root.device;
+            selected(index) => { root.device-picked(index); }
         }
 
-        VerticalLayout {
-            alignment: center;
-            mode-select := Select {
-                preferred-width: 240px;
-                min-width: root.narrow;
-                horizontal-stretch: 0;
-                title: @tr("Mode");
-                label: @tr("Mode");
-                enabled: root.modes-reachable;
-                focusable: root.focusable;
-                items: root.modes;
-                current <=> root.mode;
-                selected(index) => { root.mode-picked(index); }
-            }
+        mode-select := Select {
+            width: root.select-width;
+            title: @tr("Mode");
+            label: @tr("Mode");
+            icon: @image-url("../assets/icons/aspect_ratio.svg");
+            icon-only: !root.full;
+            enabled: root.modes-reachable;
+            focusable: root.focusable;
+            items: root.modes;
+            current <=> root.mode;
+            selected(index) => { root.mode-picked(index); }
         }
 
-        VerticalLayout {
-            alignment: center;
-            range-select := Select {
-                preferred-width: 240px;
-                min-width: root.narrow;
-                horizontal-stretch: 0;
-                title: @tr("Color range");
-                label: @tr("Color range");
-                enabled: root.device-open;
-                focusable: root.focusable;
-                items: [{ text: @tr("Auto") }, { text: @tr("Full") }, { text: @tr("Limited") }];
-                current <=> root.color-range;
-                shown: root.color-range != 0 ? "" : root.range-full ? @tr("Auto (Full)") : @tr("Auto (Limited)");
-                selected(index) => { root.color-range-changed(index); }
-            }
+        range-select := Select {
+            width: root.select-width;
+            title: @tr("Color range");
+            label: @tr("Color range");
+            icon: @image-url("../assets/icons/color_filter.svg");
+            icon-only: !root.full;
+            enabled: root.device-open;
+            focusable: root.focusable;
+            items: [{ text: @tr("Auto") }, { text: @tr("Full") }, { text: @tr("Limited") }];
+            current <=> root.color-range;
+            shown: root.color-range != 0 ? "" : root.range-full ? @tr("Auto (Full)") : @tr("Auto (Limited)");
+            selected(index) => { root.color-range-changed(index); }
         }
     }
 }

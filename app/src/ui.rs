@@ -227,9 +227,10 @@ impl Ui {
         // Slint picks a catalog from the system's locale when the component is created; the
         // app's own rule (setting, `--lang`, system) replaces that choice.
         select_language(language);
-        // Surface images by physical size, scale, fill and shadow strength; a few surfaces, so
-        // the cache stays small, and it is dropped when it grows (tooltips vary with their text).
-        let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32), slint::Image>::new());
+        // Surface images by physical size, corner radius, scale, fill and shadow strength; a few
+        // surfaces, so the cache stays small, and it is dropped when it grows (tooltips vary with
+        // their text).
+        let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32, u32), slint::Image>::new());
         app.global::<Menus>().on_item_top(|items, index| {
             use slint::Model;
             let rows: Vec<MenuRow> = items
@@ -251,14 +252,25 @@ impl Ui {
             let selectable: Vec<bool> = items.iter().map(|i| i.kind != "header" && !i.disabled).collect();
             next_selectable(&selectable, from, step)
         });
+        app.global::<Menus>().on_with_header(|title, items| {
+            use slint::Model;
+            let header = MenuItem {
+                text: title,
+                kind: "header".into(),
+                ..Default::default()
+            };
+            let rows: Vec<MenuItem> = std::iter::once(header).chain(items.iter()).collect();
+            slint::ModelRc::new(slint::VecModel::from(rows))
+        });
         app.global::<Theme>()
-            .on_surface(move |width, height, scale, fill, strength| {
+            .on_surface(move |width, height, radius, scale, fill, strength| {
                 let (w, h) = shadows::image_size(width, height, scale);
                 let fill = slint::RgbaColor::<u8>::from(fill);
                 let fill = slint::Rgba8Pixel::new(fill.red, fill.green, fill.blue, fill.alpha);
                 let key = (
                     w,
                     h,
+                    radius.to_bits(),
                     (scale * 100.0).round() as u32,
                     u32::from_be_bytes([fill.r, fill.g, fill.b, fill.a]),
                     strength.to_bits(),
@@ -269,7 +281,9 @@ impl Ui {
                 }
                 cache
                     .entry(key)
-                    .or_insert_with(|| slint::Image::from_rgba8(shadows::make(width, height, scale, fill, strength)))
+                    .or_insert_with(|| {
+                        slint::Image::from_rgba8(shadows::make(width, height, radius, scale, fill, strength))
+                    })
                     .clone()
             });
         // The state message's actions (FR-033).

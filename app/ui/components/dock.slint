@@ -1,11 +1,13 @@
 // A dock: a semi-transparent rounded panel holding icon buttons in a column, ported from the stack
-// spike's `dock.slint`. In this spec the left dock holds only fullscreen and the right dock only
-// settings (FR-015); later specs add their buttons.
+// spike's `dock.slint`. The left dock holds the adjustments (fullscreen and settings in this spec)
+// and the right dock the features, not shown until a later spec adds the first (FR-002a, app shell
+// FR-015).
 import { Theme } from "../theme.slint";
 import { Raised } from "raised.slint";
 
 export component Dock inherits Raised {
     fill: Theme.c.panel;
+    radius: Theme.radius-dock;
     width: column.preferred-width;
     height: column.preferred-height;
 

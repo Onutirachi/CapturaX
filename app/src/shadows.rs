@@ -20,8 +20,6 @@ use slint::{Rgba8Pixel, SharedPixelBuffer};
 pub const MARGIN: f32 = 36.0;
 /// How much further the image reaches below, in logical pixels: the soft layer's offset.
 pub const BELOW: f32 = 10.0;
-/// Corner radius of the surfaces (`Theme.radius-m`), in logical pixels.
-pub const RADIUS: f32 = 16.0;
 
 /// One shadow layer, in logical pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -56,8 +54,16 @@ pub fn image_size(width: f32, height: f32, scale: f32) -> (u32, u32) {
 }
 
 /// The image of a surface of `width` Ã— `height` logical pixels at `scale`: its `fill` (straight
-/// alpha) over its shadow at `strength` (the theme's shadow opacity), straight alpha.
-pub fn make(width: f32, height: f32, scale: f32, fill: Rgba8Pixel, strength: f32) -> SharedPixelBuffer<Rgba8Pixel> {
+/// alpha) over its shadow at `strength` (the theme's shadow opacity), straight alpha. Its corners
+/// are `radius` logical pixels.
+pub fn make(
+    width: f32,
+    height: f32,
+    radius: f32,
+    scale: f32,
+    fill: Rgba8Pixel,
+    strength: f32,
+) -> SharedPixelBuffer<Rgba8Pixel> {
     let (w, h) = image_size(width, height, scale);
     let margin = px(MARGIN, scale) as f32;
     let surface = RoundedRect {
@@ -65,7 +71,7 @@ pub fn make(width: f32, height: f32, scale: f32, fill: Rgba8Pixel, strength: f32
         top: margin,
         right: margin + px(width, scale) as f32,
         bottom: margin + px(height, scale) as f32,
-        radius: RADIUS * scale,
+        radius: radius * scale,
     };
     let (wu, hu) = (w as usize, h as usize);
 
@@ -207,7 +213,7 @@ mod tests {
 
     /// The shadow alone: a transparent fill at full strength.
     fn shadow(width: f32, height: f32, scale: f32) -> SharedPixelBuffer<Rgba8Pixel> {
-        make(width, height, scale, Rgba8Pixel::new(0, 0, 0, 0), 1.0)
+        make(width, height, 16.0, scale, Rgba8Pixel::new(0, 0, 0, 0), 1.0)
     }
 
     #[test]
@@ -222,7 +228,7 @@ mod tests {
     #[test]
     fn left_and_right_are_mirrored() {
         for scale in [1.0, 1.25, 1.5, 2.0] {
-            let image = make(56.0, 40.0, scale, Rgba8Pixel::new(40, 50, 60, 200), 1.0);
+            let image = make(56.0, 40.0, 16.0, scale, Rgba8Pixel::new(40, 50, 60, 200), 1.0);
             let (w, h) = (image.width(), image.height());
             for y in 0..h {
                 for x in 0..w / 2 {
@@ -254,7 +260,7 @@ mod tests {
     #[test]
     fn the_fill_covers_the_surface_with_its_own_colour() {
         let fill = Rgba8Pixel::new(14, 15, 19, 184);
-        let image = make(56.0, 56.0, 1.5, fill, 1.0);
+        let image = make(56.0, 56.0, 16.0, 1.5, fill, 1.0);
         let margin = px(MARGIN, 1.5);
         let side = px(56.0, 1.5);
         let y = margin + side / 2;
@@ -269,7 +275,10 @@ mod tests {
     #[test]
     fn the_strength_scales_the_shadow_only() {
         let fill = Rgba8Pixel::new(30, 31, 37, 255);
-        let (full, soft) = (make(56.0, 56.0, 1.0, fill, 1.0), make(56.0, 56.0, 1.0, fill, 0.35));
+        let (full, soft) = (
+            make(56.0, 56.0, 16.0, 1.0, fill, 1.0),
+            make(56.0, 56.0, 16.0, 1.0, fill, 0.35),
+        );
         let margin = px(MARGIN, 1.0);
         let below = margin + 56 + 4;
         let (a, b) = (alpha(&full, 64, below), alpha(&soft, 64, below));

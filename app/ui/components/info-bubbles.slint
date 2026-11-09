@@ -237,6 +237,12 @@ export component InfoBubbles inherits Rectangle {
     // The chrome shows: the bubbles take the pointer and the keyboard.
     in property <bool> active: true;
     in property <bool> focusable: true;
+    // The row's room, from its start to its end (it is packed against the end), and the column's
+    // right edge, in this element's coordinates: narrower than the element where a side dock
+    // reaches down to the bubbles (FR-002a). The row is used while it fits its room.
+    in property <length> row-start: 0;
+    in property <length> row-end: root.width;
+    in property <length> column-end: root.width;
     in property <string> source;
     // The mode's size ("1920 × 1080"), its name tag with the tag's ratio family, and its aspect
     // ratio tag.
@@ -330,26 +336,26 @@ export component InfoBubbles inherits Rectangle {
             + (k > 2 && root.shown(2) ? 1 : 0) * (root.in-row ? root.w(2) : size) + (k > 2 && root.shown(2) ? root.gap : 0)
     }
     property <length> row-width: root.w(0) + root.w(1) + root.w(2) + root.w(3) + max(0, root.count() - 1) * root.gap;
-    property <bool> in-row: root.row-width <= root.width;
+    property <bool> in-row: root.row-width <= root.row-end - root.row-start;
 
     source-bubble := Bubble {
-        x: root.in-row ? root.width - root.row-width + root.before(0, 0px) : root.width - self.width;
+        x: root.in-row ? root.row-end - root.row-width + root.before(0, 0px) : root.column-end - self.width;
         y: root.in-row ? 0 : root.before(0, 44px);
         visible: root.shown(0);
         active: root.active;
         focusable: root.focusable;
-        widest: min(360px, root.width);
+        widest: min(360px, root.column-end);
         accessible-label: root.source;
         BubbleText { text: root.source; }
     }
 
     mode-bubble := Bubble {
-        x: root.in-row ? root.width - root.row-width + root.before(1, 0px) : root.width - self.width;
+        x: root.in-row ? root.row-end - root.row-width + root.before(1, 0px) : root.column-end - self.width;
         y: root.in-row ? 0 : root.before(1, 44px);
         visible: root.shown(1);
         active: root.active;
         focusable: root.focusable;
-        widest: root.width;
+        widest: root.column-end;
         choices: root.mode-items;
         accessible-role: button;
         choice: root.mode-display + 1;
@@ -370,12 +376,12 @@ export component InfoBubbles inherits Rectangle {
     }
 
     fps-bubble := Bubble {
-        x: root.in-row ? root.width - root.row-width + root.before(2, 0px) : root.width - self.width;
+        x: root.in-row ? root.row-end - root.row-width + root.before(2, 0px) : root.column-end - self.width;
         y: root.in-row ? 0 : root.before(2, 44px);
         visible: root.shown(2);
         active: root.active;
         focusable: root.focusable;
-        widest: root.width;
+        widest: root.column-end;
         choices: root.fps-items;
         accessible-role: button;
         choice: root.fps-display + 1;
@@ -388,12 +394,12 @@ export component InfoBubbles inherits Rectangle {
     }
 
     latency-bubble := Bubble {
-        x: root.in-row ? root.width - root.row-width + root.before(3, 0px) : root.width - self.width;
+        x: root.in-row ? root.row-end - root.row-width + root.before(3, 0px) : root.column-end - self.width;
         y: root.in-row ? 0 : root.before(3, 44px);
         visible: root.shown(3);
         active: root.active;
         focusable: root.focusable;
-        widest: root.width;
+        widest: root.column-end;
         choices: root.latency-items;
         accessible-role: button;
         choice: root.latency-display + 1;

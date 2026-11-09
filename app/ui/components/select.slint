@@ -2,13 +2,16 @@
 // items in the top layer (menu.slint), ported from the stack spike's `dropdown.slint`. Enter,
 // Space, Up or Down opens it from the keyboard; the focus comes back here when it closes (FR-020).
 // Two looks: plain (36 px, for the settings panel's 44 px rows) and, with a `title`, the spike's
-// dropdown (research R13): a raised control 48 px tall with its title inside, above the chosen
-// value in bold, its frame rate tag (when it is on the item's first line) and its name tag, whose
-// menu is at least 320 px wide.
+// dropdown (research R13): a raised control 48 px tall with its leading icon, its title inside,
+// above the chosen value in bold, its frame rate tag (when it is on the item's first line) and its
+// name tag, whose menu is at least 320 px wide. A titled select also has an icon look (FR-002a):
+// 56 px wide, the icon and the chevron only; its tooltip gives the title and the value, and its
+// menu starts with the title as a group header.
 import { Theme } from "../theme.slint";
 import { FocusRing } from "focus-ring.slint";
 import { Menus, MenuItem } from "menu.slint";
 import { Tag } from "tag.slint";
+import { Tooltips, Side } from "tooltip.slint";
 
 export component Select inherits Rectangle {
     in property <[MenuItem]> items;
@@ -22,6 +25,12 @@ export component Select inherits Rectangle {
     in property <bool> shown-muted;
     // The small title inside the control (the dropdown look); empty for the plain look.
     in property <string> title;
+    // The leading icon of the dropdown look.
+    in property <image> icon;
+    // The icon look of a titled select (the toolbar does not fit the full look).
+    in property <bool> icon-only;
+    // Where the icon look's tooltip prefers to open.
+    in property <Side> tooltip-side: Side.bottom;
     // The setting's name, for screen readers.
     in property <string> label;
     out property <bool> has-focus: focus.has-focus;
@@ -34,6 +43,13 @@ export component Select inherits Rectangle {
     property <string> tag-kind: root.valid ? root.items[root.current].tag-kind : "";
     // The rate tag shows when it follows the item's text (no detail line).
     property <string> rate: root.valid && root.items[root.current].detail == "" ? root.items[root.current].rate : "";
+    // The value as the button shows it, in one line: the icon look's tooltip ("Mode: 1920 × 1080 •
+    // 60 FPS").
+    property <string> value: root.shown != "" ? root.shown : root.rate != "" ? root.chosen + " • " + root.rate : root.chosen;
+    property <bool> icon-look: root.titled && root.icon-only;
+    // The menu's rows: the icon look adds the title as a header, so its rows are the items' plus one.
+    property <int> offset: root.icon-look ? 1 : 0;
+    property <[MenuItem]> menu-items: root.icon-look ? Menus.with-header(root.title, root.items) : root.items;
 
     property <int> id;
     init => { self.id = Menus.new-id(); }
@@ -42,7 +58,7 @@ export component Select inherits Rectangle {
     property <int> picks: Menus.picked-owner == self.id ? Menus.picks : 0;
     changed picks => {
         if (self.picks != 0) {
-            self.current = Menus.picked-index;
+            self.current = Menus.picked-index - self.offset;
             self.selected(self.current);
         }
     }
@@ -51,7 +67,7 @@ export component Select inherits Rectangle {
     changed items => {
         if (self.open) {
             if (self.items.length > 0) {
-                Menus.update(self.items, self.current);
+                Menus.update(self.menu-items, self.current >= 0 ? self.current + self.offset : -1);
             } else {
                 Menus.close();
             }
@@ -71,12 +87,50 @@ export component Select inherits Rectangle {
 
     public function open-menu() {
         if (root.enabled && root.items.length > 0) {
-            Menus.show(root.id, root.items, root.current, root.absolute-position.x, root.absolute-position.y,
-                root.width, root.height, root.titled ? 320px : 160px);
+            root.hide-tip();
+            Menus.show(root.id, root.menu-items, root.current >= 0 ? root.current + root.offset : -1,
+                root.absolute-position.x, root.absolute-position.y, root.width, root.height,
+                root.titled ? 320px : 160px);
         }
     }
 
-    min-width: 120px;
+    // The icon look's tooltip, as `IconButton`'s: after 500 ms of hover, at once on keyboard focus,
+    // not while the menu is open. The token of the tooltip shown, 0 when none.
+    property <int> tip;
+    property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
+    property <bool> wants-tip: root.icon-look && (area.has-hover || focus.has-focus) && !root.open && root.visible;
+
+    function show-tip() {
+        root.tip = Tooltips.show(root.title + ": " + root.value, root.tooltip-side,
+            root.absolute-position.x, root.absolute-position.y, root.width, root.height);
+    }
+
+    function hide-tip() {
+        Tooltips.hide(root.tip);
+        root.tip = 0;
+    }
+
+    // The value or the language changed while the tooltip shows.
+    changed value => {
+        if (self.tip-shown) {
+            self.show-tip();
+        }
+    }
+    changed wants-tip => {
+        if (!self.wants-tip) {
+            self.hide-tip();
+        } else if (focus.has-focus && !area.has-hover) {
+            self.show-tip();
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: area.has-hover && !root.tip-shown && root.wants-tip;
+        triggered => { root.show-tip(); }
+    }
+
+    min-width: root.icon-look ? 56px : 120px;
     height: root.titled ? 48px : 36px;
     border-radius: root.titled ? Theme.radius-m : Theme.radius-s;
     // The dropdown look draws its fill with its shadow (as `Raised`).
@@ -85,7 +139,7 @@ export component Select inherits Rectangle {
 
     accessible-role: combobox;
     accessible-label: root.label;
-    accessible-value: root.shown != "" ? root.shown : root.chosen;
+    accessible-value: root.value;
     accessible-enabled: root.enabled;
     accessible-expandable: true;
     accessible-expanded: root.open;
@@ -99,7 +153,7 @@ export component Select inherits Rectangle {
         y: -36px;
         width: root.width + 72px;
         height: root.height + 72px + 10px;
-        source: Theme.surface(root.width, root.height, 1px / 1phx, Theme.c.top, Theme.c.shadow);
+        source: Theme.surface(root.width, root.height, Theme.radius-m, 1px / 1phx, Theme.c.top, Theme.c.shadow);
     }
 
     // Hover and open tint over the fill; the dropdown look has no pressed tint (as the spike).
@@ -130,11 +184,23 @@ export component Select inherits Rectangle {
     }
 
     HorizontalLayout {
-        padding-left: root.titled ? 14px : Theme.gap-m;
-        padding-right: root.titled ? 10px : Theme.gap-s + 4px;
-        spacing: Theme.gap-s;
+        padding-left: root.icon-look ? 10px : root.titled ? 12px : Theme.gap-m;
+        padding-right: root.icon-look ? 6px : root.titled ? 10px : Theme.gap-s + 4px;
+        spacing: root.icon-look ? 4px : root.titled ? 10px : Theme.gap-s;
 
-        VerticalLayout {
+        if root.titled: VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Image {
+                source: root.icon;
+                width: 20px;
+                height: 20px;
+                colorize: Theme.c.text;
+                accessible-role: none;
+            }
+        }
+
+        if !root.icon-look: VerticalLayout {
             alignment: center;
             spacing: 1px;
             horizontal-stretch: 1;
