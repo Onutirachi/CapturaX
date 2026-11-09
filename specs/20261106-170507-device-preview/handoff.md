@@ -1,6 +1,6 @@
 # Handoff: Device Preview
 
-**Updated**: 2026-11-08 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
+**Updated**: 2026-11-09 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
 
 ## State
 
@@ -554,12 +554,27 @@ Nothing pushed.
   shifted back by one in select.slint; the bubbles take `row-start` / `row-end` / `column-end`
   (main.slint sets `row-start` when the left dock reaches the row; with two dock buttons it
   never does, only with the future four); the toolbar is a `Raised` panel in a row (Dock is a
-  column). Next: T060.
+  column).
+- **T060** (`platform::notify`) done and committed after fmt, clippy, tests (Windows, and the
+  platform crate on the CachyOS PC in a worktree `/tmp/t060`, which can be removed with
+  `git worktree remove /tmp/t060`) and `cargo deny`; not wired in the app, not run yet.
+  Maintainer decision (2026-11-09): no icon file ships, so the app hands its icon's RGBA to
+  `init_notifications(icon, on_action)` and Windows writes `%LOCALAPPDATA%\CapturaX\notification.ico`
+  for `IconUri` (research R15, contracts/platform.md, T060). Linux sends the pixels in the
+  `image-data` hint plus `desktop-entry` `capturax`. The registry helpers of autostart moved to
+  `crates/platform/src/windows/registry.rs` (behavior unchanged). `SetCurrentProcessExplicitAppUserModelID`
+  runs in `init_notifications`, so the app must call it before creating the window (T063).
+  **Next: T061**: the maintainer runs `cargo run -p capturax-platform --example notify` on
+  Windows (expect the name CapturaX and the X icon, the second notice replacing the first,
+  **Open** printing `action: example:second`) and on CachyOS KDE (needs the session's
+  `DBUS_SESSION_BUS_ADDRESS`, so from a terminal there or with `XDG_RUNTIME_DIR=/run/user/1000`
+  over SSH); record the result in measurements/acceptance.md. If the Windows button does not
+  reach the app, stop and bring the R15 fallback to the maintainer.
 0. **US4 on Windows**: T041–T044 done (unplug and replug accepted). Still to try on hardware
    when convenient: sleep and wake with a device playing (log `woke from sleep: N s`, the
-   device reopens), and start with no device then plug one in. T045 is done and committed. Next:
-   T060 (`platform::notify`), then T061 (maintainer validates the Windows toast and the KDE
-   notification), T062, T063.
+   device reopens), and start with no device then plug one in. T045 and T060 are done and
+   committed. Next: T061 (maintainer validates the Windows toast and the KDE notification),
+   T062, T063.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives

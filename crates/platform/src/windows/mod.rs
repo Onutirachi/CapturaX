@@ -22,6 +22,8 @@ pub mod autostart;
 pub mod camera;
 mod dpi_rect;
 pub mod instance;
+pub mod notify;
+mod registry;
 pub mod snap;
 pub mod theme;
 pub mod tray;

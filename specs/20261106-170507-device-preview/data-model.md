@@ -185,7 +185,7 @@ any ── system sleep → wake ─► Opening (same device and mode) ── er
 - **Where**: `InApp` when the window has focus, else `System` (not focused, minimized, hidden to
   the tray).
 - **One at a time**: a new notice replaces the one showing (in-app: the single balloon shows the
-  latest message; system: `replaces_id` on Linux, the previous toast hidden on Windows).
+  latest message; system: the previous notice closed on Linux, the previous toast hidden on Windows).
 - **Closing (in-app)**: after about 5 s (not while hovered), on the × button, or on a click
   anywhere on the balloon; **Open** opens the device and closes it.
 - **Open**: same as picking the device in the menu; from a system notification it also shows the

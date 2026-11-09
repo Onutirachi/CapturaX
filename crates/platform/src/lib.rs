@@ -30,6 +30,9 @@ pub use camera::{Access, camera_access, open_camera_privacy};
 mod gpu;
 pub use gpu::{PerformanceGuard, gpu_performance};
 
+mod notify;
+pub use notify::{Notice, NoticeIcon, init_notifications, notify};
+
 pub mod snap;
 pub mod theme;
 pub mod tray;

@@ -12,6 +12,7 @@ use winit::window::{Window, WindowAttributes};
 pub mod autostart;
 pub mod camera;
 pub mod instance;
+pub mod notify;
 mod nvml;
 pub mod snap;
 pub mod theme;

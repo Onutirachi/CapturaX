@@ -433,7 +433,9 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
   - **Linux**: `org.freedesktop.Notifications.Notify` over D-Bus with `zbus` (already a
     dependency of `crates/platform` for the theme), app name `CapturaX`, the app icon, actions
     `["open", "<Open>"]` when there is one, the icon's pixels in the `image-data` hint (no icon
-    file needed; `desktop-entry` `capturax`), `replaces_id` of the previous notice (one at a time);
+    file needed; `desktop-entry` `capturax`), the previous notice closed (`CloseNotification`) and the new one sent as new (one at a
+    time; T061, 2026-11-09: KDE Plasma updates a notice already gone from the screen into its
+    history in place, with no popup, so `replaces_id` would hide later notices);
     the `ActionInvoked` signal maps back to the device id. No service on the bus → logged once,
     no-op.
   - **Windows**: WinRT `ToastNotificationManager` (`windows` crate, features
@@ -446,9 +448,13 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
     which writes them as `%LOCALAPPDATA%\CapturaX\notification.ico` for `IconUri`, rewritten when
     they differ (maintainer, 2026-11-09: per user like the key, nothing added to the portable
     folder, works when that folder is read-only); the toast's button is handled through the toast's `Activated` event while the
-    app runs (no COM activator, no start from a toast); `ToastNotifier::Hide` of the previous
-    toast keeps one at a time. Notifications off for the app → `Setting` is not `Enabled`, logged
-    once, no-op. Windows hides toasts while another app is fullscreen (focus assist); with
+    app runs (no COM activator, no start from a toast); `Show` of the new toast, then `ToastNotifier::Hide`
+    of the previous one (one at a time). Windows shows one popup of an app at a time and queues
+    the next until the previous ends (T061, 2026-11-09): with the previous hidden the new one
+    comes in after its exit animation, a short delay the system imposes; hiding first or a
+    shared `Tag` and `Group` were slower. Notifications off for the app → `Setting` is not `Enabled`, logged
+    once, no-op. Without a Start menu shortcut `Setting` cannot be read (0x80070490, seen at
+    T061, 2026-11-09) while `Show` works: an unreadable setting does not stop the toast. Windows hides toasts while another app is fullscreen (focus assist); with
     CapturaX fullscreen and focused the in-app notice is used anyway.
 - **To validate first** (task T061, maintainer): on Windows 11 the toast shows with the name
   CapturaX and its icon from an unpacked build and its **Open** button reaches the app; on KDE
