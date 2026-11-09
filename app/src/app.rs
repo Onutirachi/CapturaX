@@ -69,6 +69,8 @@ pub enum UserEvent {
     DevicePicked(i32),
     /// A row of the mode menu, by index.
     ModePicked(i32),
+    /// The state message's **Try again** (FR-019).
+    TryAgain,
     /// The video thread's summary of the last second (FR-016).
     Second(crate::stats::Summary),
     /// The device list read again ([`capture::Monitor::relist`]); `timer` for the 3 s re-read.
@@ -152,6 +154,9 @@ pub struct App {
     menus: Option<(Vec<preview::Item>, Vec<preview::Item>)>,
     /// The device monitor, unless the test video plays or GStreamer cannot start.
     monitor_devices: Option<capture::Monitor>,
+    /// Camera access when the monitor started or was last checked: a monitor started while
+    /// access was denied never lists the devices that come back with it (T045).
+    monitor_access: capture::Access,
     /// A re-read of the device list is running (`Some(timer)`), and one asked for meanwhile, run
     /// once it is back (a list read before a session error may still hold the device).
     relisting: Option<bool>,
@@ -221,6 +226,7 @@ impl App {
         let tray_available = tray::available();
         let backdrop = Backdrop::from(&store.get().preview);
         ui.app.global::<Prefs>().set_tray_available(tray_available);
+        ui.app.set_privacy_settings(platform::IS_WINDOWS);
         let sender = proxy.clone();
         let send = move |event: UserEvent| {
             let _ = proxy.send_event(event);
@@ -244,6 +250,8 @@ impl App {
         ui.app.on_device_picked(move |index| on(UserEvent::DevicePicked(index)));
         let on = send.clone();
         ui.app.on_mode_picked(move |index| on(UserEvent::ModePicked(index)));
+        let on = send.clone();
+        ui.app.on_try_again(move || on(UserEvent::TryAgain));
         let overlay = store.get().overlay;
         ui.app.set_latency_display(latency::latency_index(overlay.latency));
         ui.app.set_fps_display(latency::fps_index(overlay.fps));
@@ -283,6 +291,7 @@ impl App {
             preview: Preview::with_access(camera_access),
             menus: None,
             monitor_devices: None,
+            monitor_access: capture::Access::Unknown,
             relisting: None,
             relist_queued: None,
             tick_at: Instant::now(),
@@ -343,13 +352,17 @@ impl App {
 
     /// Starts the device monitor: its events reach the main thread as [`UserEvent::Monitor`].
     fn start_monitor(&mut self) {
+        self.monitor_access = camera_access();
         let proxy = self.proxy.clone();
         match capture::Monitor::start(move |event| {
             let _ = proxy.send_event(UserEvent::Monitor(event));
         }) {
             Ok(monitor) => self.monitor_devices = Some(monitor),
-            // The video area keeps the shell's `no-source` state.
-            Err(err) => log::error!("device monitor unavailable: {err}"),
+            // The video area shows the shell's `no-source` state.
+            Err(err) => {
+                log::error!("device monitor unavailable: {err}");
+                self.ui.app.set_preview_state("no-source".into());
+            }
         }
     }
 
@@ -409,7 +422,19 @@ impl App {
         }
         if self.preview.waiting() && now >= self.relist_at {
             self.relist_at = now + RELIST_EVERY;
-            self.relist(true);
+            let access = camera_access();
+            let restored = self.monitor_access == capture::Access::Denied && access != capture::Access::Denied;
+            self.monitor_access = access;
+            if restored && self.preview.device().is_none() && self.monitor_devices.is_some() {
+                // The running monitor lists nothing: a new one lists the devices again.
+                log::info!("camera access is back: the device monitor starts again");
+                self.monitor_devices = None;
+                self.relisting = None;
+                self.relist_queued = None;
+                self.start_monitor();
+            } else {
+                self.relist(true);
+            }
         }
     }
 
@@ -417,6 +442,10 @@ impl App {
     /// opened, a stored choice changed); an open menu follows at once (spec edge case).
     fn show_menus(&mut self) {
         let menus = self.preview.menus(&self.store.get());
+        self.ui.app.set_modes_reachable(self.preview.modes_reachable());
+        self.ui
+            .app
+            .set_device_missing(self.preview.missing_name().unwrap_or_default().into());
         if self.menus.as_ref() == Some(&menus) {
             return;
         }
@@ -540,7 +569,14 @@ impl App {
             | PreviewState::Failed(id) => self.preview.name(id),
             PreviewState::NoDevices | PreviewState::Playing | PreviewState::NoSource => String::new(),
         };
-        let (id, title, detail) = crate::ui::state_message(&state, &name, &Texts::get(&self.ui.app));
+        let (id, title, detail) =
+            crate::ui::state_message(&state, &name, platform::IS_WINDOWS, &Texts::get(&self.ui.app));
+        // Before the monitor's first list the video area waits as when opening (no message).
+        let id = if !self.preview.listed() && self.monitor_devices.is_some() {
+            "opening"
+        } else {
+            id
+        };
         let app = &self.ui.app;
         app.set_device_open(self.preview.device().is_some());
         app.set_preview_state(id.into());
@@ -1290,8 +1326,8 @@ impl ApplicationHandler<UserEvent> for App {
         } else {
             self.start_monitor();
         }
-        // The test video plays at once; else the video area shows the `no-source` state until
-        // the monitor's first list (FR-035).
+        // The test video plays at once; else the video area waits as when opening until the
+        // monitor's first list (main.slint's initial state).
         if self.test_video.is_some() {
             self.ui.app.set_preview_state("playing".into());
         }
@@ -1327,6 +1363,7 @@ impl ApplicationHandler<UserEvent> for App {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
         match event {
             UserEvent::Window(action) => self.act(event_loop, action),
+            UserEvent::TryAgain => self.preview_event(preview::Event::TryAgain),
             UserEvent::DismissNotice => {
                 self.notices.dismiss();
                 self.show_notice();

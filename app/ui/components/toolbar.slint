@@ -13,9 +13,15 @@ export component Toolbar inherits Rectangle {
     in property <bool> focusable: true;
     // A device is open or opening: its choices can change.
     in property <bool> device-open;
+    // The mode menu can be used: a device is open, or an error state's device is listed (No
+    // signal keeps it reachable, device preview US4).
+    in property <bool> modes-reachable;
     // The device and mode menus (app/src/ui.rs builds them from app/src/preview.rs) and the row
     // each marks, -1 for none; a pick reports its row.
     in property <[MenuItem]> devices;
+    // The name of the state's device when it is not listed (disconnected), shown muted in the
+    // Device select's button; empty otherwise.
+    in property <string> device-missing;
     in-out property <int> device;
     callback device-picked(int);
     in property <[MenuItem]> modes;
@@ -53,6 +59,8 @@ export component Toolbar inherits Rectangle {
                 label: @tr("Device");
                 focusable: root.focusable;
                 items: root.devices;
+                shown: root.device-missing;
+                shown-muted: true;
                 current <=> root.device;
                 selected(index) => { root.device-picked(index); }
             }
@@ -66,7 +74,7 @@ export component Toolbar inherits Rectangle {
                 horizontal-stretch: 0;
                 title: @tr("Mode");
                 label: @tr("Mode");
-                enabled: root.device-open;
+                enabled: root.modes-reachable;
                 focusable: root.focusable;
                 items: root.modes;
                 current <=> root.mode;

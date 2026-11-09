@@ -358,6 +358,37 @@ Spec, plan and tasks approved and committed. Implementation started (2026-11-06)
   `plug_connected_x` (same as the disconnect notice); Blocked keeps `lock` on both platforms.
   Titles and detail lines chosen by the maintainer, listed in research R13 (English by the
   agent); T045 updated.
+- **T045 implemented (2026-11-08), waiting for the maintainer's check**, not committed: each
+  state has its icon (Tabler `lock`, `player_pause`, `antenna_bars_off`, `plug_connected_x`
+  added; the folder's LICENSE covers them), title and detail of research R13 (`ui::state_message`
+  takes `platform::IS_WINDOWS` for Blocked's texts; Linux names the node, else the device) and
+  actions: No source / No devices / Disconnected **Choose device**; Blocked on Windows **Open
+  privacy settings** + **Try again** (`privacy-settings` property); the other errors **Try
+  again** (`try-again` → `AppWindow.try-again()` → `UserEvent::TryAgain` → `Event::TryAgain`).
+  **Device select in an error state** (decided here, maintainer to confirm): the toolbar keeps
+  the state's device (`Preview::shown_device`), the Device select marks it, and while it is
+  listed the mode menu shows its modes (`modes-reachable`, separate from `device-open`, which
+  still gates Color range); a mode picked in an error state opens the device in it and stores
+  the choice. data-model "Preview state" texts and quickstart US4 brought in line with R13.
+  New tests: an error state keeps its device in the menus, a mode picked in an error state opens
+  it. fmt, clippy, tests pass on Windows (`CARGO_TARGET_DIR=target/check`).
+- **T045 first check (2026-11-09)**: the maintainer tested a stale release build (from before
+  T045; the states were mapped right, the texts were the provisional ones). The log showed three
+  real bugs, fixed (release rebuilt 2026-11-09 17:24, waiting for a new check): (1) a flash of the
+  shell's "No source" message before the first list: main.slint starts as `opening` and
+  `show_preview_state` shows `opening` until `Preview::listed()` (`no-source` only when the
+  monitor cannot start); (2) a device picked while camera access is off failed as Failed: the
+  `set_state` failure no longer fails the session when the bus error is being mapped
+  (`shared.mapping`), so Windows maps it to Blocked after reading access; (3) access turned back
+  on left "No devices" until a restart: a monitor started while access was denied never lists
+  the devices again, so on the 3 s tick, when access went from Denied to not denied and no device
+  is open, the app drops the monitor and starts a new one (a new `Listed`, `Event::reason`
+  "monitor list"). (2) and (3) need hardware to confirm.
+- **T045 retested (2026-11-09)**: the maintainer found the states working. The Device select was
+  blank while the open device was disconnected (the menu has only listed devices); the
+  maintainer chose to name it in the button, muted, without a menu row: `Preview::missing_name`
+  → `device-missing` → `Select.shown` + `shown-muted`. Release rebuilt 17:43; accepted by the
+  maintainer and committed (`feat: give each preview state its texts and actions`).
 
 Nothing pushed.
 
@@ -502,9 +533,9 @@ Nothing pushed.
 
 0. **US4 on Windows**: T041–T044 done (unplug and replug accepted). Still to try on hardware
    when convenient: sleep and wake with a device playing (log `woke from sleep: N s`, the
-   device reopens), and start with no device then plug one in. Next: T045
-   (Failed/In use etc. still show the provisional "Cannot open <name>"; in an error state the
-   Device select shows nothing, `open` is None: decide there), T060–T063.
+   device reopens), and start with no device then plug one in. T045 is done and committed. Next:
+   T060 (`platform::notify`), then T061 (maintainer validates the Windows toast and the KDE
+   notification), T062, T063.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives

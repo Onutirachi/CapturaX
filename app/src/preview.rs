@@ -29,7 +29,6 @@ pub enum PreviewState {
 }
 
 /// What goes into [`Preview::handle`].
-#[allow(dead_code)] // TryAgain comes with T045.
 #[derive(Debug, Clone)]
 pub enum Event {
     Monitor(MonitorEvent),
@@ -66,7 +65,7 @@ impl Event {
     /// A short description for the log line of a state change (the event's reason).
     pub fn reason(&self) -> String {
         match self {
-            Self::Monitor(MonitorEvent::Listed(devices)) => format!("first list, {} devices", devices.len()),
+            Self::Monitor(MonitorEvent::Listed(devices)) => format!("monitor list, {} devices", devices.len()),
             Self::Monitor(MonitorEvent::Added(device)) => format!("{} added", device.id),
             Self::Monitor(MonitorEvent::Removed(id)) => format!("{id} removed"),
             Self::Relisted { devices, timer } => format!(
@@ -220,6 +219,11 @@ impl Preview {
         }
     }
 
+    /// The monitor's first list arrived.
+    pub fn listed(&self) -> bool {
+        self.listed
+    }
+
     /// What the video area shows. Before the monitor's first list: opening nothing yet, shown as
     /// [`PreviewState::NoSource`].
     pub fn state(&self) -> PreviewState {
@@ -271,11 +275,40 @@ impl Preview {
         &self.devices
     }
 
-    /// The device menu and the open device's mode menu (empty with no open device).
+    /// The device the toolbar shows: the open one, else the device an error or disconnected state
+    /// names (it keeps its place in the Device select, T045).
+    fn shown_device(&self) -> Option<&str> {
+        self.open
+            .as_ref()
+            .map(|o| o.device.as_str())
+            .or_else(|| self.state_device())
+    }
+
+    /// The listed device whose modes the mode menu offers: the open one, or the one of an error
+    /// state (No signal keeps the mode menu reachable, spec US4 scenario 5).
+    fn mode_device(&self) -> Option<&Device> {
+        capture::device::find(self.shown_device()?, &self.devices)
+    }
+
+    /// The name of the device the toolbar shows when it is not listed (the open one
+    /// disconnected): the Device select's button names it, the menu does not offer it.
+    pub fn missing_name(&self) -> Option<String> {
+        let id = self.shown_device()?;
+        capture::device::find(id, &self.devices)
+            .is_none()
+            .then(|| self.name(id))
+    }
+
+    /// The mode menu can be used ([`Self::mode_device`]).
+    pub fn modes_reachable(&self) -> bool {
+        self.mode_device().is_some()
+    }
+
+    /// The device menu, the shown device marked ([`Self::shown_device`]), and that device's mode
+    /// menu (empty when it is not listed or with no device).
     pub fn menus(&self, settings: &Settings) -> (Vec<Item>, Vec<Item>) {
-        let open = self.device();
-        let devices = device_items(&self.devices, open.map(|d| d.id.as_str()), settings);
-        let modes = open.map_or_else(Vec::new, |device| {
+        let devices = device_items(&self.devices, self.shown_device(), settings);
+        let modes = self.mode_device().map_or_else(Vec::new, |device| {
             let stored = settings.device(&device.id).map(|c| c.mode.as_str());
             mode_items(device, &mode_choice(device, stored))
         });
@@ -589,15 +622,15 @@ impl Preview {
         self.reopen(settings, out);
     }
 
-    /// The user picked a mode for the open device: stored when it differs from the stored text
+    /// The user picked a mode for the open device, or for the device of an error state: stored when it differs from the stored text
     /// (a stored mode the device lacks is replaced only here, contracts settings-file.md rule 2),
     /// and the device reopened when it resolves to another mode (FR-009).
     fn choose_mode(&mut self, choice: ModeChoice, settings: &Settings, out: &mut Vec<Command>) {
-        let Some(open) = &self.open else {
-            log::info!("preview: mode {choice} chosen with no open device");
+        if self.hidden {
             return;
-        };
-        let Some(device) = capture::device::find(&open.device, &self.devices).cloned() else {
+        }
+        let Some(device) = self.mode_device().cloned() else {
+            log::info!("preview: mode {choice} chosen with no device to open");
             return;
         };
         let Some(mode) = mode::resolve(&choice, &device.modes, device.signal) else {
@@ -612,11 +645,19 @@ impl Preview {
                 choice,
             });
         }
-        if mode == open.mode {
-            log::info!("preview: {} is already open in {}", device.name, mode.text());
-        } else {
-            let chosen = open.chosen;
-            self.open_device(&device.id, chosen, Some(mode), settings, out);
+        match &self.open {
+            Some(open) if open.mode == mode => {
+                log::info!("preview: {} is already open in {}", device.name, mode.text());
+            }
+            Some(open) => {
+                let chosen = open.chosen;
+                self.open_device(&device.id, chosen, Some(mode), settings, out);
+            }
+            // An error state's device: it opens again in the mode picked.
+            None => {
+                let chosen = self.again.as_ref().is_some_and(|a| a.device == device.id && a.chosen);
+                self.open_device(&device.id, chosen, Some(mode), settings, out);
+            }
         }
     }
 
@@ -1086,6 +1127,48 @@ mod tests {
         let (devices, modes) = p.menus(&settings);
         assert_eq!(devices[0].text, Label::NoDevices);
         assert!(modes.is_empty());
+    }
+
+    #[test]
+    fn an_error_state_keeps_its_device_in_the_menus() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card(), webcam()]);
+        p.handle(error(session, DeviceError::NoSignal), &settings);
+        assert_eq!(p.state(), PreviewState::NoSignal("card".into()));
+        let (devices, modes) = p.menus(&settings);
+        assert_eq!(current(&devices), [&Label::Plain("ezcap Live GAMER ULTRA".into())]);
+        assert!(
+            !modes.is_empty() && p.modes_reachable(),
+            "no signal keeps the mode menu"
+        );
+        // Gone from the list: still named, but no modes to pick.
+        p.handle(relisted(vec![webcam()], false), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(p.menus(&settings).1.is_empty() && !p.modes_reachable());
+        assert_eq!(p.missing_name().as_deref(), Some("ezcap Live GAMER ULTRA"));
+        assert!(current(&p.menus(&settings).0).is_empty(), "not offered in the menu");
+        // Back: opened again, listed, no longer missing.
+        p.handle(added(card()), &settings);
+        assert_eq!(p.missing_name(), None);
+    }
+
+    #[test]
+    fn a_mode_picked_in_an_error_state_opens_it() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        p.handle(error(session, DeviceError::NoSignal), &settings);
+        let out = p.handle(Event::ChooseMode(choice("1920x1080@60")), &settings);
+        let (id, mode, new) = opened(&out).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1920, 1080, 60)));
+        assert!(new > session);
+        assert!(
+            out.iter()
+                .any(|c| matches!(c, Command::SaveMode { choice: c, .. } if *c == choice("1920x1080@60"))),
+            "{out:?}"
+        );
+        assert_eq!(p.state(), PreviewState::Opening("card".into()));
     }
 
     #[test]

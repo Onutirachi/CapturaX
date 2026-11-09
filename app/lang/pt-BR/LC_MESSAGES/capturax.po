@@ -131,11 +131,44 @@ msgstr "Auto (Limitada)"
 msgid "No devices"
 msgstr "Nenhum dispositivo"
 
+msgid "Connect a video device"
+msgstr "Conecte um dispositivo de vídeo"
+
 msgid "{} disconnected"
 msgstr "{} desconectado"
 
+msgid "Waiting to reconnect"
+msgstr "Aguardando reconexão"
+
+msgid "Access blocked"
+msgstr "Acesso bloqueado"
+
+msgid "Desktop app permission is off"
+msgstr "Permissão para aplicativos da área de trabalho desativada"
+
 msgid "Cannot open {}"
 msgstr "Não foi possível abrir {}"
+
+msgid "No permission to use the device"
+msgstr "Sem permissão para usar o dispositivo"
+
+msgid "In use"
+msgstr "Em uso"
+
+msgid "{} is being used elsewhere"
+msgstr "{} está sendo usado em outro lugar"
+
+msgid "No signal"
+msgstr "Sem sinal"
+
+msgid "No video signal detected"
+msgstr "Nenhum sinal de vídeo detectado"
+
+msgid "Open privacy settings"
+msgstr "Abrir configurações de privacidade"
+
+msgid "Try again"
+msgstr "Tentar novamente"
 
 msgid "CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again."
 msgstr "O CapturaX não pode iniciar porque nenhum renderizador gráfico funciona neste computador. Atualize o driver de vídeo e tente de novo."

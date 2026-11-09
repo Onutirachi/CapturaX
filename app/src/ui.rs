@@ -19,29 +19,56 @@ use crate::shadows;
 
 slint::include_modules!();
 
-/// What the video area shows for a preview state (data-model.md "Preview state"): the state id
-/// of `main.slint`, the title and the detail. `name` is the state's device name.
+/// What the video area shows for a preview state (data-model.md "Preview state", research R13):
+/// the state id of `main.slint`, the title and the detail. `name` is the state's device name;
+/// `windows` picks Blocked's texts (the privacy switch on Windows, the device node on Linux).
 pub fn state_message(
     state: &crate::preview::PreviewState,
     name: &str,
+    windows: bool,
     texts: &Texts,
 ) -> (&'static str, String, String) {
     use crate::preview::PreviewState as S;
     let name = slint::SharedString::from(name);
-    let (id, title) = match state {
-        S::Playing => ("playing", Default::default()),
-        S::NoSource => ("no-source", Default::default()),
-        S::NoDevices => ("no-devices", texts.get_preview_no_devices()),
+    let (id, title, detail) = match state {
+        S::Playing => ("playing", Default::default(), Default::default()),
+        S::NoSource => ("no-source", Default::default(), Default::default()),
+        S::NoDevices => (
+            "no-devices",
+            texts.get_preview_no_devices(),
+            texts.get_preview_no_devices_detail(),
+        ),
         // No text: the video area fades, then shows the progress ring (research R17).
-        S::Opening(_) => ("opening", Default::default()),
-        S::Disconnected(_) => ("disconnected", texts.invoke_preview_disconnected(name)),
-        // Provisional: US4 (T045) gives each its own text, hint and actions.
-        S::Blocked { .. } => ("blocked", texts.invoke_preview_cannot_open(name)),
-        S::InUse(_) => ("in-use", texts.invoke_preview_cannot_open(name)),
-        S::NoSignal(_) => ("no-signal", texts.invoke_preview_cannot_open(name)),
-        S::Failed(_) => ("failed", texts.invoke_preview_cannot_open(name)),
+        S::Opening(_) => ("opening", Default::default(), Default::default()),
+        S::Disconnected(_) => (
+            "disconnected",
+            texts.invoke_preview_disconnected(name),
+            texts.get_preview_disconnected_detail(),
+        ),
+        S::Blocked { .. } if windows => (
+            "blocked",
+            texts.get_preview_blocked(),
+            texts.get_preview_blocked_detail(),
+        ),
+        // Linux: the node that could not be opened, else the device's name.
+        S::Blocked { node, .. } => (
+            "blocked",
+            texts.invoke_preview_cannot_open(node.as_deref().map_or(name, Into::into)),
+            texts.get_preview_no_permission(),
+        ),
+        S::InUse(_) => (
+            "in-use",
+            texts.get_preview_in_use(),
+            texts.invoke_preview_in_use_detail(name),
+        ),
+        S::NoSignal(_) => (
+            "no-signal",
+            texts.get_preview_no_signal(),
+            texts.get_preview_no_signal_detail(),
+        ),
+        S::Failed(_) => ("failed", texts.invoke_preview_cannot_open(name), Default::default()),
     };
-    (id, title.into(), String::new())
+    (id, title.into(), detail.into())
 }
 
 /// A row of the device or mode menu as Slint shows it, its named texts read from the catalog.
@@ -253,7 +280,12 @@ impl Ui {
                     app.invoke_open_device_menu();
                 }
             }
-            // Blocked on Windows (research R6); the button comes with T045.
+            "try-again" => {
+                if let Some(app) = weak.upgrade() {
+                    app.invoke_try_again();
+                }
+            }
+            // Blocked on Windows (research R6).
             "open-privacy" => platform::open_camera_privacy(),
             _ => log::warn!("state message: unknown action {id:?}"),
         });

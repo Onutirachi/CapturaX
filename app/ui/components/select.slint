@@ -18,6 +18,8 @@ export component Select inherits Rectangle {
     in property <bool> focusable: true;
     // Shown in the button instead of the chosen item's text when not empty ("Auto (Full)").
     in property <string> shown;
+    // `shown` in the muted tone: it names something the menu does not offer (a device that left).
+    in property <bool> shown-muted;
     // The small title inside the control (the dropdown look); empty for the plain look.
     in property <string> title;
     // The setting's name, for screen readers.
@@ -152,7 +154,7 @@ export component Select inherits Rectangle {
 
                 Text {
                     text: root.shown != "" ? root.shown : root.chosen;
-                    color: Theme.c.text;
+                    color: root.shown != "" && root.shown-muted ? Theme.c.text-muted : Theme.c.text;
                     font-size: Theme.text-m;
                     font-weight: root.titled ? 600 : 400;
                     vertical-alignment: center;

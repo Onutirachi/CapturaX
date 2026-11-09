@@ -50,7 +50,7 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
 4. **US4**, one by one:
    - unplug every device → "No devices", the device menu shows the same state; plug the card →
      it opens;
-   - Windows: Settings → Privacy → Camera → desktop apps off → "Camera access blocked", **Open
+   - Windows: Settings → Privacy → Camera → desktop apps off → "Access blocked", **Open
      privacy settings** opens the page, turning it back on and **Try again** plays;
    - Linux: `sudo chmod 000 /dev/video0` → blocked state naming the node (restore afterwards);
    - open the card in another app first (OBS or `gst-launch-1.0`) → "In use", **Try again** after

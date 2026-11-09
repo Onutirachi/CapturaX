@@ -354,9 +354,12 @@ impl Session {
                     *requested = Some(Instant::now());
                 }
                 if let Err(err) = pipeline.set_state(gst::State::Playing) {
-                    // The bus carries the reason; this is only the fallback text.
                     log::error!("session {}: cannot play: {err}", shared.session);
-                    shared.fail(DeviceError::Failed(err.to_string()));
+                    // The bus error, posted before this returns, is being mapped (on Windows a
+                    // second later, after reading camera access and the list): it decides.
+                    if !shared.mapping.load(Ordering::SeqCst) {
+                        shared.fail(DeviceError::Failed(err.to_string()));
+                    }
                 }
                 if shared.closed.load(Ordering::SeqCst) {
                     let _ = pipeline.set_state(gst::State::Null);

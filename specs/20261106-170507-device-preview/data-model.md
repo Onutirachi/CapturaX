@@ -137,15 +137,21 @@ App `preview.rs`. What the video area shows (FR-019); one at a time.
 
 | State | Shown | Actions |
 |---|---|---|
-| `NoDevices` | state "No devices" + hint | opens the device menu |
+| `NoDevices` | "No devices" · "Connect a video device" | opens the device menu |
 | `Opening(device)` | the old video fading out, then the backdrop; after 1 s the spinner alone (no text, research R17) | — |
 | `Playing` | video | — |
-| `Blocked(device)` | "Camera access blocked" (Windows) / "Cannot open /dev/videoN" (Linux) | Windows: **Open privacy settings**; **Try again** |
-| `InUse(device)` | "In use by another app" | **Try again** |
-| `Disconnected(device)` | "<name> disconnected" | opens the device menu (waits for it meanwhile) |
-| `NoSignal(device)` | "No signal" | **Try again**; mode menu stays reachable |
+| `Blocked(device)` | "Access blocked" · "Desktop app permission is off" (Windows) / "Cannot open /dev/videoN" · "No permission to use the device" (Linux) | Windows: **Open privacy settings**; **Try again** |
+| `InUse(device)` | "In use" · "<name> is being used elsewhere" | **Try again** |
+| `Disconnected(device)` | "<name> disconnected" · "Waiting to reconnect" | opens the device menu (waits for it meanwhile) |
+| `NoSignal(device)` | "No signal" · "No video signal detected" | **Try again**; mode menu stays reachable |
 | `Failed(device)` | "Cannot open <name>" | **Try again** |
 | `NoSource` | the shell's "No source": devices exist but none is open (not reached at start, which always opens one; kept for later specs that close the preview, F10) | opens the device menu |
+
+Texts and icons as listed in research R13. In an error or disconnected state the toolbar keeps
+the state's device: the Device select marks it, and while it is listed the mode menu offers its
+modes; a mode picked there opens the device in it. A device that is not listed (disconnected) is
+named in the Device select's button in the muted tone; the menu offers only listed devices
+(maintainer, 2026-11-09).
 
 ```text
 start ─► devices? ── none ─► NoDevices ── added ─► Opening(chosen, FR-005 order)

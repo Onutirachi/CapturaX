@@ -48,7 +48,8 @@ export component AppWindow inherits Window {
     // shows the video; `no-source`, `no-devices`, `opening`, `blocked`, `in-use`, `disconnected`,
     // `no-signal` and `failed` fill it with their state message (FR-019, FR-035). The title and
     // detail come from Rust (they name the device), except the shell's `no-source`.
-    in property <string> preview-state: "no-source";
+    // Starts as `opening`: nothing but the backdrop until the monitor's first list.
+    in property <string> preview-state: "opening";
     in property <string> state-title;
     in property <string> state-detail;
     // The video background is black (F56): the states and the progress ring use light tones.
@@ -56,7 +57,9 @@ export component AppWindow inherits Window {
     property <bool> no-source: root.preview-state == "no-source";
     // The toolbar's choices for the open device (components/toolbar.slint), set by Rust.
     in property <bool> device-open;
+    in property <bool> modes-reachable;
     in property <[MenuItem]> devices;
+    in property <string> device-missing;
     in-out property <int> device: -1;
     callback device-picked(int);
     in property <[MenuItem]> modes;
@@ -85,8 +88,12 @@ export component AppWindow inherits Window {
     callback fps-display-changed(int);
     callback mode-display-changed(int);
 
-    // An action of the state message, by id.
+    // An action of the state message, by id: `open-devices` and `open-privacy` are handled in
+    // app/src/ui.rs, `try-again` calls `try-again()`.
     callback state-action(string /* action id */);
+    callback try-again();
+    // On Windows Blocked offers the privacy settings (research R6); set by Rust.
+    in property <bool> privacy-settings;
 
     // Video area: drawn by the video thread, nothing here.
 
@@ -98,13 +105,25 @@ export component AppWindow inherits Window {
         width: root.video-width;
         height: root.video-height;
         border-radius: root.video-radius;
+        // Icons and actions per state (data-model.md "Preview state", research R13).
         icon: root.preview-state == "no-source" || root.preview-state == "no-devices" ? @image-url("assets/icons/device_tv_off.svg")
+            : root.preview-state == "disconnected" ? @image-url("assets/icons/plug_connected_x.svg")
+            : root.preview-state == "blocked" ? @image-url("assets/icons/lock.svg")
+            : root.preview-state == "in-use" ? @image-url("assets/icons/player_pause.svg")
+            : root.preview-state == "no-signal" ? @image-url("assets/icons/antenna_bars_off.svg")
             : @image-url("assets/icons/alert_triangle.svg");
         title: root.no-source ? @tr("No source") : root.state-title;
         detail: root.state-detail;
-        // No device open: the action opens the toolbar's device menu (US2 scenario 5).
-        primary: root.preview-state == "no-source" || root.preview-state == "no-devices"
-            ? { id: "open-devices", label: @tr("Choose device") } : { id: "", label: "" };
+        // No device open, or the open one disconnected: the action opens the toolbar's device
+        // menu (US2 scenario 5); the error states try the device again, Blocked on Windows first
+        // offers the privacy settings.
+        primary: root.preview-state == "no-source" || root.preview-state == "no-devices" || root.preview-state == "disconnected"
+            ? { id: "open-devices", label: @tr("Choose device") }
+            : root.preview-state == "blocked" && root.privacy-settings
+            ? { id: "open-privacy", label: @tr("Open privacy settings") }
+            : { id: "try-again", label: @tr("Try again") };
+        secondary: root.preview-state == "blocked" && root.privacy-settings
+            ? { id: "try-again", label: @tr("Try again") } : { id: "", label: "" };
         on-black: root.video-black;
         action(id) => { root.state-action(id); }
     }
@@ -252,7 +271,9 @@ export component AppWindow inherits Window {
                 compact: root.compact;
                 focusable: !root.settings-open;
                 device-open: root.device-open;
+                modes-reachable: root.modes-reachable;
                 devices: root.devices;
+                device-missing: root.device-missing;
                 device <=> root.device;
                 device-picked(index) => { root.device-picked(index); }
                 modes: root.modes;
