@@ -432,16 +432,20 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
   back as a user event through the `EventLoopProxy`, as tray events do.
   - **Linux**: `org.freedesktop.Notifications.Notify` over D-Bus with `zbus` (already a
     dependency of `crates/platform` for the theme), app name `CapturaX`, the app icon, actions
-    `["open", "<Open>"]` when there is one, `replaces_id` of the previous notice (one at a time);
+    `["open", "<Open>"]` when there is one, the icon's pixels in the `image-data` hint (no icon
+    file needed; `desktop-entry` `capturax`), `replaces_id` of the previous notice (one at a time);
     the `ActionInvoked` signal maps back to the device id. No service on the bus → logged once,
     no-op.
   - **Windows**: WinRT `ToastNotificationManager` (`windows` crate, features
     `UI_Notifications`, `Data_Xml_Dom`; the crate is already in the tree through Slint and wgpu,
     version 0.62). A portable app has no package identity, so it sets
     `SetCurrentProcessExplicitAppUserModelID("CapturaX")` and registers that id under
-    `HKCU\Software\Classes\AppUserModelId\CapturaX` (`DisplayName`, `IconUri` to the app's icon
-    next to the executable), written when a notification is first shown and rewritten if the
-    folder moved; the toast's button is handled through the toast's `Activated` event while the
+    `HKCU\Software\Classes\AppUserModelId\CapturaX` (`DisplayName`, `IconUri`), written when a
+    notification is first shown and rewritten if it differs. No icon file ships with the app (the
+    icon is built into the executable), so the app hands its icon's pixels to the platform layer,
+    which writes them as `%LOCALAPPDATA%\CapturaX\notification.ico` for `IconUri`, rewritten when
+    they differ (maintainer, 2026-11-09: per user like the key, nothing added to the portable
+    folder, works when that folder is read-only); the toast's button is handled through the toast's `Activated` event while the
     app runs (no COM activator, no start from a toast); `ToastNotifier::Hide` of the previous
     toast keeps one at a time. Notifications off for the app → `Setting` is not `Enabled`, logged
     once, no-op. Windows hides toasts while another app is fullscreen (focus assist); with
@@ -457,7 +461,8 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
   it, and Windows 11 shows it as a toast from "Windows Explorer"; `notify-rust`: on Windows it
   borrows PowerShell's app id (wrong name and icon), on Linux it duplicates what `zbus` does.
 - **Constitution VI**: the `AppUserModelId` key is a display registration, not settings, like the
-  autostart entry; it is written only for the current user and holds no state.
+  autostart entry; it is written only for the current user and holds no state. The same goes for the toast's icon
+  file, a copy of the icon built into the executable, rewritten whenever it differs.
 
 ## R16. UI presents between slow video frames
 
