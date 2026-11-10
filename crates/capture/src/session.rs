@@ -214,8 +214,16 @@ pub struct Session {
 /// The formats the video thread uploads, as GStreamer names.
 const UPLOADED: [&str; 6] = ["NV12", "YUY2", "UYVY", "I420", "BGRx", "RGBA"];
 
-/// JPEG decoders, best first (research R4).
-const JPEG_DECODERS: [&str; 3] = ["nvjpegdec", "d3d12mjpegdec", "jpegdec"];
+/// JPEG decoders to try, best first, for a JPEG's chroma subsampling as `jpegparse` names it
+/// (research R4): `nvjpegdec` rejects anything but 4:2:0, and an unknown sampling goes to the
+/// decoder that takes every JPEG.
+fn jpeg_decoders(sampling: Option<&str>) -> &'static [&'static str] {
+    match sampling {
+        Some("YCbCr-4:2:0") => &["nvjpegdec", "d3d12mjpegdec", "jpegdec"],
+        Some(_) => &["d3d12mjpegdec", "jpegdec"],
+        None => &["jpegdec"],
+    }
+}
 
 /// How the pipeline's source is made.
 enum Source {
@@ -466,18 +474,16 @@ fn build(source: &Source, shared: &Arc<Shared>) -> Result<gst::Pipeline, String>
         .map_err(|e| format!("pipeline: {e}"))?;
 
     let mut chain: Vec<gst::Element> = Vec::new();
+    // MJPG: the decoder goes between `jpegparse` and `videoconvert` once the sampling is known.
+    let mut parser: Option<gst::Element> = None;
     let sink_formats: Vec<&str> = match &format {
         Format::Mjpg => {
-            let decoder = JPEG_DECODERS
-                .iter()
-                .find_map(|name| gst::ElementFactory::make(name).build().ok())
-                .ok_or_else(|| "no JPEG decoder available".to_string())?;
-            log::info!(
-                "session {}: JPEG decoder {}",
-                shared.session,
-                decoder.factory().map(|f| f.name().to_string()).unwrap_or_default()
-            );
-            chain.push(decoder);
+            let parse = make("jpegparse")?;
+            pipeline
+                .add(&parse)
+                .and_then(|()| filter.link(&parse))
+                .map_err(|e| format!("pipeline: {e}"))?;
+            parser = Some(parse);
             // Passthrough when the decoder already gives an uploaded format.
             chain.push(make("videoconvert")?);
             UPLOADED.to_vec()
@@ -490,13 +496,16 @@ fn build(source: &Source, shared: &Arc<Shared>) -> Result<gst::Pipeline, String>
         raw => vec![raw.name()],
     };
     let sink = appsink(&sink_formats, shared);
-    let mut previous = filter;
+    let mut previous: Option<gst::Element> = parser.is_none().then(|| filter.clone());
     for element in chain.iter().chain(std::iter::once(sink.upcast_ref())) {
-        pipeline
-            .add(element)
-            .and_then(|()| previous.link(element))
-            .map_err(|e| format!("pipeline: {e}"))?;
-        previous = element.clone();
+        pipeline.add(element).map_err(|e| format!("pipeline: {e}"))?;
+        if let Some(previous) = &previous {
+            previous.link(element).map_err(|e| format!("pipeline: {e}"))?;
+        }
+        previous = Some(element.clone());
+    }
+    if let Some(parse) = &parser {
+        link_jpeg_decoder(parse, &chain[0], shared.session);
     }
 
     let weak = Arc::downgrade(shared);
@@ -509,6 +518,63 @@ fn build(source: &Source, shared: &Arc<Shared>) -> Result<gst::Pipeline, String>
         });
     }
     Ok(pipeline)
+}
+
+/// Picks the JPEG decoder when `jpegparse` announces its caps (their `sampling`), and links it
+/// between the parser and `next` before the caps go on (research R4).
+fn link_jpeg_decoder(parse: &gst::Element, next: &gst::Element, session: u64) {
+    let Some(src) = parse.static_pad("src") else {
+        return;
+    };
+    let parse = parse.downgrade();
+    let next = next.downgrade();
+    src.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, move |pad, info| {
+        let Some(gst::PadProbeData::Event(event)) = &info.data else {
+            return gst::PadProbeReturn::Ok;
+        };
+        let gst::EventView::Caps(caps) = event.view() else {
+            return gst::PadProbeReturn::Ok;
+        };
+        let (Some(parse), Some(next)) = (parse.upgrade(), next.upgrade()) else {
+            return gst::PadProbeReturn::Remove;
+        };
+        let sampling = caps.caps().structure(0).and_then(|s| s.get::<String>("sampling").ok());
+        let decoder = jpeg_decoders(sampling.as_deref())
+            .iter()
+            .find_map(|name| gst::ElementFactory::make(name).build().ok());
+        let Some(decoder) = decoder else {
+            gst::element_error!(
+                parse,
+                gst::CoreError::MissingPlugin,
+                ["no JPEG decoder for sampling {sampling:?}"]
+            );
+            return gst::PadProbeReturn::Remove;
+        };
+        let name = decoder.factory().map(|f| f.name().to_string()).unwrap_or_default();
+        let linked = parse
+            .parent()
+            .and_then(|p| p.downcast::<gst::Bin>().ok())
+            .ok_or_else(|| "no pipeline".to_string())
+            .and_then(|bin| bin.add(&decoder).map_err(|e| e.to_string()))
+            .and_then(|()| decoder.link(&next).map_err(|e| e.to_string()))
+            .and_then(|()| decoder.sync_state_with_parent().map_err(|e| e.to_string()))
+            .and_then(|()| {
+                let sink = decoder.static_pad("sink").ok_or("decoder has no sink pad")?;
+                pad.link(&sink).map(|_| ()).map_err(|e| e.to_string())
+            });
+        match linked {
+            Ok(()) => log::info!(
+                "session {session}: JPEG decoder {name} (sampling {})",
+                sampling.as_deref().unwrap_or("unknown")
+            ),
+            Err(e) => gst::element_error!(
+                parse,
+                gst::CoreError::Negotiation,
+                ["cannot link the JPEG decoder {name}: {e}"]
+            ),
+        }
+        gst::PadProbeReturn::Remove
+    });
 }
 
 fn make(name: &str) -> Result<gst::Element, String> {
@@ -819,6 +885,16 @@ mod tests {
 
     fn linux(code: ErrorCode, message: &str, debug: &str, listed: bool) -> DeviceError {
         map_error(false, code, message, debug, SOON, listed, Access::Unknown)
+    }
+
+    #[test]
+    fn jpeg_decoder_follows_the_sampling() {
+        assert_eq!(jpeg_decoders(Some("YCbCr-4:2:0"))[0], "nvjpegdec");
+        for sampling in [Some("YCbCr-4:2:2"), Some("YCbCr-4:4:4"), Some("GRAYSCALE"), None] {
+            let decoders = jpeg_decoders(sampling);
+            assert!(!decoders.contains(&"nvjpegdec"), "{sampling:?}");
+            assert_eq!(decoders.last(), Some(&"jpegdec"), "{sampling:?}");
+        }
     }
 
     #[test]
