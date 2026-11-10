@@ -10,7 +10,7 @@
 // notification position, FR-032): 40 px, the chosen item's icon and the chevron, its tooltip giving
 // the setting's name and the value; with `columns` above 1 its menu is a grid of icon cells.
 import { Theme } from "../theme.slint";
-import { FocusRing } from "focus-ring.slint";
+import { FocusRing, Input } from "focus-ring.slint";
 import { Menus, MenuItem } from "menu.slint";
 import { Tag } from "tag.slint";
 import { Tooltips, Side } from "tooltip.slint";
@@ -71,6 +71,10 @@ export component Select inherits Rectangle {
         if (self.picks != 0) {
             self.current = Menus.picked-index - self.offset;
             self.selected(self.current);
+            // A pick with the pointer shows the new value in the tooltip for a moment.
+            if (self.icon-look && !Input.keyboard) {
+                self.just-picked = true;
+            }
         }
     }
     // New items while the menu is open (a device came or left) reach the menu at once; a select
@@ -110,11 +114,16 @@ export component Select inherits Rectangle {
         }
     }
 
-    // The icon look's tooltip, as `IconButton`'s: after 500 ms of hover, at once on keyboard focus,
-    // not while the menu is open. The token of the tooltip shown, 0 when none.
+    // The icon look's tooltip, as `IconButton`'s: after 500 ms of hover, at once on keyboard focus
+    // (the focus counts only while the keyboard is in use: a menu picked with the pointer gives the
+    // focus back here, and the tooltip would stay after the chrome hides), and at once after a pick
+    // with the pointer, until the pointer leaves the select or 1.5 s pass with it elsewhere; not
+    // while the menu is open. The token of the tooltip shown, 0 when none.
     property <int> tip;
     property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
-    property <bool> wants-tip: root.icon-look && (area.has-hover || focus.has-focus) && !root.open && root.visible;
+    property <bool> just-picked;
+    property <bool> wants-tip: root.icon-look && (area.has-hover || (focus.has-focus && Input.keyboard) || root.just-picked)
+        && !root.open && root.visible;
 
     function show-tip() {
         root.tip = Tooltips.show((root.titled ? root.title : root.label) + ": " + root.value, root.tooltip-side,
@@ -135,9 +144,15 @@ export component Select inherits Rectangle {
     changed wants-tip => {
         if (!self.wants-tip) {
             self.hide-tip();
-        } else if (focus.has-focus && !area.has-hover) {
+        } else if (!area.has-hover) {
             self.show-tip();
         }
+    }
+
+    Timer {
+        interval: 1.5s;
+        running: root.just-picked && !area.has-hover;
+        triggered => { root.just-picked = false; }
     }
 
     Timer {
@@ -184,6 +199,11 @@ export component Select inherits Rectangle {
     area := TouchArea {
         enabled: root.enabled;
         clicked => { root.open-menu(); }
+        changed has-hover => {
+            if (!self.has-hover) {
+                root.just-picked = false;
+            }
+        }
     }
 
     focus := FocusScope {
