@@ -430,8 +430,9 @@ impl App {
         });
     }
 
-    /// The main loop's tick: a wake from sleep reopens the device (spec edge case), and while the
-    /// preview waits for a device the list is read again every 3 s (research R1).
+    /// The main loop's tick: a wake from sleep reopens the device (spec edge case), while the
+    /// preview waits for a device the list is read again every 3 s (research R1), and while a
+    /// listed device is blocked camera access is read every 3 s (FR-021).
     fn tick(&mut self, now: Instant) {
         let wall = SystemTime::now();
         let since = self
@@ -459,6 +460,10 @@ impl App {
             } else {
                 self.relist(true);
             }
+        } else if self.preview.watches_access() && now >= self.relist_at {
+            // Blocked with the device listed: only camera access is read (FR-021).
+            self.relist_at = now + RELIST_EVERY;
+            self.preview_event(preview::Event::AccessCheck);
         }
     }
 

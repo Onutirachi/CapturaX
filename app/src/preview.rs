@@ -55,6 +55,9 @@ pub enum Event {
     ChooseRange(RangeChoice),
     /// The user pressed Try again.
     TryAgain,
+    /// Every 3 s while [`Preview::watches_access`]: camera access is read, and once it was read
+    /// off and then on, the blocked device opens again (FR-021).
+    AccessCheck,
     /// The window went to the tray: the device is closed.
     Hidden,
     /// The window came back from the tray.
@@ -81,6 +84,7 @@ impl Event {
             Self::ChooseMode(choice) => format!("mode {choice} chosen"),
             Self::ChooseRange(range) => format!("color range {range:?} chosen"),
             Self::TryAgain => "try again".into(),
+            Self::AccessCheck => "camera access is back".into(),
             Self::Hidden => "window hidden".into(),
             Self::Shown => "window shown".into(),
             Self::NoticeOpen(id) => format!("{id} opened from a notice"),
@@ -212,6 +216,8 @@ pub struct Preview {
     /// The device was opened again after a wake: until it plays, its errors are a disconnect.
     woke: bool,
     access: AccessReader,
+    /// Camera access read off since the blocked state showed: access read on then reopens once.
+    access_was_denied: bool,
 }
 
 impl Preview {
@@ -238,6 +244,17 @@ impl Preview {
                 .is_none_or(|id| capture::device::find(id, &self.devices).is_none()),
             _ => false,
         }
+    }
+
+    /// The blocked state of a listed device (Windows' privacy switch, not a Linux node): the app
+    /// sends [`Event::AccessCheck`] every 3 s (FR-021).
+    pub fn watches_access(&self) -> bool {
+        !self.hidden
+            && matches!(
+                self.state.as_ref(),
+                Some(PreviewState::Blocked { device: Some(id), node: None })
+                    if capture::device::find(id, &self.devices).is_some()
+            )
     }
 
     /// The monitor's first list arrived.
@@ -344,6 +361,11 @@ impl Preview {
             self.learn_names();
         }
         match event {
+            // A monitor started again (camera access back) lists what changed as a re-read: a
+            // disconnected device is still waited for (spec edge case), not replaced by "No devices".
+            Event::Monitor(MonitorEvent::Listed(devices)) if self.listed => {
+                self.relisted(devices, false, settings, &mut out);
+            }
             Event::Monitor(MonitorEvent::Listed(devices)) => {
                 self.devices = devices;
                 self.listed = true;
@@ -420,6 +442,16 @@ impl Preview {
                 }
             }
             Event::TryAgain => self.try_again(settings, &mut out),
+            Event::AccessCheck if self.watches_access() => match (self.access.0)() {
+                Access::Denied => self.access_was_denied = true,
+                Access::Allowed if self.access_was_denied => {
+                    self.access_was_denied = false;
+                    log::info!("preview: camera access is back, opening the device again");
+                    self.try_again(settings, &mut out);
+                }
+                _ => {}
+            },
+            Event::AccessCheck => {}
             Event::Hidden => {
                 if !self.hidden {
                     self.hidden = true;
@@ -444,6 +476,9 @@ impl Preview {
         self.learn_names();
         if self.state != before {
             out.push(Command::ShowState);
+            if matches!(self.state, Some(PreviewState::Blocked { .. })) {
+                self.access_was_denied = (self.access.0)() == Access::Denied;
+            }
         }
         out
     }
@@ -613,6 +648,25 @@ impl Preview {
         }
         if self.listed && self.devices.is_empty() && self.none_listed_state() {
             self.none_listed();
+        }
+        // Camera access turned off while a device is waited for: the blocked state takes over,
+        // still waiting for it; back on with the device not listed, the wait shows again (spec
+        // edge case). Listed again, it reopens above (a monitor started again lists it).
+        let denied = (self.access.0)() == Access::Denied;
+        match &self.state {
+            Some(PreviewState::Disconnected(id)) if denied => {
+                self.state = Some(PreviewState::Blocked {
+                    device: Some(id.clone()),
+                    node: None,
+                });
+            }
+            Some(PreviewState::Blocked {
+                device: Some(id),
+                node: None,
+            }) if !denied && capture::device::find(id, &self.devices).is_none() => {
+                self.state = Some(PreviewState::Disconnected(id.clone()));
+            }
+            _ => {}
         }
     }
 
@@ -1176,6 +1230,81 @@ mod tests {
         let (devices, modes) = p.menus(&settings);
         assert_eq!(devices[0].text, Label::NoDevices);
         assert!(modes.is_empty());
+    }
+
+    #[test]
+    fn a_monitor_started_again_keeps_waiting_for_the_disconnected_device() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(Event::Monitor(MonitorEvent::Removed("card".into())), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        // Camera access back: the new monitor lists nothing.
+        p.handle(listed(vec![]), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        // Its list has the card again: it reopens in the same mode.
+        let out = p.handle(listed(vec![card()]), &settings);
+        assert_eq!(opened(&out).unwrap().1, mode(1280, 720, 60));
+    }
+
+    #[test]
+    fn access_turned_back_on_reopens_the_blocked_device_once() {
+        let settings = Settings::default();
+        let (mut p, access) = with_access(Access::Allowed);
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        *access.lock().unwrap() = Access::Denied;
+        p.handle(error(session, DeviceError::Blocked { node: None }), &settings);
+        assert_eq!(p.state(), blocked(Some("card"), None));
+        assert!(p.watches_access() && !p.waiting());
+        assert!(p.handle(Event::AccessCheck, &settings).is_empty(), "still off");
+        *access.lock().unwrap() = Access::Allowed;
+        let (_, mode, again) = opened(&p.handle(Event::AccessCheck, &settings)).unwrap();
+        assert_eq!(mode, self::mode(1280, 720, 60));
+        // It fails again with access on: no reopen loop, Try again stays.
+        p.handle(error(again, DeviceError::Blocked { node: None }), &settings);
+        assert!(opened(&p.handle(Event::AccessCheck, &settings)).is_none());
+        assert!(opened(&p.handle(Event::TryAgain, &settings)).is_some());
+        // Unknown access never reopens by itself; a Linux node is not watched.
+        let (mut p, access) = with_access(Access::Denied);
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        p.handle(error(session, DeviceError::Blocked { node: None }), &settings);
+        *access.lock().unwrap() = Access::Unknown;
+        assert!(opened(&p.handle(Event::AccessCheck, &settings)).is_none());
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        p.handle(
+            error(
+                session,
+                DeviceError::Blocked {
+                    node: Some("/dev/video0".into()),
+                },
+            ),
+            &settings,
+        );
+        assert!(!p.watches_access());
+    }
+
+    #[test]
+    fn access_turned_off_while_disconnected_is_blocked_until_back() {
+        let settings = Settings::default();
+        let (mut p, access) = with_access(Access::Allowed);
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(removed("card"), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        *access.lock().unwrap() = Access::Denied;
+        p.handle(relisted(vec![], true), &settings);
+        assert_eq!(p.state(), blocked(Some("card"), None));
+        // Back on, the device still out: the wait shows again.
+        *access.lock().unwrap() = Access::Allowed;
+        p.handle(relisted(vec![], true), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        // Off again, then back on with the device plugged in meanwhile: the new monitor lists it
+        // and it reopens in the same mode.
+        *access.lock().unwrap() = Access::Denied;
+        p.handle(relisted(vec![], true), &settings);
+        *access.lock().unwrap() = Access::Allowed;
+        let out = p.handle(listed(vec![card()]), &settings);
+        assert_eq!(opened(&out).unwrap().1, mode(1280, 720, 60));
     }
 
     #[test]
