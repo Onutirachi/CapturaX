@@ -27,6 +27,9 @@ pub const IS_WINDOWS: bool = cfg!(windows);
 mod camera;
 pub use camera::{Access, camera_access, open_camera_privacy};
 
+mod activation;
+pub use activation::raise_window;
+
 mod gpu;
 pub use gpu::{PerformanceGuard, gpu_performance};
 

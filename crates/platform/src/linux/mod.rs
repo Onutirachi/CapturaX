@@ -9,6 +9,8 @@ use winit::platform::wayland::WindowAttributesExtWayland;
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{Window, WindowAttributes};
 
+mod activation;
+pub use activation::activate;
 pub mod autostart;
 pub mod camera;
 pub mod instance;

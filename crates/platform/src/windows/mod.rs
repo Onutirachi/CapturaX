@@ -41,6 +41,11 @@ pub fn can_raise_window() -> bool {
     true
 }
 
+/// Windows raises a window with `focus_window`; no activation token is ever offered here.
+pub fn activate(_window: &Window, _token: &str) -> Result<bool, String> {
+    Ok(false)
+}
+
 pub fn show_system_message(kind: crate::MessageKind, title: &str, text: &str) {
     let icon = match kind {
         crate::MessageKind::Error => MB_ICONERROR,

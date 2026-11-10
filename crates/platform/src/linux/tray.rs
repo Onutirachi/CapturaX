@@ -43,14 +43,14 @@ impl ksni::Tray for Item {
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        (self.handler)(TrayEvent::Open);
+        open(self);
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
         vec![
             StandardItem {
                 label: menu_text(&self.labels.open),
-                activate: Box::new(|item: &mut Self| (item.handler)(TrayEvent::Open)),
+                activate: Box::new(open),
                 ..Default::default()
             }
             .into(),
@@ -63,6 +63,16 @@ impl ksni::Tray for Item {
             .into(),
         ]
     }
+}
+
+/// Open, with the host's activation token kept for the window (research R15, T077); KDE Plasma
+/// sends it before the click, so it is there when the click arrives (else none, logged).
+fn open(item: &mut Item) {
+    match ksni::current_xdg_activation_token() {
+        Some(token) => crate::activation::offer(token),
+        None => log::info!("tray: no activation token with the click"),
+    }
+    (item.handler)(TrayEvent::Open);
 }
 
 pub struct Tray(Handle<Item>);

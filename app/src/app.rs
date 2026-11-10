@@ -940,7 +940,8 @@ impl App {
     }
 
     /// Shows the window for another start (FR-013): out of the tray or the taskbar, then to the
-    /// front where the platform allows it (winit's focus needs a visible, restored window). Before
+    /// front where the platform allows it (winit's focus needs a visible, restored window; on
+    /// Wayland the activation token of the click that asked for it, research R15). Before
     /// the window exists there is nothing to do: it is about to be shown. A window destroyed to
     /// hide it is made again (research R11).
     fn show_window(&mut self, event_loop: &ActiveEventLoop) {
@@ -955,7 +956,7 @@ impl App {
             }
             self.update_ui();
             window.set_visible(true);
-            window.focus_window();
+            platform::raise_window(&window);
             log::info!("window made again out of the tray");
             return;
         }
@@ -967,7 +968,7 @@ impl App {
         }
         window.set_visible(true);
         window.set_minimized(false);
-        window.focus_window();
+        platform::raise_window(&window);
         self.request_redraw();
     }
 

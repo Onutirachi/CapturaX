@@ -117,6 +117,16 @@ fn signal(message: &Message) {
         return;
     };
     match member.as_str() {
+        // Sent right before `ActionInvoked` (spec 1.2): what lets the window come to the front
+        // on Wayland (T077).
+        "ActivationToken" => {
+            let Ok((id, token)) = message.body().deserialize::<(u32, String)>() else {
+                return;
+            };
+            if lock_shown().as_ref().is_some_and(|(shown, _)| *shown == id) {
+                crate::activation::offer(token);
+            }
+        }
         "ActionInvoked" => {
             let Ok((id, key)) = message.body().deserialize::<(u32, String)>() else {
                 return;

@@ -20,6 +20,9 @@ tray-icon.workspace = true
 zbus.workspace = true
 ksni.workspace = true
 libloading.workspace = true
+wayland-client.workspace = true
+wayland-backend.workspace = true
+wayland-protocols.workspace = true
 
 [dev-dependencies]
 # The notify example shows the app icon (brand/X.svg).

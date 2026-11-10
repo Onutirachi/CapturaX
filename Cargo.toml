@@ -59,6 +59,11 @@ zbus = "5"
 ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
 # NVIDIA driver library on Linux (spec 20261106-170507-device-preview, research R14)
 libloading = "0.8"
+# Raise the window with an XDG activation token on Wayland (spec 20261106-170507-device-preview,
+# research R15); already compiled through winit
+wayland-client = "0.31"
+wayland-backend = { version = "0.3", features = ["client_system"] }
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 
 [profile.release]
 debug = "line-tables-only"
