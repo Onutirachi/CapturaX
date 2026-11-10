@@ -573,6 +573,26 @@ Nothing pushed.
 
 ## Next step
 
+- **T075** (settings panel restyle, FR-034) done, validated by the maintainer from the
+  screenshots ("muito bom", 2026-11-10) and committed (`feat: restyle the settings panel`). In
+  settings-panel.slint: the column (210 px, compact 64 px) runs the full height on the base tone
+  with the gear (22 px) and "Settings" (18 px semibold, hidden when compact) at its top;
+  categories 44 px, 12 px corners, 15 px text 500 / chosen 600; × (`IconButton` 36 px) at 8 px
+  from the content's top right, last in the focus order; rows start at 52 px and run the
+  content's full width (global `Rows`: 58 px, 24 px padding, 15 px text), a hairline (`hover`
+  tone) under each but the category's last (`last: true`, set by hand: a new row at the end moves
+  it), the soft accent gradient (`accent-soft` to transparent at 75 %) on hover; each row's
+  content sits inside its `TouchArea`, so the row stays hovered over its control; a click on a
+  switch or select row works its control (checked by script: the row label flipped
+  `start_fullscreen`, the Language label opened the menu). Toggle 44 × 24, 8 px / 5 px corners,
+  colors unchanged (the mockup's outlined off state was not adopted); Segmented 40 px on the
+  base tone, 12 / 9 px corners, unchosen text in the text tone 500; plain Select 40 px, 12 px
+  corners, text 500, menu at least 200 px. PanelHeader now serves only the old notice panel
+  (T074 removes both; tasks.md T074 updated). contrast.rs pairs follow the new surfaces.
+  fmt, clippy, tests pass. Screenshots (every category, 1280 × 720 and 640 × 360, both themes,
+  pointer on the first row) in the session scratchpad `t075/shots`. Scripted capture note: a
+  fresh instance ignored synthetic input that came seconds after start; putting the cursor on
+  the dock button before launch and clicking about 1.3 s after start worked. Next: T073, T074.
 - **T063** (device notice balloon) done, validated by the maintainer on Windows ("everything
   seems to work", 2026-11-10) and committed (`feat: show device notices in a balloon or as system
   notifications`). Next: T075 (settings panel restyle), then T073, T074. `DeviceNotice` in

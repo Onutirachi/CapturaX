@@ -1,16 +1,16 @@
-// The settings panel (FR-025): a raised panel centered over the dimmed video, opened from the
-// dock's settings button and closed with Esc, its close control or a click outside it; the video
-// keeps playing behind it. Categories with their icons in a sunken column on the left, the chosen
-// one's rows on the right; in the compact layout the column keeps only the icons, names in
-// tooltips. Each change is
-// reported to Rust, which saves it at once (FR-029). The values live in the global `Prefs`, set
-// by Rust.
+// The settings panel (FR-025, look FR-034): a raised panel centered over the dimmed video, opened
+// from the dock's settings button and closed with Esc, its close control or a click outside it;
+// the video keeps playing behind it. A column on the base tone runs its full height with the
+// settings icon and "Settings" at its top, then the categories with their icons; the chosen
+// one's rows fill the rest, the close control at its top right. In the compact layout the column
+// keeps only the icons, names in tooltips. Each change is reported to Rust, which saves it at
+// once (FR-029). The values live in the global `Prefs`, set by Rust.
 import { Theme } from "../theme.slint";
 import { Texts } from "../texts.slint";
 import { Toggle } from "toggle.slint";
 import { Tooltips, Side } from "tooltip.slint";
 import { Raised } from "raised.slint";
-import { PanelHeader } from "panel-header.slint";
+import { IconButton } from "icon-button.slint";
 import { FocusRing, Input } from "focus-ring.slint";
 import { Select } from "select.slint";
 import { MenuItem } from "menu.slint";
@@ -57,8 +57,9 @@ struct CategoryEntry {
 }
 
 // One category in the column: its icon and name, tinted with the soft accent while chosen, as a
-// toggled tool button (the dock's settings button). Compact, only the icon, with the name in a tooltip (after 500 ms of hover, or
-// at once on keyboard focus). A click, Enter or Space chooses it.
+// toggled tool button (the dock's settings button). Compact, only the icon, with the name in a
+// tooltip (after 500 ms of hover, or at once on keyboard focus). A click, Enter or Space chooses
+// it.
 component CategoryItem inherits Rectangle {
     in property <Category> id;
     in property <image> icon;
@@ -87,7 +88,7 @@ component CategoryItem inherits Rectangle {
     property <color> ink: root.selected ? Theme.c.accent-text : area.has-hover ? Theme.c.text : Theme.c.text-muted;
 
     height: 44px;
-    border-radius: Theme.radius-s;
+    border-radius: 12px;
     background: root.selected ? Theme.c.accent-soft : area.has-hover ? Theme.c.hover : transparent;
     animate background { duration: Theme.quick; }
 
@@ -133,8 +134,8 @@ component CategoryItem inherits Rectangle {
         width: parent.width - self.x - Theme.gap-m;
         text: root.text;
         color: root.ink;
-        font-size: Theme.text-m;
-        font-weight: root.selected ? 600 : 400;
+        font-size: 15px;
+        font-weight: root.selected ? 600 : 500;
         vertical-alignment: center;
         overflow: elide;
     }
@@ -166,112 +167,146 @@ component CategoryItem inherits Rectangle {
     }
 }
 
+// The measures every setting row shares (FR-034, the approved mockup page).
+global Rows {
+    out property <length> height: 58px;
+    // The rows run the content's full width (the hover gradient reaches both edges); their text
+    // and controls keep this distance from them.
+    out property <length> pad: 24px;
+    out property <length> text: 15px;
+}
+
+// A setting row: no outline, a hairline under it (none under the category's last row), the soft
+// accent gradient while the pointer is over it.
+component Row inherits Rectangle {
+    in property <bool> hovered;
+    in property <bool> last;
+
+    Rectangle {
+        background: @linear-gradient(90deg, Theme.c.accent-soft 0%, Theme.c.accent-soft.transparentize(1) 75%);
+        opacity: root.hovered ? 1 : 0;
+        animate opacity { duration: Theme.quick; }
+    }
+
+    if !root.last: Rectangle {
+        y: parent.height - self.height;
+        height: 1px;
+        background: Theme.c.hover;
+    }
+
+    @children
+}
+
 // One setting: its name and a switch; a click anywhere on the row flips it.
-component ToggleRow inherits Rectangle {
+component ToggleRow inherits Row {
     in property <string> text;
     in-out property <bool> checked;
     callback toggled(bool);
 
-    height: max(48px, label.preferred-height + 2 * Theme.gap-m);
-    border-radius: Theme.radius-s;
-    background: area.has-hover ? Theme.c.top : Theme.c.base;
-    animate background { duration: Theme.quick; }
+    height: max(Rows.height, label.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
 
+    // The row's content sits inside its touch area, so the row stays hovered over the switch.
     area := TouchArea {
         clicked => { toggle.flip(); }
-    }
 
-    label := Text {
-        x: Theme.gap-m;
-        width: parent.width - toggle.width - 3 * Theme.gap-m;
-        height: parent.height;
-        text: root.text;
-        color: Theme.c.text;
-        font-size: Theme.text-m;
-        wrap: word-wrap;
-        vertical-alignment: center;
-    }
+        label := Text {
+            x: Rows.pad;
+            width: parent.width - toggle.width - 2 * Rows.pad - Theme.gap-m;
+            height: parent.height;
+            text: root.text;
+            color: Theme.c.text;
+            font-size: Rows.text;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
 
-    toggle := Toggle {
-        x: parent.width - self.width - Theme.gap-m;
-        y: (parent.height - self.height) / 2;
-        label: root.text;
-        checked <=> root.checked;
-        toggled(on) => { root.toggled(on); }
+        toggle := Toggle {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            label: root.text;
+            checked <=> root.checked;
+            toggled(on) => { root.toggled(on); }
+        }
     }
 }
 
-// One setting with a few choices: its name and a select.
-component SelectRow inherits Rectangle {
+// One setting with a few choices: its name and a select; a click anywhere on the row opens it.
+component SelectRow inherits Row {
     in property <string> text;
     in property <[MenuItem]> items;
     in-out property <int> current;
     callback selected(int);
 
-    height: max(48px, label.preferred-height + 2 * Theme.gap-m);
-    border-radius: Theme.radius-s;
-    background: Theme.c.base;
+    height: max(Rows.height, label.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
 
-    label := Text {
-        x: Theme.gap-m;
-        width: parent.width - select.width - 3 * Theme.gap-m;
-        height: parent.height;
-        text: root.text;
-        color: Theme.c.text;
-        font-size: Theme.text-m;
-        wrap: word-wrap;
-        vertical-alignment: center;
-    }
+    area := TouchArea {
+        clicked => { select.open-menu(); }
 
-    select := Select {
-        x: parent.width - self.width - Theme.gap-s;
-        y: (parent.height - self.height) / 2;
-        width: min(200px, parent.width / 2);
-        label: root.text;
-        items: root.items;
-        current <=> root.current;
-        selected(index) => { root.selected(index); }
+        label := Text {
+            x: Rows.pad;
+            width: parent.width - select.width - 2 * Rows.pad - Theme.gap-m;
+            height: parent.height;
+            text: root.text;
+            color: Theme.c.text;
+            font-size: Rows.text;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+
+        // Text dropdowns share one width (FR-034).
+        select := Select {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            width: min(200px, parent.width / 2);
+            label: root.text;
+            items: root.items;
+            current <=> root.current;
+            selected(index) => { root.selected(index); }
+        }
     }
 }
 
 // One setting with two or three short choices: its name and a segmented control (FR-031); the
-// control goes under the name when both do not fit on one line.
-component SegmentedRow inherits Rectangle {
+// control goes under the name when both do not fit on one line. Only a click on a segment picks.
+component SegmentedRow inherits Row {
     in property <string> text;
     in property <[string]> options;
     in-out property <int> current;
     callback selected(int);
 
-    property <bool> stacked: label.preferred-width + segmented.preferred-width + 3 * Theme.gap-m > root.width;
+    property <bool> stacked: label.preferred-width + segmented.preferred-width + 2 * Rows.pad + Theme.gap-m > root.width;
 
     height: root.stacked ? label.preferred-height + segmented.height + 3 * Theme.gap-m
-        : max(48px, label.preferred-height + 2 * Theme.gap-m);
-    border-radius: Theme.radius-s;
-    background: Theme.c.base;
+        : max(Rows.height, label.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
 
-    label := Text {
-        x: Theme.gap-m;
-        y: root.stacked ? Theme.gap-m : (parent.height - self.height) / 2;
-        width: root.stacked ? parent.width - 2 * Theme.gap-m : parent.width - segmented.width - 3 * Theme.gap-m;
-        text: root.text;
-        color: Theme.c.text;
-        font-size: Theme.text-m;
-        wrap: word-wrap;
-    }
+    area := TouchArea {
+        label := Text {
+            x: Rows.pad;
+            y: root.stacked ? Theme.gap-m : (parent.height - self.height) / 2;
+            width: root.stacked ? parent.width - 2 * Rows.pad : parent.width - segmented.width - 2 * Rows.pad - Theme.gap-m;
+            text: root.text;
+            color: Theme.c.text;
+            font-size: Rows.text;
+            wrap: word-wrap;
+        }
 
-    segmented := Segmented {
-        x: root.stacked ? Theme.gap-m : parent.width - self.width - Theme.gap-s - 4px;
-        y: root.stacked ? label.y + label.height + Theme.gap-m : (parent.height - self.height) / 2;
-        width: min(self.preferred-width, parent.width - 2 * Theme.gap-m);
-        label: root.text;
-        options: root.options;
-        current <=> root.current;
-        selected(index) => { root.selected(index); }
+        segmented := Segmented {
+            x: root.stacked ? Rows.pad : parent.width - self.width - Rows.pad;
+            y: root.stacked ? label.y + label.height + Theme.gap-m : (parent.height - self.height) / 2;
+            width: min(self.preferred-width, parent.width - 2 * Rows.pad);
+            label: root.text;
+            options: root.options;
+            current <=> root.current;
+            selected(index) => { root.selected(index); }
+        }
     }
 }
 
 export component SettingsPanel inherits Raised {
-    // The compact layout (FR-009): the categories become a row of tabs.
+    // The compact layout (FR-009): the column keeps only the icons.
     in property <bool> compact;
     callback close();
 
@@ -286,14 +321,11 @@ export component SettingsPanel inherits Raised {
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ];
 
-    property <length> pad: Theme.gap-l;
-    property <length> header: 52px;
-    // The categories' well and the space around its items.
-    property <length> well-pad: Theme.gap-s;
-    property <length> nav-width: root.compact ? 44px + 2 * root.well-pad : 180px;
-    // Where the rows start.
-    property <length> content-x: Theme.gap-m + root.nav-width;
-    property <length> content-y: root.header;
+    // The category column runs the panel's full height on the base tone (FR-034).
+    property <length> nav-pad: 10px;
+    property <length> nav-width: root.compact ? 44px + 2 * root.nav-pad : 210px;
+    // Where the rows start: under the close control.
+    property <length> content-y: 52px;
 
     fill: Theme.c.raised;
     accessible-role: groupbox;
@@ -302,20 +334,51 @@ export component SettingsPanel inherits Raised {
     // Clicks on the panel stay on it.
     TouchArea { }
 
-    // The categories come first in the focus order, then the rows, then the close control. They
-    // sit in a sunken well: depth by tone, no divider line (FR-016).
+    // The categories come first in the focus order, then the rows, then the close control.
     Rectangle {
-        x: Theme.gap-m;
-        y: root.header;
+        x: 0;
+        y: 0;
         width: root.nav-width;
-        height: root.height - root.header - Theme.gap-m;
-        border-radius: Theme.radius-m;
+        height: root.height;
+        border-top-left-radius: root.radius;
+        border-bottom-left-radius: root.radius;
         background: Theme.c.base;
 
         VerticalLayout {
-            padding: root.well-pad;
-            spacing: 2px;
+            padding: root.nav-pad;
+            spacing: 4px;
             alignment: start;
+
+            // The panel's title; compact, only its icon.
+            HorizontalLayout {
+                padding-left: root.compact ? (44px - 22px) / 2 : 12px;
+                padding-right: 12px;
+                padding-top: 10px;
+                padding-bottom: 16px;
+                spacing: 10px;
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Image {
+                        width: 22px;
+                        height: 22px;
+                        source: @image-url("../assets/icons/settings.svg");
+                        colorize: Theme.c.text;
+                        accessible-role: none;
+                    }
+                }
+
+                if !root.compact: Text {
+                    text: @tr("Settings");
+                    color: Theme.c.text;
+                    font-size: Theme.text-l;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    accessible-role: none;
+                }
+            }
 
             for entry in root.categories: CategoryItem {
                 id: entry.id;
@@ -327,19 +390,17 @@ export component SettingsPanel inherits Raised {
         }
     }
 
+    // The rows run the content's full width; their own padding keeps the text off the edges.
     Flickable {
-        x: root.content-x;
+        x: root.nav-width;
         y: root.content-y;
-        width: root.width - root.content-x;
+        width: root.width - root.nav-width;
         height: root.height - root.content-y;
         content-height: max(self.height, content.preferred-height);
 
         content := VerticalLayout {
             alignment: start;
-            padding-left: root.pad;
-            padding-right: root.pad;
-            padding-bottom: root.pad;
-            spacing: Theme.gap-s;
+            padding-bottom: 16px;
 
             if root.category == Category.general: ToggleRow {
                 text: @tr("Start in fullscreen");
@@ -355,6 +416,7 @@ export component SettingsPanel inherits Raised {
 
             if root.category == Category.general: ToggleRow {
                 text: @tr("Start with the system");
+                last: true;
                 checked <=> Prefs.start-with-system;
                 toggled(on) => { Prefs.start-with-system-changed(on); }
             }
@@ -368,6 +430,7 @@ export component SettingsPanel inherits Raised {
 
             if root.category == Category.appearance: SelectRow {
                 text: @tr("Theme");
+                last: true;
                 items: [{ text: @tr("Automatic") }, { text: @tr("Dark") }, { text: @tr("Light") }];
                 current <=> Prefs.theme;
                 selected(index) => { Prefs.theme-changed(index); }
@@ -388,12 +451,15 @@ export component SettingsPanel inherits Raised {
 
             if root.category == Category.preview: SegmentedRow {
                 text: @tr("Video shadow");
+                last: true;
                 options: [@tr("Always"), @tr("With ambient light"), @tr("Off")];
                 current <=> Prefs.shadow;
                 selected(index) => { Prefs.shadow-changed(index); }
             }
 
             if root.category == Category.about: VerticalLayout {
+                padding-left: Rows.pad;
+                padding-right: Rows.pad;
                 padding-top: Theme.gap-m;
                 spacing: Theme.gap-s;
 
@@ -416,14 +482,15 @@ export component SettingsPanel inherits Raised {
         }
     }
 
-    // Last, so its close control is last in the focus order.
-    PanelHeader {
-        y: 0;
-        width: root.width;
-        height: root.header;
-        icon: @image-url("../assets/icons/settings.svg");
-        title: @tr("Settings");
-        close-tooltip: @tr("Close (Esc)");
-        close => { root.close(); }
+    // Last, so it is last in the focus order: the close control at the content's top right.
+    IconButton {
+        x: root.width - self.width - 8px;
+        y: 8px;
+        size: 36px;
+        icon-size: 18px;
+        icon: @image-url("../assets/icons/close.svg");
+        tooltip: @tr("Close (Esc)");
+        tooltip-side: Side.bottom;
+        clicked => { root.close(); }
     }
 }

@@ -1,6 +1,7 @@
 // A segmented control (FR-031, research R18): a pill with one segment per option for a choice of
 // two or three short options, the chosen segment filled with the accent (maintainer, 2026-11-07:
-// no dot), corners like the settings rows rather than a full pill. One Tab stop; Left and Right (Up, Down, Home, End too) move the
+// no dot), 40 px tall like every settings control (FR-034), corners like the dropdowns rather
+// than a full pill. One Tab stop; Left and Right (Up, Down, Home, End too) move the
 // choice; a click picks a segment. Read as a radio group of radio buttons.
 import { Theme } from "../theme.slint";
 import { FocusRing } from "focus-ring.slint";
@@ -22,9 +23,9 @@ export component Segmented inherits Rectangle {
         }
     }
 
-    height: 32px;
-    border-radius: 8px;
-    background: Theme.c.deep;
+    height: 40px;
+    border-radius: 12px;
+    background: Theme.c.base;
     accessible-role: radio-group;
     accessible-label: root.label;
 
@@ -56,11 +57,11 @@ export component Segmented inherits Rectangle {
 
     HorizontalLayout {
         padding: 3px;
-        spacing: 2px;
+        spacing: 3px;
 
         for option[i] in root.options: segment := Rectangle {
             property <bool> chosen: i == root.current;
-            border-radius: 6px;
+            border-radius: 9px;
             background: self.chosen ? (area.has-hover ? Theme.c.accent-hover : Theme.c.accent)
                 : area.has-hover ? Theme.c.hover : transparent;
             animate background { duration: Theme.quick; }
@@ -75,15 +76,15 @@ export component Segmented inherits Rectangle {
             }
 
             HorizontalLayout {
-                padding-left: 12px;
-                padding-right: 12px;
+                padding-left: 14px;
+                padding-right: 14px;
                 alignment: center;
 
                 Text {
                     text: option;
-                    color: segment.chosen ? Theme.c.accent-ink : area.has-hover ? Theme.c.text : Theme.c.text-muted;
+                    color: segment.chosen ? Theme.c.accent-ink : Theme.c.text;
                     font-size: Theme.text-m;
-                    font-weight: 600;
+                    font-weight: segment.chosen ? 600 : 500;
                     vertical-alignment: center;
                 }
             }

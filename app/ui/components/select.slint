@@ -1,7 +1,7 @@
 // A select: an opaque control showing the chosen item and a chevron that opens a menu of the
 // items in the top layer (menu.slint), ported from the stack spike's `dropdown.slint`. Enter,
 // Space, Up or Down opens it from the keyboard; the focus comes back here when it closes (FR-020).
-// Two looks: plain (36 px, for the settings panel's 44 px rows) and, with a `title`, the spike's
+// Two looks: plain (40 px, for the settings panel's rows, FR-034) and, with a `title`, the spike's
 // dropdown (research R13): a raised control 48 px tall with its leading icon, its title inside,
 // above the chosen value in bold, its frame rate tag (when it is on the item's first line) and its
 // name tag, whose menu is at least 320 px wide. A titled select also has an icon look (FR-002a):
@@ -90,7 +90,7 @@ export component Select inherits Rectangle {
             root.hide-tip();
             Menus.show(root.id, root.menu-items, root.current >= 0 ? root.current + root.offset : -1,
                 root.absolute-position.x, root.absolute-position.y, root.width, root.height,
-                root.titled ? 320px : 160px);
+                root.titled ? 320px : 200px);
         }
     }
 
@@ -131,8 +131,8 @@ export component Select inherits Rectangle {
     }
 
     min-width: root.icon-look ? 56px : 120px;
-    height: root.titled ? 48px : 36px;
-    border-radius: root.titled ? Theme.radius-m : Theme.radius-s;
+    height: root.titled ? 48px : 40px;
+    border-radius: root.titled ? Theme.radius-m : 12px;
     // The dropdown look draws its fill with its shadow (as `Raised`).
     background: root.titled ? transparent : Theme.c.top;
     opacity: root.enabled ? 1 : 0.35;
@@ -184,8 +184,8 @@ export component Select inherits Rectangle {
     }
 
     HorizontalLayout {
-        padding-left: root.icon-look ? 10px : root.titled ? 12px : Theme.gap-m;
-        padding-right: root.icon-look ? 6px : root.titled ? 10px : Theme.gap-s + 4px;
+        padding-left: root.icon-look ? 10px : root.titled ? 12px : 14px;
+        padding-right: root.icon-look ? 6px : root.titled ? 10px : 12px;
         spacing: root.icon-look ? 4px : root.titled ? 10px : Theme.gap-s;
 
         if root.titled: VerticalLayout {
@@ -222,7 +222,7 @@ export component Select inherits Rectangle {
                     text: root.shown != "" ? root.shown : root.chosen;
                     color: root.shown != "" && root.shown-muted ? Theme.c.text-muted : Theme.c.text;
                     font-size: Theme.text-m;
-                    font-weight: root.titled ? 600 : 400;
+                    font-weight: root.titled ? 600 : 500;
                     vertical-alignment: center;
                     overflow: elide;
                     horizontal-stretch: 1;

@@ -137,22 +137,24 @@ const fn icon_over_video(color: &'static str, layers: &'static [&'static str], u
 /// icon adds a row here. Not listed: the toggle track and knob, the menu's scroll indicator and
 /// the focus ring (states, not text or icons).
 const PAIRS: &[Pair] = &[
-    // Raised surfaces: settings panel, notice, menu.
-    text("text", &["raised"], "settings panel title, notice text, menu items"),
+    // Raised surfaces: settings panel and its rows, notice, menu.
+    text("text", &["raised"], "setting row names, notice text, menu items"),
+    // A row under the pointer: the soft accent gradient, strongest at its start.
+    text("text", &["raised", "accent-soft"], "setting row hovered"),
     text("text", &["raised", "hover"], "menu item highlighted"),
     text("text", &["raised", "press"], "menu item chosen"),
     text("text-muted", &["raised"], "version in About, menu item detail"),
     text("text-muted", &["raised", "hover"], "menu item detail highlighted"),
     text("text-muted", &["raised", "press"], "menu item detail chosen"),
-    // Top surfaces: tooltip, select, setting row under the pointer.
-    text("text", &["top"], "tooltip, select, setting row hovered"),
+    // Top surfaces: tooltip, select.
+    text("text", &["top"], "tooltip, select"),
     text("text", &["top", "hover"], "select hovered"),
     text("text", &["top", "press"], "select pressed"),
     text("text-muted", &["top"], "dropdown title"),
     text("text-muted", &["top", "hover"], "dropdown title hovered"),
     text("text-faint", &["raised"], "menu group headers"),
-    // Base: setting rows and the category well.
-    text("text", &["base"], "setting row names"),
+    // Base: the category column.
+    text("text", &["base"], "settings panel title"),
     text("text", &["base", "hover"], "category hovered"),
     text("text-muted", &["base"], "category names"),
     text("accent-text", &["base", "accent-soft"], "category chosen"),
@@ -188,6 +190,7 @@ const PAIRS: &[Pair] = &[
     icon("#ffffff", &["#c42b1c"], "close button hovered"),
     icon("#ffffff", &["#a32417"], "close button pressed"),
     // Settings panel.
+    icon("text", &["base"], "settings icon by the title"),
     icon("text", &["raised"], "panel close button"),
     icon("text", &["raised", "hover"], "panel close button hovered"),
     icon("text", &["raised", "press"], "panel close button pressed"),
@@ -209,9 +212,9 @@ const PAIRS: &[Pair] = &[
         "state message icon and progress ring on black",
     ),
     icon("text-muted", &["deep"], "state message icon"),
-    // Segmented control: its track is the deep tone, the chosen segment the accent.
-    text("text-muted", &["deep"], "segment"),
-    text("text", &["deep", "hover"], "segment hovered"),
+    // Segmented control: its track is the base tone, the chosen segment the accent.
+    text("text", &["base"], "segment"),
+    text("text", &["base", "hover"], "segment hovered"),
     text("accent-ink", &["accent"], "segment chosen"),
     text("accent-ink", &["accent-hover"], "segment chosen hovered"),
     // Mode tags: white text on each fill (the rate tag is the text color on the menu).
