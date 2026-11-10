@@ -113,3 +113,41 @@ the chrome not smooth):
   replaced frames (`repl` 1–3), for example t=115, 136–139, 226, 229–230 and eight seconds in a
   row at t=294–301; some with UI activity, some without. These are SC-006's Windows stalls,
   investigated at T052.
+
+## System notifications (T061, research R15)
+
+`cargo run -p capturax-platform --example notify -- <seconds> [<replace after>]`; the maintainer
+watched and clicked. Both passed on 2026-11-09.
+
+### Windows 11 — 2026-11-09
+
+Unpacked build.
+
+| Check | Result | Notes |
+|---|---|---|
+| Toast shows with the name CapturaX and the X icon | Pass | Key `HKCU\Software\Classes\AppUserModelId\CapturaX` and `%LOCALAPPDATA%\CapturaX\notification.ico` written on the first notice |
+| **Open** reaches the app with the notice's tag | Pass | `example:first` from the first toast, `example:second` from the second |
+| A new notice replaces the previous one | Pass, with a delay | Windows shows one popup of an app at a time: the first goes away at once, the second comes in after the exit animation |
+
+- First run: no toast. `Setting()` failed with 0x80070490 (no Start menu shortcut) while `Show`
+  works; an unreadable setting no longer stops the toast.
+- Replacing a toast still on screen (`-- 15 3`): hiding the previous and then showing the new
+  one, or a shared `Tag` and `Group`, brought the second popup in late; with no hide at all the
+  second waited for the first's whole life (not stacked). Showing the new one and then hiding
+  the previous was the quickest, still a short delay the system imposes (research R15).
+- The first example exited on the first action and replaced after 2 s, which looked erratic; it
+  now prints every action and takes the replace delay as an argument (8 s by default).
+
+### CachyOS KDE Plasma Wayland — 2026-11-09
+
+Run over SSH in the desktop session (`DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus`).
+
+| Check | Result | Notes |
+|---|---|---|
+| Notification shows with the name CapturaX and the X icon | Pass | Icon from the `image-data` hint, no icon file |
+| **Open** reaches the app with the notice's tag | Pass | `example:first` at 2.3 s, `example:second` at 9.2 s |
+| A new notice replaces the previous one | Pass | With 3 s the second took the first's place at once |
+
+- With `replaces_id`, a second notice sent after the first had left the screen (8 s) only
+  updated the history entry, with no popup. The previous notice is now closed
+  (`CloseNotification`) and the new one sent as new; both popups then showed (research R15).

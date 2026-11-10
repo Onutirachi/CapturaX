@@ -564,17 +564,21 @@ Nothing pushed.
   `image-data` hint plus `desktop-entry` `capturax`. The registry helpers of autostart moved to
   `crates/platform/src/windows/registry.rs` (behavior unchanged). `SetCurrentProcessExplicitAppUserModelID`
   runs in `init_notifications`, so the app must call it before creating the window (T063).
-  **Next: T061**: the maintainer runs `cargo run -p capturax-platform --example notify` on
-  Windows (expect the name CapturaX and the X icon, the second notice replacing the first,
-  **Open** printing `action: example:second`) and on CachyOS KDE (needs the session's
-  `DBUS_SESSION_BUS_ADDRESS`, so from a terminal there or with `XDG_RUNTIME_DIR=/run/user/1000`
-  over SSH); record the result in measurements/acceptance.md. If the Windows button does not
-  reach the app, stop and bring the R15 fallback to the maintainer.
+- **T061** passed on Windows and CachyOS KDE (2026-11-09, measurements/acceptance.md "System
+  notifications"); fixes found there are in the T060 commit and research R15: Windows
+  `Setting()` unreadable without a Start menu shortcut (0x80070490) no longer stops the toast;
+  Windows queues an app's popups one at a time, so the new toast is shown and then the previous
+  hidden (a short system delay remains, accepted by the maintainer); on KDE `replaces_id` on a
+  notice gone from the screen updated the history silently, so the previous notice is closed
+  (`CloseNotification`) and the new one sent as new. The example takes
+  `-- <seconds> [<replace after>]` (`-- 15 3` replaces while the first is on screen). Over SSH
+  the CachyOS desktop needs `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus`. The
+  worktree `/tmp/t060` on the CachyOS PC can be removed (`git worktree remove --force /tmp/t060`
+  from `~/Projetos/CapturaX`; it holds only copies of committed files).
 0. **US4 on Windows**: T041–T044 done (unplug and replug accepted). Still to try on hardware
    when convenient: sleep and wake with a device playing (log `woke from sleep: N s`, the
-   device reopens), and start with no device then plug one in. T045 and T060 are done and
-   committed. Next: T061 (maintainer validates the Windows toast and the KDE notification),
-   T062, T063.
+   device reopens), and start with no device then plug one in. T045, T060 and T061 are done
+   and committed. Next: T062 (notices in the state machine), then T063.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives
