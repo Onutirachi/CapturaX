@@ -63,7 +63,14 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
      click on the balloon; plug and unplug quickly → one balloon with the latest message; unplug and plug the open card →
      "disconnected", then "reconnected" with no button; repeat with another app focused, the
      window minimized and hidden to the tray → system notifications, **Open** shows the window
-     and opens the device; each within 3 s (SC-005).
+     and opens the device; each within 3 s (SC-005);
+   - notice placement (FR-027, FR-032): the balloon in the bottom left by default; each corner
+     picked in General › Notification position moves it at once; in the bottom right it joins the
+     bubble row; at 640 × 360 it never covers the toolbar, the left dock or the bubbles, and goes
+     back to the corner when the controls hide; with no device listed, plugging one in opens it
+     and the balloon says "connected" with no **Open**;
+   - settings notices (FR-033): make the folder read-only (or damage the settings file) and start
+     → the balloon with the warning icon, the whole text wrapped, staying until closed.
 5. **US5**: Settings → Video → Presentation: Follow the monitor → on the G-SYNC monitor the
    cursor stays smooth with the app focused; `--stats` header `mode=fifo-follow`, `rep` > 0;
    back to Lowest latency → `mode=mailbox`; the device is not reopened (no Opening state).

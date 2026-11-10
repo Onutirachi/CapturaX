@@ -427,9 +427,33 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
 
 - **Decision**: the routing is pure app logic: monitor `Added`/`Removed` after `Listed` → a
   notice; window focused → in-app notice (one balloon drawn by the app in Slint, no toast
-  library: top layer, bottom right of the video area above the dock, about 5 s, × and a click
-  anywhere close it, only the latest message); else → `platform::notify(notice)`. A system notification's action comes
+  library, below); else → `platform::notify(notice)`. A system notification's action comes
   back as a user event through the `EventLoopProxy`, as tray events do.
+  - **In-app balloon** (maintainer, 2026-11-09, chosen on a mockup page:
+    https://claude.ai/artifact/WQwGoxC4LBfowQv11aGJEN, private): a balloon of the info bubbles' family (44 px tall, 16 px
+    corners, 14 px text) with the theme's raised fill, opaque, with the raised surfaces' shadow,
+    so it reads over any video and is not taken for an info bubble (those are black at 55%). Icon,
+    text, **Open** (accent button, 32 px) when the device did not open by itself, a 32 px × with
+    an accessible label; a click anywhere closes it. Top layer, in the corner of
+    `general.notification_position` (default bottom left, which the dock and the bubbles leave
+    free). Placement: from the corner, 20 px from the video area's edges; while the controls show,
+    a balloon that would cover the toolbar dock moves below it, one that would cover the left dock
+    moves beside it (8 px clear, as the bubbles do), one that would cover the bubble row moves
+    above it (12 px); in the bottom right the device balloon joins the bubble row at the corner
+    when the row has room for it; with the controls hidden it goes back to the corner. It grows in
+    from the corner (fade and scale, `Theme.quick`) and the bubbles slide; checked at 640 × 360,
+    the smallest window, on the mockup page.
+  - **Settings notices** (app shell FR-034, now FR-033 here): the same balloon instead of the
+    panel at the top of the video area: icon of the kind, bold title then the text, at most
+    480 px and the room the window has, wrapping, no timeout, the queue unchanged. Alternatives on
+    the mockup page: keeping the panel (two notice looks, covers the top center of the video) and a
+    one-line balloon with **Details** (hides the folder or file name the user needs).
+  - **Notification position** (FR-032): a button with the chosen corner's icon (a small frame
+    in the muted tone with an accent mark in that corner) that opens a 2 × 2 grid, so the row
+    keeps the settings rows' height. Not a new dropdown: the select's icon look (T072) and the
+    existing `Menus` given a two-column grid of icon items, with the menus' hover and chosen fills
+    (maintainer, 2026-11-09: every corner drawn with the button's icon). Reusable for placing each
+    info bubble (F42, spec #6).
   - **Linux**: `org.freedesktop.Notifications.Notify` over D-Bus with `zbus` (already a
     dependency of `crates/platform` for the theme), app name `CapturaX`, the app icon, actions
     `["open", "<Open>"]` when there is one, the icon's pixels in the `image-data` hint (no icon

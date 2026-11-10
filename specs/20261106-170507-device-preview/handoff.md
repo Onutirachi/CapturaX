@@ -516,6 +516,39 @@ Nothing pushed.
   Spec FR-002a, research R13, plan UI, task T072 (not implemented yet; spec changes
   committed in `docs: turn the toolbar into a dock and fit it at any size`).
 
+- **Notice balloon** (maintainer, 2026-11-09, mockup page
+  https://claude.ai/artifact/WQwGoxC4LBfowQv11aGJEN, private): the device
+  notice is a balloon of the info bubbles' family (44 px, 16 px corners, 14 px text) with the
+  theme's raised fill, opaque, with a shadow; icon, text, **Open** when the device did not open by
+  itself (a device plugged in with none listed opens by itself: "connected" without Open), a small
+  ×; it grows in from its corner and its neighbours slide; ~5 s, paused on hover, click closes.
+  A setting in General, **Notification position**: a button with the chosen corner's icon that
+  opens a 2 × 2 grid (the row keeps the other rows' height), default bottom left; the same picker may later place each info bubble (F42). In the bottom
+  right the device balloon joins the bubble row at the corner. The app shell's FR-034 settings
+  notices **migrate to the same balloon** (variant B: icon by kind, bold title then the text,
+  up to 480 px, as many lines as needed, no timeout, until closed); both notices stack in the
+  corner, the device one nearest. Small windows: never over the toolbar, the left dock or the
+  bubbles (moves past them, back to the corner when the controls hide), accepted. Recorded in
+  spec FR-027, new FR-032 (position setting) and FR-033 (settings notices; app shell FR-034
+  marked superseded), data-model "Device notice" and settings additions
+  (`general.notification_position`), contracts/settings-file.md, research R15 "In-app
+  balloon", plan, quickstart, product F4, tasks T063 (rewritten), new T073 (setting) and T074
+  (settings notices). T062 now also gives `open` in `Command::Notice` (false when the device
+  opened by itself), folded into the T062 commit.
+- **Settings panel restyle** (maintainer, 2026-11-09, later, not in T063): the mockup's settings
+  panel looks better than the app's (full-height side column with the title "Settings" at its
+  top and × at the content's corner, rows without outlines separated by lines, larger text and
+  controls). The same shape serves the Record and Stream panels (F25) and their compact windows
+  (F48). The mockup page's panel is interactive (categories, switches, segmented controls,
+  dropdowns, the corner picker, the accent gradient on the row under the pointer, a click
+  anywhere on a switch or menu row works its control; every control 40 px tall, text dropdowns
+  one width, 200 px; the switch squarer, 8 px track and 5 px knob corners). **Approved as the
+  target look** (maintainer, 2026-11-09: "if it ends up like this it will be great"): side
+  column 210 px on the base tone with "Settings" (gear 22 px, 18 px semibold) at its top,
+  categories 15 px (500, chosen 600 on the soft accent, 12 px corners), rows 58 px with 15 px
+  text, 24 px side padding, separated by hairlines, the soft accent gradient on hover, controls
+  40 px, × at the content's top right; to schedule where it fits (roadmap or a task here).
+
 ## Open questions
 
 
@@ -585,10 +618,9 @@ Nothing pushed.
    notices come from `came`/`left`, so the 3 s / after-error re-read also gives the ones the
    monitor missed; only for a device that really joined or left (a repeated `Added` or an
    unknown `Removed` gives none); Reconnected also when a Blocked state's device returns (it
-   reopens by itself too); the name is the menu's (numbered). Open point for T063: with no device
-   listed, a plugged-in device opens by itself but is still "connected" (FR-027 offers **Open**
-   only to one not reopened by itself; Open on the open device does nothing): decide whether
-   that balloon hides **Open**. Next: T063.
+   reopens by itself too); the name is the menu's (numbered); `open` false when the device
+   opened by itself (none listed). Next: commit the spec changes once the maintainer validates
+   them (`docs: turn the notices into balloons with a position setting`), then T063, T073, T074.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives

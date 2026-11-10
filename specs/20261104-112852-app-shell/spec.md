@@ -366,7 +366,8 @@ change that only breaks one platform's build; each is reported and blocks the me
 - **FR-034**: The app MUST have one non-blocking, dismissible notice for shell-level messages
   (settings fallback, damaged settings, settings not kept), shaped as the settings panel: a
   header with an icon for its kind, a title of its own and the close control (FR-025), then its
-  text.
+  text. (Superseded by the device preview spec's FR-033, 2026-11-09: these notices now use the
+  notice balloon, in the corner of the Notification position setting.)
 - **FR-035**: The video area MUST show the empty state "no source" when nothing is open, never a
   black or blank area.
 - **FR-036**: If the renderer cannot start, the app MUST show a system message in the user's

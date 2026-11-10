@@ -154,8 +154,9 @@ shown and that its action works.
 5. **Given** the device opens but no frame arrives within 5 s, **When** the timeout passes,
    **Then** the state says there is no signal, with **Try again** and the mode menu reachable.
 6. **Given** the app is running, **When** a device is plugged in or removed, **Then** a notice
-   names it (FR-027): inside the window when it has focus, as a system notification otherwise; a
-   device that is plugged in and not reopened by itself offers **Open**, so a card that comes back
+   names it (FR-027): inside the window when it has focus, as a balloon in the corner chosen in
+   the settings (FR-032), as a system notification otherwise; a device that is plugged in and not
+   opened by itself offers **Open**, so a card that comes back
    as a new device (another USB port) is one click away and the user is not left waiting on a
    disconnected state that will not end.
 
@@ -378,16 +379,41 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   - texts: "<name> connected", "<name> reconnected" (the open device came back and reopened by
     itself, FR-014), "<name> disconnected";
   - "connected" offers **Open**, which opens that device as if picked in the device menu
-    (remembered mode and range, else its defaults); "reconnected" and "disconnected" have no
-    action (the video area already shows the state);
-  - when the window has focus: an in-app notice, one balloon over the video area, shown about
-    5 s (kept while the pointer is over it), never covering the state's actions; it has a close
-    button (×) and a click anywhere on it closes it (**Open** opens the device and closes it);
-    when the window is not focused, minimized or hidden to the tray: a system notification,
+    (remembered mode and range, else its defaults), unless the device opened by itself (plugged in
+    while no device was listed, FR-005; maintainer, 2026-11-09); "reconnected" and
+    "disconnected" have no action (the video area already shows the state);
+  - when the window has focus: an in-app notice, a balloon of the info bubbles' family (their
+    height, corners and text size) with the theme's raised fill, opaque, with a shadow: the
+    plug icon (cut for "disconnected"), the text, **Open** when offered and a small close button
+    (×); a click anywhere on it closes it (**Open** opens the device and closes it); shown about
+    5 s (the time stops while the pointer is over it); it grows in from its corner and the
+    neighbours slide to make room, and leaves the same way; shown also while the controls are
+    hidden (maintainer, 2026-11-09);
+  - where: in the corner of the video area set by **Notification position** (FR-032). In the
+    bottom right it joins the info bubbles' row at the corner (the bubbles slide away); if the row
+    has no room for it, it sits just above the row. It never covers the toolbar, a side dock, the
+    info bubbles or the state's actions: while the controls show it moves past them (above the
+    bubble row, under the toolbar, beside the left dock) and goes back to the corner when they
+    hide (maintainer, 2026-11-09, mockup page);
+  - when the window is not focused, minimized or hidden to the tray: a system notification,
     whose **Open** also shows the window;
   - one notice at a time: the balloon shows only the latest message, a newer one replacing the
     current (no queue, no stack); no setting to turn them off (the system's own notification
     settings apply to system notifications) (maintainer, 2026-11-06).
+- **FR-032**: The settings panel's **General** category MUST offer **Notification position**: a
+  button showing the chosen corner's icon (the row keeps the other rows' height) that opens a
+  2 × 2 grid of the four corners of the video area, **Bottom left** by default; each corner is
+  named in its tooltip and for screen readers, the arrows move between them, Enter or a click
+  picks one and closes the grid, Esc closes it; the change applies at once to the notices on
+  screen (maintainer, 2026-11-09). The same picker may later place each info bubble (F42).
+- **FR-033**: The app shell's settings notices (its FR-034: settings fallback, damaged settings,
+  settings not kept) MUST use the device notice's balloon instead of the panel at the top of the
+  video area: the icon of their kind (info, warning), the title in bold followed by the text, at
+  most 480 px wide and never wider than the room in the video area, as many lines as the text
+  needs, a close button (×) and no timeout (they stay until closed); their queue and the "once
+  per run" rule are unchanged. With a device notice on screen at the same time both stack in the
+  corner, the device notice nearest to it. One notice look in the whole app (maintainer,
+  2026-11-09, variant B of the mockup page).
 
 **Presentation setting (F52)**
 
@@ -449,7 +475,9 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   choices** (settings): last used device, presentation (Lowest latency, Follow the monitor),
   latency and frame rate bubble displays.
 - **Device notice**: kind (connected, reconnected, disconnected), device name and id, where it
-  is shown (in-app or system), and its action (Open, for connected).
+  is shown (an in-app balloon at the notification position, or a system notification), and its
+  action (Open, for a connected device that did not open by itself). The settings notices use
+  the same balloon (FR-033).
 - **Preview state**: what the video area shows: video, opening, or one of the states of FR-019.
 - **Preview measurement**: per-second frame counts (received, presented, dropped,
   repeated), latency values and frame ready → presented times; shown in the overlay (FR-016,

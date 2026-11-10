@@ -180,16 +180,28 @@ any ── system sleep → wake ─► Opening (same device and mode) ── er
 
 ## Device notice (FR-027)
 
-- **Kind**: `Connected` (with **Open**), `Reconnected` (the open device came back and reopens by
-  itself), `Disconnected`. Only after the monitor's first `Listed`.
+- **Kind**: `Connected` (with **Open**, unless the device opened by itself: plugged in while no
+  device was listed), `Reconnected` (the device a state waited for came back and reopens by
+  itself), `Disconnected`. Only after the monitor's first `Listed`, and only for a device that
+  really joined or left the list (from the monitor or the list read again).
 - **Where**: `InApp` when the window has focus, else `System` (not focused, minimized, hidden to
   the tray).
+- **In-app balloon** (FR-027, FR-032): the info bubbles' height (44 px), corners (16 px) and text
+  size, the theme's raised fill, opaque, with a shadow; plug icon (`plug_connected`,
+  `plug_connected_x` for disconnected), text, **Open**, ×. In the corner of `notification_position`;
+  in the bottom right it joins the bubble row at the corner (above the row when the row has no
+  room for it). While the controls show it moves past the toolbar (below it), the left dock
+  (beside it) and the bubble row (above it); with the controls hidden it goes back to the
+  corner. Grows in from the corner, the neighbours slide.
 - **One at a time**: a new notice replaces the one showing (in-app: the single balloon shows the
   latest message; system: the previous notice closed on Linux, the previous toast hidden on Windows).
 - **Closing (in-app)**: after about 5 s (not while hovered), on the × button, or on a click
   anywhere on the balloon; **Open** opens the device and closes it.
 - **Open**: same as picking the device in the menu; from a system notification it also shows the
   window.
+- **Settings notices** (FR-033): the same balloon with the icon of their kind, the title in bold
+  then the text, at most 480 px and the room in the video area, wrapping, no timeout; stacked
+  with a device notice in the same corner, the device notice nearest to it.
 
 ## Preview measurement
 
@@ -235,6 +247,7 @@ Crate `settings`, format version stays 1 (new tables only, read leniently; contr
 
 | Category | Field | Type | Default |
 |---|---|---|---|
+| `general` | `notification_position` | `top-left` \| `top-right` \| `bottom-left` \| `bottom-right` | `bottom-left` |
 | `preview` | `device` | device id | none |
 | `preview` | `recent` | list of device ids, most recent first, at most 8 | empty |
 | `preview` | `presentation` | `lowest-latency` \| `follow-monitor` | `lowest-latency` |

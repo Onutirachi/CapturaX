@@ -132,9 +132,13 @@ close the session, stop the monitor; the rest is the shell's sequence.
   hover settings buttons in the top layer).
 - `main.slint`: the state message shows the preview state's icon, title, detail and actions;
   `source-open` becomes the preview state.
-- `components/notice.slint`: the in-app device notice, one balloon showing the latest message
-  (top layer, bottom right of the video area, about 5 s, × button, closes on click, **Open** for
-  a connected device); no toast library.
+- `components/notice.slint`: the notice balloon (research R15 "In-app balloon"): the device
+  notice (latest message only, about 5 s, **Open** when offered) and the settings notices
+  (wrapping, until closed) replace the app shell's panel-shaped notice; placed in the top layer at
+  `general.notification_position`, clear of the docks and the bubble row; no toast library.
+- **Notification position** (FR-032), in the General category: no new component; a select in
+  its icon look (T072) showing the chosen corner's icon, whose menu is `Menus` laid out as a
+  2 × 2 grid of icon items (`menu.slint` gains the grid layout and an icon field on `MenuItem`).
 - `components/settings-panel.slint`: category `video` with the Presentation select and tooltip.
 - New texts in `texts.slint` and the pt-BR catalog.
 
