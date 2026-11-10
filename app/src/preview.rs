@@ -235,10 +235,15 @@ impl Preview {
     }
 
     /// Waiting for a device to come (no devices, the open one disconnected, or blocked while it
-    /// is not listed): the app reads the list again every 3 s meanwhile (research R1).
+    /// is not listed): the app reads the list again every 3 s meanwhile (research R1). In the
+    /// tray a disconnected device that is listed again only waits for the window (it opens when
+    /// shown), so the list is not read again.
     pub fn waiting(&self) -> bool {
         match self.state.as_ref() {
-            Some(PreviewState::NoDevices | PreviewState::Disconnected(_)) => true,
+            Some(PreviewState::NoDevices) => true,
+            Some(PreviewState::Disconnected(id)) => {
+                !(self.hidden && capture::device::find(id, &self.devices).is_some())
+            }
             Some(PreviewState::Blocked { device, .. }) => device
                 .as_ref()
                 .is_none_or(|id| capture::device::find(id, &self.devices).is_none()),
@@ -1714,8 +1719,13 @@ mod tests {
         playing_720(&mut p, &settings, vec![card()]);
         p.handle(removed("card"), &settings);
         p.handle(Event::Hidden, &settings);
+        assert!(p.waiting());
         let out = p.handle(added(card()), &settings);
         assert!(opened(&out).is_none(), "nothing opens in the tray");
+        assert!(
+            !p.waiting(),
+            "back in the tray: no 3 s re-read (seen at T046 on CachyOS)"
+        );
         let (id, mode, _) = opened(&p.handle(Event::Shown, &settings)).unwrap();
         assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
 
