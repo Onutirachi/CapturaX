@@ -414,6 +414,15 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   per run" rule are unchanged. With a device notice on screen at the same time both stack in the
   corner, the device notice nearest to it. One notice look in the whole app (maintainer,
   2026-11-09, variant B of the mockup page).
+- **FR-034**: The settings panel MUST take the look approved on the mockup page (maintainer,
+  2026-11-09), revising the app shell's FR-025 look: the category column runs the panel's full
+  height on the base tone with the settings icon and the title "Settings" at its top (no header
+  band); the close control (×) sits at the content's top right; categories 15 px (chosen ones
+  semibold on the soft accent); rows 58 px tall with 15 px text, 24 px side padding, no outline,
+  separated by hairlines, with the soft accent gradient on the row under the pointer; a click
+  anywhere on a switch or dropdown row works its control (segmented rows need the click on a
+  segment); every control 40 px tall, text dropdowns one width (200 px); the switch with 8 px
+  track and 5 px knob corners. The compact layout keeps only the icons in the column (FR-025).
 
 **Presentation setting (F52)**
 

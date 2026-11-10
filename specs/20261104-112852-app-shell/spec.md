@@ -337,7 +337,8 @@ change that only breaks one platform's build; each is reported and blocks the me
   only the icons, with the names in tooltips. In this spec: **General** (Start in
   fullscreen, FR-012a; Keep in tray when closed, FR-014a; Start with the system, FR-014b),
   **Appearance** (language, theme) and **About** (the logo, FR-006, and the app's version). Later specs add their
-  categories to the same panel (F40). (Maintainer, 2026-11-05: a central panel with categories
+  categories to the same panel (F40). (Look revised by the device preview spec's FR-034,
+  2026-11-09: the title moves to the top of a full-height category column, taller rows and controls.) (Maintainer, 2026-11-05: a central panel with categories
   replaces the panel beside the dock, because later settings include lists such as audio
   devices and hotkeys.)
 - **FR-026**: Settings MUST be stored in one human-readable file in the folder that holds the

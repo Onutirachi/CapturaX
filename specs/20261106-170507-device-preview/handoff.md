@@ -547,7 +547,8 @@ Nothing pushed.
   column 210 px on the base tone with "Settings" (gear 22 px, 18 px semibold) at its top,
   categories 15 px (500, chosen 600 on the soft accent, 12 px corners), rows 58 px with 15 px
   text, 24 px side padding, separated by hairlines, the soft accent gradient on hover, controls
-  40 px, × at the content's top right; to schedule where it fits (roadmap or a task here).
+  40 px, × at the content's top right; scheduled as **T075** (spec FR-034), after T063 and before T073
+  (maintainer, 2026-11-09); to schedule where it fits (roadmap or a task here).
 
 ## Open questions
 
@@ -620,7 +621,7 @@ Nothing pushed.
    unknown `Removed` gives none); Reconnected also when a Blocked state's device returns (it
    reopens by itself too); the name is the menu's (numbered); `open` false when the device
    opened by itself (none listed). Next: commit the spec changes once the maintainer validates
-   them (`docs: turn the notices into balloons with a position setting`), then T063, T073, T074.
+   them (done: `docs: turn the notices into balloons with a position setting`), then T063, T075 (panel restyle), T073, T074.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives

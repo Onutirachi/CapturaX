@@ -140,6 +140,8 @@ close the session, stop the monitor; the rest is the shell's sequence.
   its icon look (T072) showing the chosen corner's icon, whose menu is `Menus` laid out as a
   2 × 2 grid of icon items (`menu.slint` gains the grid layout and an icon field on `MenuItem`).
 - `components/settings-panel.slint`: category `video` with the Presentation select and tooltip.
+  Restyled to the approved mockup look (FR-034, T075): full-height category column with the
+  title, × at the content's top right, taller rows and controls, hover gradient, whole-row clicks.
 - New texts in `texts.slint` and the pt-BR catalog.
 
 ### Investigations inside the plan
