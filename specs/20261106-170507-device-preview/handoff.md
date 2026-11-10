@@ -593,15 +593,17 @@ Nothing pushed.
   on wayland`, `fix: choose the jpeg decoder by its subsampling`, `feat: raise the window with
   the activation token on wayland`, `fix: stop the device re-read in the tray once the device is
   back`, `docs: record the us2 and us4 acceptance on cachyos`.
-- **Still in the Linux batch**: T071 on CachyOS (backdrop combinations, both themes; can run
-  with the loopback camera, a 4:3 or 21:9 test pattern from `videotestsrc`), T034's rest (Windows
-  half not recorded; fade and spinner; a capture card's Automatic group) and **T040** (needs the
-  ezcap at the CachyOS PC with a 1080p60 source: `--stats` fullscreen for `lat_ms`, `C_LINUX` =
-  30.1 − `lat_ms` − 4.2, the Total against L4 and L5). Note: the CachyOS monitor is now at
-  **60 Hz** in KDE's display settings (it was 120 Hz at L4), so `R/2` differs: set it back to
-  120 Hz before T040 or account for it.
-- CachyOS state left: the loopback module loaded with its feeder (`vcam_off` removes it),
-  `ydotoold-capturax` running, the clone on the branch with these changes copied in (same as the commits).
+- **T071 done** (2026-11-10): the CachyOS half passed (maintainer, measurements/acceptance.md
+  "Video backdrop"), with the loopback camera at 2560 × 1080 (21:9).
+- **Still in the Linux batch**: T034's rest (Windows half not recorded; fade and spinner; a
+  capture card's Automatic group) and **T040** (needs the ezcap at the CachyOS PC with a 1080p60
+  source: `--stats` fullscreen for `lat_ms`, `C_LINUX` = 30.1 − `lat_ms` − 4.2, the Total
+  against L4 and L5). The ezcap is still at the Windows PC and the maintainer cannot move it now
+  (2026-11-10). The CachyOS monitor is back at **119.88 Hz** (as at L4).
+- CachyOS state left: the loopback module loaded with its feeder at 2560 × 1080 at 60
+  (`vcam_off` removes it; `vcam_on` with no arguments for 1080p60), `ydotoold-capturax` running,
+  the app running from `~/capx/batch`, the clone fast-forwarded to `5d6bad0` (the old working
+  tree, identical code, kept in `git stash` "t071 pre-sync working tree", can be dropped).
 
 - **T046 Windows half** passed (2026-11-10, measurements/acceptance.md "US4"); 150 % checked
   quickly; No signal not checkable (the ezcap sends its own no-signal picture, the C920 always

@@ -108,9 +108,14 @@ the app starts. A real USB webcam is seen at once.
 
 Pass (maintainer, 2026-11-10; checked after T070, not recorded at the time).
 
-### CachyOS KDE Plasma Wayland
+### CachyOS KDE Plasma Wayland — 2026-11-10
 
-Not run yet.
+Pass (maintainer). Release build of `5d6bad0` in `~/capx/batch`, the monitor at 119.88 Hz.
+Devices: the C920 and a `v4l2loopback` camera ("Virtual Cam", 2560 × 1080 at 60 NV12, SMPTE bars
+from `videotestsrc`, 21:9). Checked: every combination of background, watermark and shadow in
+both themes; the Virtual Cam fullscreen (the X's tips in the bars); a switch between the C920 and
+the Virtual Cam (the X between the fades); a state (the X behind it); the settings after a
+restart.
 
 ## US3 (T039)
 
