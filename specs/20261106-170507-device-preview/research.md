@@ -17,7 +17,8 @@ marks what was not run.
   "mediafoundation"` or a device type named `GstV4l2Device` (the spike's rule; on Linux the
   PipeWire provider lists the same card again and is skipped). While the app waits for a device
   (no devices, or the open one disconnected) it also reads the list again every 3 s, so a
-  missed add is caught; while the access-blocked state shows a listed device, it reads only the
+  missed add is caught (not in the tray once the disconnected device is listed again: it only
+  waits for the window, found at T046 on CachyOS); while the access-blocked state shows a listed device, it reads only the
   camera access every 3 s, and access turned back on reopens the device once (FR-021). The re-read runs off the main thread and reads the running monitor's
   `devices()`: the providers' list, which each provider keeps by probing again on every device
   change. **Never a second `DeviceMonitor` while one runs** (found at T044, 2026-11-08):
@@ -53,6 +54,11 @@ marks what was not run.
 - **A card moved to another port**: without a USB serial its key changes (Windows path, Linux bus
   path), so it is a new device and its choices start from the defaults. Re-matching it by name and
   USB ids was considered and dropped (maintainer, 2026-11-06: not important; spec FR-003).
+  On Linux the bus path is always in the key, so a device moved to another port is a new device
+  even with a real serial (seen at T046 with the C920, 2026-11-10: the waited device stays
+  "disconnected" and the moved one gets a "connected" notice with **Open**); re-matching by the
+  serial was considered and dropped (maintainer, 2026-11-10: two identical cards with a generic
+  serial could swap their choices).
 - **Numbering**: devices with the same name get " (2)", " (3)" in list order (FR-003).
 - **Rationale**: these are the only properties that survive reconnects and tell identical cards
   apart on each platform (verified by `gst-device-monitor-1.0` on both).
@@ -121,7 +127,12 @@ marks what was not run.
   (R5). Uploaded formats: NV12 (R8 + RG8 textures), YUY2 and UYVY (RGBA8 at half width, unpacked
   in the shader), I420 (three R8), BGRx and RGBA (as is). Anything else, P010 included, gets a
   `videoconvert` to NV12 (logged). MJPEG decoders, in order: `nvjpegdec`, `d3d12mjpegdec`,
-  `jpegdec` (the spike's order). The appsink keeps `sync=false max-buffers=1 drop=true`; plane
+  `jpegdec` (the spike's order), chosen by the JPEG's chroma subsampling: MJPG goes through
+  `jpegparse`, and the decoder is picked and linked when its caps arrive (`sampling`);
+  `nvjpegdec` only for `YCbCr-4:2:0`, `jpegdec` when the sampling is unknown (T076, found at
+  T046 on CachyOS, 2026-11-10: the C920 sends 4:2:2 MJPEG, which `nvjpegdec` rejects with "No
+  valid frames decoded", while a 4:2:0 JPEG decodes; most UVC devices send 4:2:2).
+  `d3d12mjpegdec` with 4:2:2 is checked on Windows with a C920 MJPG mode. The appsink keeps `sync=false max-buffers=1 drop=true`; plane
   buffers are reused through a small pool (no allocation per frame).
 - **Rationale**: the spike converted to RGBA before the app (`d3d12upload ! d3d12convert !
   d3d12download` on Windows, `videoconvert` on CPU on Linux) and still measured 30.4 ms; skipping
@@ -418,11 +429,12 @@ marks what was not run.
 |---|---|---|---|---|
 | `libloading` 0.8 | `crates/platform`, Linux | load `libnvidia-ml.so.1` at run time (R7) | ISC | maintained, ~200 M downloads |
 | `windows` 0.62 | `crates/platform`, Windows | WinRT toast notifications (R15); already in the tree through Slint and wgpu, only features added | MIT or Apache-2.0 | Microsoft, maintained |
+| `wayland-client` 0.31, `wayland-backend` 0.3, `wayland-protocols` 0.32 | `crates/platform`, Linux | raise the window with an XDG activation token (R15, T077); already in the tree through winit | MIT | Smithay, maintained |
 
 GStreamer bindings are already in the workspace; `crates/capture` uses `gst`, `gst-app`,
 `gst-video`. Windows registry and `ShellExecuteW` come from the `windows-sys` features already
 declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2src`, `jpegdec`,
-`videoconvert`, `appsink`; `nvjpegdec`/`d3d12mjpegdec` when present).
+`videoconvert`, `appsink`; `nvjpegdec`/`d3d12mjpegdec` when present), and `jpegparse` (T076).
 
 ## R15. Device notices (FR-027)
 
@@ -498,6 +510,22 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
 - **Constitution VI**: the `AppUserModelId` key is a display registration, not settings, like the
   autostart entry; it is written only for the current user and holds no state. The same goes for the toast's icon
   file, a copy of the icon built into the executable, rewritten whenever it differs.
+- **Bringing the window to the front on Wayland** (T077, found at T046 on CachyOS, 2026-11-10;
+  maintainer: notification and tray): **Open** on a system notification opened the device, but the
+  window stayed behind the focused app. winit 0.30's `focus_window` does nothing on Wayland, and
+  a compositor raises a window only with an XDG activation token from a user action. The
+  notification service sends one: the `ActivationToken` signal (id, token) right before
+  `ActionInvoked` (freedesktop notification spec 1.2; KDE Plasma and GNOME). The tray host sends
+  one through the StatusNotifierItem's `ProvideXdgActivationToken`, which `ksni` 0.3.7 keeps and
+  hands out inside the click (`ksni::current_xdg_activation_token`). The platform crate keeps the
+  last token (used once, within 10 s) and `platform::raise_window(window)` uses it: on Wayland
+  `xdg_activation_v1.activate(token, surface)` on the window's own `wl_surface` (raw window
+  handle, a second queue on winit's display), which also restores a minimized window in KWin;
+  without a token, or on X11 and Windows, `focus_window` as before. A window made again out of
+  the tray is activated the same way (winit itself activates a new surface before it is mapped).
+  Crates: `wayland-client` 0.31, `wayland-backend` 0.3 (`client_system`) and `wayland-protocols`
+  0.32 (`staging`), already compiled through winit on Linux (R14). Out of scope: a second start
+  passing the launcher's `XDG_ACTIVATION_TOKEN` over the single-instance socket (app shell R10).
 
 ## R16. UI presents between slow video frames
 
