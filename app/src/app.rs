@@ -552,6 +552,15 @@ impl App {
                 self.request_redraw();
             }
             Command::ShowState => self.show_preview_state(),
+            // Shown in the app or as a system notification at T063.
+            Command::Notice {
+                kind,
+                device_id,
+                name,
+                open,
+            } => {
+                log::info!("notice: {name} ({device_id}) {kind:?}, open {open}");
+            }
         }
     }
 

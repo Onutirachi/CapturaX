@@ -578,7 +578,17 @@ Nothing pushed.
 0. **US4 on Windows**: T041–T044 done (unplug and replug accepted). Still to try on hardware
    when convenient: sleep and wake with a device playing (log `woke from sleep: N s`, the
    device reopens), and start with no device then plug one in. T045, T060 and T061 are done
-   and committed. Next: T062 (notices in the state machine), then T063.
+   and committed. T062 done and committed (`feat: add device notices to the preview state
+   machine`): `Command::Notice { kind, device_id, name }` with `NoticeKind` Connected /
+   Reconnected / Disconnected, `Event::NoticeOpen(id)` (same arm as `ChooseDevice`, marked
+   `dead_code` until T063); app.rs only logs `notice: <name> (<id>) <kind>` for now. Notes: the
+   notices come from `came`/`left`, so the 3 s / after-error re-read also gives the ones the
+   monitor missed; only for a device that really joined or left (a repeated `Added` or an
+   unknown `Removed` gives none); Reconnected also when a Blocked state's device returns (it
+   reopens by itself too); the name is the menu's (numbered). Open point for T063: with no device
+   listed, a plugged-in device opens by itself but is still "connected" (FR-027 offers **Open**
+   only to one not reopened by itself; Open on the open device does nothing): decide whether
+   that balloon hides **Open**. Next: T063.
 1. US2 is done on Windows; its acceptance T034 and T071's CachyOS half wait for the Linux
    batch. T039 (US3 acceptance, Windows) passed on 2026-11-08 with the CachyOS PC as the 60 and
    120 Hz source (measurements/acceptance.md "US3"). Seen there, outside US3: the ezcap gives

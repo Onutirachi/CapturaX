@@ -59,6 +59,9 @@ pub enum Event {
     Hidden,
     /// The window came back from the tray.
     Shown,
+    /// The user pressed **Open** on a "connected" notice: as if the device was picked (FR-027).
+    #[allow(dead_code)] // T063
+    NoticeOpen(String),
 }
 
 impl Event {
@@ -81,6 +84,7 @@ impl Event {
             Self::TryAgain => "try again".into(),
             Self::Hidden => "window hidden".into(),
             Self::Shown => "window shown".into(),
+            Self::NoticeOpen(id) => format!("{id} opened from a notice"),
         }
     }
 }
@@ -120,6 +124,24 @@ pub enum Command {
     ShowRange,
     /// The state changed: show [`Preview::state`].
     ShowState,
+    /// A device joined or left the list after the first list: tell the user (FR-027).
+    Notice {
+        kind: NoticeKind,
+        device_id: String,
+        name: String,
+        /// The notice offers **Open**: a device that joined and did not open by itself.
+        open: bool,
+    },
+}
+
+/// What a device notice says (data-model.md "Device notice").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeKind {
+    /// A device joined; the notice offers **Open** unless it opened by itself (none was listed).
+    Connected,
+    /// The device a state waited for came back and reopens by itself.
+    Reconnected,
+    Disconnected,
 }
 
 /// A device to open again in the mode it had: after the tray, Try again or a disconnect.
@@ -330,15 +352,17 @@ impl Preview {
             }
             Event::Monitor(MonitorEvent::Added(device)) => {
                 let id = device.id.clone();
+                let new = capture::device::find(&id, &self.devices).is_none();
                 self.devices.retain(|d| d.id != id);
                 self.devices.push(device);
                 capture::device::numbered(&mut self.devices);
-                self.came(&id, settings, &mut out);
+                self.came(&id, new, settings, &mut out);
             }
             Event::Monitor(MonitorEvent::Removed(id)) => {
+                let known = capture::device::find(&id, &self.devices).is_some();
                 self.devices.retain(|d| d.id != id);
                 capture::device::numbered(&mut self.devices);
-                self.left(&id, &mut out);
+                self.left(&id, known, &mut out);
             }
             Event::Relisted { devices, timer } => self.relisted(devices, timer, settings, &mut out),
             Event::Resumed => {
@@ -365,7 +389,7 @@ impl Preview {
                 }
             }
             Event::Session { session, event } => self.session_event(session, event, &mut out),
-            Event::ChooseDevice(id) => {
+            Event::ChooseDevice(id) | Event::NoticeOpen(id) => {
                 if self.open.as_ref().is_some_and(|o| o.device == id) {
                     log::info!("preview: {id} is already open");
                 } else if self.hidden {
@@ -481,8 +505,8 @@ impl Preview {
 
     /// A device came (from the monitor or a re-read): the device a state waits for opens again
     /// in the same mode (F4); with none listed before, the start device opens; any other only
-    /// appears in the menu (spec edge case).
-    fn came(&mut self, id: &str, settings: &Settings, out: &mut Vec<Command>) {
+    /// appears in the menu (spec edge case). A `new` one (not listed before) gets a notice.
+    fn came(&mut self, id: &str, new: bool, settings: &Settings, out: &mut Vec<Command>) {
         if !self.listed {
             return;
         }
@@ -490,6 +514,16 @@ impl Preview {
             &self.state,
             Some(PreviewState::Disconnected(w) | PreviewState::Blocked { device: Some(w), .. }) if w == id
         );
+        if new {
+            let kind = if waited {
+                NoticeKind::Reconnected
+            } else {
+                NoticeKind::Connected
+            };
+            // With none listed it opens by itself (the start device): nothing to offer.
+            let open = kind == NoticeKind::Connected && !self.none_listed_state();
+            self.notice(kind, id, open, out);
+        }
         if waited {
             log::info!("preview: {id} is back");
             self.reopen(settings, out);
@@ -500,8 +534,12 @@ impl Preview {
 
     /// A device left: the open one (or the one to open when shown) disconnects, or shows Blocked
     /// when camera access is now denied (spec edge case); so does the device of an error state;
-    /// with none left and nothing waited for, "No devices".
-    fn left(&mut self, id: &str, out: &mut Vec<Command>) {
+    /// with none left and nothing waited for, "No devices". A `known` one (listed before) gets a
+    /// notice.
+    fn left(&mut self, id: &str, known: bool, out: &mut Vec<Command>) {
+        if known && self.listed {
+            self.notice(NoticeKind::Disconnected, id, false, out);
+        }
         if let Some(open) = self.open.take_if(|o| o.device == id) {
             out.push(Command::Close);
             self.again = Some(Again::of(&open));
@@ -516,6 +554,18 @@ impl Preview {
         } else if self.devices.is_empty() && self.open.is_none() && self.state_device().is_none() {
             self.none_listed();
         }
+    }
+
+    /// Tells the user that a device joined or left (FR-027), named as in the device menu; `open`:
+    /// the notice offers **Open**.
+    fn notice(&self, kind: NoticeKind, id: &str, open: bool, out: &mut Vec<Command>) {
+        let name = capture::device::find(id, &self.devices).map_or_else(|| self.name(id), |d| d.name.clone());
+        out.push(Command::Notice {
+            kind,
+            device_id: id.to_string(),
+            name,
+            open,
+        });
     }
 
     /// The state of a device that left: Blocked when camera access is denied, else Disconnected.
@@ -549,11 +599,11 @@ impl Preview {
         self.learn_names();
         for id in &gone {
             log::info!("preview: {id} is no longer listed");
-            self.left(id, out);
+            self.left(id, true, out);
         }
         for id in &new {
             log::info!("preview: {id} is listed now");
-            self.came(id, settings, out);
+            self.came(id, true, settings, out);
         }
         if timer
             && let Some(PreviewState::Disconnected(id)) = &self.state
@@ -2005,5 +2055,143 @@ mod tests {
         // No mode: no menu rows at all, nothing marked.
         let empty = Device::described("y", "Empty", vec![]);
         assert!(mode_items(&empty, &mode_choice(&empty, None)).is_empty());
+    }
+
+    /// The (kind, id, name) of every notice in the commands.
+    fn notices(commands: &[Command]) -> Vec<(NoticeKind, &str, &str)> {
+        commands
+            .iter()
+            .filter_map(|c| match c {
+                Command::Notice {
+                    kind, device_id, name, ..
+                } => Some((*kind, device_id.as_str(), name.as_str())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Whether each notice in the commands offers **Open**.
+    fn offers_open(commands: &[Command]) -> Vec<bool> {
+        commands
+            .iter()
+            .filter_map(|c| match c {
+                Command::Notice { open, .. } => Some(*open),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn no_notice_before_or_for_the_first_list() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        // Monitor events before its first list are part of the start, not news.
+        assert!(notices(&p.handle(added(card()), &settings)).is_empty());
+        assert!(notices(&p.handle(removed("card"), &settings)).is_empty());
+        assert!(notices(&p.handle(listed(vec![card(), webcam()]), &settings)).is_empty());
+    }
+
+    #[test]
+    fn a_device_plugged_in_is_connected() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        let out = p.handle(added(webcam()), &settings);
+        assert_eq!(notices(&out), [(NoticeKind::Connected, "cam", "HD Pro Webcam C920")]);
+        assert_eq!(offers_open(&out), [true]);
+        assert!(opened(&out).is_none());
+        // The monitor telling again about a device already listed is not news.
+        assert!(notices(&p.handle(added(webcam()), &settings)).is_empty());
+    }
+
+    #[test]
+    fn a_device_plugged_in_with_none_listed_is_connected() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        p.handle(listed(vec![]), &settings);
+        let out = p.handle(added(card()), &settings);
+        assert_eq!(
+            notices(&out),
+            [(NoticeKind::Connected, "card", "ezcap Live GAMER ULTRA")]
+        );
+        // It opens by itself: nothing to offer.
+        assert_eq!(offers_open(&out), [false]);
+        assert!(opened(&out).is_some());
+    }
+
+    #[test]
+    fn the_device_waited_for_is_reconnected() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card(), webcam()]);
+        let out = p.handle(removed("card"), &settings);
+        assert_eq!(
+            notices(&out),
+            [(NoticeKind::Disconnected, "card", "ezcap Live GAMER ULTRA")]
+        );
+        let out = p.handle(added(card()), &settings);
+        assert_eq!(
+            notices(&out),
+            [(NoticeKind::Reconnected, "card", "ezcap Live GAMER ULTRA")]
+        );
+        assert_eq!(offers_open(&out), [false]);
+        assert!(opened(&out).is_some());
+    }
+
+    #[test]
+    fn any_device_that_leaves_is_disconnected() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card(), webcam()]);
+        let out = p.handle(removed("cam"), &settings);
+        assert_eq!(notices(&out), [(NoticeKind::Disconnected, "cam", "HD Pro Webcam C920")]);
+        assert_eq!(p.state(), PreviewState::Playing);
+        // A device the list never had is not news.
+        assert!(notices(&p.handle(removed("cam"), &settings)).is_empty());
+    }
+
+    #[test]
+    fn notices_name_the_device_as_the_menu_does() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let twin = |id: &str| Device::described(id, "USB Video", vec![mode(1920, 1080, 60)]);
+        p.handle(listed(vec![twin("a")]), &settings);
+        let out = p.handle(added(twin("b")), &settings);
+        let (_, _, name) = notices(&out)[0];
+        let menu_names = p.devices().iter().find(|d| d.id == "b").unwrap().name.clone();
+        assert_eq!(name, menu_names);
+        let out = p.handle(removed("b"), &settings);
+        assert_eq!(notices(&out)[0].2, menu_names);
+    }
+
+    #[test]
+    fn the_re_read_gives_the_notices_the_monitor_missed() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        let out = p.handle(relisted(vec![card(), webcam()], true), &settings);
+        assert_eq!(notices(&out), [(NoticeKind::Connected, "cam", "HD Pro Webcam C920")]);
+        let out = p.handle(relisted(vec![card()], true), &settings);
+        assert_eq!(notices(&out), [(NoticeKind::Disconnected, "cam", "HD Pro Webcam C920")]);
+    }
+
+    #[test]
+    fn open_from_a_notice_is_picking_the_device() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(added(webcam()), &settings);
+        let out = p.handle(Event::NoticeOpen("cam".into()), &settings);
+        let (id, mode, session) = opened(&out).unwrap();
+        assert_eq!((id.as_str(), mode), ("cam", self::mode(1920, 1080, 30)));
+        assert!(saves(&p.handle(first_frame(session), &settings)));
+        // Hidden in the tray: it opens when the window is shown.
+        p.handle(Event::Hidden, &settings);
+        assert!(opened(&p.handle(Event::NoticeOpen("card".into()), &settings)).is_none());
+        let (id, ..) = opened(&p.handle(Event::Shown, &settings)).unwrap();
+        assert_eq!(id, "card");
+        // A device gone meanwhile opens nothing.
+        p.handle(removed("cam"), &settings);
+        assert!(opened(&p.handle(Event::NoticeOpen("cam".into()), &settings)).is_none());
     }
 }
