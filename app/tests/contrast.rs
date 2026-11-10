@@ -237,6 +237,10 @@ const PAIRS: &[Pair] = &[
     icon("text-muted", &["raised"], "notice close"),
     icon("text-muted", &["raised", "hover"], "notice close hovered"),
     icon("text-muted", &["raised", "press"], "notice close pressed"),
+    // The device notice balloon (FR-027): its text is "notice text" above, Open is the accent
+    // button, × the notice close.
+    icon("ok", &["raised"], "device notice connected icon"),
+    icon("text-muted", &["raised"], "device notice disconnected icon"),
 ];
 
 /// Reads `name: #hex,` lines of each palette in the `Palettes` global.

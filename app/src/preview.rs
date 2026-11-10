@@ -60,7 +60,6 @@ pub enum Event {
     /// The window came back from the tray.
     Shown,
     /// The user pressed **Open** on a "connected" notice: as if the device was picked (FR-027).
-    #[allow(dead_code)] // T063
     NoticeOpen(String),
 }
 

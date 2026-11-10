@@ -335,8 +335,14 @@ export component InfoBubbles inherits Rectangle {
             + (k > 1 && root.shown(1) ? 1 : 0) * (root.in-row ? root.w(1) : size) + (k > 1 && root.shown(1) ? root.gap : 0)
             + (k > 2 && root.shown(2) ? 1 : 0) * (root.in-row ? root.w(2) : size) + (k > 2 && root.shown(2) ? root.gap : 0)
     }
-    property <length> row-width: root.w(0) + root.w(1) + root.w(2) + root.w(3) + max(0, root.count() - 1) * root.gap;
+    // The row's width with every shown bubble, whatever its room.
+    out property <length> row-width: root.w(0) + root.w(1) + root.w(2) + root.w(3) + max(0, root.count() - 1) * root.gap;
     property <bool> in-row: root.row-width <= root.row-end - root.row-start;
+    // What the bubbles cover, along this element: their left edge and width (0 for none), so the
+    // notice balloon keeps clear of them (main.slint).
+    property <length> widest: max(max(root.w(0), root.w(1)), max(root.w(2), root.w(3)));
+    out property <length> used-x: root.in-row ? root.row-end - root.row-width : root.column-end - root.widest;
+    out property <length> used-width: root.in-row ? root.row-width : root.widest;
 
     source-bubble := Bubble {
         x: root.in-row ? root.row-end - root.row-width + root.before(0, 0px) : root.column-end - self.width;

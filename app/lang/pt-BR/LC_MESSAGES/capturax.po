@@ -137,6 +137,12 @@ msgstr "Conecte um dispositivo de vídeo"
 msgid "{} disconnected"
 msgstr "{} desconectado"
 
+msgid "{} connected"
+msgstr "{} conectado"
+
+msgid "{} reconnected"
+msgstr "{} reconectado"
+
 msgid "Waiting to reconnect"
 msgstr "Aguardando reconexão"
 

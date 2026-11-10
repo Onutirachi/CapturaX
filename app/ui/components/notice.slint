@@ -4,8 +4,15 @@
 // once per run.
 import { Theme } from "../theme.slint";
 import { PanelHeader } from "panel-header.slint";
+import { Raised } from "raised.slint";
+import { ActionButton } from "action-button.slint";
+import { IconButton } from "icon-button.slint";
+import { Input } from "focus-ring.slint";
 
 export enum NoticeKind { info, warning }
+
+// A rectangle the notice balloon keeps clear of, or the balloon's own (main.slint).
+export struct NoticeBox { x: length, y: length, w: length, h: length }
 
 export component Notice inherits Rectangle {
     in property <NoticeKind> kind: NoticeKind.info;
@@ -37,5 +44,143 @@ export component Notice inherits Rectangle {
         title: root.title;
         close-tooltip: @tr("Dismiss");
         close => { root.dismiss(); }
+    }
+}
+
+// The device notice balloon (FR-027, research R15 "In-app balloon"): one line in the info bubbles'
+// shape (44 px, 16 px corners, 14 px text) with the theme's raised fill and shadow, so it reads over
+// any video and is not taken for a bubble. The plug icon, the text Rust gives ("C920 connected"),
+// **Open** when the device did not open by itself, and ×. It grows in from its corner, stays about
+// 5 s (paused while the pointer or the keyboard is on it) and leaves the same way; a click anywhere
+// on it closes it. Only the latest message: a new one replaces the text and starts the time again.
+// The owner places it (main.slint) and gives it the room it may take.
+export component DeviceNotice inherits Rectangle {
+    // `connected`, `reconnected` or `disconnected`.
+    in property <string> kind;
+    in property <string> text;
+    in property <bool> can-open;
+    // Changes for each new notice, which shows it.
+    in property <int> serial;
+    // The widest it may be; a longer text is cut with an ellipsis.
+    in property <length> room;
+    // The corner it grows from.
+    in property <bool> top;
+    in property <bool> left;
+    // False keeps it out of the focus order (behind the settings panel).
+    in property <bool> focusable: true;
+    // 0 gone, 1 shown: the owner slides its neighbours by it.
+    out property <float> appear: root.showing ? 1 : 0;
+    animate appear { duration: Theme.quick; easing: ease-out; }
+    out property <bool> present: root.showing || root.appear > 0;
+    callback open();
+
+    property <bool> showing;
+    // The time left before it leaves.
+    property <duration> left-time;
+    property <bool> open-focused;
+    property <bool> held: area.has-hover || ((root.open-focused || close-button.has-focus) && Input.keyboard);
+
+    changed serial => {
+        self.showing = true;
+        self.left-time = 5s;
+    }
+
+    function close() {
+        root.showing = false;
+    }
+
+    // Counts down while not held, so the pointer pauses it.
+    Timer {
+        interval: 100ms;
+        running: root.showing && !root.held;
+        triggered => {
+            root.left-time -= 100ms;
+            if (root.left-time <= 0) {
+                root.close();
+            }
+        }
+    }
+
+    visible: root.present;
+    width: min(row.preferred-width, root.room);
+    height: 44px;
+    opacity: root.appear;
+    transform-origin: { x: root.left ? 0 : self.width, y: root.top ? 0 : self.height };
+    transform-scale: 0.92 + 0.08 * root.appear;
+
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+
+    Raised {
+        width: root.width;
+        height: root.height;
+        radius: Theme.radius-m;
+    }
+
+    // A click anywhere closes it; its buttons sit above.
+    area := TouchArea {
+        enabled: root.showing;
+        clicked => { root.close(); }
+    }
+
+    row := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 6px;
+        spacing: 8px;
+        alignment: start;
+
+        VerticalLayout {
+            alignment: center;
+            Image {
+                width: 20px;
+                height: 20px;
+                source: root.kind == "disconnected" ? @image-url("../assets/icons/plug_connected_x.svg")
+                    : @image-url("../assets/icons/plug_connected.svg");
+                colorize: root.kind == "disconnected" ? Theme.c.text-muted : Theme.c.ok;
+                accessible-role: none;
+            }
+        }
+
+        Text {
+            text: root.text;
+            color: Theme.c.text;
+            font-size: Theme.text-m;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+            accessible-role: none;
+        }
+
+        if root.can-open: VerticalLayout {
+            alignment: center;
+            padding-left: 4px;
+            ActionButton {
+                label: @tr("Open");
+                primary: true;
+                height: 32px;
+                min-width: 0;
+                pad: 14px;
+                focusable: root.focusable && root.showing;
+                changed has-focus => { root.open-focused = self.has-focus; }
+                clicked => {
+                    root.open();
+                    root.close();
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            close-button := IconButton {
+                size: 32px;
+                icon-size: 18px;
+                border-radius: Theme.radius-s;
+                icon: @image-url("../assets/icons/close.svg");
+                icon-color: Theme.c.text-muted;
+                tooltip: @tr("Dismiss");
+                focusable: root.focusable && root.showing;
+                clicked => { root.close(); }
+            }
+        }
     }
 }

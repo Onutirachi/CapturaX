@@ -1,0 +1,71 @@
+// A text button (the state message's actions, the notice balloon's Open): the primary one fills
+// with the accent, the secondary one is an opaque top surface. Enter or Space activates it
+// (FR-020).
+import { Theme } from "../theme.slint";
+import { FocusRing } from "focus-ring.slint";
+
+export component ActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary;
+    // The space on each side of the label.
+    in property <length> pad: Theme.gap-l;
+    // False keeps it out of the focus order (behind the settings panel).
+    in property <bool> focusable: true;
+    out property <bool> has-focus: focus.has-focus;
+    callback clicked();
+
+    height: 36px;
+    min-width: 96px;
+    horizontal-stretch: 0;
+    preferred-width: text.preferred-width + 2 * root.pad;
+    border-radius: Theme.radius-s;
+    background: root.primary ? (area.has-hover ? Theme.c.accent-hover : Theme.c.accent) : Theme.c.top;
+    animate background { duration: Theme.quick; }
+
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+
+    forward-focus: focus;
+
+    // Hover and press tint over the secondary fill (the primary one lightens instead).
+    Rectangle {
+        border-radius: root.border-radius;
+        background: root.primary ? transparent
+            : area.pressed ? Theme.c.press
+            : area.has-hover ? Theme.c.hover
+            : transparent;
+        animate background { duration: Theme.quick; }
+    }
+
+    text := Text {
+        text: root.label;
+        color: root.primary ? Theme.c.accent-ink : Theme.c.text;
+        font-size: Theme.text-m;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    area := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    focus := FocusScope {
+        enabled: root.focusable;
+        // A click does not take the focus: the ring stays with the keyboard.
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: root.border-radius;
+    }
+}

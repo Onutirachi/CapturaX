@@ -212,6 +212,19 @@ fn start(
 ) -> anyhow::Result<i32> {
     let ui = ui::Ui::new(language)?;
     let event_loop = EventLoop::<app::UserEvent>::with_user_event().build()?;
+    // Before any window: on Windows it sets the app id the toasts are shown under (research R15).
+    // **Open** on a system notification reaches the main loop with the device id.
+    let icon = icon::at_least(64);
+    let proxy = event_loop.create_proxy();
+    platform::init_notifications(
+        platform::NoticeIcon {
+            size: icon.size,
+            rgba: icon.rgba,
+        },
+        move |device| {
+            let _ = proxy.send_event(app::UserEvent::NoticeOpen { device, system: true });
+        },
+    );
     // The listener thread hands `show` to the main loop and answers whether the platform lets the
     // window come to the front.
     let instance = instance.and_then(|listener| {

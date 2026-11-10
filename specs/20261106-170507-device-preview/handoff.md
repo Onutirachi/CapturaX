@@ -1,6 +1,6 @@
 # Handoff: Device Preview
 
-**Updated**: 2026-11-09 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
+**Updated**: 2026-11-10 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
 
 ## State
 
@@ -553,9 +553,6 @@ Nothing pushed.
 ## Open questions
 
 
-- **For T063**: the device notice is planned at the video area's bottom right, above the dock,
-  where the info bubbles now are (maintainer moved them there, 2026-11-07). Decide with the
-  maintainer where the notice goes (or that it covers the bubbles for its ~5 s).
 - Windows error mapping for "in use" vs "failed" is a heuristic (R6), tested in acceptance
   (quickstart US4: card open in another app); if it misreads, Windows shows the generic Failed
   state instead (maintainer, 2026-11-06), no Media Foundation code of our own.
@@ -576,6 +573,28 @@ Nothing pushed.
 
 ## Next step
 
+- **T063** (device notice balloon) done, validated by the maintainer on Windows ("everything
+  seems to work", 2026-11-10) and committed (`feat: show device notices in a balloon or as system
+  notifications`). Next: T075 (settings panel restyle), then T073, T074. `DeviceNotice` in
+  app/ui/components/notice.slint (the old `Notice` stays for T074); `ActionButton` moved from
+  state-message.slint to its own action-button.slint (`pad`, `focusable`, `has-focus`) for
+  **Open**; `IconButton.icon-color`; Tabler `plug_connected.svg`; `InfoBubbles` exposes
+  `row-width`, `used-x`, `used-width`. main.slint: `device-notice-*` properties,
+  `device-notice-open(id)`, `notification-position` (default `bottom-left`, T073 feeds it), the
+  placement (`notice-clear`: past the toolbar dock, beside the left dock, above the bubbles,
+  twice; in the bottom right it joins the row and `row-end` shrinks with the balloon's `appear`;
+  the offset follows the chrome's `hidden`, so it slides back to the corner with it). The balloon
+  counts down 5 s in 100 ms steps, paused on hover or keyboard focus; grows in with
+  `transform-scale` 0.92→1 and opacity from its corner. app.rs: `focused` from
+  `WindowEvent::Focused`; `device_notice()` shows the balloon when focused (and a window exists),
+  else `platform::notify` (Open label `Texts.notice-open`, tag = device id); logs
+  `notice: <name> (<id>) <kind>, open <b> -> app|system|nowhere`; the balloon's text is redone on a
+  language switch; `UserEvent::NoticeOpen { device, system }` → `Event::NoticeOpen` then, from a
+  toast, `show_window`. main.rs calls `init_notifications` (64 px icon) before the window.
+  Checked: fmt, clippy, tests (contrast pairs for the icons added); screenshots of bottom left,
+  bottom right (bubbles slide aside) and top left at 1920 × 1032 with a temporary demo trigger
+  (removed); the maintainer then tried the real notices. The rest of quickstart 4's notice
+  cases (focused, another app focused, minimized, in the tray) is checked again at T046.
 - **T072** (toolbar and docks at any size, FR-002a) done, accepted by the maintainer on Windows
   and committed (2026-11-09). Icons `video`, `aspect_ratio`, `color_filter` (maintainer's picks,
   research R13); the toolbar counts the selects it has (3 now: the full look from a window about

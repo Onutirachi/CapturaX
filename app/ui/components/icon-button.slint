@@ -13,6 +13,8 @@ export component IconButton inherits Rectangle {
     in property <bool> primary;
     in property <length> size: 44px;
     in property <length> icon-size: 22px;
+    // The icon's color when not toggled.
+    in property <brush> icon-color: Theme.c.text;
     in property <bool> enabled: true;
     // False keeps it out of the focus order without fading it (the docks under the settings panel).
     in property <bool> focusable: true;
@@ -106,7 +108,7 @@ export component IconButton inherits Rectangle {
         // A toggled tool shows its state in the icon color.
         colorize: root.active && root.primary ? Theme.c.accent-ink
             : root.active ? Theme.c.accent-text
-            : Theme.c.text;
+            : root.icon-color;
     }
 
     area := TouchArea {
