@@ -573,6 +573,36 @@ Nothing pushed.
 
 ## Next step
 
+- **Linux batch, first part** (2026-11-10, measurements/acceptance.md "US2" and "US4" CachyOS):
+  the C920 at the CachyOS PC and a `v4l2loopback` camera instead of the ezcap (`~/capx/vcam.sh`:
+  `vcam_on`/`vcam_off`, `exclusive_caps=1`, the feeder must run before the app starts; a
+  loopback camera added while the app runs is not seen). Run in `~/capx/batch` (own
+  `capturax.toml`, keep_in_tray on). **T046 done** on both platforms. Fixes found, validated by the
+  maintainer and committed: **T076** (session.rs:
+  `jpegparse`, decoder linked on its caps by the sampling, `nvjpegdec` only for 4:2:0; the C920
+  sends 4:2:2; research R4) — still to check a C920 MJPG mode on Windows (`d3d12mjpegdec` is not
+  in this Windows GStreamer, so Windows uses `jpegdec` for 4:2:2 too); **T077** (platform
+  `activation.rs` + `linux/activation.rs`: XDG activation token from the notification's
+  `ActivationToken` signal and from the tray click, `platform::raise_window`; new deps
+  `wayland-client`, `wayland-backend`, `wayland-protocols`, research R15 and R14), validated by
+  the maintainer on CachyOS (other app focused, minimized, tray); the **tray re-read fix**
+  (preview.rs `waiting()`: a disconnected device listed again in the tray does not keep the 3 s
+  re-read; test added; research R1). Also recorded: on Linux a device moved to another port is a
+  new device even with a serial (maintainer accepted, research R2); T071's Windows half passed
+  (maintainer). Commits: `docs: choose the jpeg decoder by subsampling and raise the window
+  on wayland`, `fix: choose the jpeg decoder by its subsampling`, `feat: raise the window with
+  the activation token on wayland`, `fix: stop the device re-read in the tray once the device is
+  back`, `docs: record the us2 and us4 acceptance on cachyos`.
+- **Still in the Linux batch**: T071 on CachyOS (backdrop combinations, both themes; can run
+  with the loopback camera, a 4:3 or 21:9 test pattern from `videotestsrc`), T034's rest (Windows
+  half not recorded; fade and spinner; a capture card's Automatic group) and **T040** (needs the
+  ezcap at the CachyOS PC with a 1080p60 source: `--stats` fullscreen for `lat_ms`, `C_LINUX` =
+  30.1 − `lat_ms` − 4.2, the Total against L4 and L5). Note: the CachyOS monitor is now at
+  **60 Hz** in KDE's display settings (it was 120 Hz at L4), so `R/2` differs: set it back to
+  120 Hz before T040 or account for it.
+- CachyOS state left: the loopback module loaded with its feeder (`vcam_off` removes it),
+  `ydotoold-capturax` running, the clone on the branch with these changes copied in (same as the commits).
+
 - **T046 Windows half** passed (2026-11-10, measurements/acceptance.md "US4"); 150 % checked
   quickly; No signal not checkable (the ezcap sends its own no-signal picture, the C920 always
   has one). Committed after the maintainer's validation (docs, feat, fix, docs). Fixes

@@ -68,6 +68,50 @@ Not checked on CachyOS: 150 %, English.
 The ezcap on Windows (T027 asks for it "when it is at the Windows PC") is left for the next time
 the card is there; the range behaviour on Windows was confirmed by the maintainer with the C920.
 
+## US2 (T034)
+
+"Manual acceptance" 2 and 8.
+
+### Windows 11
+
+Not recorded yet.
+
+### CachyOS KDE Plasma Wayland — 2026-11-10
+
+**Environment**: as US1 on CachyOS, the monitor now at 60 Hz (KDE's display settings), release
+build of `7709c4e` with T076, T077 and the tray re-read fix (working tree), in a new folder
+`~/capx/batch` with no settings file. Devices: HD Pro Webcam C920 (USB), and instead of the ezcap,
+which is at the Windows PC, a `v4l2loopback` camera ("Virtual Cam", 1920 × 1080 at 60 NV12 from
+`videotestsrc`; the module ships with the CachyOS kernel). Driven by the agent over SSH; the
+maintainer plugged and unplugged the C920.
+
+| Check | Result | Notes |
+|---|---|---|
+| Device menu: name, resolution and aspect tags, the mode line, no screens | Pass | |
+| Mode menu: Automatic, then Modes largest first | Pass | C920: Auto max resolution, then 1920 × 1080 at 30, 24, 20, 15, 10, 7.5, 5, then 1600 × 896 … |
+| Video within 2 s of a switch (SC-004) | Pass | C920 → Virtual Cam ~150 ms, Virtual Cam → C920 508 ms, a mode pick 455 ms (open → first frame in the log) |
+| Each device keeps its own mode and range | Pass | Virtual Cam on Limited, the C920 on 1920 × 1080 at 24 with Auto; switching back and forth kept each; separate `devices."<id>"` entries |
+| With the device menu open, unplug and plug the webcam: it leaves and comes within 3 s (SC-004) | Pass | Removed 13 ms after the kernel's disconnect, added 243 ms after the kernel found it |
+| Two identical devices (quickstart 8) | Pass | Two loopback cameras with the same name: "Virtual Cam" and "Virtual Cam (2)", each with its own id (bus path), the second opens; only one mode each |
+| The fade on a switch, spinner only on a slow open | Not checked | Switches took at most 0.5 s |
+| A capture card (Automatic group from a card, Auto max FPS) | Not checked | Needs the ezcap |
+
+**Found**: the C920's MJPEG modes failed at once on Linux ("No valid frames decoded"): it sends
+4:2:2 JPEG, which `nvjpegdec` rejects. Fixed in T076 (decoder chosen by the sampling, `jpegdec`
+for 4:2:2; research R4). A `v4l2loopback` device added while the app runs is not seen by the V4L2
+provider (only the PipeWire one, which the app skips): the loopback camera has to exist before
+the app starts. A real USB webcam is seen at once.
+
+## Video backdrop (T071)
+
+### Windows 11
+
+Pass (maintainer, 2026-11-10; checked after T070, not recorded at the time).
+
+### CachyOS KDE Plasma Wayland
+
+Not run yet.
+
 ## US3 (T039)
 
 "Manual acceptance" 3, with the agent comparing the bubbles with `--stats` (SC-007, first two
@@ -199,7 +243,41 @@ moved to another port). Window 640 × 360 and larger, Portuguese and English.
    focus now shows the tooltip only while the keyboard is in use; a pointer pick shows the new
    value at once, until the pointer leaves the select or 1.5 s with it elsewhere (maintainer).
 
-### CachyOS KDE Plasma Wayland
+### CachyOS KDE Plasma Wayland — 2026-11-10
 
-Not run yet (Linux batch, with T034): `sudo chmod 000` on the node instead of the privacy
-switch, `gst-launch-1.0` instead of OBS.
+**Environment**: as US2 on CachyOS (C920 and the loopback camera, `~/capx/batch`). The
+maintainer plugged and unplugged the C920 and pressed **Open** on system notifications and the
+tray icon; the agent drove the rest over SSH and read the log.
+
+| Check | Result | Notes |
+|---|---|---|
+| Start with no device → "No devices", device menu the same; plug one in → it opens | Pass after T076 | The C920 was seen at once and opened by itself, "connected" balloon with no **Open**; the open failed on its 4:2:2 MJPEG until T076 |
+| `chmod 000` on the node of a listed device → blocked state naming the node; **Try again** after restoring | Pass | "Não foi possível abrir /dev/video0 · Sem permissão para usar o dispositivo"; **Try again** played 505 ms later. With the node blocked before the app starts the device is not listed at all ("No devices"): the V4L2 provider cannot probe it |
+| Card open in `gst-launch-1.0` → "In use"; **Try again** after closing it | Pass | `mapped to InUse` 1.4 ms after `Playing` |
+| Unplug while playing → "disconnected"; plug back → video within 3 s, same mode | Pass | 1920 × 1080 at 24 again, first frame 366 ms after the device came back (0.6 s after the kernel saw it) |
+| Moved to another USB port | Pass (as designed) | The C920 came back as a new device (Linux keeps the bus path in the key even with a serial): "connected" with **Open**, the old one still "disconnected" (maintainer: accepted, research R2) |
+| No HDMI signal → "No signal" after 5 s | Not checkable | No card here |
+| Notices with the window focused: disconnected, connected with **Open** (opens it), ×, a click on the balloon, quick plug and unplug → one balloon, open device → disconnected then reconnected | Pass | The balloon stays while the pointer moves over it (9 s), a click on its text closes it without opening |
+| Notices with another app focused, minimized, in the tray → system notifications; **Open** shows the window and opens the device | Pass after T077 | The device opened but the window stayed behind (Wayland: winit's `focus_window` does nothing); T077 activates it with the notification's XDG activation token: to the front, out of minimized, out of the tray |
+| Tray icon → window to the front | Pass after T077 | Token from the tray host (`ksni`) |
+| Notice placement: four corners, 640 × 360 with the controls shown | Pass | With the settings notice (read-only app folder): clear of the toolbar and the dock, above the bubbles |
+| Settings notice (read-only folder) | Pass | Warning icon, title, whole text with the fallback folder, stays |
+| Close to the tray → webcam light off; show → reopens | Pass | Session closed in 96–131 ms; the C920 opened in 24 again from the tray icon |
+| Minimize and restore | Pass | |
+| Sleep and wake → the preview comes back | Pass | `woke from sleep: 21 s`, first frame 401 ms after reopening |
+| English | Pass | |
+| 150 % | Not checked | The CachyOS monitor runs at 100 % |
+
+**Found and fixed during the run**:
+
+1. T076: the JPEG decoder is chosen by the JPEG's chroma subsampling (above, US2).
+2. T077: **Open** on a system notification and the tray icon did not bring the window to the
+   front on Wayland. The app now activates its surface with the XDG activation token the
+   notification service and the tray host send with the click (research R15).
+3. In the tray, a disconnected device that came back kept the 3 s list re-read running (and
+   logging) until the window was shown. A device listed again in the tray now only waits for the
+   window (research R1).
+
+Seen, not the app's: the C920 sometimes resets itself on its first stream after being plugged in
+(`device firmware changed`, a USB disconnect and reconnect within 2.3 s); the app showed
+"disconnected", then "reconnected", and played 3.4 s after the click.
