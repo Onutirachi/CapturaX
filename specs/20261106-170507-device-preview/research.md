@@ -281,8 +281,15 @@ marks what was not run.
   `desired_maximum_frame_latency = 1` and drives the loop by the swap chain: acquire (blocks until
   about the next refresh), then take the newest frame or reuse the last uploaded one, composite,
   present. Taking the frame before the acquire would add up to one more refresh, so the order is
-  fixed. Switching reconfigures the surface only (no device reopen) and only when the user
-  changes the setting. The stats header shows the mode (`mode=fifo-follow`).
+  fixed. Switching reconfigures the surface only (no device reopen). The stats header shows the
+  mode (`mode=fifo-follow`). Follow applies only while the window is on screen; otherwise the
+  surface goes back to the start mode (found in T047 on Windows: a Fifo present the compositor
+  does not take, before the window is first shown or while it is minimized, makes the next
+  acquire wait wgpu's 1 s timeout, so the video froze for a second after start and ran at about
+  1 present a second while minimized). The main thread tells the video thread whether the window
+  is shown and not minimized (winit 0.30 has no occlusion event on Windows or Wayland); where
+  minimizing cannot be read (Wayland), an acquire over 250 ms also turns Follow off until the
+  window is shown again or gains focus.
 - **Cost**: 0–6.9 ms at 144 Hz (≈ 3.5 ms average) per frame; about 144 composites a second,
   uploads only on new frames. On Vulkan the image count is latency + 1, clamped to the driver's
   minimum; it is logged. KWin uses variable refresh for fullscreen windows only by default, so on

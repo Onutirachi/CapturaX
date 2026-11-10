@@ -781,6 +781,7 @@ impl App {
             return;
         };
         window.set_visible(false);
+        self.inbox.set_shown(false);
         if let Some(video) = &self.video {
             video.set_visible(false);
         }
@@ -956,6 +957,7 @@ impl App {
             }
             self.update_ui();
             window.set_visible(true);
+            self.update_shown();
             platform::raise_window(&window);
             log::info!("window made again out of the tray");
             return;
@@ -968,8 +970,18 @@ impl App {
         }
         window.set_visible(true);
         window.set_minimized(false);
+        self.update_shown();
         platform::raise_window(&window);
         self.request_redraw();
+    }
+
+    /// Tells the video thread whether the window is on screen, for Follow the monitor (research
+    /// R9). Where the system does not say, it counts as on screen.
+    fn update_shown(&self) {
+        if let Some(w) = &self.window {
+            self.inbox
+                .set_shown(w.is_visible() != Some(false) && w.is_minimized() != Some(true));
+        }
     }
 
     /// Reads the refresh interval of the monitor the window is on, when it is another monitor:
@@ -1469,6 +1481,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
         self.update_ui();
         window.set_visible(true);
+        self.update_shown();
         log::info!(
             "window shown {:.0} ms after start",
             self.process_start.elapsed().as_secs_f64() * 1e3
@@ -1604,8 +1617,15 @@ impl ApplicationHandler<UserEvent> for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => self.close(event_loop),
-            WindowEvent::Focused(focused) => self.focused = focused,
+            WindowEvent::Focused(focused) => {
+                self.focused = focused;
+                // Where minimizing cannot be read (Wayland), focus is the sign the window is back.
+                if focused {
+                    self.update_shown();
+                }
+            }
             WindowEvent::Resized(_) => {
+                self.update_shown();
                 if let Some(w) = self.window.clone() {
                     self.ui.set_size(platform::drawn_size(&w));
                     self.ui.app.global::<WindowState>().set_maximized(w.is_maximized());

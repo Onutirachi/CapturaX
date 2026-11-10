@@ -102,6 +102,30 @@ fn wgpu_mode(mode: PresentMode) -> wgpu::PresentMode {
     }
 }
 
+/// Logs the Vulkan swap chain's image count (research R9): wgpu asks for the frame latency plus
+/// one images, but never fewer than the driver's minimum.
+fn log_image_count(adapter: &wgpu::Adapter, surface: &wgpu::Surface<'_>, latency: u32) {
+    use wgpu::hal::Adapter as _;
+    use wgpu::hal::api::Vulkan;
+    // SAFETY: the handles are only read for their capabilities; nothing is destroyed or kept.
+    let caps = unsafe {
+        match (adapter.as_hal::<Vulkan>(), surface.as_hal::<Vulkan>()) {
+            (Some(adapter), Some(surface)) => adapter.surface_capabilities(&surface),
+            _ => None,
+        }
+    };
+    match caps {
+        Some(caps) => {
+            let minimum = caps.maximum_frame_latency.start() + 1;
+            log::info!(
+                "presentation: vulkan swap chain of {} images (frame latency {latency}, driver minimum {minimum})",
+                (latency + 1).max(minimum)
+            );
+        }
+        None => log::info!("presentation: vulkan swap chain image count unknown"),
+    }
+}
+
 /// What a layer's textures hold; the shader's `picture.x` (composite.wgsl).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -197,10 +221,20 @@ pub struct Gpu {
     watermark: Option<Layer>,
     /// The video's shadow, made when first drawn.
     shadow: Option<Layer>,
-    /// The `[present]` line of contracts/stats.md for the presentation in use.
-    header: String,
+    /// For the `[present]` line of contracts/stats.md.
+    backend: Backend,
+    adapter: String,
+    /// The present mode chosen at start (research R4), used with Lowest latency.
+    mode: PresentMode,
+    /// The surface presents in Fifo for Follow the monitor (research R9).
+    follow: bool,
     /// The adapter's PCI bus id when the backend gives one (e.g. `0000:01:00.0`).
     pci_bus_id: Option<String>,
+}
+
+/// The present mode's name in the `[present]` line.
+fn header_mode(mode: PresentMode, follow: bool) -> &'static str {
+    if follow { "fifo-follow" } else { mode_name(mode) }
 }
 
 impl Gpu {
@@ -258,17 +292,15 @@ impl Gpu {
         // At most one frame waiting in the swap chain.
         config.desired_maximum_frame_latency = 1;
         surface.configure(&device, &config);
-        let header = crate::stats::header(
-            backend_name(backend),
-            mode_name(mode),
-            &adapter.get_info().name,
-            (config.width, config.height),
-        );
-        log::info!("presentation: {header}");
-        let pci_bus_id = Some(adapter.get_info().device_pci_bus_id).filter(|id| !id.is_empty());
+        if backend == Backend::Vulkan {
+            log_image_count(&adapter, &surface, config.desired_maximum_frame_latency);
+        }
+        let info = adapter.get_info();
+        let gpu = Self::with_device(surface, device, queue, config, backend, info.name, mode);
+        log::info!("presentation: {}", gpu.header());
         Ok(Self {
-            pci_bus_id,
-            ..Self::with_device(surface, device, queue, config, header)
+            pci_bus_id: Some(info.device_pci_bus_id).filter(|id| !id.is_empty()),
+            ..gpu
         })
     }
 
@@ -277,7 +309,9 @@ impl Gpu {
         device: wgpu::Device,
         queue: wgpu::Queue,
         config: wgpu::SurfaceConfiguration,
-        header: String,
+        backend: Backend,
+        adapter: String,
+        mode: PresentMode,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("composite.wgsl"));
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -366,14 +400,47 @@ impl Gpu {
             ui: None,
             watermark: None,
             shadow: None,
-            header,
+            backend,
+            adapter,
+            mode,
+            follow: false,
             pci_bus_id: None,
         }
     }
 
     /// The `[present]` header of the presentation in use.
     pub fn header(&self) -> String {
-        self.header.clone()
+        crate::stats::header(
+            backend_name(self.backend),
+            header_mode(self.mode, self.follow),
+            &self.adapter,
+            (self.config.width, self.config.height),
+        )
+    }
+
+    /// Follow the monitor (research R9): the surface presents in Fifo, so acquiring an image waits
+    /// for about the next refresh; else it goes back to the mode chosen at start. The frame
+    /// latency stays 1 either way.
+    pub fn set_follow(&mut self, follow: bool) {
+        if follow == self.follow {
+            return;
+        }
+        self.follow = follow;
+        self.config.present_mode = wgpu_mode(if follow { PresentMode::Fifo } else { self.mode });
+        self.surface.configure(&self.device, &self.config);
+        log::info!("presentation: {}", self.header());
+    }
+
+    /// The next surface image; `None` when the surface is not ready (it is configured again).
+    /// In Fifo this blocks until about the next refresh.
+    pub fn acquire(&mut self) -> Option<wgpu::SurfaceTexture> {
+        match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => Some(t),
+            _ => {
+                self.surface.configure(&self.device, &self.config);
+                None
+            }
+        }
     }
 
     /// The adapter's PCI bus id, when the backend gives one.
@@ -382,7 +449,7 @@ impl Gpu {
     }
 
     /// Reconfigures the surface when the window's size changed.
-    pub fn resize(&mut self, width: u32, height: u32) {
+    fn resize(&mut self, width: u32, height: u32) {
         let (width, height) = (width.max(1), height.max(1));
         if (width, height) != (self.config.width, self.config.height) {
             self.config.width = width;
@@ -543,13 +610,13 @@ impl Gpu {
     /// Composites the video (letterboxed in the scene's video area, corners rounded, at
     /// `video_opacity` over the backdrop) and the UI layer, then presents at once. False when the
     /// surface was not ready.
-    pub fn render(&mut self, scene: &Scene, video_opacity: f32) -> bool {
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-            _ => {
-                self.surface.configure(&self.device, &self.config);
-                return false;
-            }
+    pub fn render(&mut self, acquired: Option<wgpu::SurfaceTexture>, scene: &Scene, video_opacity: f32) -> bool {
+        // An image acquired at the old size goes unpresented, before the surface is configured.
+        let size = (scene.size.0.max(1), scene.size.1.max(1));
+        let acquired = acquired.filter(|_| size == (self.config.width, self.config.height));
+        self.resize(size.0, size.1);
+        let Some(frame) = acquired.or_else(|| self.acquire()) else {
+            return false;
         };
         let (w, h) = (self.config.width as f32, self.config.height as f32);
         let watermark = scene.watermark[3] > 0.0 && scene.video[3] > 0.0;

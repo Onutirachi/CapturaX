@@ -145,6 +145,11 @@ impl Stats {
         }
     }
 
+    /// A present that repeated the last frame (Follow the monitor, research R9).
+    pub fn repeated(&mut self) {
+        self.repeated += 1;
+    }
+
     /// A UI image handed to the video thread, drawn and copied in `draw_ms`.
     pub fn ui_image(&mut self, draw_ms: f64) {
         if self.lines {
@@ -295,6 +300,19 @@ mod tests {
             report.line.unwrap(),
             "[loop] t=1 recv=0 pres=0 repl=0 ready_ms=-/- gap_ms=- ui=0 ui_ms=-/- moves=0 lat_ms=-/- rep=0"
         );
+    }
+
+    #[test]
+    fn repeats_count_apart_from_new_frames_for_one_second() {
+        let start = Instant::now();
+        let mut stats = Stats::new(start, true);
+        stats.presented(at(start, 10), at(start, 11), at(start, 12));
+        stats.repeated();
+        stats.repeated();
+        let first = line(stats.report(at(start, 1000)));
+        assert!(first.contains(" pres=1 "), "{first}");
+        assert!(first.ends_with(" rep=2"), "{first}");
+        assert!(line(stats.report(at(start, 2000))).ends_with(" rep=0"));
     }
 
     #[test]

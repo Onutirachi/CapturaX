@@ -68,6 +68,15 @@ struct State {
     hidden: bool,
     /// Presenting waits for a scene of another size (see [`Inbox::hold_for_resize`]).
     hold: Option<Hold>,
+    /// Follow the monitor: a present at every refresh while a video shows (research R9).
+    follow: bool,
+    /// The window is on screen (shown, not minimized), as the main thread last told. Follow the
+    /// monitor waits for it: a Fifo present the compositor does not take makes the next acquire
+    /// wait about a second.
+    shown: bool,
+    /// An acquire with Follow the monitor waited too long (see [`STALL`]); Follow waits for the
+    /// main thread to tell the window is shown again.
+    stalled: bool,
     stop: bool,
     /// Counted for the stats since the video thread last looked.
     received: u32,
@@ -186,6 +195,26 @@ impl Inbox {
         self.lock().refresh = refresh;
     }
 
+    /// From the main thread: the Presentation setting (FR-022, research R9). The video thread
+    /// reconfigures the surface on its next turn; the session is not touched.
+    #[allow(dead_code, reason = "wired to the settings panel in T048")]
+    pub fn set_presentation(&self, presentation: settings::Presentation) {
+        self.lock().follow = presentation == settings::Presentation::FollowMonitor;
+        self.wake.notify_one();
+    }
+
+    /// From the main thread: whether the window is on screen (shown and not minimized). Telling
+    /// it is shown also ends a stall (see [`STALL`]).
+    pub fn set_shown(&self, shown: bool) {
+        let mut state = self.lock();
+        state.shown = shown;
+        if shown {
+            state.stalled = false;
+        }
+        drop(state);
+        self.wake.notify_one();
+    }
+
     /// From the main thread: the window moved (for the stats).
     pub fn window_moved(&self) {
         self.lock().moves += 1;
@@ -207,7 +236,8 @@ impl Inbox {
     }
 
     /// For a new video thread: what the last one left (the stop, a hold, the UI image and scene of
-    /// the old window) goes; the newest video frame, the source's pace and the refresh stay.
+    /// the old window) goes; the newest video frame, the source's pace, the refresh and the
+    /// Presentation setting stay.
     fn begin(&self) {
         let mut state = self.lock();
         let frame = state.frame.take();
@@ -218,6 +248,7 @@ impl Inbox {
             gpu_performance: state.gpu_performance,
             pace,
             refresh: state.refresh,
+            follow: state.follow,
             ..State::default()
         };
     }
@@ -414,9 +445,20 @@ impl State {
     fn wants_performance(&self) -> bool {
         self.gpu_performance && self.session.is_some() && !self.hidden
     }
+
+    /// Follow the monitor applies now: chosen, the window on screen and no stall.
+    fn follows(&self) -> bool {
+        self.follow && self.shown && !self.stalled
+    }
 }
 
+/// A Follow the monitor acquire longer than this means the compositor is not taking the window's
+/// presents (it is not on screen yet, or minimized where the main thread cannot tell).
+const STALL: Duration = Duration::from_millis(250);
+
 fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: bool, on_second: &OnSecond) {
+    let mut follow = inbox.lock().follows();
+    gpu.set_follow(follow);
     if lines {
         print_stats(&gpu.header());
     }
@@ -435,6 +477,49 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
     let mut video_session: Option<u64> = None;
     let mut last_present: Option<Instant> = None;
     loop {
+        // Follow the monitor (research R9): the surface follows the setting, and while a video
+        // shows the loop is paced by the swap chain: acquire first (it blocks until about the next
+        // refresh), then take the newest frame or repeat the last one. Taking the frame before the
+        // acquire would make it up to one refresh older.
+        // While the window is not on screen the surface goes back to the start mode.
+        let (wanted, can_pace, refresh) = {
+            let state = inbox.lock();
+            (
+                state.follows(),
+                !state.hidden && state.hold.is_none() && !state.stop,
+                state.refresh,
+            )
+        };
+        if wanted != follow {
+            follow = wanted;
+            gpu.set_follow(follow);
+            if lines {
+                print_stats(&gpu.header());
+            }
+        }
+        let acquired = if follow && can_pace && gpu.has_video() {
+            // A surface that does not block (an occluded window) must not spin the loop.
+            if let Some(floor) = last_present.map(|at| at + fade_step(refresh) / 2) {
+                std::thread::sleep(floor.saturating_duration_since(Instant::now()));
+            }
+            let start = Instant::now();
+            let acquired = gpu.acquire();
+            let waited = start.elapsed();
+            if waited > STALL {
+                log::warn!(
+                    "follow the monitor: an acquire waited {} ms, back to the start mode until the window is shown",
+                    waited.as_millis()
+                );
+                inbox.lock().stalled = true;
+                // Not presented: another present the compositor does not take would stall again.
+                None
+            } else {
+                acquired
+            }
+        } else {
+            None
+        };
+        let paced = acquired.is_some();
         // Handed over outside the lock.
         let mut second: Option<Summary> = None;
         let (frame, ui, present, wants_performance) = {
@@ -468,6 +553,10 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                     state.hold = None;
                 }
                 let held = state.hidden || state.hold.is_some();
+                // An image is acquired: it is presented with or without a new frame.
+                if paced && !held {
+                    break true;
+                }
                 let ready = state.frame.is_some() || (pending && deadline.is_none());
                 // A request no longer wanted is released outside the lock.
                 let release = performance.is_some() && !state.wants_performance();
@@ -542,8 +631,9 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         let Some(scene) = scene.filter(|_| present) else {
             continue;
         };
-        gpu.resize(scene.size.0, scene.size.1);
         let now = Instant::now();
+        // The same source's frame shown again (Follow the monitor's repeats, the `rep` count).
+        let repeat = paced && frame.is_none() && video_session.is_some();
         // A new source's first frame fades in, also over the old one fading out.
         if let Some(frame) = &frame
             && video_session != Some(frame.session)
@@ -564,7 +654,10 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         }
         // Also when the surface was not ready: the next fade step waits one refresh either way.
         last_present = Some(now);
-        if gpu.render(&scene, opacity) {
+        if gpu.render(acquired, &scene, opacity) {
+            if repeat {
+                stats.repeated();
+            }
             if let Some(process_start) = first_present.take() {
                 log::info!(
                     "first present {:.0} ms after start",

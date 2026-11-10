@@ -573,6 +573,25 @@ Nothing pushed.
 
 ## Next step
 
+- **T047** (Follow the monitor loop, 2026-11-10) done; fmt, clippy and tests pass; committed
+  without a manual check, since nothing turns Follow on before T048 (`feat: add the follow the
+  monitor loop`; maintainer agreed, including the R9 change below). gpu.rs: `set_follow` (Fifo, or back to the start mode), `acquire`
+  apart from `render` (which takes an acquired image and drops it when the size changed),
+  `[present]` header built from backend, mode and `follow` (`mode=fifo-follow`), Vulkan logs
+  `swap chain of N images (frame latency 1, driver minimum M)` (through `wgpu::hal`, the app's
+  first `unsafe`). mod.rs: `Inbox::set_presentation` (`#[allow(dead_code)]` until T048),
+  `Inbox::set_shown`, `State::follows()`; while it applies and a video is on the GPU the loop
+  acquires first, then takes the newest frame or repeats (`Stats::repeated`, `rep`); a floor of
+  half a refresh between paced presents. Found here (research R9 updated): a Fifo present the
+  compositor does not take (before the window is first shown, minimized) made the next acquire
+  wait wgpu's 1 s timeout; Follow now applies only while the window is shown and not minimized
+  (app.rs `update_shown` on show, hide, Resized, Focused), and an acquire over 250 ms turns it off
+  until then. Smoke runs with a temporary toggle every 4 s (removed), test video 1080p30 windowed,
+  144 Hz monitor: DX12 30 `pres` + ~114 `rep`, `lat_ms` median 5.3–5.6 against 1.9–2.2 in
+  Mailbox (R9's ≈ 3.5 ms), no session change; minimize/restore switches the mode with no gap.
+  Vulkan on Windows: works, `lat_ms` ≈ 10.8 in Follow, one switch to Follow had `gap_ms` 136.
+  Next: **T048** (the Presentation row, `store.update`, `set_presentation` at start and on
+  change), then T049 (maintainer, Windows G-SYNC and CachyOS).
 - **Linux batch, first part** (2026-11-10, measurements/acceptance.md "US2" and "US4" CachyOS):
   the C920 at the CachyOS PC and a `v4l2loopback` camera instead of the ezcap (`~/capx/vcam.sh`:
   `vcam_on`/`vcam_off`, `exclusive_caps=1`, the feeder must run before the app starts; a
