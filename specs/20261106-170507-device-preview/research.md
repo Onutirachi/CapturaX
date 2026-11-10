@@ -17,7 +17,8 @@ marks what was not run.
   "mediafoundation"` or a device type named `GstV4l2Device` (the spike's rule; on Linux the
   PipeWire provider lists the same card again and is skipped). While the app waits for a device
   (no devices, or the open one disconnected) it also reads the list again every 3 s, so a
-  missed add is caught. The re-read runs off the main thread and reads the running monitor's
+  missed add is caught; while the access-blocked state shows a listed device, it reads only the
+  camera access every 3 s, and access turned back on reopens the device once (FR-021). The re-read runs off the main thread and reads the running monitor's
   `devices()`: the providers' list, which each provider keeps by probing again on every device
   change. **Never a second `DeviceMonitor` while one runs** (found at T044, 2026-11-08):
   GStreamer shares one provider per factory in the process (`gst_device_provider_factory_get`),

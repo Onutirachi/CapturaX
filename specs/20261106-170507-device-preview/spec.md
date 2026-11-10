@@ -145,7 +145,9 @@ shown and that its action works.
    empty list; plugging a device in opens it (FR-001, FR-005).
 2. **Given** the system blocks camera access for the app (Windows privacy settings; on Linux the
    device node not readable), **When** the device is opened, **Then** the state says access is
-   blocked; on Windows its action opens the system's camera privacy page; **Try again** reopens.
+   blocked; on Windows its action opens the system's camera privacy page; **Try again** reopens;
+   on Windows, turning access back on also reopens it by itself within 3 s (maintainer,
+   2026-11-10).
 3. **Given** another app holds the device, **When** CapturaX opens it, **Then** the state says the
    device is in use, with **Try again**.
 4. **Given** the open device is unplugged, **When** it disappears, **Then** the state says it is
@@ -223,7 +225,10 @@ previewing and watch the cursor; read the presentation statistics in both modes.
 - The system goes to sleep and wakes up with the device open: the device is reopened as after a
   reconnect.
 - Camera access is turned off in the system while previewing: the preview shows the
-  access-blocked state.
+  access-blocked state. Turned off while the disconnected state shows: the access-blocked state
+  replaces it, without naming the device waited for; when access comes back, the disconnected
+  state shows again, or the device reopens in the same mode if it was plugged in meanwhile
+  (maintainer, 2026-11-10).
 - Linux without the user in the group that can read video devices, or inside a sandboxed package
   (Flatpak): devices that cannot be opened show the access-blocked state; how the app reaches
   cameras in a sandbox is for the plan (V4L2 against PipeWire's camera, spike open question).
@@ -373,7 +378,12 @@ previewing and watch the cursor; read the presentation statistics in both modes.
   tape being converted all give dark or black video), so the app shows the video as it comes; HDCP
   is explained in the getting started guide (product.md F54).
 - **FR-021**: The access-blocked state MUST offer, on Windows, an action that opens the system's
-  camera privacy settings; on Linux it names the device that could not be opened.
+  camera privacy settings; on Linux it names the device that could not be opened. **Try again**
+  stays in both (on Linux nothing tells the app that the node became readable; on Windows the
+  access may read unknown, or the state may come from the error mapping of research R6). On
+  Windows, while the blocked device is listed, the app reads camera access every 3 s and, once it
+  was read off and then reads on, reopens the device once in the same mode (maintainer,
+  2026-11-10).
 - **FR-027**: When a device joins or leaves the list after the app started (not the first list
   at start), the app MUST show a short notice naming it (maintainer, 2026-11-06):
   - texts: "<name> connected", "<name> reconnected" (the open device came back and reopened by

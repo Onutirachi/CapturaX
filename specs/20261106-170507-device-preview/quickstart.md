@@ -48,10 +48,14 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
    60 Hz the frame rate reads about "111 / 120 FPS"; the hover settings button of each bubble
    offers its three displays; the choice survives a restart.
 4. **US4**, one by one:
-   - unplug every device → "No devices", the device menu shows the same state; plug the card →
-     it opens;
+   - start with every device unplugged → "No devices", the device menu shows the same state; plug
+     the card → it opens (unplugging the open device instead shows "disconnected" and waits for
+     it, FR-014);
    - Windows: Settings → Privacy → Camera → desktop apps off → "Access blocked", **Open
-     privacy settings** opens the page, turning it back on and **Try again** plays;
+     privacy settings** opens the page, turning it back on plays within 3 s without **Try
+     again**, and **Try again** pressed right after turning it on plays too; with the device
+     unplugged ("disconnected"), turning access off shows "Access blocked", back on shows
+     "disconnected" again, and plugging it in reopens it;
    - Linux: `sudo chmod 000 /dev/video0` → blocked state naming the node (restore afterwards);
    - open the card in another app first (OBS or `gst-launch-1.0`) → "In use", **Try again** after
      closing it plays;
