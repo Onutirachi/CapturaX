@@ -151,3 +151,55 @@ Run over SSH in the desktop session (`DBUS_SESSION_BUS_ADDRESS=unix:path=/run/us
 - With `replaces_id`, a second notice sent after the first had left the screen (8 s) only
   updated the history entry, with no popup. The previous notice is now closed
   (`CloseNotification`) and the new one sent as new; both popups then showed (research R15).
+
+## US4 (T046)
+
+"Manual acceptance" 4 and 6; the maintainer tried each case by hand, the agent read the app's
+log (`capturax.log` next to the build) at the times given.
+
+### Windows 11 — 2026-11-10
+
+**Environment**: as US3 on Windows, release build of `a8f44a7` plus the fixes below (working
+tree). Devices: HD Pro Webcam C920 (USB) and ezcap Live GAMER ULTRA (inside the PC, cannot be
+moved to another port). Window 640 × 360 and larger, Portuguese and English.
+
+| Check | Result | Notes |
+|---|---|---|
+| Start with no device → "No devices", device menu the same; plug one in → it opens | Pass | `NoSource -> NoDevices (monitor list, 0 devices)`, the webcam plugged in opened by itself, balloon "connected" with no **Open** |
+| Unplugging every device while one plays | Pass | "Disconnected" naming the open device, which is waited for (FR-014); the quickstart said "No devices" here and was corrected |
+| Camera privacy off while playing → "Access blocked"; **Open privacy settings**; on again → plays | Pass | `Playing -> Blocked` 1 s after the stream error (`access Denied`); after fix 3 the device reopens by itself within 3 s (`camera access is back, opening the device again`), **Try again** still works |
+| Privacy off while "disconnected" | Pass after fixes 1 and 2 | Before: nothing changed, and access back gave "No devices". After: "Access blocked" (device not named), back on → "disconnected" again, or the device reopens in the same mode when plugged in meanwhile (`Blocked -> Opening (monitor list, 1 devices)`, "reconnected" notice) |
+| Card open in OBS → "In use"; **Try again** after closing OBS plays | Pass | The Windows in-use mapping (research R6) read it right |
+| Unplug while playing → "disconnected"; plug back → video, same mode | Pass | C920; first frame 377 ms after the device came back, 1920 × 1080 at 30 |
+| Moved to another USB port | Pass | C920: reopened with its stored choices (its identity follows it); the ezcap cannot be moved |
+| No HDMI signal → "No signal" after 5 s | Not checkable | The ezcap sends its own "no signal" picture as video, the C920 always has a picture (maintainer: no device here can give it) |
+| Notices with the window focused (FR-027): connected with **Open**, disconnected, × and click close, quick plug and unplug → one balloon, open card → disconnected then reconnected with no button | Pass | |
+| Notices with another app focused, minimized, in the tray → system notifications, **Open** shows the window and opens the device | Pass | `notice: … -> system` |
+| Notice placement (FR-027, FR-032): default bottom left, each corner at once, bottom right in the bubble row, 640 × 360 | Pass | |
+| Settings notices (FR-033): damaged file or read-only folder → warning balloon, whole text, stays until closed | Pass | |
+| Close to the tray → webcam light off; show → reopens | Pass | |
+| Minimize and restore → video at once | Pass | The device stays open while minimized (spec edge case) |
+| Sleep and wake → the preview comes back | Pass | Maintainer; no `woke from sleep` line in today's log, so the session lived through it (the wake path was seen on 2026-11-10 03:23, `woke from sleep, opening … again`) |
+| English | Pass | States and notices |
+| 150 % | Pass | Maintainer, a quick look |
+
+**Found and fixed during the run** (spec and research updated first where the behavior changed):
+
+1. Camera access back restarts the device monitor (T043), and its first list went through the
+   start order: "disconnected" became "No devices". A restarted monitor's list is now read as a
+   re-read, so the device is still waited for.
+2. Privacy turned off while "disconnected" changed nothing. Maintainer (2026-11-10): the blocked
+   state replaces it without naming the device; back on → "disconnected", or the device reopens
+   if it was plugged in meanwhile (spec edge case).
+3. Maintainer (2026-11-10): while a listed device is blocked, camera access is read every 3 s and
+   access turned back on reopens it once; **Try again** stays (Linux nodes, unknown access, the
+   R6 mapping) (spec US4 scenario 2, FR-021, research R1).
+4. The toolbar's icon-look select (window below about 892 px) kept its tooltip after a pick with
+   the pointer, even once the controls hid: the menu gives the focus back to the select. The
+   focus now shows the tooltip only while the keyboard is in use; a pointer pick shows the new
+   value at once, until the pointer leaves the select or 1.5 s with it elsewhere (maintainer).
+
+### CachyOS KDE Plasma Wayland
+
+Not run yet (Linux batch, with T034): `sudo chmod 000` on the node instead of the privacy
+switch, `gst-launch-1.0` instead of OBS.

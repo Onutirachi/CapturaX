@@ -573,6 +573,23 @@ Nothing pushed.
 
 ## Next step
 
+- **T046 Windows half** passed (2026-11-10, measurements/acceptance.md "US4"); 150 % checked
+  quickly; No signal not checkable (the ezcap sends its own no-signal picture, the C920 always
+  has one). Committed after the maintainer's validation (docs, feat, fix, docs). Fixes
+  found in the run, validated by the maintainer: (1) a device monitor started again on camera
+  access back (T043) sent its list through the start order, so "disconnected" became "No
+  devices": `Listed` after the first list is now `relisted`; (2) privacy off while
+  "disconnected" → Blocked (device kept, not named), back on → Disconnected or reopen (spec
+  edge case, maintainer); (3) a listed blocked device: `Preview::watches_access` +
+  `Event::AccessCheck` every 3 s from the app's tick, access read off then on reopens once,
+  **Try again** stays (spec US4 scenario 2, FR-021, research R1, maintainer); (4) select.slint:
+  the icon look's tooltip shows on focus only with `Input.keyboard` (a pointer pick gave the
+  focus back and the tooltip outlived the hidden controls), and a pointer pick shows it at once
+  until the pointer leaves or 1.5 s pass with it elsewhere (`just-picked`). Quickstart US4
+  steps corrected ("start with every device unplugged"; privacy while disconnected; reopen
+  without Try again). Note: the app's log is `capturax.log` next to the build (stderr has only
+  GStreamer's lines). T046 stays open for CachyOS (Linux batch with T034). Next: the Linux batch
+  (T034, T040, T046, T071 on CachyOS) or US5 (T047).
 - **T074** (settings notices in the balloon, FR-033) done, validated by the maintainer from the
   screenshots (2026-11-10) and committed (`feat: show the settings notices in the balloon`). notice.slint: the panel-shaped `Notice` is
   replaced by `SettingsNotice` (raised fill and shadow, 16 px corners, 10 / 12 / 6 px padding,
