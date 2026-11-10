@@ -1,9 +1,8 @@
-// One non-blocking, dismissible notice at the top of the video area (FR-034), in the shape of the
-// other small windows: a header with the kind's icon, the notice's title and the close control,
-// then the text, which may name a folder. Rust keeps the queue and shows each notice id at most
-// once per run.
+// The app's notices (FR-027, FR-033, research R15 "In-app balloon"): balloons of the info
+// bubbles' family with the theme's raised fill and shadow, in the corner the Notification position
+// setting picks. main.slint places them and stacks them; Rust keeps the settings notices' queue
+// and shows each id at most once per run (app/src/notices.rs).
 import { Theme } from "../theme.slint";
-import { PanelHeader } from "panel-header.slint";
 import { Raised } from "raised.slint";
 import { ActionButton } from "action-button.slint";
 import { IconButton } from "icon-button.slint";
@@ -11,39 +10,121 @@ import { Input } from "focus-ring.slint";
 
 export enum NoticeKind { info, warning }
 
-// A rectangle the notice balloon keeps clear of, or the balloon's own (main.slint).
+// A rectangle the notice balloons keep clear of, or a balloon's own (main.slint).
 export struct NoticeBox { x: length, y: length, w: length, h: length }
 
-export component Notice inherits Rectangle {
+// A settings notice (FR-033): the kind's icon, the title in bold, then the text (which may name a
+// folder or a file) on as many lines as it needs, and ×. At most 480 px wide and the room the
+// owner gives it. No timeout: it stays until closed, which tells Rust to show the next one. It
+// grows in from its corner and leaves the same way, keeping its text while it leaves.
+export component SettingsNotice inherits Rectangle {
+    in property <bool> shown;
     in property <NoticeKind> kind: NoticeKind.info;
     in property <string> title;
     in property <string> text;
+    // The widest it may be besides its own 480 px.
+    in property <length> room;
+    // The corner it grows from.
+    in property <bool> top;
+    in property <bool> left;
+    // False keeps it out of the focus order (behind the settings panel).
+    in property <bool> focusable: true;
+    // 0 gone, 1 shown.
+    out property <float> appear: root.shown ? 1 : 0;
+    animate appear { duration: Theme.quick; easing: ease-out; }
+    out property <bool> present: root.shown || root.appear > 0;
     callback dismiss();
 
-    background: Theme.c.raised;
-    border-radius: Theme.radius-m;
-    height: header.height + body.preferred-height + Theme.gap-l;
+    // Padding as in the device notice: 12 px before the icon, 6 px after ×, 10 px above and below.
+    property <length> pad-left: 12px;
+    property <length> pad-right: 6px;
+    property <length> pad-y: 10px;
+    property <length> icon-size: 20px;
+    property <length> spacing: 8px;
+    property <length> close-size: 32px;
+    property <length> text-x: root.pad-left + root.icon-size + root.spacing;
+    // The text's column, from after the icon to before ×.
+    property <length> text-room: root.width - root.text-x - root.spacing - root.close-size - root.pad-right;
 
-    body := Text {
-        x: header.title-x;
-        y: header.height;
-        width: root.width - self.x - Theme.gap-l;
+    visible: root.present;
+    width: min(480px, root.room,
+        root.text-x + max(title-measure.preferred-width, text-measure.preferred-width) + root.spacing + root.close-size + root.pad-right);
+    height: max(44px, root.pad-y + title.height + text.height + root.pad-y);
+    opacity: root.appear;
+    transform-origin: { x: root.left ? 0 : self.width, y: root.top ? 0 : self.height };
+    transform-scale: 0.92 + 0.08 * root.appear;
+
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.title;
+    accessible-description: root.text;
+
+    // The texts' widths on one line each, to fit a short notice.
+    title-measure := Text {
+        visible: false;
+        text: root.title;
+        font-size: Theme.text-m;
+        font-weight: 600;
+    }
+
+    text-measure := Text {
+        visible: false;
+        text: root.text;
+        font-size: Theme.text-m;
+    }
+
+    Raised {
+        width: root.width;
+        height: root.height;
+        radius: Theme.radius-m;
+    }
+
+    Image {
+        x: root.pad-left;
+        y: root.pad-y + (title.height - self.height) / 2;
+        width: root.icon-size;
+        height: root.icon-size;
+        source: root.kind == NoticeKind.warning
+            ? @image-url("../assets/icons/alert_triangle.svg")
+            : @image-url("../assets/icons/info_circle.svg");
+        colorize: root.kind == NoticeKind.warning ? Theme.c.warn : Theme.c.accent-text;
+        accessible-role: none;
+    }
+
+    title := Text {
+        x: root.text-x;
+        y: root.pad-y;
+        width: root.text-room;
+        text: root.title;
+        color: Theme.c.text;
+        font-size: Theme.text-m;
+        font-weight: 600;
+        wrap: word-wrap;
+        accessible-role: none;
+    }
+
+    text := Text {
+        x: root.text-x;
+        y: title.y + title.height;
+        width: root.text-room;
         text: root.text;
         color: Theme.c.text;
         font-size: Theme.text-m;
         wrap: word-wrap;
+        accessible-role: none;
     }
 
-    header := PanelHeader {
-        y: 0;
-        width: root.width;
-        icon: root.kind == NoticeKind.warning
-            ? @image-url("../assets/icons/alert_triangle.svg")
-            : @image-url("../assets/icons/info_circle.svg");
-        icon-color: root.kind == NoticeKind.warning ? Theme.c.warn : Theme.c.accent-text;
-        title: root.title;
-        close-tooltip: @tr("Dismiss");
-        close => { root.dismiss(); }
+    IconButton {
+        x: root.width - root.pad-right - self.width;
+        y: root.pad-y + (title.height - self.height) / 2;
+        size: root.close-size;
+        icon-size: 18px;
+        border-radius: Theme.radius-s;
+        icon: @image-url("../assets/icons/close.svg");
+        icon-color: Theme.c.text-muted;
+        tooltip: @tr("Dismiss");
+        focusable: root.focusable && root.shown;
+        enabled: root.shown;
+        clicked => { root.dismiss(); }
     }
 }
 

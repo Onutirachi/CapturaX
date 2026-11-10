@@ -394,7 +394,9 @@ previewing and watch the cursor; read the presentation statistics in both modes.
     has no room for it, it sits just above the row. It never covers the toolbar, a side dock, the
     info bubbles or the state's actions: while the controls show it moves past them (above the
     bubble row, under the toolbar, beside the left dock) and goes back to the corner when they
-    hide (maintainer, 2026-11-09, mockup page). While the settings panel is open the balloon stays
+    hide (maintainer, 2026-11-09, mockup page). When moving above the bubbles would take it out
+    of the video area (a small window, where the bubbles stand in a column), it stays and covers
+    them instead (maintainer, 2026-11-10). While the settings panel is open the balloon stays
     under it and its backdrop, dimmed like the video, and takes no clicks (maintainer,
     2026-11-10);
   - when the window is not focused, minimized or hidden to the tray: a system notification,

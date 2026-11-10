@@ -439,13 +439,17 @@ declared. No GStreamer plugin beyond those the spike used (`mfvideosrc`, `v4l2sr
     free). Placement: from the corner, 20 px from the video area's edges; while the controls show,
     a balloon that would cover the toolbar dock moves below it, one that would cover the left dock
     moves beside it (8 px clear, as the bubbles do), one that would cover the bubble row moves
-    above it (12 px); in the bottom right the device balloon joins the bubble row at the corner
-    when the row has room for it; with the controls hidden it goes back to the corner. It grows in
+    above it (12 px), unless that takes it out of the video area: then it covers the bubbles (at
+    640 × 360 they stand in a column almost as tall as the video; maintainer, 2026-11-10, seen at
+    T074 with a device playing); in the bottom right the device balloon joins the bubble row at
+    the corner when the row has room for it; with the controls hidden it goes back to the corner. It grows in
     from the corner (fade and scale, `Theme.quick`) and the bubbles slide; checked at 640 × 360,
     the smallest window, on the mockup page.
   - **Settings notices** (app shell FR-034, now FR-033 here): the same balloon instead of the
     panel at the top of the video area: icon of the kind, bold title then the text, at most
-    480 px and the room the window has, wrapping, no timeout, the queue unchanged. Alternatives on
+    480 px and the room the window has, wrapping, no timeout, the queue unchanged. The title is a
+    line of its own (600) with the text under it: Slint's `StyledText` would set it inline, but
+    the software renderer (R3) draws styled text as plain text in Slint 1.18 (T074). Alternatives on
     the mockup page: keeping the panel (two notice looks, covers the top center of the video) and a
     one-line balloon with **Details** (hides the folder or file name the user needs).
   - **Notification position** (FR-032): a button with the chosen corner's icon (a small frame

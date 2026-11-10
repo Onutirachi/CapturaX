@@ -245,7 +245,7 @@ const PAIRS: &[Pair] = &[
     text("#ffffff", &["tag-aspect"], "aspect tag"),
     // Info bubbles over the video; their mode tag is a filled tag (listed above).
     text_over_video("info-text", &["info-bubble"], "info bubble text"),
-    // Notice.
+    // The settings notice balloon (FR-033): its title and text are "notice text" above.
     icon("accent-text", &["raised"], "notice info icon"),
     icon("warn", &["raised"], "notice warning icon"),
     icon("text-muted", &["raised"], "notice close"),

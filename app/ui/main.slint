@@ -2,11 +2,11 @@
 // thread composites over the video, so the window background stays transparent; the ground around
 // the video is the theme's deepest tone, read by Rust and cleared by the video thread.
 // Layers from bottom to top: video area, state message, chrome, notices, settings panel, then the
-// top layer for the device notice, menus, dropdowns and tooltips.
+// top layer for menus, dropdowns and tooltips.
 import { Theme, Palette } from "theme.slint";
 import { Texts } from "texts.slint";
 import { WindowState } from "window-state.slint";
-import { Notice, NoticeKind, DeviceNotice, NoticeBox } from "components/notice.slint";
+import { SettingsNotice, NoticeKind, DeviceNotice, NoticeBox } from "components/notice.slint";
 import { StateMessage, StateAction } from "components/state-message.slint";
 import { Input } from "components/focus-ring.slint";
 import { Menus, MenuItem, MenuLayer } from "components/menu.slint";
@@ -37,7 +37,7 @@ export component AppWindow inherits Window {
     out property <length> video-height: root.height - root.bar;
     out property <length> video-radius: 0;
 
-    // The notice shown, set by Rust from its queue (app/src/notices.rs).
+    // The settings notice shown (FR-033), set by Rust from its queue (app/src/notices.rs).
     in property <bool> notice-visible;
     in property <NoticeKind> notice-kind;
     in property <string> notice-title;
@@ -369,17 +369,6 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Notices layer.
-    if root.notice-visible: Notice {
-        x: root.video-x + (root.video-width - self.width) / 2;
-        y: root.video-y + Theme.gap-l;
-        width: min(560px, root.video-width - 2 * Theme.gap-l);
-        kind: root.notice-kind;
-        title: root.notice-title;
-        text: root.notice-text;
-        dismiss => { root.dismiss-notice(); }
-    }
-
     // The device notice balloon, placed by the properties under "Top layer" below. It is drawn
     // before the settings panel: while the panel is open the balloon stays under it and its
     // backdrop (FR-027, maintainer, 2026-11-10).
@@ -395,6 +384,21 @@ export component AppWindow inherits Window {
         can-open: root.device-notice-can-open;
         serial: root.device-notice-serial;
         open => { root.device-notice-open(root.device-notice-device); }
+    }
+
+    // The settings notice balloon (FR-033), stacked past the device notice in the same corner.
+    settings-notice := SettingsNotice {
+        x: root.video-x + root.settings-notice-corner.x + (root.settings-notice-clear-of.x - root.settings-notice-corner.x) * (1 - root.hidden);
+        y: root.video-y + root.settings-notice-corner.y + (root.settings-notice-clear-of.y - root.settings-notice-corner.y) * (1 - root.hidden);
+        room: root.video-width - 2 * root.notice-edge;
+        top: root.notice-top;
+        left: root.notice-left;
+        focusable: !root.settings-open;
+        shown: root.notice-visible;
+        kind: root.notice-kind;
+        title: root.notice-title;
+        text: root.notice-text;
+        dismiss => { root.dismiss-notice(); }
     }
 
     // Settings panel layer: a backdrop over the video area dims it and takes every click (a click
@@ -424,12 +428,15 @@ export component AppWindow inherits Window {
 
     // Top layer (bubble controls, menus, dropdowns, tooltips): drawn last, so nothing covers them
     // (FR-010). A menu takes every click while open; a click outside it closes it.
-    // Where the device notice balloon stands (FR-027, research R15 "In-app balloon"; the balloon is
-    // drawn under the settings panel, above): in its corner, 20 px from
-    // the video area's edges, shown also with the controls hidden. While the controls show it keeps
-    // clear of them: below the toolbar dock, beside the left dock (8 px), above the bubbles (12 px);
-    // in the bottom right it joins the bubble row at the corner when the row has room for it, and
-    // the bubbles slide aside. It moves with the chrome's slide.
+    // Where the notice balloons stand (FR-027, FR-033, research R15 "In-app balloon"; they are
+    // drawn under the settings panel, above): in their corner, 20 px from the video area's edges,
+    // shown also with the controls hidden. While the controls show they keep clear of them: below
+    // the toolbar dock, beside the left dock (8 px), above the bubbles (12 px; over them when that
+    // would leave the video area); in the bottom right
+    // the device notice joins the bubble row at the corner when the row has room for it, and the
+    // bubbles slide aside. They move with the chrome's slide. With both on screen the device
+    // notice is nearest the corner and the settings notice stacks past it (12 px), sliding as the
+    // device notice comes and goes.
     property <bool> notice-top: root.notification-position == "top-left" || root.notification-position == "top-right";
     property <bool> notice-left: root.notification-position == "top-left" || root.notification-position == "bottom-left";
     property <length> notice-edge: Theme.gap-l;
@@ -461,14 +468,46 @@ export component AppWindow inherits Window {
             : { x: r.x, y: o.y - Theme.gap-m - r.h, w: r.w, h: r.h }
     }
 
-    // Twice over the controls: moving past one may land on another.
+    pure function notice-inside(r: NoticeBox) -> bool {
+        r.x >= 0 && r.y >= 0 && r.x + r.w <= root.video-width && r.y + r.h <= root.video-height
+    }
+
+    // Past the toolbar and the left dock, twice: moving past one may land on the other.
+    pure function notice-clear-chrome(r: NoticeBox) -> NoticeBox {
+        root.notice-past(root.notice-past(root.notice-past(root.notice-past(r,
+            root.toolbar-box, false), root.dock-box, true), root.toolbar-box, false), root.dock-box, true)
+    }
+
+    // `r` above the bubbles is allowed: inside the video area, clear of the toolbar and the dock.
+    pure function notice-fits(r: NoticeBox) -> bool {
+        root.notice-inside(r) && !root.notice-hits(r, root.toolbar-box) && !root.notice-hits(r, root.dock-box)
+    }
+
+    // Clear of the toolbar and the dock, then above the bubbles when it fits there; else it
+    // covers them (a small window, where they stand in a column; FR-027).
     pure function notice-clear(r: NoticeBox) -> NoticeBox {
-        root.notice-past(root.notice-past(root.notice-past(root.notice-past(root.notice-past(root.notice-past(r,
-            root.toolbar-box, false), root.dock-box, true), root.bubbles-box, false), root.toolbar-box, false),
-            root.dock-box, true), root.bubbles-box, false)
+        root.notice-fits(root.notice-past(root.notice-clear-chrome(r), root.bubbles-box, false))
+            ? root.notice-past(root.notice-clear-chrome(r), root.bubbles-box, false)
+            : root.notice-clear-chrome(r)
     }
 
     property <NoticeBox> notice-clear-of: root.notice-joins ? root.notice-corner : root.notice-clear(root.notice-corner);
+
+    // The settings notice in the corner, moved past the device notice `d` while that one shows.
+    pure function settings-notice-from(d: NoticeBox) -> NoticeBox {
+        {
+            x: root.notice-left ? root.notice-edge : root.video-width - root.notice-edge - settings-notice.width,
+            y: root.notice-top
+                ? root.notice-edge + max(0, d.y + d.h + Theme.gap-m - root.notice-edge) * device-notice.appear
+                : root.video-height - root.notice-edge - settings-notice.height
+                    - max(0, root.video-height - root.notice-edge - (d.y - Theme.gap-m)) * device-notice.appear,
+            w: settings-notice.width,
+            h: settings-notice.height,
+        }
+    }
+
+    property <NoticeBox> settings-notice-corner: root.settings-notice-from(root.notice-corner);
+    property <NoticeBox> settings-notice-clear-of: root.notice-clear(root.settings-notice-from(root.notice-clear-of));
 
     BubbleControlsLayer {
         x: 0;

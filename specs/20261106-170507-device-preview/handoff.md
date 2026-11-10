@@ -573,6 +573,42 @@ Nothing pushed.
 
 ## Next step
 
+- **T074** (settings notices in the balloon, FR-033) done, validated by the maintainer from the
+  screenshots (2026-11-10) and committed (`feat: show the settings notices in the balloon`). notice.slint: the panel-shaped `Notice` is
+  replaced by `SettingsNotice` (raised fill and shadow, 16 px corners, 10 / 12 / 6 px padding,
+  kind icon 20 px, title 14 px 600 on its own line, then the text wrapping, × 32 px; width fits
+  the text up to 480 px and the room; no timeout; grows in from its corner like the device
+  notice and keeps its text while it leaves; `accessible-label` the title,
+  `accessible-description` the text). Title inline as on the mockup is not possible: Slint 1.18's
+  software renderer draws `StyledText` as plain text (research R15 updated). panel-header.slint
+  removed (`git rm`). main.slint: the settings balloon is drawn right after the device notice
+  (both under the settings panel), starts in the corner, moved past the device notice (12 px)
+  by the device notice's `appear` (it slides as the device notice comes and goes), then kept
+  clear of the controls with the same `notice-clear` (controls shown) and back to the corner
+  stack when they hide. Rust untouched (same `notice-*` properties). notices.rs doc updated;
+  contrast pairs unchanged (same text and icons on raised), comment updated. fmt, clippy, tests
+  pass. Screenshots in the session scratchpad `t074/shots`: a real damaged settings file
+  (1280 × 720, system theme), a real read-only app folder (ACL deny write; the fallback went to
+  `%APPDATA%\CapturaX`, deleted after) at 1280 × 720 dark and 640 × 360 light with the controls
+  shown, and stacked with a device notice in the four corners in both (temporary
+  `CAPX_DEMO_NOTICE` trigger on the first pointer move, removed). Scripted capture note: the
+  controls show only with the pointer on the top of the video or on a dock (not anywhere on the
+  video); the scripted window never gets focus, so a demo trigger must not wait for `Focused`.
+  Seen: at 640 × 360 top left the device balloon stays at the edge while the settings balloon
+  below it moves beside the left dock (each clears the controls on its own).
+  **Bubbles in a small window** (found in T074, also true of the device notice since T063): the
+  test video has no info bubbles, so the first screenshots missed them; with the ezcap playing
+  at 640 × 360 the bubbles stand in a column on the right and "above the bubbles" sent the
+  balloons out of the video area (over the title bar). Maintainer's choice (2026-11-10): when
+  moving above the bubbles would leave the video area, the balloon covers them (spec FR-027 and
+  research R15 updated). main.slint: `notice-clear` now clears the toolbar and the dock twice
+  (`notice-clear-chrome`), then moves above the bubbles only when that stays inside the video
+  area and clear of the toolbar and the dock (`notice-fits`), else stays over them. Checked with
+  the ezcap in the four corners at 640 × 360 light and bottom left / right at 1280 × 720 dark
+  (`t074/shots/bubbles-*`; at 1280 the device balloon joins the row and the settings one stacks
+  above it). Script note: with a device the window shows about 1.4 s after start (the script
+  waits 2.5 s with `-Device`). Next: **T046** (US4
+  acceptance, maintainer, Windows and CachyOS).
 - **T073** (notification position, FR-032) done, validated by the maintainer (2026-11-10). `general.notification_position` in crates/settings
   (`NotificationPosition`, lenient read, test); `MenuItem` gets `icon` and `accent` (the icon's
   part drawn in the accent); `Menus.show-grid(.., columns)` lays a menu out as icon cells 52 × 40
