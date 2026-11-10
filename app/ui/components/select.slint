@@ -6,7 +6,9 @@
 // above the chosen value in bold, its frame rate tag (when it is on the item's first line) and its
 // name tag, whose menu is at least 320 px wide. A titled select also has an icon look (FR-002a):
 // 56 px wide, the icon and the chevron only; its tooltip gives the title and the value, and its
-// menu starts with the title as a group header.
+// menu starts with the title as a group header. A plain select has an icon look too (the
+// notification position, FR-032): 40 px, the chosen item's icon and the chevron, its tooltip giving
+// the setting's name and the value; with `columns` above 1 its menu is a grid of icon cells.
 import { Theme } from "../theme.slint";
 import { FocusRing } from "focus-ring.slint";
 import { Menus, MenuItem } from "menu.slint";
@@ -27,8 +29,11 @@ export component Select inherits Rectangle {
     in property <string> title;
     // The leading icon of the dropdown look.
     in property <image> icon;
-    // The icon look of a titled select (the toolbar does not fit the full look).
+    // The icon look: of a titled select, its leading icon (the toolbar does not fit the full
+    // look); of a plain one, the chosen item's icon.
     in property <bool> icon-only;
+    // More than one: the menu is a grid of icon cells, this many columns wide.
+    in property <int> columns: 1;
     // Where the icon look's tooltip prefers to open.
     in property <Side> tooltip-side: Side.bottom;
     // The setting's name, for screen readers.
@@ -46,10 +51,16 @@ export component Select inherits Rectangle {
     // The value as the button shows it, in one line: the icon look's tooltip ("Mode: 1920 × 1080 •
     // 60 FPS").
     property <string> value: root.shown != "" ? root.shown : root.rate != "" ? root.chosen + " • " + root.rate : root.chosen;
-    property <bool> icon-look: root.titled && root.icon-only;
-    // The menu's rows: the icon look adds the title as a header, so its rows are the items' plus one.
-    property <int> offset: root.icon-look ? 1 : 0;
-    property <[MenuItem]> menu-items: root.icon-look ? Menus.with-header(root.title, root.items) : root.items;
+    property <bool> icon-look: root.icon-only;
+    // The plain icon look shows the chosen item's icon.
+    property <bool> plain-icon: root.icon-only && !root.titled;
+    property <image> no-image;
+    property <image> item-icon: root.valid ? root.items[root.current].icon : root.no-image;
+    property <image> item-accent: root.valid ? root.items[root.current].accent : root.no-image;
+    // The menu's rows: the titled icon look adds the title as a header, so its rows are the items'
+    // plus one.
+    property <int> offset: root.icon-look && root.titled ? 1 : 0;
+    property <[MenuItem]> menu-items: root.offset == 1 ? Menus.with-header(root.title, root.items) : root.items;
 
     property <int> id;
     init => { self.id = Menus.new-id(); }
@@ -88,9 +99,14 @@ export component Select inherits Rectangle {
     public function open-menu() {
         if (root.enabled && root.items.length > 0) {
             root.hide-tip();
-            Menus.show(root.id, root.menu-items, root.current >= 0 ? root.current + root.offset : -1,
-                root.absolute-position.x, root.absolute-position.y, root.width, root.height,
-                root.titled ? 320px : 200px);
+            if (root.columns > 1) {
+                Menus.show-grid(root.id, root.menu-items, root.current, root.absolute-position.x,
+                    root.absolute-position.y, root.width, root.height, root.columns);
+            } else {
+                Menus.show(root.id, root.menu-items, root.current >= 0 ? root.current + root.offset : -1,
+                    root.absolute-position.x, root.absolute-position.y, root.width, root.height,
+                    root.titled ? 320px : 200px);
+            }
         }
     }
 
@@ -101,7 +117,7 @@ export component Select inherits Rectangle {
     property <bool> wants-tip: root.icon-look && (area.has-hover || focus.has-focus) && !root.open && root.visible;
 
     function show-tip() {
-        root.tip = Tooltips.show(root.title + ": " + root.value, root.tooltip-side,
+        root.tip = Tooltips.show((root.titled ? root.title : root.label) + ": " + root.value, root.tooltip-side,
             root.absolute-position.x, root.absolute-position.y, root.width, root.height);
     }
 
@@ -184,9 +200,29 @@ export component Select inherits Rectangle {
     }
 
     HorizontalLayout {
-        padding-left: root.icon-look ? 10px : root.titled ? 12px : 14px;
-        padding-right: root.icon-look ? 6px : root.titled ? 10px : 12px;
-        spacing: root.icon-look ? 4px : root.titled ? 10px : Theme.gap-s;
+        padding-left: root.plain-icon ? 14px : root.icon-look ? 10px : root.titled ? 12px : 14px;
+        padding-right: root.plain-icon ? 12px : root.icon-look ? 6px : root.titled ? 10px : 12px;
+        spacing: root.plain-icon ? 10px : root.icon-look ? 4px : root.titled ? 10px : Theme.gap-s;
+
+        // The chosen item's icon in the muted tone, its accent part over it.
+        if root.plain-icon: VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Rectangle {
+                width: 24px;
+                height: 16px;
+                Image {
+                    source: root.item-icon;
+                    colorize: Theme.c.text-muted;
+                    accessible-role: none;
+                }
+                Image {
+                    source: root.item-accent;
+                    colorize: Theme.c.accent-text;
+                    accessible-role: none;
+                }
+            }
+        }
 
         if root.titled: VerticalLayout {
             alignment: center;

@@ -573,6 +573,25 @@ Nothing pushed.
 
 ## Next step
 
+- **T073** (notification position, FR-032) done, validated by the maintainer (2026-11-10). `general.notification_position` in crates/settings
+  (`NotificationPosition`, lenient read, test); `MenuItem` gets `icon` and `accent` (the icon's
+  part drawn in the accent); `Menus.show-grid(.., columns)` lays a menu out as icon cells 52 × 40
+  px with 4 px gaps (arrows in both directions, no wrap; each cell's tooltip after 500 ms of
+  hover or at once on an arrow, hidden when the menu closes; `Menus.tip`); `Select` has a plain
+  icon look (`icon-only` without a title: 40 px, the chosen item's icon and the chevron, tooltip
+  "<label>: <value>") and `columns`; the General row is a `SelectRow` with `icon-only` and
+  `columns: 2`, now the category's last. Icons `corner_frame.svg` + `corner_mark_*.svg` drawn for
+  CapturaX (24 × 16, the mockup's glyph; noted in the icons' LICENSE). The mark uses the
+  `accent-text` tone, not `accent`: the light theme's `accent` falls below 3:1 on the chosen cell
+  (contrast.rs pairs added). Rust: `SettingChange::NotificationPosition`, main.slint's
+  `notification-position` set at start and on each change (the balloon on screen moves at once,
+  checked). fmt, clippy, tests pass. Screenshots in the session scratchpad `t073/shots` (four
+  corners at 1280 × 720 dark and 640 × 360 light, the grid, its tooltip, a pick) taken with a
+  temporary `CAPX_DEMO_NOTICE` trigger in `WindowEvent::Focused`, removed. A balloon in the top right
+  covered the settings panel's ×; the maintainer chose (2026-11-10) to draw the balloon under
+  the panel and its backdrop while it is open (spec FR-027 "where" updated; main.slint draws
+  `device-notice` before the settings layer; screenshot `t073/shots/under-panel-dark.png`).
+  Next: **T074** (settings notices in the balloon, FR-033).
 - **T075** (settings panel restyle, FR-034) done, validated by the maintainer from the
   screenshots ("muito bom", 2026-11-10) and committed (`feat: restyle the settings panel`). In
   settings-panel.slint: the column (210 px, compact 64 px) runs the full height on the base tone

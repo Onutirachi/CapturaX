@@ -65,6 +65,21 @@ msgstr "Manter na bandeja ao fechar"
 msgid "Start with the system"
 msgstr "Iniciar com o sistema"
 
+msgid "Notification position"
+msgstr "Posição das notificações"
+
+msgid "Top left"
+msgstr "Superior esquerdo"
+
+msgid "Top right"
+msgstr "Superior direito"
+
+msgid "Bottom left"
+msgstr "Inferior esquerdo"
+
+msgid "Bottom right"
+msgstr "Inferior direito"
+
 msgid "Language"
 msgstr "Idioma"
 

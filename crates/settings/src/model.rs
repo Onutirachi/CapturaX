@@ -28,6 +28,8 @@ pub struct General {
     pub theme: ThemeSetting,
     pub start_fullscreen: bool,
     pub keep_in_tray: bool,
+    /// The corner of the video area the in-app notices show in (device preview FR-032).
+    pub notification_position: NotificationPosition,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -72,6 +74,16 @@ impl Default for WindowSettings {
             monitor: None,
         }
     }
+}
+
+/// A corner of the video area (device preview FR-032).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NotificationPosition {
+    TopLeft,
+    TopRight,
+    #[default]
+    BottomLeft,
+    BottomRight,
 }
 
 /// The `[preview]` table (device preview data-model.md "Settings additions").
@@ -200,6 +212,12 @@ macro_rules! text_values {
     };
 }
 
+text_values!(NotificationPosition {
+    TopLeft = "top-left",
+    TopRight = "top-right",
+    BottomLeft = "bottom-left",
+    BottomRight = "bottom-right"
+});
 text_values!(Presentation { LowestLatency = "lowest-latency", FollowMonitor = "follow-monitor" });
 text_values!(Background { Theme = "theme", Black = "black" });
 text_values!(Shadow { Always = "always", Ambient = "ambient", Off = "off" });
@@ -283,6 +301,9 @@ impl Settings {
                 theme,
                 start_fullscreen: flag(general, "start_fullscreen", defaults.general.start_fullscreen),
                 keep_in_tray: flag(general, "keep_in_tray", defaults.general.keep_in_tray),
+                notification_position: NotificationPosition::parse(
+                    get(general, "notification_position").and_then(Value::as_str),
+                ),
             },
             window: WindowSettings {
                 width: size("width", MIN_WIDTH, defaults.window.width),
@@ -345,6 +366,10 @@ impl Settings {
         general.insert("theme".into(), Value::String(theme.into()));
         general.insert("start_fullscreen".into(), Value::Boolean(self.general.start_fullscreen));
         general.insert("keep_in_tray".into(), Value::Boolean(self.general.keep_in_tray));
+        general.insert(
+            "notification_position".into(),
+            Value::String(self.general.notification_position.as_str().into()),
+        );
 
         let w = &self.window;
         let window = category(table, "window");
@@ -456,6 +481,30 @@ mod tests {
         assert_eq!(s.general.theme, ThemeSetting::Auto);
         assert_eq!((s.window.width, s.window.height), (1280, 720));
         assert_eq!((s.window.x, s.window.y, &s.window.monitor), (None, None, &None));
+        assert_eq!(s.general.notification_position, NotificationPosition::BottomLeft);
+    }
+
+    #[test]
+    fn notification_position_values() {
+        let position = |text: &str| {
+            read(&format!("[general]\nnotification_position = {text}"))
+                .general
+                .notification_position
+        };
+        assert_eq!(position("\"top-left\""), NotificationPosition::TopLeft);
+        assert_eq!(position("\"top-right\""), NotificationPosition::TopRight);
+        assert_eq!(position("\"bottom-left\""), NotificationPosition::BottomLeft);
+        assert_eq!(position("\"bottom-right\""), NotificationPosition::BottomRight);
+        // Unknown or of the wrong type: the default (rule 1).
+        assert_eq!(position("\"middle\""), NotificationPosition::BottomLeft);
+        assert_eq!(position("3"), NotificationPosition::BottomLeft);
+
+        let mut s = Settings::default();
+        s.general.notification_position = NotificationPosition::TopRight;
+        let mut table = Table::new();
+        s.write_into(&mut table);
+        assert_eq!(table["general"]["notification_position"].as_str(), Some("top-right"));
+        assert_eq!(Settings::read(&table, LANGUAGES), s);
     }
 
     #[test]

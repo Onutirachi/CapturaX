@@ -117,6 +117,7 @@ pub enum SettingChange {
     StartFullscreen(bool),
     KeepInTray(bool),
     StartWithSystem(bool),
+    NotificationPosition(settings::NotificationPosition),
     Background(settings::Background),
     Watermark(bool),
     Shadow(settings::Shadow),
@@ -1255,6 +1256,8 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     let general = store.get().general;
     prefs.set_start_fullscreen(general.start_fullscreen);
     prefs.set_keep_in_tray(general.keep_in_tray);
+    prefs.set_notification_position(position_index(general.notification_position));
+    set_notification_position(ui, general.notification_position);
     // Read from the system each time the panel opens: the user may change it in the system's
     // own tools (FR-014b).
     let app = ui.app.as_weak();
@@ -1285,6 +1288,12 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     prefs.on_keep_in_tray_changed(move |v| on(UserEvent::Setting(SettingChange::KeepInTray(v))));
     let on = send.clone();
     prefs.on_start_with_system_changed(move |v| on(UserEvent::Setting(SettingChange::StartWithSystem(v))));
+    let on = send.clone();
+    prefs.on_notification_position_changed(move |index| {
+        on(UserEvent::Setting(SettingChange::NotificationPosition(
+            position_choice(index),
+        )));
+    });
     // Preview (F56–F58): the segments' order is the enums' order.
     let preview = store.get().preview;
     prefs.set_background(match preview.background {
@@ -1318,6 +1327,33 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
         };
         send(UserEvent::Setting(SettingChange::Shadow(shadow)));
     });
+}
+
+/// The notification position's cell in the settings panel's grid (FR-032): top left, top right,
+/// bottom left, bottom right.
+fn position_index(position: settings::NotificationPosition) -> i32 {
+    use settings::NotificationPosition as P;
+    match position {
+        P::TopLeft => 0,
+        P::TopRight => 1,
+        P::BottomLeft => 2,
+        P::BottomRight => 3,
+    }
+}
+
+fn position_choice(index: i32) -> settings::NotificationPosition {
+    use settings::NotificationPosition as P;
+    match index {
+        0 => P::TopLeft,
+        1 => P::TopRight,
+        3 => P::BottomRight,
+        _ => P::BottomLeft,
+    }
+}
+
+/// Places the in-app notices in their corner, at once for one on screen (FR-032).
+fn set_notification_position(ui: &Ui, position: settings::NotificationPosition) {
+    ui.app.set_notification_position(position.as_str().into());
 }
 
 /// The settings panel's Language entries (FR-024): Automatic in the interface's language, then
@@ -1458,6 +1494,10 @@ impl ApplicationHandler<UserEvent> for App {
                     self.apply_theme();
                 }
                 SettingChange::StartFullscreen(on) => self.store.update(|s| s.general.start_fullscreen = on),
+                SettingChange::NotificationPosition(position) => {
+                    self.store.update(|s| s.general.notification_position = position);
+                    set_notification_position(&self.ui, position);
+                }
                 SettingChange::Background(background) => {
                     self.store.update(|s| s.preview.background = background);
                     self.apply_backdrop();

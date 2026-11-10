@@ -115,6 +115,7 @@ pub fn menu_item(item: &crate::preview::Item, texts: &Texts) -> MenuItem {
         tag_kind,
         aspect,
         disabled: item.disabled,
+        ..Default::default()
     }
 }
 

@@ -200,6 +200,17 @@ const PAIRS: &[Pair] = &[
     icon("text-muted", &["top"], "select chevron"),
     icon("text-muted", &["top", "hover"], "select chevron hovered"),
     icon("text-muted", &["top", "press"], "select chevron pressed"),
+    // The notification position's corner icon (FR-032): the frame in the muted tone (as the
+    // chevron above on the select), the mark in the accent text tone, on the select and in its
+    // grid menu.
+    icon("accent-text", &["top"], "corner mark on the select"),
+    icon("accent-text", &["top", "hover"], "corner mark on the select hovered"),
+    icon("text-muted", &["raised"], "corner frame in the grid"),
+    icon("text-muted", &["raised", "hover"], "corner frame in the grid hovered"),
+    icon("text-muted", &["raised", "press"], "corner frame in the grid chosen"),
+    icon("accent-text", &["raised"], "corner mark in the grid"),
+    icon("accent-text", &["raised", "hover"], "corner mark in the grid hovered"),
+    icon("accent-text", &["raised", "press"], "corner mark in the grid chosen"),
     // State message, on the video area's ground; its secondary action is a top surface (listed
     // above) and its primary one the accent.
     text("text", &["deep"], "state message title"),

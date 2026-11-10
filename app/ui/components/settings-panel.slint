@@ -29,6 +29,10 @@ export global Prefs {
     // The chosen entries: of `languages`, and of Automatic, Dark, Light.
     in-out property <int> language;
     in-out property <int> theme;
+    // The corner the in-app notices show in (FR-032), in the grid's order: 0 top left, 1 top
+    // right, 2 bottom left (the default), 3 bottom right.
+    in-out property <int> notification-position: 2;
+    callback notification-position-changed(int);
     // Preview (F56–F58): the video background (0 Theme, 1 Black), the watermark, and the video
     // shadow (0 Always, 1 With ambient light, 2 Off).
     in-out property <int> background;
@@ -232,10 +236,13 @@ component ToggleRow inherits Row {
 }
 
 // One setting with a few choices: its name and a select; a click anywhere on the row opens it.
+// With `icon-only` the select shows the chosen item's icon, its menu a grid `columns` wide.
 component SelectRow inherits Row {
     in property <string> text;
     in property <[MenuItem]> items;
     in-out property <int> current;
+    in property <bool> icon-only;
+    in property <int> columns: 1;
     callback selected(int);
 
     height: max(Rows.height, label.preferred-height + 2 * Theme.gap-m);
@@ -259,7 +266,9 @@ component SelectRow inherits Row {
         select := Select {
             x: parent.width - self.width - Rows.pad;
             y: (parent.height - self.height) / 2;
-            width: min(200px, parent.width / 2);
+            width: root.icon-only ? self.preferred-width : min(200px, parent.width / 2);
+            icon-only: root.icon-only;
+            columns: root.columns;
             label: root.text;
             items: root.items;
             current <=> root.current;
@@ -416,9 +425,40 @@ export component SettingsPanel inherits Raised {
 
             if root.category == Category.general: ToggleRow {
                 text: @tr("Start with the system");
-                last: true;
                 checked <=> Prefs.start-with-system;
                 toggled(on) => { Prefs.start-with-system-changed(on); }
+            }
+
+            // Every corner drawn with the button's icon: the frame and the mark in that corner.
+            if root.category == Category.general: SelectRow {
+                text: @tr("Notification position");
+                last: true;
+                icon-only: true;
+                columns: 2;
+                items: [
+                    {
+                        text: @tr("Top left"),
+                        icon: @image-url("../assets/icons/corner_frame.svg"),
+                        accent: @image-url("../assets/icons/corner_mark_top_left.svg"),
+                    },
+                    {
+                        text: @tr("Top right"),
+                        icon: @image-url("../assets/icons/corner_frame.svg"),
+                        accent: @image-url("../assets/icons/corner_mark_top_right.svg"),
+                    },
+                    {
+                        text: @tr("Bottom left"),
+                        icon: @image-url("../assets/icons/corner_frame.svg"),
+                        accent: @image-url("../assets/icons/corner_mark_bottom_left.svg"),
+                    },
+                    {
+                        text: @tr("Bottom right"),
+                        icon: @image-url("../assets/icons/corner_frame.svg"),
+                        accent: @image-url("../assets/icons/corner_mark_bottom_right.svg"),
+                    },
+                ];
+                current <=> Prefs.notification-position;
+                selected(index) => { Prefs.notification-position-changed(index); }
             }
 
             if root.category == Category.appearance: SelectRow {

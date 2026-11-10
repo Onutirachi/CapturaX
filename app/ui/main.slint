@@ -53,8 +53,8 @@ export component AppWindow inherits Window {
     in property <string> device-notice-device;
     in property <int> device-notice-serial;
     callback device-notice-open(string /* device id */);
-    // The corner notices show in: `top-left`, `top-right`, `bottom-left` or `bottom-right` (a
-    // setting at T073).
+    // The corner notices show in: `top-left`, `top-right`, `bottom-left` or `bottom-right`, set
+    // by Rust from the Notification position setting (FR-032).
     in property <string> notification-position: "bottom-left";
 
     // What the video area shows, set by Rust from the preview (app/src/preview.rs): `playing`
@@ -380,6 +380,23 @@ export component AppWindow inherits Window {
         dismiss => { root.dismiss-notice(); }
     }
 
+    // The device notice balloon, placed by the properties under "Top layer" below. It is drawn
+    // before the settings panel: while the panel is open the balloon stays under it and its
+    // backdrop (FR-027, maintainer, 2026-11-10).
+    device-notice := DeviceNotice {
+        x: root.video-x + root.notice-corner.x + (root.notice-clear-of.x - root.notice-corner.x) * (1 - root.hidden);
+        y: root.video-y + root.notice-corner.y + (root.notice-clear-of.y - root.notice-corner.y) * (1 - root.hidden);
+        room: root.video-width - 2 * root.notice-edge;
+        top: root.notice-top;
+        left: root.notice-left;
+        focusable: !root.settings-open;
+        kind: root.device-notice-kind;
+        text: root.device-notice-text;
+        can-open: root.device-notice-can-open;
+        serial: root.device-notice-serial;
+        open => { root.device-notice-open(root.device-notice-device); }
+    }
+
     // Settings panel layer: a backdrop over the video area dims it and takes every click (a click
     // on it closes the panel); the panel is centered on it, at most 760 × 520, 24 px from the
     // edges (8 px in the compact layout). Taller than the room, its rows scroll.
@@ -405,9 +422,10 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Top layer (device notice, bubble controls, menus, dropdowns, tooltips): drawn last, so nothing covers them
+    // Top layer (bubble controls, menus, dropdowns, tooltips): drawn last, so nothing covers them
     // (FR-010). A menu takes every click while open; a click outside it closes it.
-    // The device notice balloon (FR-027, research R15 "In-app balloon"): in its corner, 20 px from
+    // Where the device notice balloon stands (FR-027, research R15 "In-app balloon"; the balloon is
+    // drawn under the settings panel, above): in its corner, 20 px from
     // the video area's edges, shown also with the controls hidden. While the controls show it keeps
     // clear of them: below the toolbar dock, beside the left dock (8 px), above the bubbles (12 px);
     // in the bottom right it joins the bubble row at the corner when the row has room for it, and
@@ -451,20 +469,6 @@ export component AppWindow inherits Window {
     }
 
     property <NoticeBox> notice-clear-of: root.notice-joins ? root.notice-corner : root.notice-clear(root.notice-corner);
-
-    device-notice := DeviceNotice {
-        x: root.video-x + root.notice-corner.x + (root.notice-clear-of.x - root.notice-corner.x) * (1 - root.hidden);
-        y: root.video-y + root.notice-corner.y + (root.notice-clear-of.y - root.notice-corner.y) * (1 - root.hidden);
-        room: root.video-width - 2 * root.notice-edge;
-        top: root.notice-top;
-        left: root.notice-left;
-        focusable: !root.settings-open;
-        kind: root.device-notice-kind;
-        text: root.device-notice-text;
-        can-open: root.device-notice-can-open;
-        serial: root.device-notice-serial;
-        open => { root.device-notice-open(root.device-notice-device); }
-    }
 
     BubbleControlsLayer {
         x: 0;
