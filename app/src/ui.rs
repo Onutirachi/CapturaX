@@ -182,6 +182,9 @@ pub struct UiImage {
     pub height: u32,
     /// Draw and copy time on the main thread, for the stats.
     pub draw_ms: f64,
+    /// The first image after a language switch whose stages are timed (FR-024): the video
+    /// thread logs its upload and present.
+    pub language: bool,
 }
 
 /// Slint platform: one software-rendered window whose pixels the app composites itself.
@@ -457,6 +460,7 @@ impl Ui {
             width: w,
             height: h,
             draw_ms: started.elapsed().as_secs_f64() * 1e3,
+            language: false,
         })
     }
 

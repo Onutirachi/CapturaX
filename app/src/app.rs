@@ -20,6 +20,7 @@ use crate::icon;
 use crate::latency;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
+use crate::present_log::{self, Event as LogEvent, Stage};
 use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
 use crate::theme::{self, SystemTheme};
@@ -215,6 +216,9 @@ pub struct App {
     /// A language or theme switch waiting for its first UI image (SC-005): the log line's label
     /// and when the switch started.
     switch: Option<(String, Instant)>,
+    /// A language switch whose first UI image is timed by stage (FR-024; `--stats` or
+    /// `--present-log`).
+    language_stages: bool,
     /// The system's theme, for the Automatic setting (FR-017).
     system_theme: Option<SystemTheme>,
     /// The window has the keyboard focus: device notices show in the app, else as system
@@ -344,6 +348,7 @@ impl App {
             snap: None,
             snap_button: None,
             switch: None,
+            language_stages: false,
             system_theme: None,
             proxy: sender,
             exit_code: 0,
@@ -863,6 +868,12 @@ impl App {
     fn apply_language(&mut self, language: &str) {
         let started = Instant::now();
         crate::ui::select_language(language);
+        let stages = self.options.stats || present_log::enabled();
+        if stages {
+            let ms = started.elapsed().as_secs_f64() * 1e3;
+            present_log::stage(Stage::Catalog, ms, self.options.stats);
+        }
+        let catalog_end = Instant::now();
         if let Some(tray) = &self.tray {
             tray.set_labels(&self.tray_labels());
         }
@@ -878,6 +889,11 @@ impl App {
             self.ui.app.set_device_notice_text(text.into());
         }
         self.show_preview_state();
+        if stages {
+            let ms = catalog_end.elapsed().as_secs_f64() * 1e3;
+            present_log::stage(Stage::Property, ms, self.options.stats);
+            self.language_stages = true;
+        }
         self.switch = Some((format!("language switch {language}"), started));
         self.request_redraw();
     }
@@ -1017,7 +1033,13 @@ impl App {
     fn update_ui(&mut self) {
         let Some(video) = &self.video else { return };
         self.ui.update_timers();
-        let image = self.ui.draw_if_needed();
+        let mut image = self.ui.draw_if_needed();
+        if let Some(image) = &mut image
+            && std::mem::take(&mut self.language_stages)
+        {
+            image.language = true;
+            present_log::stage(Stage::Draw, image.draw_ms, self.options.stats);
+        }
         let size = self.ui.size();
         let scene = Scene {
             video: self.ui.video_area(),
@@ -1109,6 +1131,7 @@ impl App {
 
     /// Asks the system for the change; see [`Self::set_fullscreen`].
     fn apply_fullscreen(&mut self, w: &Window, on: bool) {
+        present_log::event(LogEvent::Fullscreen(on));
         self.leave_fullscreen_at = None;
         if on {
             platform::set_fullscreen_frame(w, true);
@@ -1640,6 +1663,7 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             WindowEvent::CloseRequested => self.close(event_loop),
             WindowEvent::Focused(focused) => {
+                present_log::event(LogEvent::Focus(focused));
                 self.focused = focused;
                 // Where minimizing cannot be read (Wayland), focus is the sign the window is back.
                 if focused {

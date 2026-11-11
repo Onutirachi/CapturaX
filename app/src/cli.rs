@@ -1,5 +1,7 @@
 //! Command line (contracts/cli.md): start options for users, developer options for measurements.
 
+use std::path::PathBuf;
+
 use clap::{Parser, ValueEnum};
 
 /// Exit code for an invalid command line.
@@ -35,6 +37,10 @@ struct Args {
     /// Developer: list the capture devices with their modes, then exit
     #[arg(long)]
     list_devices: bool,
+
+    /// Developer: write the present log (acquire, present, window events) to this file
+    #[arg(long, value_name = "FILE")]
+    present_log: Option<PathBuf>,
 
     /// Developer: force the graphics backend
     #[arg(long, value_enum)]
@@ -86,6 +92,7 @@ pub struct StartupOptions {
     pub test_video: Option<VideoSize>,
     pub stats: bool,
     pub list_devices: bool,
+    pub present_log: Option<PathBuf>,
     pub backend: Option<Backend>,
     pub present: Option<PresentMode>,
     pub lang: Option<String>,
@@ -140,6 +147,7 @@ where
         test_video: args.test_video,
         stats: args.stats,
         list_devices: args.list_devices,
+        present_log: args.present_log,
         backend: args.backend,
         present: args.present,
         lang: args.lang,
@@ -239,6 +247,12 @@ mod tests {
         assert_eq!(run(&["--present", "fifo"]).unwrap().present, Some(PresentMode::Fifo));
         assert_eq!(run(&["--backend", "metal"]).unwrap_err().code, EXIT_USAGE);
         assert_eq!(run(&["--present", "vsync"]).unwrap_err().code, EXIT_USAGE);
+        assert_eq!(o.present_log, None);
+        assert_eq!(
+            run(&["--present-log", "pm log.txt"]).unwrap().present_log,
+            Some(PathBuf::from("pm log.txt"))
+        );
+        assert_eq!(run(&["--present-log"]).unwrap_err().code, EXIT_USAGE);
     }
 
     #[test]

@@ -9,6 +9,7 @@ mod latency;
 mod log;
 mod notices;
 mod placement;
+mod present_log;
 mod preview;
 mod render;
 mod shadows;
@@ -113,6 +114,16 @@ fn run() -> i32 {
         store.save_soon();
     }
     follow_autostart();
+    // After the instance claim: a second start must not empty the running one's log.
+    if let Some(path) = &options.present_log
+        && let Err(err) = present_log::start(path)
+    {
+        let message = format!("present log {}: {err}", path.display());
+        ::log::error!("{message}");
+        eprintln!("{message}");
+        ::log::logger().flush();
+        return cli::EXIT_USAGE;
+    }
 
     let code = match start(options, process_start, store, instance, language, notices) {
         Ok(code) => code,

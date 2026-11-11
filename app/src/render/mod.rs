@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use winit::window::Window;
 
 use crate::cli::{Backend, PresentMode};
+use crate::present_log::Stage;
 use crate::stats::{Stats, Summary};
 use crate::ui::UiImage;
 
@@ -475,6 +476,8 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
     let mut fade: Option<Fade> = None;
     let mut video_session: Option<u64> = None;
     let mut last_present: Option<Instant> = None;
+    // A language switch's UI image was uploaded then: its present ends the switch's last stage.
+    let mut language_upload: Option<Instant> = None;
     loop {
         // Follow the monitor (research R9): the surface follows the setting, and while a video
         // shows the loop is paced by the swap chain: acquire first (it blocks until about the next
@@ -623,8 +626,14 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
             performance = None;
         }
         if let Some(ui) = ui {
+            let start = Instant::now();
             gpu.set_ui(&ui);
             stats.ui_image(ui.draw_ms);
+            if ui.language {
+                let ms = start.elapsed().as_secs_f64() * 1e3;
+                crate::present_log::stage(Stage::Upload, ms, lines);
+                language_upload = Some(Instant::now());
+            }
         }
         // Nothing to draw until the main thread has handed over the first scene.
         let Some(scene) = scene.filter(|_| present) else {
@@ -656,6 +665,10 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         if gpu.render(acquired, &scene, opacity) {
             if repeat {
                 stats.repeated();
+            }
+            if let Some(upload) = language_upload.take() {
+                let ms = upload.elapsed().as_secs_f64() * 1e3;
+                crate::present_log::stage(Stage::Present, ms, lines);
             }
             if let Some(process_start) = first_present.take() {
                 log::info!(

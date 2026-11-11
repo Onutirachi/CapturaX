@@ -33,4 +33,16 @@ event	123456800000	fullscreen=true
 stage	123456810000	language=catalog	0.4
 ```
 
-`stage` lines give the per-stage timing of a language switch in ms (FR-024).
+- `acquire`: just before asking the swap chain for an image, so a blocking acquire shows as the
+  time to the next `present`.
+- `present`: when the present returned; `frame` counts the video thread's presents from 1.
+- `event`: when the window gains or loses focus, and when the app asks to enter or leave
+  fullscreen.
+- `stage`: the per-stage timing of a language switch in ms (FR-024), written when the stage ends:
+  `catalog` (selecting the catalog), `property` (the new texts to Slint, the tray and the title),
+  `draw` (the first UI image after the switch, main thread), `upload` (that image, video thread),
+  `present` (from that upload to the return of the present that shows it).
+
+The file is created or emptied at start, after the single-instance check; if it cannot be
+created the app exits with code 64. With `--stats` the stages are also printed as
+`[language] stage=catalog ms=0.4`.

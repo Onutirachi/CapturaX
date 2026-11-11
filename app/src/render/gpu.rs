@@ -230,6 +230,8 @@ pub struct Gpu {
     follow: bool,
     /// The adapter's PCI bus id when the backend gives one (e.g. `0000:01:00.0`).
     pci_bus_id: Option<String>,
+    /// Presents so far, for the present log's `frame`.
+    presents: u64,
 }
 
 /// The present mode's name in the `[present]` line.
@@ -404,6 +406,7 @@ impl Gpu {
             adapter,
             mode,
             follow: false,
+            presents: 0,
             pci_bus_id: None,
         }
     }
@@ -434,6 +437,7 @@ impl Gpu {
     /// The next surface image; `None` when the surface is not ready (it is configured again).
     /// In Fifo this blocks until about the next refresh.
     pub fn acquire(&mut self) -> Option<wgpu::SurfaceTexture> {
+        crate::present_log::acquire();
         match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => Some(t),
             _ => {
@@ -690,6 +694,8 @@ impl Gpu {
         }
         self.queue.submit([encoder.finish()]);
         self.queue.present(frame);
+        self.presents += 1;
+        crate::present_log::present(self.presents);
         true
     }
 }
