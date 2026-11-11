@@ -121,6 +121,7 @@ pub enum SettingChange {
     Background(settings::Background),
     Watermark(bool),
     Shadow(settings::Shadow),
+    Presentation(settings::Presentation),
     /// A bubble's display (FR-016a, FR-017), chosen from its menu.
     LatencyDisplay(settings::LatencyDisplay),
     FpsDisplay(settings::FpsDisplay),
@@ -296,6 +297,9 @@ impl App {
             ))));
         });
         bind_prefs(&ui, &store, send);
+        // The Presentation setting reaches the video thread before it starts (FR-022).
+        let inbox = Arc::new(Inbox::default());
+        inbox.set_presentation(store.get().preview.presentation);
         Self {
             options,
             process_start,
@@ -307,7 +311,7 @@ impl App {
             device_notice_serial: 0,
             window: None,
             video: None,
-            inbox: Arc::new(Inbox::default()),
+            inbox,
             video_started: false,
             window_gone: false,
             reopen_fullscreen: false,
@@ -1326,6 +1330,10 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
         settings::Shadow::Ambient => 1,
         settings::Shadow::Off => 2,
     });
+    prefs.set_presentation(match preview.presentation {
+        settings::Presentation::LowestLatency => 0,
+        settings::Presentation::FollowMonitor => 1,
+    });
     let on = send.clone();
     prefs.on_background_changed(move |index| {
         let background = if index == 1 {
@@ -1337,13 +1345,22 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     });
     let on = send.clone();
     prefs.on_watermark_changed(move |v| on(UserEvent::Setting(SettingChange::Watermark(v))));
+    let on = send.clone();
     prefs.on_shadow_changed(move |index| {
         let shadow = match index {
             0 => settings::Shadow::Always,
             2 => settings::Shadow::Off,
             _ => settings::Shadow::Ambient,
         };
-        send(UserEvent::Setting(SettingChange::Shadow(shadow)));
+        on(UserEvent::Setting(SettingChange::Shadow(shadow)));
+    });
+    prefs.on_presentation_changed(move |index| {
+        let presentation = if index == 1 {
+            settings::Presentation::FollowMonitor
+        } else {
+            settings::Presentation::LowestLatency
+        };
+        send(UserEvent::Setting(SettingChange::Presentation(presentation)));
     });
 }
 
@@ -1528,6 +1545,11 @@ impl ApplicationHandler<UserEvent> for App {
                 SettingChange::Shadow(shadow) => {
                     self.store.update(|s| s.preview.shadow = shadow);
                     self.apply_backdrop();
+                }
+                // Applies at once, without reopening the device (FR-022).
+                SettingChange::Presentation(presentation) => {
+                    self.store.update(|s| s.preview.presentation = presentation);
+                    self.inbox.set_presentation(presentation);
                 }
                 SettingChange::LatencyDisplay(display) => {
                     self.store.update(|s| s.overlay.latency = display);

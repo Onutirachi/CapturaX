@@ -75,7 +75,7 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
      and the balloon says "connected" with no **Open**;
    - settings notices (FR-033): make the folder read-only (or damage the settings file) and start
      → the balloon with the warning icon, the whole text wrapped, staying until closed.
-5. **US5**: Settings → Video → Presentation: Follow the monitor → on the G-SYNC monitor the
+5. **US5**: Settings → Preview → Presentation: Follow the monitor → on the G-SYNC monitor the
    cursor stays smooth with the app focused; `--stats` header `mode=fifo-follow`, `rep` > 0;
    back to Lowest latency → `mode=mailbox`; the device is not reopened (no Opening state).
 6. Close to the tray → the webcam's light turns off; show the window → it reopens. Minimize and

@@ -245,6 +245,18 @@ msgstr "Com luz ambiente"
 msgid "Off"
 msgstr "Desligada"
 
+msgid "Presentation"
+msgstr "Apresentação"
+
+msgid "Lowest latency"
+msgstr "Menor latência"
+
+msgid "Follow the monitor"
+msgstr "Seguir o monitor"
+
+msgid "Only matters with variable refresh (G-SYNC, FreeSync)"
+msgstr "Só faz diferença com taxa de atualização variável (G-SYNC, FreeSync)"
+
 msgid "Latency"
 msgstr "Latência"
 

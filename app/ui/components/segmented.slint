@@ -11,6 +11,8 @@ export component Segmented inherits Rectangle {
     in-out property <int> current;
     // The setting's name, for screen readers.
     in property <string> label;
+    // A longer explanation (the row's tooltip), for screen readers.
+    in property <string> description;
     // False keeps it out of the Tab order.
     in property <bool> focusable: true;
     out property <bool> has-focus: focus.has-focus;
@@ -28,6 +30,7 @@ export component Segmented inherits Rectangle {
     background: Theme.c.base;
     accessible-role: radio-group;
     accessible-label: root.label;
+    accessible-description: root.description;
 
     forward-focus: focus;
 

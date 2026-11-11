@@ -38,9 +38,12 @@ export global Prefs {
     in-out property <int> background;
     in-out property <bool> watermark: true;
     in-out property <int> shadow: 0;
+    // Presentation (FR-022): 0 Lowest latency (the default), 1 Follow the monitor.
+    in-out property <int> presentation: 0;
     callback background-changed(int);
     callback watermark-changed(bool);
     callback shadow-changed(int);
+    callback presentation-changed(int);
     callback start-fullscreen-changed(bool);
     callback keep-in-tray-changed(bool);
     callback start-with-system-changed(bool);
@@ -279,11 +282,47 @@ component SelectRow inherits Row {
 
 // One setting with two or three short choices: its name and a segmented control (FR-031); the
 // control goes under the name when both do not fit on one line. Only a click on a segment picks.
+// A `tooltip` shows over the name after 500 ms of hover on the row, or at once when the control
+// takes the keyboard focus.
 component SegmentedRow inherits Row {
     in property <string> text;
     in property <[string]> options;
     in-out property <int> current;
+    in property <string> tooltip;
     callback selected(int);
+
+    // The token of the tooltip shown, 0 when none.
+    property <int> tip;
+    // Its tooltip still shows: a size change or another control's tooltip hides it without telling.
+    property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
+    property <bool> wants-tip: root.tooltip != "" && (area.has-hover || (segmented.has-focus && Input.keyboard));
+
+    function show-tip() {
+        root.tip = Tooltips.show(root.tooltip, Side.top,
+            label.absolute-position.x, label.absolute-position.y, label.width, label.height);
+    }
+
+    // A language switch changes the text of a tooltip that shows (FR-024).
+    changed tooltip => {
+        if (root.tip-shown) {
+            root.show-tip();
+        }
+    }
+
+    changed wants-tip => {
+        if (!self.wants-tip) {
+            Tooltips.hide(root.tip);
+            root.tip = 0;
+        } else if (segmented.has-focus && !area.has-hover) {
+            root.show-tip();
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: area.has-hover && !root.tip-shown && root.wants-tip;
+        triggered => { root.show-tip(); }
+    }
 
     property <bool> stacked: label.preferred-width + segmented.preferred-width + 2 * Rows.pad + Theme.gap-m > root.width;
 
@@ -307,6 +346,7 @@ component SegmentedRow inherits Row {
             y: root.stacked ? label.y + label.height + Theme.gap-m : (parent.height - self.height) / 2;
             width: min(self.preferred-width, parent.width - 2 * Rows.pad);
             label: root.text;
+            description: root.tooltip;
             options: root.options;
             current <=> root.current;
             selected(index) => { root.selected(index); }
@@ -491,10 +531,18 @@ export component SettingsPanel inherits Raised {
 
             if root.category == Category.preview: SegmentedRow {
                 text: @tr("Video shadow");
-                last: true;
                 options: [@tr("Always"), @tr("With ambient light"), @tr("Off")];
                 current <=> Prefs.shadow;
                 selected(index) => { Prefs.shadow-changed(index); }
+            }
+
+            if root.category == Category.preview: SegmentedRow {
+                text: @tr("Presentation");
+                last: true;
+                options: [@tr("Lowest latency"), @tr("Follow the monitor")];
+                tooltip: @tr("Only matters with variable refresh (G-SYNC, FreeSync)");
+                current <=> Prefs.presentation;
+                selected(index) => { Prefs.presentation-changed(index); }
             }
 
             if root.category == Category.about: VerticalLayout {

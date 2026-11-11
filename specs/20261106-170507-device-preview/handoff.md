@@ -573,6 +573,24 @@ Nothing pushed.
 
 ## Next step
 
+- **T048** (Presentation row, 2026-11-10) done, validated by the maintainer on Windows
+  (2026-11-11: Follow the monitor makes a visible difference on the G-SYNC monitor) and committed
+  (`feat: add presentation setting`). settings-panel.slint: `Prefs.presentation` (0 Lowest latency, 1 Follow the monitor)
+  and `presentation-changed`; the Preview category's last row is a `SegmentedRow` "Presentation"
+  (Video shadow no longer `last`); `SegmentedRow` gained `tooltip`: shown over the row's name
+  (Side.top) after 500 ms of hover anywhere on the row, or at once when the control takes the
+  keyboard focus, redone on a language switch; `Segmented.description` → `accessible-description`.
+  pt-BR: Apresentação, Menor latência, Seguir o monitor, "Só faz diferença com taxa de atualização
+  variável (G-SYNC, FreeSync)" (agent's wording, maintainer to confirm). app.rs:
+  `SettingChange::Presentation` → `store.update` + `Inbox::set_presentation`; the inbox gets the
+  saved value in `App::new`, before the video thread starts (`dead_code` allow removed). fmt,
+  clippy, tests pass. Smoke run (scratchpad copy, saved `follow-monitor`, test video 1920x1080@30,
+  144 Hz): `mode=mailbox` at start, `mode=fifo-follow` once shown, `pres=30 rep≈115`, `lat_ms`
+  ≈ 5. To check by hand: switching in the panel both ways (header printed again, no Opening), the
+  tooltip (hover, keyboard), the row stacked at 640 × 360. Release rebuilt 18:29. Next: **T049**
+  (US5 acceptance: Windows G-SYNC with `--stats` for `mode=fifo-follow`, `rep` > 0 and back to
+  `mode=mailbox`, then CachyOS), recorded in measurements/acceptance.md.
+
 - **T047** (Follow the monitor loop, 2026-11-10) done; fmt, clippy and tests pass; committed
   without a manual check, since nothing turns Follow on before T048 (`feat: add the follow the
   monitor loop`; maintainer agreed, including the R9 change below). gpu.rs: `set_follow` (Fifo, or back to the start mode), `acquire`

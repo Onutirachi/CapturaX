@@ -197,7 +197,6 @@ impl Inbox {
 
     /// From the main thread: the Presentation setting (FR-022, research R9). The video thread
     /// reconfigures the surface on its next turn; the session is not touched.
-    #[allow(dead_code, reason = "wired to the settings panel in T048")]
     pub fn set_presentation(&self, presentation: settings::Presentation) {
         self.lock().follow = presentation == settings::Presentation::FollowMonitor;
         self.wake.notify_one();
