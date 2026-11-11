@@ -286,3 +286,30 @@ tray icon; the agent drove the rest over SSH and read the log.
 Seen, not the app's: the C920 sometimes resets itself on its first stream after being plugged in
 (`device firmware changed`, a USB disconnect and reconnect within 2.3 s); the app showed
 "disconnected", then "reconnected", and played 3.4 s after the click.
+
+## US5 (T049)
+
+"Manual acceptance" 5: the Presentation setting (Settings → Preview). Logs in
+[raw/t049/](raw/t049/).
+
+### Windows 11 — 2026-11-11
+
+Pass (maintainer). Release build of `e466c04`, Direct3D 12, the C24FG7x with G-SYNC. With
+**Follow the monitor** and the app focused the maintainer saw the difference on the monitor
+(the cursor smooth). `--stats` (`windows.txt`, 640 × 360 window, a 60 FPS source): the header
+`mode=fifo-follow` on the switch, then `pres=60` and `rep=84` a second (the monitor running above
+the source's rate), `lat_ms` median 6.2–6.3 against 2.4–2.7 in Mailbox; back to Lowest latency
+the header `mode=mailbox` and `rep=0`. No Opening state, no session change on either switch.
+Seen: each switch costs one late present (switch to Follow `gap_ms` 63.7; back to Mailbox
+`ready_ms` max 59.4, `gap_ms` 48.9), the surface being reconfigured; only on the switch.
+
+### CachyOS KDE Plasma Wayland — 2026-11-11
+
+Pass (maintainer). Release build of `e466c04` in `~/capx/batch`, Vulkan, RTX 3050, the monitor at
+119.88 Hz without variable refresh; the loopback camera ("Virtual Cam", 2560 × 1080 at 60).
+`--stats` in a Konsole (`cachyos.txt`): the header `mode=fifo-follow` on the switch, then
+`pres=60 rep=54–61` a second (one repeat per frame at 119.88 Hz), `lat_ms` median 19.7–24.6
+against 18.9–19.0 in Mailbox (the loopback camera's `lat_ms` includes its feeder); back to Lowest
+latency `mode=mailbox`, `rep=0` from the next second. No Opening state, no session change, no late
+present on either switch (`gap_ms` max 25.7). Without variable refresh the cursor shows no
+difference here, as expected.

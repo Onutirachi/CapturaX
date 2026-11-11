@@ -587,9 +587,13 @@ Nothing pushed.
   clippy, tests pass. Smoke run (scratchpad copy, saved `follow-monitor`, test video 1920x1080@30,
   144 Hz): `mode=mailbox` at start, `mode=fifo-follow` once shown, `pres=30 rep≈115`, `lat_ms`
   ≈ 5. To check by hand: switching in the panel both ways (header printed again, no Opening), the
-  tooltip (hover, keyboard), the row stacked at 640 × 360. Release rebuilt 18:29. Next: **T049**
-  (US5 acceptance: Windows G-SYNC with `--stats` for `mode=fifo-follow`, `rep` > 0 and back to
-  `mode=mailbox`, then CachyOS), recorded in measurements/acceptance.md.
+  tooltip (hover, keyboard), the row stacked at 640 × 360. Release rebuilt 18:29.
+- **T049** (US5 acceptance) passed on Windows (G-SYNC) and CachyOS (2026-11-11,
+  measurements/acceptance.md "US5", logs in raw/t049/). US5 is done. Seen on Windows only: each
+  switch costs one late present (50–64 ms), the surface being reconfigured; not on CachyOS.
+  CachyOS: the app runs from `~/capx/batch` (build `e466c04`) in a Konsole with `--stats`; the
+  clone is on a detached `e466c04`. Next: the rest of the Linux batch (T034, T040 need the ezcap
+  at the CachyOS PC) or Phase 8 (T050–T054).
 
 - **T047** (Follow the monitor loop, 2026-11-10) done; fmt, clippy and tests pass; committed
   without a manual check, since nothing turns Follow on before T048 (`feat: add the follow the
