@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, GetMonitorInfoW, HMONITOR, MONITORINFO};
 use windows_sys::Win32::Media::{TIMERR_NOERROR, timeBeginPeriod, timeEndPeriod};
+use windows_sys::Win32::System::Performance::QueryPerformanceCounter;
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION,
     PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling, SetProcessInformation,
@@ -25,8 +26,25 @@ pub mod instance;
 pub mod notify;
 mod registry;
 pub mod snap;
+pub use snap::{arranged_rect, set_outer_rect};
 pub mod theme;
 pub mod tray;
+
+pub fn qpc() -> i64 {
+    let mut count = 0;
+    // SAFETY: the out pointer is to a local. The call cannot fail on Windows XP and later.
+    unsafe { QueryPerformanceCounter(&mut count) };
+    count
+}
+
+/// The window's native handle; None if winit gives no Win32 handle.
+fn hwnd(window: &Window) -> Option<HWND> {
+    let handle = window.window_handle().ok()?;
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return None;
+    };
+    Some(handle.hwnd.get() as HWND)
+}
 
 pub fn app_folder() -> Option<PathBuf> {
     super::exe_folder()

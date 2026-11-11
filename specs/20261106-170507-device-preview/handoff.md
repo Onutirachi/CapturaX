@@ -1,6 +1,6 @@
 # Handoff: Device Preview
 
-**Updated**: 2026-11-10 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
+**Updated**: 2026-11-11 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
 
 ## State
 
@@ -572,6 +572,18 @@ Nothing pushed.
   whether it keeps showing the failed device is for T043/T045.
 
 ## Next step
+
+- **T050** (Phase 8, 2026-11-11) done; fmt, clippy (also `--target x86_64-unknown-linux-gnu`
+  for the platform crate) and tests pass; committed without a manual check (nothing calls it
+  before T051 and T054): `feat: add the present log clock and the snapped place`. platform:
+  `Rect` (outer rectangle, physical, desktop coordinates), `qpc()` (Windows
+  `QueryPerformanceCounter`, new `windows-sys` feature `Win32_System_Performance`; Linux
+  `clock_gettime(CLOCK_MONOTONIC)` declared in linux/mod.rs rather than adding `libc`, 64-bit
+  `timespec`), `arranged_rect` (windows/snap.rs: `IsWindowArranged` → `GetWindowRect`; Linux
+  None), `set_outer_rect` (`SetWindowPos` `SWP_NOZORDER | SWP_NOACTIVATE`; Linux no-op);
+  windows/mod.rs gained a private `hwnd(window)` helper. Next: **T051** (`--present-log`, the
+  writer thread, the language-switch stages), then T052 (maintainer, PresentMon matrix), or
+  **T054** (snapped fullscreen return, only needs T050).
 
 - **T048** (Presentation row, 2026-11-10) done, validated by the maintainer on Windows
   (2026-11-11: Follow the monitor makes a visible difference on the G-SYNC monitor) and committed
