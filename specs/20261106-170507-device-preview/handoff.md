@@ -573,6 +573,35 @@ Nothing pushed.
 
 ## Next step
 
+- **T054** (snapped fullscreen return, 2026-11-11) written, **not committed: waiting for the
+  maintainer's check** (quickstart Manual acceptance 7: snap to the left half, F11, F11 → back in
+  the left half; also check a maximized and a plain window still come back as before). app.rs:
+  `snapped_rect` kept in `apply_fullscreen(on)` from `platform::arranged_rect` (only when not
+  already fullscreen), put back with `platform::set_outer_rect` right after
+  `set_fullscreen(None)` and `set_fullscreen_frame(false)` (winit's restore runs synchronously
+  on the event loop thread, checked in winit 0.30.13 `execute_in_thread`); cleared in
+  `destroy_window`. Release in `targetelease` has T051 and T054. Commit after the check:
+  `fix: return fullscreen to the snapped place` (or `feat:`).
+- **T051** (present log, 2026-11-11) done; fmt, clippy, tests pass; committed (`feat: add the
+  present log`, dev-only option, nothing visible). New `app/src/present_log.rs`: a global
+  `OnceLock<Sender<Line>>`, writer thread `present-log` flushing whenever the channel is empty;
+  `acquire` logged at the start of `Gpu::acquire` (both paths go through it), `present` after
+  `queue.present` with the video thread's present count; `event` focus (`WindowEvent::Focused`)
+  and fullscreen (`apply_fullscreen`, the request); language stages in app.rs
+  `apply_language`/`update_ui` (the switch lives in app.rs, not in ui.rs and main.rs as the task
+  said) and in render/mod.rs (`UiImage::language` marks the first image after a switch:
+  `upload` = `gpu.set_ui`, `present` = upload → present return). With `--stats` the stages also
+  print `[language] stage=<s> ms=<ms>`. File created after the single-instance claim; failure →
+  exit 64. contracts/stats.md "Present log" now says when each line is stamped. Smoke run (test
+  video 1080p60, 5 s): 189 acquire + 189 present lines; bad path → exit 64. Not yet seen: focus
+  events and stage lines (the scripted window gets no focus; switching the language needs the
+  panel), first seen in T052.
+- **Next: T052** (maintainer, quickstart.md "Windows stalls", research R8): PresentMon 2.3.1
+  elevated with `--present-log`, the matrix (G-SYNC off for capturax.exe, MPO off
+  `OverlayTestMode=5` + reboot, `OverlayMinFPS=0`, `WGPU_DX12_PRESENTATION_SYSTEM=visual`), ten
+  focus changes, ten fullscreen entries and exits, 30 s idle fullscreen, ten language switches;
+  the agent matches `CPUStartQPC` with the log and writes measurements/stalls.md.
+
 - **T050** (Phase 8, 2026-11-11) done; fmt, clippy (also `--target x86_64-unknown-linux-gnu`
   for the platform crate) and tests pass; committed without a manual check (nothing calls it
   before T051 and T054): `feat: add the present log clock and the snapped place`. platform:
