@@ -17,7 +17,7 @@ mod stats;
 mod theme;
 mod ui;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use slint::Global;
 use winit::event_loop::EventLoop;
@@ -133,6 +133,7 @@ fn run() -> i32 {
             1
         }
     };
+    render::flush_stats(Duration::from_secs(1));
     ::log::logger().flush();
     code
 }

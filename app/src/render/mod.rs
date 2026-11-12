@@ -6,7 +6,8 @@
 mod gpu;
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::mpsc::{self, Sender};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -524,6 +525,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         let paced = acquired.is_some();
         // Handed over outside the lock.
         let mut second: Option<Summary> = None;
+        let mut lines_due: Vec<String> = Vec::new();
         let (frame, ui, present, wants_performance) = {
             let mut state = inbox.lock();
             let present = loop {
@@ -533,7 +535,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                 stats.window_moved(std::mem::take(&mut state.moves));
                 if let Some(report) = stats.report(now) {
                     if let Some(line) = &report.line {
-                        print_stats(line);
+                        lines_due.push(line.clone());
                     }
                     if report.summary != Summary::EMPTY || last_summary != Summary::EMPTY {
                         last_summary = report.summary;
@@ -594,6 +596,8 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                 };
             };
             if state.stop {
+                drop(state);
+                lines_due.iter().for_each(|line| print_stats(line));
                 return;
             }
             let frame = if present {
@@ -619,6 +623,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
             }
             (frame, state.ui.take(), present, state.wants_performance())
         };
+        lines_due.iter().for_each(|line| print_stats(line));
         if let Some(summary) = second {
             on_second(summary);
         }
@@ -687,8 +692,62 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
     }
 }
 
-/// `--stats` output goes to stdout and the log (contracts/cli.md).
+/// What the stats writer thread is handed.
+enum StatsOut {
+    Line(String),
+    /// Answered once every line handed over before it is written.
+    Flush(mpsc::SyncSender<()>),
+}
+
+/// The stats writer, started on the first line; `None` when its thread could not start.
+static STATS_WRITER: OnceLock<Option<Sender<StatsOut>>> = OnceLock::new();
+
+/// `--stats` output goes to stdout and the log (contracts/cli.md), written by a thread of its own:
+/// a slow disk must not hold the caller, the video thread above all (measurements/stalls.md).
 pub fn print_stats(line: &str) {
+    match stats_writer() {
+        Some(writer) if writer.send(StatsOut::Line(line.to_owned())).is_ok() => {}
+        _ => write_stats(line),
+    }
+}
+
+/// Waits up to `limit` for the stats lines handed over so far to be written (before exiting).
+pub fn flush_stats(limit: Duration) {
+    if let Some(Some(writer)) = STATS_WRITER.get() {
+        let (done, wait) = mpsc::sync_channel(1);
+        if writer.send(StatsOut::Flush(done)).is_ok() {
+            let _ = wait.recv_timeout(limit);
+        }
+    }
+}
+
+fn stats_writer() -> Option<&'static Sender<StatsOut>> {
+    STATS_WRITER
+        .get_or_init(|| {
+            let (send, receive) = mpsc::channel();
+            let spawned = std::thread::Builder::new().name("stats".into()).spawn(move || {
+                for out in receive {
+                    match out {
+                        StatsOut::Line(line) => write_stats(&line),
+                        StatsOut::Flush(done) => {
+                            let _ = std::io::Write::flush(&mut std::io::stdout());
+                            let _ = done.send(());
+                        }
+                    }
+                }
+            });
+            match spawned {
+                Ok(_) => Some(send),
+                Err(err) => {
+                    log::warn!("stats writer: {err}; lines written by the caller");
+                    None
+                }
+            }
+        })
+        .as_ref()
+}
+
+fn write_stats(line: &str) {
     println!("{line}");
     log::info!("{line}");
 }
