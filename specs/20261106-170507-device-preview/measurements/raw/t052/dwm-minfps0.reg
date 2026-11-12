@@ -1,0 +1,6 @@
+Windows Registry Editor Version 5.00
+
+; T052: DWM never demotes a window from its overlay plane for a low frame rate. Reboot after.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Dwm]
+"OverlayMinFPS"=dword:00000000
+"OverlayTestMode"=-

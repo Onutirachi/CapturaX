@@ -573,15 +573,16 @@ Nothing pushed.
 
 ## Next step
 
-- **T054** (snapped fullscreen return, 2026-11-11) written, **not committed: waiting for the
-  maintainer's check** (quickstart Manual acceptance 7: snap to the left half, F11, F11 → back in
-  the left half; also check a maximized and a plain window still come back as before). app.rs:
-  `snapped_rect` kept in `apply_fullscreen(on)` from `platform::arranged_rect` (only when not
-  already fullscreen), put back with `platform::set_outer_rect` right after
-  `set_fullscreen(None)` and `set_fullscreen_frame(false)` (winit's restore runs synchronously
-  on the event loop thread, checked in winit 0.30.13 `execute_in_thread`); cleared in
-  `destroy_window`. Release in `targetelease` has T051 and T054. Commit after the check:
-  `fix: return fullscreen to the snapped place` (or `feat:`).
+- **Next: T053**: (1) `print_stats` out of the inbox lock, lines to a writer thread; (2) the
+  fullscreen exit stall: see whether the app's part (hold for the new size, present blocking
+  30-48 ms at the switch) can be shortened, update research R8 first; otherwise record it as
+  the system's and bring it to the maintainer.
+- **T054** (snapped fullscreen return, 2026-11-11) validated by the maintainer (left half,
+  maximized and plain window all come back) and committed (`fix: return fullscreen to the
+  snapped place`). app.rs: `snapped_rect` kept in `apply_fullscreen(on)` from
+  `platform::arranged_rect` (only when not already fullscreen), put back with
+  `platform::set_outer_rect` right after `set_fullscreen(None)` (winit's restore runs
+  synchronously on the event loop thread, winit 0.30.13); cleared in `destroy_window`.
 - **T051** (present log, 2026-11-11) done; fmt, clippy, tests pass; committed (`feat: add the
   present log`, dev-only option, nothing visible). New `app/src/present_log.rs`: a global
   `OnceLock<Sender<Line>>`, writer thread `present-log` flushing whenever the channel is empty;
@@ -596,7 +597,19 @@ Nothing pushed.
   video 1080p60, 5 s): 189 acquire + 189 present lines; bad path → exit 64. Not yet seen: focus
   events and stage lines (the scripted window gets no focus; switching the language needs the
   panel), first seen in T052.
-- **Next: T052** (maintainer, quickstart.md "Windows stalls", research R8): PresentMon 2.3.1
+- **T052 done (2026-11-11), accepted by the maintainer and committed** (`docs: record
+  presentation stall investigation`): measurements/stalls.md (conclusion there) and raw/t052/
+  (analyses, steps, `--stats` output, scripts, `notes.md`). Findings: focus changes, language switches and idle fullscreen have no stall; the
+  one left in every config is the fullscreen **exit**, 51-90 ms in 3-9 of 11, one dropped
+  present (Independent Flip -> Composed: Flip -> Independent Flip; no DWM key, G-SYNC off or
+  `visual` removes it; around it the present calls block 30-48 ms besides the app's own hold for
+  the new size). MPO off adds ~10 ms windowed (Composed: Flip): no user workaround to recommend.
+  The early random 130-720 ms stalls were the app's `--stats` writes (stdout + capturax.log on
+  the video thread inside the inbox lock, D: an HDD): confirmed by hdd-d / hdd-c. Working files
+  stay in `target/t052/` (PresentMon CSVs, present logs) and the copy `C:\capx-t052` (exe,
+  drive.ps1); the DWM keys are back to default (dwm-default.reg + reboot 20:52). The CachyOS PC
+  feeding the ezcap was inhibited from sleeping until ~22:30.
+- **T052 plan** (maintainer, quickstart.md "Windows stalls", research R8): PresentMon 2.3.1
   elevated with `--present-log`, the matrix (G-SYNC off for capturax.exe, MPO off
   `OverlayTestMode=5` + reboot, `OverlayMinFPS=0`, `WGPU_DX12_PRESENTATION_SYSTEM=visual`), ten
   focus changes, ten fullscreen entries and exits, 30 s idle fullscreen, ten language switches;

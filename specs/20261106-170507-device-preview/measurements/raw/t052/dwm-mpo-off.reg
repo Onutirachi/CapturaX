@@ -1,0 +1,6 @@
+Windows Registry Editor Version 5.00
+
+; T052: turn multiplane overlay (MPO) off. Reboot after.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Dwm]
+"OverlayTestMode"=dword:00000005
+"OverlayMinFPS"=-

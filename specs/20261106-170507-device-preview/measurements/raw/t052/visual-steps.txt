@@ -1,0 +1,47 @@
+18:46:18.152 env WGPU_DX12_PRESENTATION_SYSTEM=visual
+18:46:18.447 started pid=67460
+18:46:30.229 before fg='t052 focus target' 100,1180
+18:46:30.399 focus app True fg='CapturaX' 115,37 at 650,49 'CapturaX'
+18:46:33.608 focus-out 1 False
+18:46:36.783 focus-in 1 True
+18:46:39.966 focus-out 2 False
+18:46:43.173 focus-in 2 True
+18:46:46.368 focus-out 3 False
+18:46:49.563 focus-in 3 True
+18:46:52.765 focus-out 4 False
+18:46:55.965 focus-in 4 True
+18:46:59.159 focus-out 5 False
+18:47:02.362 focus-in 5 True
+18:47:05.555 focus-out 6 False
+18:47:08.750 focus-in 6 True
+18:47:11.957 focus-out 7 False
+18:47:15.174 focus-in 7 True
+18:47:18.365 focus-out 8 False
+18:47:21.542 focus-in 8 True
+18:47:24.735 focus-out 9 False
+18:47:27.938 focus-in 9 True
+18:47:31.146 focus-out 10 False
+18:47:34.331 focus-in 10 True
+18:47:37.359 f11-in 1 True
+18:47:40.384 f11-out 1 True
+18:47:43.417 f11-in 2 True
+18:47:46.419 f11-out 2 True
+18:47:49.447 f11-in 3 True
+18:47:52.477 f11-out 3 True
+18:47:55.485 f11-in 4 True
+18:47:58.515 f11-out 4 True
+18:48:01.524 f11-in 5 True
+18:48:04.533 f11-out 5 True
+18:48:07.567 f11-in 6 True
+18:48:10.577 f11-out 6 True
+18:48:13.608 f11-in 7 True
+18:48:16.634 f11-out 7 True
+18:48:19.644 f11-in 8 True
+18:48:22.650 f11-out 8 True
+18:48:25.677 f11-in 9 True
+18:48:28.685 f11-out 9 True
+18:48:31.710 f11-in 10 True
+18:48:34.743 f11-out 10 True
+18:48:37.772 idle-in True
+18:49:07.783 idle-out True
+18:49:11.071 closed

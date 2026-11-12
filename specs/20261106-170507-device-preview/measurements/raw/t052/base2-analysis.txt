@@ -1,0 +1,115 @@
+qpc freq 10000000; 10741 app presents, 10734 PresentMon rows, 45 events; span 170.8 s
+
+## App presents: gaps over 50 ms (present return to present return)
+  t= 110.48s gap=  50.1 ms  after fullscreen=false in 30 ms
+
+## PresentMon: msBetweenPresents or msBetweenDisplayChange over 50 ms
+  t=  80.36s betweenPresents=   3.7 betweenDisplay=  54.2 inPresent=  0.2 untilDisplayed=   8.5 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 23 ms before]
+  t=  86.39s betweenPresents=   7.3 betweenDisplay=  59.8 inPresent=  0.1 untilDisplayed=  15.6 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 26 ms before]
+  t=  92.44s betweenPresents=   7.7 betweenDisplay=  60.6 inPresent=  0.2 untilDisplayed=  15.3 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 29 ms before]
+  t= 104.50s betweenPresents=   0.7 betweenDisplay=  53.3 inPresent=  0.2 untilDisplayed=  18.0 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 20 ms before]
+  t= 110.53s betweenPresents=  50.6 betweenDisplay=   0.0 inPresent=  0.1 untilDisplayed=   0.0 mode Hardware Composed: Independent Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=1  [fullscreen=false 21 ms before]
+  t= 110.54s betweenPresents=  16.6 betweenDisplay=  75.3 inPresent=  0.2 untilDisplayed=  13.1 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 37 ms before]
+  t= 116.58s betweenPresents=  38.8 betweenDisplay=  53.4 inPresent=  0.2 untilDisplayed=  15.1 mode Hardware Composed: Independent Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 21 ms before]
+  t= 122.63s betweenPresents=   1.8 betweenDisplay=  61.5 inPresent=  0.2 untilDisplayed=  11.4 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 26 ms before]
+  t= 128.70s betweenPresents=  47.3 betweenDisplay=  90.3 inPresent=  0.1 untilDisplayed=   9.9 mode Composed: Flip -> Hardware Composed: Independent Flip -> Hardware Composed: Independent Flip tearing=0 dropped=0  [fullscreen=false 66 ms before]
+  t= 134.67s betweenPresents=  45.4 betweenDisplay=  52.5 inPresent=  0.2 untilDisplayed=  14.0 mode Hardware Composed: Independent Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 20 ms before]
+  t= 134.91s betweenPresents= 116.8 betweenDisplay= 111.1 inPresent=  0.1 untilDisplayed=   1.4 mode Hardware Composed: Independent Flip -> Hardware Composed: Independent Flip -> Hardware Composed: Independent Flip tearing=0 dropped=0  [fullscreen=false 258 ms before]
+  t= 167.70s betweenPresents=   0.9 betweenDisplay=  52.2 inPresent=  0.2 untilDisplayed=  15.9 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [fullscreen=false 20 ms before]
+
+## PresentMode changes
+  t=   0.00s Composed: Flip  [focus=true 4 ms before]
+  t=   0.28s Hardware Composed: Independent Flip  [focus=false 143 ms before]
+  t=  77.33s Composed: Flip  [fullscreen=true 13 ms before]
+  t=  77.36s Hardware Composed: Independent Flip  [fullscreen=true 42 ms before]
+  t=  80.36s Composed: Flip  [fullscreen=false 20 ms before]
+  t=  80.41s Hardware Composed: Independent Flip  [fullscreen=false 73 ms before]
+  t=  83.36s Composed: Flip  [fullscreen=true 12 ms before]
+  t=  83.39s Hardware Composed: Independent Flip  [fullscreen=true 43 ms before]
+  t=  86.39s Composed: Flip  [fullscreen=false 19 ms before]
+  t=  86.43s Hardware Composed: Independent Flip  [fullscreen=false 59 ms before]
+  t=  89.39s Composed: Flip  [fullscreen=true 12 ms before]
+  t=  89.41s Hardware Composed: Independent Flip  [fullscreen=true 38 ms before]
+  t=  92.44s Composed: Flip  [fullscreen=false 22 ms before]
+  t=  92.48s Hardware Composed: Independent Flip  [fullscreen=false 63 ms before]
+  t=  95.42s Composed: Flip  [fullscreen=true 13 ms before]
+  t=  95.45s Hardware Composed: Independent Flip  [fullscreen=true 45 ms before]
+  t=  98.47s Composed: Flip  [fullscreen=false 20 ms before]
+  t=  98.51s Hardware Composed: Independent Flip  [fullscreen=false 62 ms before]
+  t= 101.47s Composed: Flip  [fullscreen=true 13 ms before]
+  t= 101.49s Hardware Composed: Independent Flip  [fullscreen=true 42 ms before]
+  t= 104.50s Composed: Flip  [fullscreen=false 19 ms before]
+  t= 104.54s Hardware Composed: Independent Flip  [fullscreen=false 67 ms before]
+  t= 107.50s Composed: Flip  [fullscreen=true 12 ms before]
+  t= 107.53s Hardware Composed: Independent Flip  [fullscreen=true 40 ms before]
+  t= 110.53s Composed: Flip  [fullscreen=false 21 ms before]
+  t= 110.58s Hardware Composed: Independent Flip  [fullscreen=false 70 ms before]
+  t= 113.54s Composed: Flip  [fullscreen=true 13 ms before]
+  t= 113.56s Hardware Composed: Independent Flip  [fullscreen=true 38 ms before]
+  t= 116.58s Composed: Flip  [fullscreen=false 21 ms before]
+  t= 116.63s Hardware Composed: Independent Flip  [fullscreen=false 66 ms before]
+  t= 119.57s Composed: Flip  [fullscreen=true 12 ms before]
+  t= 119.60s Hardware Composed: Independent Flip  [fullscreen=true 38 ms before]
+  t= 122.62s Composed: Flip  [fullscreen=false 20 ms before]
+  t= 122.66s Hardware Composed: Independent Flip  [fullscreen=false 57 ms before]
+  t= 125.62s Composed: Flip  [fullscreen=true 17 ms before]
+  t= 125.65s Hardware Composed: Independent Flip  [fullscreen=true 47 ms before]
+  t= 128.65s Composed: Flip  [fullscreen=false 19 ms before]
+  t= 128.70s Hardware Composed: Independent Flip  [fullscreen=false 66 ms before]
+  t= 131.65s Composed: Flip  [fullscreen=true 13 ms before]
+  t= 131.68s Hardware Composed: Independent Flip  [fullscreen=true 44 ms before]
+  t= 134.67s Composed: Flip  [fullscreen=false 20 ms before]
+  t= 134.71s Hardware Composed: Independent Flip  [fullscreen=false 58 ms before]
+  t= 137.66s Composed: Flip  [fullscreen=true 13 ms before]
+  t= 137.68s Hardware Composed: Independent Flip  [fullscreen=true 38 ms before]
+  t= 167.70s Composed: Flip  [fullscreen=false 19 ms before]
+  t= 167.75s Hardware Composed: Independent Flip  [fullscreen=false 67 ms before]
+
+## PresentMode counts {'Composed: Flip': 109, 'Hardware Composed: Independent Flip': 10625}
+
+## Events
+  t=   0.00s focus=true
+  t=   0.14s focus=false
+  t=  10.24s focus=true
+  t=  13.46s focus=false
+  t=  16.68s focus=true
+  t=  19.87s focus=false
+  t=  23.06s focus=true
+  t=  26.27s focus=false
+  t=  29.47s focus=true
+  t=  32.66s focus=false
+  t=  35.86s focus=true
+  t=  39.05s focus=false
+  t=  42.25s focus=true
+  t=  45.45s focus=false
+  t=  48.66s focus=true
+  t=  51.87s focus=false
+  t=  55.06s focus=true
+  t=  58.25s focus=false
+  t=  61.44s focus=true
+  t=  64.64s focus=false
+  t=  67.82s focus=true
+  t=  71.01s focus=false
+  t=  74.21s focus=true
+  t=  77.32s fullscreen=true
+  t=  80.34s fullscreen=false
+  t=  83.35s fullscreen=true
+  t=  86.37s fullscreen=false
+  t=  89.38s fullscreen=true
+  t=  92.42s fullscreen=false
+  t=  95.40s fullscreen=true
+  t=  98.45s fullscreen=false
+  t= 101.45s fullscreen=true
+  t= 104.48s fullscreen=false
+  t= 107.49s fullscreen=true
+  t= 110.51s fullscreen=false
+  t= 113.52s fullscreen=true
+  t= 116.56s fullscreen=false
+  t= 119.56s fullscreen=true
+  t= 122.60s fullscreen=false
+  t= 125.60s fullscreen=true
+  t= 128.63s fullscreen=false
+  t= 131.64s fullscreen=true
+  t= 134.65s fullscreen=false
+  t= 137.64s fullscreen=true
+  t= 167.68s fullscreen=false

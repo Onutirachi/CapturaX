@@ -1,0 +1,6 @@
+Windows Registry Editor Version 5.00
+
+; T052: back to the Windows default (both values removed). Reboot after.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Dwm]
+"OverlayMinFPS"=-
+"OverlayTestMode"=-
