@@ -203,6 +203,9 @@ pub struct App {
     awaiting_size: bool,
     /// When to ask the system to leave fullscreen ([`Self::set_fullscreen`]).
     leave_fullscreen_at: Option<Instant>,
+    /// Where the window was snapped when it entered fullscreen: leaving puts it back there, since
+    /// winit restores the place before the snap (FR-025, research R10).
+    snapped_rect: Option<platform::Rect>,
     /// The single-instance listener; dropped in the quit sequence, which releases the name.
     instance: Option<platform::Serving>,
     /// The tray icon, while Keep in tray is on and the desktop has a tray (FR-014a): closing the
@@ -342,6 +345,7 @@ impl App {
             placement_changed: false,
             awaiting_size: false,
             leave_fullscreen_at: None,
+            snapped_rect: None,
             instance,
             tray: None,
             tray_available,
@@ -820,6 +824,7 @@ impl App {
         self.resize = None;
         self.awaiting_size = false;
         self.leave_fullscreen_at = None;
+        self.snapped_rect = None;
         self.scene = None;
         self.ui.app.global::<WindowState>().set_fullscreen(false);
         self.ui.window_gone();
@@ -1113,7 +1118,7 @@ impl App {
     }
 
     /// Borderless fullscreen on the monitor the window is on (research R5); leaving it returns to
-    /// the window's state before, maximized or not.
+    /// the window's state before, maximized, snapped or neither.
     ///
     /// Leaving waits two refreshes with the video thread holding its presents, so a frame of the
     /// fullscreen size already queued by the driver reaches the compositor before the change: on
@@ -1134,6 +1139,9 @@ impl App {
         present_log::event(LogEvent::Fullscreen(on));
         self.leave_fullscreen_at = None;
         if on {
+            if w.fullscreen().is_none() {
+                self.snapped_rect = platform::arranged_rect(w);
+            }
             platform::set_fullscreen_frame(w, true);
         } else if let Some(video) = &self.video {
             // Held again from here: the first present after the change must have the new size.
@@ -1143,6 +1151,10 @@ impl App {
         w.set_fullscreen(on.then_some(Fullscreen::Borderless(None)));
         if !on {
             platform::set_fullscreen_frame(w, false);
+            // After winit's own restore, which ran inside set_fullscreen on this thread.
+            if let Some(rect) = self.snapped_rect.take() {
+                platform::set_outer_rect(w, rect);
+            }
         }
         self.ui.app.global::<WindowState>().set_fullscreen(on);
         self.set_resize(w, None);
