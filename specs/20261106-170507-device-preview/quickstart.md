@@ -28,8 +28,8 @@ over `crates/capture`.
 
 1. `capturax --list-devices`: the ezcap (and the webcam) with their modes; the shown automatic
    modes and what they resolve to; no metadata node on Linux; no Auto source.
-2. Start the app with the card connected and no `[preview]` table: it opens the card in Auto max
-   FPS (1080p120 on the ezcap); the device select shows it with its badge and the detail line.
+2. Start the app with the card connected and no `[preview]` table: it opens the card in its default
+   mode (FR-008: 1920 × 1080 at 60 on the ezcap); the device select shows it with its badge and the detail line.
 3. `capturax --stats`: a `[source]` line (format NV12 on the ezcap, range `full(auto)` once the
    PS5 home screen shows), then `[loop]` lines with `lat_ms`.
 

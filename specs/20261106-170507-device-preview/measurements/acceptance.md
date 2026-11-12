@@ -93,8 +93,24 @@ maintainer plugged and unplugged the C920.
 | Each device keeps its own mode and range | Pass | Virtual Cam on Limited, the C920 on 1920 × 1080 at 24 with Auto; switching back and forth kept each; separate `devices."<id>"` entries |
 | With the device menu open, unplug and plug the webcam: it leaves and comes within 3 s (SC-004) | Pass | Removed 13 ms after the kernel's disconnect, added 243 ms after the kernel found it |
 | Two identical devices (quickstart 8) | Pass | Two loopback cameras with the same name: "Virtual Cam" and "Virtual Cam (2)", each with its own id (bus path), the second opens; only one mode each |
-| The fade on a switch, spinner only on a slow open | Not checked | Switches took at most 0.5 s |
-| A capture card (Automatic group from a card, Auto max FPS) | Not checked | Needs the ezcap |
+| The fade on a switch, spinner only on a slow open | Pass (2026-11-12, no slow open) | ezcap switches 423–640 ms: a screenshot 120 ms after a pick shows the backdrop (X watermark) and no spinner; no open took over 1 s, so the spinner was not seen |
+| A capture card (Automatic group from a card, Auto max FPS) | Pass (2026-11-12) | See below |
+
+**Capture card, 2026-11-12**: release build of `1c96d41` (T055–T057) in `~/capx/final`, no
+settings file; the ezcap with the PS5 at 1080p60, then also the C920 (it had dropped off the
+bus 12 s after boot, "device firmware changed", until the maintainer plugged it in again).
+Driven by the agent over SSH; the maintainer unplugged and plugged the C920; log in
+[raw/linux-batch/capturax.log](raw/linux-batch/capturax.log).
+
+| Check | Result | Notes |
+|---|---|---|
+| `--list-devices` (First check 1) | Pass | One entry for the card (no metadata node), automatic `auto-max-resolution` → 2560x1440@60, `auto-max-fps` → 1920x1080@120, no Auto source; modes 3840x2160@30 down to 1280x720@60 |
+| First start without settings (First check 2) | Pass | `start: first capture card`, `1920x1080@60` NV12 (FR-008: 1080p at about 60 when the device has it; the quickstart's "Auto max FPS (1080p120)" predates T065 and is corrected), first frame 403–436 ms after the choice in six starts, `range=full(auto)` |
+| Mode menu: Automatic group without duplicates, Modes largest first | Pass | "Auto resolução máxima 2560 × 1440 [60 FPS]", "Auto FPS máximo 1920 × 1080 [120 FPS]", then 3840 × 2160 [30] … 1280 × 720 [60], each with name and aspect tags |
+| Device menu: name, tags, detail line | Pass | "ezcap Live GAMER ULTRA: ezcap L", `4K UHD` `16:9`, detail "3840 × 2160 [30 FPS]" while in that mode |
+| Video within 2 s of a switch (SC-004) | Pass | Auto max FPS 423 ms, 2560 × 1440 @ 60 474 ms, 3840 × 2160 @ 30 640 ms, back to 1080p60 427 ms |
+| Each device keeps its own mode and range | Pass | The C920 opened in Auto max resolution (1920 × 1080 [30 FPS], it has no 60 mode); set to 1920 × 1080 [24 FPS] and Limitada; the ezcap came back in 1080p60 Auto, the C920 again in 24 and Limitada; separate `devices."<id>"` entries. Device switches 514 and 385 ms |
+| With the device menu open, unplug and plug the webcam: it leaves and comes within 3 s (SC-004) | Pass | Menu open on the ezcap: `device removed` 0.4 s before the kernel's "USB disconnect" line (the video node goes first), `device added` 5 ms after uvcvideo found it; the menu stayed open and showed the C920 again with its mode (24 FPS), now listed after the ezcap |
 
 **Found**: the C920's MJPEG modes failed at once on Linux ("No valid frames decoded"): it sends
 4:2:2 JPEG, which `nvjpegdec` rejects. Fixed in T076 (decoder chosen by the sampling, `jpegdec`

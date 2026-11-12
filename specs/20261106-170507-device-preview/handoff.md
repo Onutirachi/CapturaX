@@ -1,6 +1,6 @@
 # Handoff: Device Preview
 
-**Updated**: 2026-11-11 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
+**Updated**: 2026-11-12 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
 
 ## State
 
@@ -573,9 +573,47 @@ Nothing pushed.
 
 ## Next step
 
-- **Next**: Phase 8 is done. Left: the Linux batch (T034 rest, T040 on Linux: need the ezcap at
-  the CachyOS PC), then Phase 9 (T055 README, T056 dependencies, T057 pt-BR and contrast, T058
-  full acceptance, T059 wrap-up and PR). T055–T057 need no hardware.
+- **Next**: the maintainer validates this session's changes (below) and they are committed;
+  then T034's Windows half (not recorded; CachyOS is complete), T058 (full acceptance) and T059
+  (wrap-up and PR).
+- **Linux batch with the ezcap** (2026-11-12, agent over SSH, release build in `~/capx/final`,
+  PS5 at 1080p60, then the C920): recorded in
+  measurements/acceptance.md (US2, "Capture card") and latency.md (T040 CachyOS). Not committed:
+  (1) **T040 Linux**: `lat_ms` median 9.6 ms (not the 17.5 assumed; the card's transfer is about
+  half a frame period), `C_LINUX` 8.4 → **16.3 ms** in latency.rs with the test
+  `linux_total_matches_the_l4_median`; (2) **fix found there**: on Wayland the monitor refresh
+  was never read (`current_monitor()` None at window creation, no `Moved` afterwards), so the
+  estimate used 60 Hz and read "~25 ms"; app.rs `UserEvent::Second` reads it again while the
+  monitor is unknown. After the fix the bubble reads "10 ms + ~20 ms" windowed and fullscreen
+  (SC-007 passes, within 1 ms of L4/L5). (3) T034 on CachyOS with the card: `--list-devices`,
+  first start in 1080p60, Automatic group (two rows, no duplicates), modes largest first,
+  switches 423–640 ms, backdrop and no spinner while opening, mode and range saved per device:
+  pass. Later the maintainer plugged the C920 in again (it had dropped off the bus 12 s after
+  boot, "device firmware changed"): each device kept its own mode and range (C920 1080p24
+  Limitada, ezcap 1080p60 Auto), and with the device menu open the C920 left and came back
+  within 0.5 s: T034 on CachyOS is complete. (4) quickstart First check 2 said "Auto max FPS (1080p120)", stale since T065: corrected.
+  fmt, clippy (Windows and CachyOS) and tests pass on both. Suggested commits after validation:
+  `docs: describe the device preview in the readme` (T055), `fix: read the monitor refresh once
+  wayland reports it`, `feat: calibrate the latency estimate on linux` (latency.rs, latency.md,
+  tasks.md), `docs: record the linux batch with the capture card` (acceptance.md, quickstart.md,
+  raw/linux-batch/). CachyOS state: the clone at `1c96d41` detached with the two changed files
+  copied in (uncommitted there; `git checkout .` drops them), `ydotoold-capturax` running, no app
+  running; `~/capx/final` (exe, settings, `out/`) can be deleted.
+- **T055–T057** (2026-11-12), waiting for the maintainer's validation, not committed:
+  **T055** README: status, GStreamer plugins for devices (Windows complete installer; Linux
+  plugins-good and plugins-bad for `jpegparse`), start device and remembered mode, a table of
+  the developer options (`--list-devices`, `--present-log` among them), a section on the Linux
+  NVIDIA performance request and how to see it (`gpu performance:` lines in capturax.log,
+  `nvidia-smi` P0); AGENTS.md status line. **T056**: nothing to change: `crates/capture` has only
+  gst, gst-app, gst-video and log; one `windows` (0.62.2, shared with Slint/wgpu) and, on Linux,
+  one `libloading` (0.8.9, shared with wgpu's ash; the 0.7 under tray-icon is its Linux side,
+  never built since tray-icon is Windows only) and the wayland crates of R14; no unused
+  dependency in the crates or the workspace; `cargo deny check licenses bans` passes.
+  **T057**: every `@tr` string of app/ui (99) has a pt-BR entry, none fuzzy or obsolete (checked
+  with a scratch script that compares the `.slint` files with the `.po`); Rust shows texts only
+  through `Texts`. `cargo test` passes on Windows and on CachyOS (contrast pairs included):
+  T057 done. Wording still marked
+  "maintainer to confirm": the Presentation tooltip (T048).
 - **T053 done (2026-11-11)**, committed (`fix: write the stats lines outside the video loop`,
   `docs: accept the fullscreen exit stall as the system's`). The maintainer accepted the exit
   stall as the system's (research R8 "Findings", stalls.md): only at the switch, not while
