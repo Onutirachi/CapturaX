@@ -19,10 +19,9 @@ pub enum Platform {
 /// measurements/latency.md), 28.7 − 2.2 measured − 16.7 − 3.5 = 6.3 ms.
 pub const C_WINDOWS: Duration = Duration::from_micros(6_300);
 
-/// Card processing and the monitor's own delay on Linux: provisional, from the L4 run with the
-/// measured part assumed at 17.5 ms (L4 predates it), 30.1 − 17.5 − 4.2 = 8.4 ms; set from a Linux
-/// run with `lat_ms` in the Linux batch (T040).
-pub const C_LINUX: Duration = Duration::from_micros(8_400);
+/// Card processing and the monitor's own delay on Linux: from the L4 run (T040,
+/// measurements/latency.md) and a `--stats` run in its setup, 30.1 − 9.6 measured − 4.2 = 16.3 ms.
+pub const C_LINUX: Duration = Duration::from_micros(16_300);
 
 impl Platform {
     /// The platform this build runs on.
@@ -211,6 +210,18 @@ mod tests {
         assert_eq!(
             latency_text(LatencyDisplay::Total, Duration::from_micros(2_200), e),
             "~29 ms"
+        );
+    }
+
+    #[test]
+    fn linux_total_matches_the_l4_median() {
+        // L4 (measurements/latency.md, T028): 1080p60 fullscreen on a 120 Hz monitor, camera
+        // median 30.1 ms, measured part 9.6 ms (T040).
+        let refresh = Duration::from_secs_f64(1.0 / 120.0);
+        let e = estimate(Platform::Linux, F60, refresh, false, C_LINUX);
+        assert_eq!(
+            latency_text(LatencyDisplay::Total, Duration::from_micros(9_600), e),
+            "~30 ms"
         );
     }
 

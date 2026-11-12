@@ -308,12 +308,39 @@ monitor, the CachyOS PC's HDMI output at 1920 × 1080 · 60 Hz into the ezcap in
 mode): the Total display shows **"~28 ms"** with `60 / 60 FPS`, 0.7 ms under L1 and 1.7 ms under
 L2: **SC-007 passes on Windows**.
 
-### CachyOS — provisional
+### CachyOS KDE Plasma Wayland — 2026-11-12
 
-L4 (fullscreen, 120 Hz without VRR, `R/2` = 4.2 ms): median **30.1 ms**, but no Linux log with
-`lat_ms` exists at 1080p60 (L4 and T027 predate T036, and the ezcap is at the Windows PC). With
-the measured part assumed at about 17.5 ms (the transfer over one frame period plus about 1 ms in
-the app), `C_LINUX` = 30.1 − 17.5 − 4.2 ≈ **8.4 ms**, set as provisional. To finish in the Linux
-batch (with T034): a `--stats` run with the L4 setup (1080p60, fullscreen, same monitor, no clip
-needed), `C_LINUX` = 30.1 − `lat_ms` median − 4.2, then the maintainer checks the Total against
-L4 and L5.
+**Before**: L4 (fullscreen, 120 Hz without VRR, `R/2` = 4.2 ms) has a median of **30.1 ms**, but
+L4 and T027 predate T036, so no Linux log had `lat_ms` at 1080p60. With the measured part
+assumed at about 17.5 ms (the transfer over one frame period plus about 1 ms in the app),
+`C_LINUX` was set to 30.1 − 17.5 − 4.2 ≈ 8.4 ms, provisional.
+
+**Run** (agent over SSH, release build of `1c96d41` with T055–T057 in `~/capx/final`, no settings
+file): the ezcap with the PS5 at 1080p60 (home screen), the default mode `1920x1080@60` NV12,
+`--stats --fullscreen`, the pointer still in a corner, 61 s, the monitor at 120 Hz as at L4
+([raw/linux-batch/fs60.txt](raw/linux-batch/fs60.txt), `nvidia-smi` in `fs60.smi`: P0 1777 MHz
+24.7 W throughout). `lat_ms` median **9.6 ms** in 46 of 61 seconds, 11.5–11.6 ms in the others
+(a phase step of about 2 ms, with `ready_ms` 0.8 against 1.5); the F11 switch gives a few
+seconds at 12.7–14.7 ms as in L4. Windowed 1280 × 720: the same two steps (9.6 or 11.6 ms,
+[total.txt](raw/linux-batch/total.txt), [fixed.txt](raw/linux-batch/fixed.txt)).
+
+**Reading**: the measured part is 9.6 ms, not 17.5: `lat_ms` − `ready_ms` ≈ 8.8 ms is the card's
+USB transfer, which takes about half the frame period at 1080p60 (as R11 saw at 1080p120: 8.2 ms),
+not the whole period. The model holds (on Linux the transfer is inside the measured part); the
+assumption was wrong. The constant before the monitor wait is now close on both platforms: Linux
+`C` + measured = 16.3 + 9.6 = 25.9 ms, Windows `F` + `C` + measured = 16.7 + 6.3 + 2.2 = 25.2 ms.
+
+**`C_LINUX`** = 30.1 − 9.6 − 4.2 = **16.3 ms** (unit test `linux_total_matches_the_l4_median`:
+"~30 ms").
+
+**Found**: the first screenshot with the new constant read "12 ms + ~25 ms": the estimate used a
+60 Hz monitor (`R/2` = 8.3 ms). On Wayland `current_monitor()` is None when the window is created
+(the surface has not entered an output yet) and no `Moved` event follows, so the refresh was never
+read unless the window was resized; seen with a probe log: None at start, `HDMI-A-1` 120000 mHz
+about 1 s later. Fix (app.rs): while the monitor is unknown, it is read again on each second's
+stats. It also feeds the video thread's refresh (research R16), which had the same 16 ms default.
+
+**Check** (agent's screenshots after the fix, `~/capx/final`): windowed "10 ms + ~20 ms" and
+fullscreen "10 ms + ~20 ms", Total about 30 ms against L4's 30.1 and L5's 29.6 (windowed):
+within 1 ms, **SC-007 passes on Linux**. In the 11.6 ms step the Total reads about 32 ms, still
+within 5 ms. The maintainer may want to look at the bubble once by eye.
