@@ -1644,6 +1644,13 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::Second(summary) => {
                 self.second = summary;
+                // On Wayland the window has no monitor yet when it is created and no `Moved`
+                // event follows, so the refresh is read again while it is unknown.
+                if self.monitor.is_none()
+                    && let Some(window) = self.window.clone()
+                {
+                    self.update_refresh(&window);
+                }
                 self.show_info();
             }
             UserEvent::Relisted { devices, timer } => {
