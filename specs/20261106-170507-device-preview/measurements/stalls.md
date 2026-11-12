@@ -36,8 +36,13 @@ fsync plus random reads, about 13 MB/s), the app idle and windowed for 60 s:
 
 Without `--stats` the playing loop writes nothing, so users do not see this; but it pollutes
 every measurement taken with `--stats`, likely T028's 50–675 ms ones too. From `base-c` on, the
-runs went from a copy on C:. Fix in T053: format the line inside the lock, write it outside, on
-a writer thread (as the present log does).
+runs went from a copy on C:.
+
+**Fixed in T053**: the loop keeps the second's line inside the lock and hands it over after the
+lock is released; `print_stats` sends it to a `stats` writer thread (stdout and the log), and the
+app waits up to 1 s for that thread before it exits. Checked again as hdd-d2 (2026-11-11, release
+build in `target/t053` on D:, the same `stress.py` on D:, test video 1920x1080@60, windowed, 60 s):
+3557 presents, no gap over 40 ms after the first second (worst 19.5 ms), `recv` 59–60 a second.
 
 ## Runs
 
@@ -84,10 +89,16 @@ the UAC prompt of the elevated PowerShell that started PresentMon.)
 - **Fullscreen exits**: the one stall left in every configuration, 51–90 ms in 3 to 9 of 11
   exits, one dropped present. Its system part (Independent Flip → Composed: Flip → Independent
   Flip) is not removed by any DWM key, G-SYNC off or the DirectComposition swap chain. Its app
-  part: around the exit the present calls themselves block 30–48 ms (acquire to present return,
-  base-c) besides the presents the app holds for the new size (app.rs `apply_fullscreen`).
-  Whether the app can shorten it is T053's question.
+  part (T053, from the present logs): the present calls do **not** block at the exit (acquire
+  to present return 0.3–0.7 ms in base-c, base-boot, visual and gsync-off); the app's part is
+  the hold for the new size (app.rs `apply_fullscreen`): the first present comes 12–54 ms after
+  the exit request in base-c (12–18 in base-boot, 17–21 in visual, 18–40 in gsync-off), the time
+  the main thread takes to restore the window and hand over a UI image of the new size. In
+  base-c, PresentMon drops that first present anyway in 6 of 11 exits (the switch to Composed:
+  Flip).
 - **`--stats`**: an app bug for measurements only (above), fixed in T053.
+- **Accepted** (maintainer, 2026-11-11): the fullscreen exit stall is the system's and stays; it
+  happens only at the switch, not while a game is being played.
 
 No DWM key or NVIDIA profile is worth recommending to users: none removes the exit stall, and MPO
 off makes windowed latency about 10 ms worse.

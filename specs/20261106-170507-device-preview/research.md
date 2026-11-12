@@ -271,6 +271,15 @@ marks what was not run.
   the app and may need elevation: that trades F52's default benefit, so it goes to the maintainer
   as a decision, not into this plan. If the cause is in the app (for example a surface
   reconfigure or a blocking acquire at focus change), it is fixed (SC-006).
+- **Findings (T052, T053; measurements/stalls.md)**: focus changes, language switches and idle
+  fullscreen have no stall. The random 130–720 ms stalls were the app's own `--stats` writes
+  inside the inbox lock (a slow disk); fixed in T053 (a writer thread). The fullscreen **exit**
+  keeps a 51–90 ms stall in some exits in every configuration: the system's switch Independent
+  Flip → Composed: Flip → Independent Flip, which drops one present; no DWM key, G-SYNC off or
+  DirectComposition removes it. The app's part is only the hold for the new size (first present
+  12–54 ms after the request), and that present is often the one dropped. **Accepted by the
+  maintainer** (2026-11-11) as the system's: it happens only at the switch, not while playing.
+  No user workaround recommended.
 - **Alternatives**: forcing composition (a transparent overlay window): avoids the switch but
   loses independent flip's latency; rejected.
 

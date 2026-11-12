@@ -573,10 +573,24 @@ Nothing pushed.
 
 ## Next step
 
-- **Next: T053**: (1) `print_stats` out of the inbox lock, lines to a writer thread; (2) the
-  fullscreen exit stall: see whether the app's part (hold for the new size, present blocking
-  30-48 ms at the switch) can be shortened, update research R8 first; otherwise record it as
-  the system's and bring it to the maintainer.
+- **Next**: Phase 8 is done. Left: the Linux batch (T034 rest, T040 on Linux: need the ezcap at
+  the CachyOS PC), then Phase 9 (T055 README, T056 dependencies, T057 pt-BR and contrast, T058
+  full acceptance, T059 wrap-up and PR). T055–T057 need no hardware.
+- **T053 done (2026-11-11)**, committed (`fix: write the stats lines outside the video loop`,
+  `docs: accept the fullscreen exit stall as the system's`). The maintainer accepted the exit
+  stall as the system's (research R8 "Findings", stalls.md): only at the switch, not while
+  playing. Details: (1) render/mod.rs keeps the
+  second's `[loop]` line inside the lock and hands it over after; `print_stats` sends lines to
+  a `stats` writer thread (lazy, falls back to writing inline if the thread cannot start);
+  `render::flush_stats(1 s)` in main.rs before the log flush. fmt, clippy, tests pass; smoke run
+  (test video, `--stats`, lines in stdout and capturax.log, quit clean); hdd-d2 rerun (D: busy,
+  release copy in `target/t053`): no gap over 40 ms (recorded in stalls.md). Left behind: an
+  empty folder `D:\capx-stress` (the agent could not remove it; delete by hand).
+  (2) Fullscreen exit, from the T052 present logs: the "present blocking 30-48 ms" was wrong,
+  acquire to present return is 0.3-0.7 ms at exits; the app's part is the hold for the new size,
+  first present 12-54 ms after the request (stalls.md conclusion corrected), and DWM drops that
+  first present in 6 of 11 exits anyway. Not done (not worth it, maintainer): measuring the main
+  thread's part of the hold.
 - **T054** (snapped fullscreen return, 2026-11-11) validated by the maintainer (left half,
   maximized and plain window all come back) and committed (`fix: return fullscreen to the
   snapped place`). app.rs: `snapped_rect` kept in `apply_fullscreen(on)` from
