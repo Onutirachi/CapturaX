@@ -28,7 +28,7 @@ held only for the copy; `pull` never blocks on `push`.
 | `clean_name(name) -> String` | The decorations removed (research R5 step 2) |
 | `AudioChoice::parse / to_string`, `OutputChoice::parse / to_string` | Settings texts (data-model.md) |
 | `resolve(choice, pair, inputs) -> Resolved` | `Play(id)`, `NoPair`, `Missing(id)`, `Off` |
-| `output_for(choice, outputs, default) -> (Option<id>, fallback: bool)` | The output to open and whether it is a fallback |
+| `output_for(choice, outputs) -> (Option<id>, fallback: bool)` | The output to open (`None` = the system default) and whether it is a fallback |
 
 ## Volume
 
