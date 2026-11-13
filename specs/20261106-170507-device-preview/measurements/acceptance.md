@@ -179,6 +179,31 @@ the chrome not smooth):
   row at t=294–301; some with UI activity, some without. These are SC-006's Windows stalls,
   investigated at T052.
 
+### CachyOS KDE Plasma Wayland — 2026-11-12
+
+**Environment**: release build of `ef15524` in `~/capx/t058`, no settings file, the monitor at
+119.88 Hz without variable refresh, 100 %, Portuguese. Device: the ezcap with the PS5 at 1080p60
+(home screen). Driven by the agent over SSH with screenshots; logs in
+[raw/t058-cachyos/](raw/t058-cachyos/).
+
+| Source → card mode | Frame rate bubble | Latency bubble | `[loop]` at the same seconds | Result |
+|---|---|---|---|---|
+| 60 Hz → 1080p60 | `60 / 60 FPS` | `10 ms + ~20 ms` | `pres=60`, `lat_ms=9.6–9.7` median | Pass |
+| 60 Hz → Auto max FPS (1080p120) | `120 / 120 FPS` (once `116 / 120`) | `10 ms + ~20 ms`, Total `~30 ms` | `recv=120 pres=120`, `lat_ms=9.6` | Pass |
+
+On Linux the ezcap delivers 120 frames a second in the 1080p120 mode with the PS5 at 60 Hz
+(duplicated frames), so the quickstart's "about 111 / 120" is the Windows driver's figure (T039
+above). The estimate is `C_LINUX` 16.3 + half the 119.88 Hz refresh 4.2 = 20.5 ms at either rate
+(no frame period term on Linux); Total `~30 ms` against L4's 30.1 ms.
+
+| Check | Result | Notes |
+|---|---|---|
+| Four bubbles: source, mode, frame rate, latency | Pass | Bottom right of the window, over the side bar of the letterbox |
+| Latency tooltip | Pass | "10 ms: dentro do CapturaX (medido) / ~20 ms: placa de captura e monitor (estimado)" |
+| Hover settings button of each bubble with its displays | Pass | Latency: Medida / Medida + estimada / Total; frame rate: Exibidos / Exibidos / nominal / Nominal; mode: four displays |
+| Choices after a restart | Pass | `[overlay] latency = "total"`, `fps = "nominal"`, `mode = "size+aspect"`; after the restart `~30 ms`, `120 FPS`, `1920 × 1080 [16:9]`, the ezcap again in Auto max FPS |
+| 150 %, English | Pass | See "Full acceptance (T058)" |
+
 ## System notifications (T061, research R15)
 
 `cargo run -p capturax-platform --example notify -- <seconds> [<replace after>]`; the maintainer
@@ -329,3 +354,43 @@ against 18.9–19.0 in Mailbox (the loopback camera's `lat_ms` includes its feed
 latency `mode=mailbox`, `rep=0` from the next second. No Opening state, no session change, no late
 present on either switch (`gap_ms` max 25.7). Without variable refresh the cursor shows no
 difference here, as expected.
+
+## Full acceptance (T058)
+
+The whole quickstart (SC-008), building on the per-story records above; this section has what
+they did not cover (150 %, English, the card in places it was not used) and the known limits.
+
+### CachyOS KDE Plasma Wayland — 2026-11-12
+
+**Environment**: as US3 on CachyOS above (`ef15524`, the ezcap with the PS5). KDE's scale set to
+150 % for the run (`kscreen-doctor`, back to 100 % afterwards), the app started with `--lang en`.
+
+| Check | Result | Notes |
+|---|---|---|
+| US1: restart → same device and mode | Pass | The ezcap again in Auto max FPS, first frame 430–437 ms after the choice |
+| 150 %, English: toolbar, device and mode menus, bubbles | Pass | "Device", "Mode", "Auto max FPS", "Color range" "Auto (Full)", "Automatic" / "Modes" groups; tags and text crisp, nothing cut; the mode menu scrolls in the 960 × 540 window |
+| 150 %, English: settings panel | Pass | General, Appearance, Preview (Video background, Watermark, Video shadow, Presentation "Lowest latency" / "Follow the monitor"), About |
+| 150 %: fullscreen (F11) and back | Pass | |
+| Item 6: close to the tray with the card | Pass | `gpu performance released`, session closed in 3 ms, `window hidden in the tray`, P5; shown again → first frame 437 ms, `gpu performance requested`, P0 |
+| Item 6: sleep and wake with the card | Pass | `systemctl suspend` from the agent, the maintainer woke the PC: `woke from sleep: 22 s since the last tick`, the ezcap opened again, first frame 390 ms after the choice, back to Playing (behind KDE's lock screen) |
+
+Seen: a second start from a shell (no activation token) shows the hidden window but cannot raise
+it on Wayland ("its window was shown but could not come to the front"); the tray icon and
+notifications carry a token and raise it (T077).
+
+### Known limits
+
+- **The ezcap Live GAMER ULTRA is an internal PCI Express card** (the system sees a UVC device on
+  the card's own USB controller): it cannot be unplugged while running, so "disconnected",
+  "reconnected" and "another port" are checked with the C920 (US4).
+- **The ezcap never reports "No signal"**: without an HDMI input it sends its own video reading
+  "EZCAP CONNECT SOURCE", which the app shows as video. The "No signal" state (5 s without
+  frames) is not checkable with the devices at hand.
+- No Auto source mode on UVC cards (the ezcap exposes fixed modes only).
+- Windows "in use" versus "failed" is a heuristic (research R6); it read OBS right in US4.
+- The ezcap's identity: on Linux it carries the serial `00000001` and its bus path; on Windows
+  it is read at the Windows run. Being internal, its port never changes, so its choices always
+  follow it.
+- System notifications are hidden by the system while another app is fullscreen (R15).
+- On Linux the ezcap gives 120 FPS in the 1080p120 mode with a 60 Hz source; on Windows about
+  111 (driver), visible as judder (T039).

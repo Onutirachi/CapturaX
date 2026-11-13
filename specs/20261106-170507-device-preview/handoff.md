@@ -573,9 +573,22 @@ Nothing pushed.
 
 ## Next step
 
-- **Next**: the maintainer validates this session's changes (below) and they are committed;
-  then T034's Windows half (not recorded; CachyOS is complete), T058 (full acceptance) and T059
-  (wrap-up and PR).
+- **Next (2026-11-12, evening)**: the ezcap moves to the **Windows PC** once; do there, in one
+  session, everything that needs it: **T034's Windows half** (quickstart Manual acceptance 2 with
+  the ezcap and the C920), **T076's Windows check** (a C920 MJPG mode: does `d3d12mjpegdec` take
+  4:2:2, else the 4:2:0 rule), **T058's Windows part** (what the per-story records lack: US1 and
+  US3 at 150 % and in English, the ezcap's identity from `Get-PnpDevice`, item 7 snap + F11 + F11,
+  a last pass of the quickstart) and **T040**'s checkbox (validated and committed in b4e55bb).
+  Then the card returns to CachyOS (maintainer's plan). The **CachyOS part of T058 is done**
+  (measurements/acceptance.md "US3" CachyOS and "Full acceptance (T058)", logs in
+  raw/t058-cachyos/): US3 with the ezcap, 150 %, English, tray, sleep and wake with the card, and
+  the known limits. **Hardware facts the maintainer had to repeat**: the ezcap is an internal PCI
+  Express card (never ask to unplug it; unplug tests use the C920) and it never gives "No
+  signal" (it sends "EZCAP CONNECT SOURCE"); quickstart US4 corrected. Not committed yet:
+  acceptance.md, quickstart.md, raw/t058-cachyos/, this handoff; suggested commit `docs: record
+  the cachyos part of the full acceptance`. CachyOS state: clone at `ef15524` detached (a stash
+  with the old copies of app.rs and latency.rs, identical to HEAD, can be dropped), build in
+  `~/capx/t058`, scale back at 100 %, no inhibitor, nothing running. Then T059 (wrap-up and PR).
 - **Linux batch with the ezcap** (2026-11-12, agent over SSH, release build in `~/capx/final`,
   PS5 at 1080p60, then the C920): recorded in
   measurements/acceptance.md (US2, "Capture card") and latency.md (T040 CachyOS). Not committed:

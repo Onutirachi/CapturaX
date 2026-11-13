@@ -59,9 +59,11 @@ On Windows and on Linux, at 100% and at 150%, in both languages:
    - Linux: `sudo chmod 000 /dev/video0` → blocked state naming the node (restore afterwards);
    - open the card in another app first (OBS or `gst-launch-1.0`) → "In use", **Try again** after
      closing it plays;
-   - unplug the card while playing → "disconnected"; plug it back → video within 3 s, same mode
-     (SC-004); moved to another USB port, a card without a serial opens with default choices;
-   - card connected without HDMI signal → "No signal" after 5 s;
+   - unplug a USB device while playing → "disconnected"; plug it back → video within 3 s, same
+     mode (SC-004); moved to another USB port, a device without a serial opens with default
+     choices (the ezcap is an internal PCI Express card: checked with the C920);
+   - a card connected without HDMI signal → "No signal" after 5 s (the ezcap sends its own
+     "EZCAP CONNECT SOURCE" video instead: not checkable with it);
    - notices (FR-027): with the window focused, plug the webcam → in-app "C920 connected" with
      **Open**, which opens it; unplug it → "C920 disconnected", the × closes it and so does a
      click on the balloon; plug and unplug quickly → one balloon with the latest message; unplug and plug the open card →
