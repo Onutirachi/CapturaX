@@ -4,9 +4,9 @@
 
 ## State
 
-Spec committed (`docs: specify the preview audio`). Plan written (`/speckit-plan`): plan.md,
-research.md (R1–R15), data-model.md, contracts/ (audio, platform, settings-file, stats, cli),
-quickstart.md. **Not committed yet**: waiting for the maintainer's review. Not pushed.
+Spec, constitution amendment 1.2.0 and plan committed (`docs: allow PipeWire for the preview
+audio`, `docs: plan the preview audio`). tasks.md written (T001–T046), **not committed yet**:
+waiting for the maintainer's review. Not pushed.
 
 ## Done in the last sessions
 
@@ -46,6 +46,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-After the maintainer validates, commit the constitution amendment and the plan
-(`docs: allow PipeWire for the preview audio` and `docs: plan the preview audio`), then
-`/speckit-tasks`.
+Maintainer reviews tasks.md; after validation commit it (`docs: add the preview audio tasks`),
+then `/speckit-implement` from T001. Implementation needs the maintainer's explicit go-ahead.
+Early hardware steps: T006 (Linux probe, ezcap on CachyOS) and T008 (pairing keys on both PCs).
