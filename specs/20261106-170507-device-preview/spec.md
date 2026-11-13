@@ -536,7 +536,9 @@ added the real interface and settings since; this spec must not lose what the sp
 - **SC-004**: On the maintainer's machines: a device opens and shows its first frame within 2 s
   of being chosen or of a mode change; a plugged or removed device appears in or leaves the list
   within 3 s; a disconnected device that comes back shows video again within 3 s of the system
-  offering it.
+  offering it. Known limit (maintainer, 2026-11-13): on Windows a plugged webcam appears about
+  4–5 s after it is plugged in (C920), because Media Foundation cannot read it any sooner
+  (research R1).
 - **SC-005**: Each state of FR-019 is shown when forced as in User Story 4, in
   both languages, and its action works; no device problem ever leaves a black, blank or frozen
   video area without a state. Each notice of FR-027 appears within 3 s of the device joining or

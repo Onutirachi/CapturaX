@@ -72,9 +72,29 @@ the card is there; the range behaviour on Windows was confirmed by the maintaine
 
 "Manual acceptance" 2 and 8.
 
-### Windows 11
+### Windows 11 — 2026-11-13
 
-Not recorded yet.
+**Environment**: RTX 5070 Ti, DX12, the preview on the central monitor (100 %, Portuguese),
+release build of `a36e8db` in a new folder `target/t058w`. Devices: ezcap Live GAMER ULTRA
+(internal card, an HDMI source at 1080p60) and HD Pro Webcam C920 (USB). Checked by the
+maintainer by hand; the agent read the times from the log
+([raw/t058-windows/us2.log](raw/t058-windows/us2.log)).
+
+| Check | Result | Notes |
+|---|---|---|
+| `--list-devices` (First check 1) | Pass | The ezcap: `auto-max-resolution` → 2560x1440@60, `auto-max-fps` → 1920x1080@120, modes 3840x2160@30 down to 1280x720@60, no Auto source; the C920: `auto-max-resolution` → 1920x1080@30 NV12, no MJPG mode chosen (the Frame Server's NV12 at the same sizes) |
+| First start without settings (First check 2) | Pass | `start: first capture card`, the ezcap in 1920x1080@60 NV12, first frame 450 and 483 ms after the choice |
+| `--stats` (First check 3) | Pass | `[source] … format=NV12 matrix=bt709 range=limited(auto)`, then `range=full(auto)` once the content was read; `lat_ms` median 2.0–2.3 ([raw/t058-windows/first-start-stats.txt](raw/t058-windows/first-start-stats.txt)); one second with `gap_ms` 88.7, not repeated |
+| Device menu: name and aspect tags, no screens | Pass | |
+| Mode menu: Automatic group without duplicates, Modes largest first | Pass | |
+| The fade on a switch, spinner only on a slow open | Pass (no slow open) | No open took over 1 s |
+| Video within 2 s of a switch (SC-004) | Pass | Device switches 467–584 ms, mode picks 513–580 ms |
+| Each device keeps its own mode and range | Pass | The C920 on 1920 × 1080 [24 FPS] and Limitada, the ezcap on 1080p60 Auto; switching back and forth kept each; separate `devices."<id>"` entries |
+| With the device menu open, unplug and plug the webcam: it leaves within 3 s (SC-004) | Pass | `device removed` 76 ms after Windows marked the C920 absent (Kernel-PnP event 1010), 19 ms after its camera interface was disabled in a second run |
+| … and comes back within 3 s (SC-004) | **Miss, known limit** (maintainer, 2026-11-13) | `device added` 5.4 s after the USB arrival (`DEVPKEY_Device_LastArrivalDate`), 4.1 s after the camera interface was enabled (polled with `pnputil /enum-interfaces`, second run). The wait is the system's or the webcam's: a fresh Media Foundation enumeration started at the arrival blocked ~5 s and returned with the C920, against ~1.2 s otherwise ([raw/t058-windows/plug-fresh-enumeration.txt](raw/t058-windows/plug-fresh-enumeration.txt), [plug-interface.txt](raw/t058-windows/plug-interface.txt)); `gst-device-monitor-1.0 -f` alone shows the same delay. Back in the menu it opened in its mode, first frame 377 ms after the add (research R1) |
+| Two identical devices (quickstart 8) | Not checked | No two identical devices at the Windows PC (checked on CachyOS with two loopback cameras) |
+
+**T076 on Windows**: the C920's MJPG is `YCbCr-4:2:2` here too, and `mfvideosrc ! image/jpeg ! jpegparse ! jpegdec` decodes it ([raw/t058-windows/t076-c920-mjpg-jpegdec.txt](raw/t058-windows/t076-c920-mjpg-jpegdec.txt)). `d3d12mjpegdec` and `nvjpegdec` are not registered on this PC, so whether `d3d12mjpegdec` takes 4:2:2 could not be checked; the rule stays (research R4). The app skips a decoder that is not there and would use `jpegdec`; it never picks MJPG for the C920 on Windows anyway.
 
 ### CachyOS KDE Plasma Wayland — 2026-11-10
 
@@ -378,6 +398,24 @@ Seen: a second start from a shell (no activation token) shows the hidden window 
 it on Wayland ("its window was shown but could not come to the front"); the tray icon and
 notifications carry a token and raise it (T077).
 
+### Windows 11 — 2026-11-13
+
+**Environment**: as US2 on Windows above (`a36e8db`, `target/t058w`, the ezcap and the C920).
+The window on the Arzopa monitor below the central one, set to 150 % by the maintainer (opened
+there at 1800 × 993 physical, 1200 × 662 logical), the app started with `--lang en`. Checked by
+the maintainer by hand; log in [raw/t058-windows/scale150-en.log](raw/t058-windows/scale150-en.log).
+
+| Check | Result | Notes |
+|---|---|---|
+| 150 %, English: toolbar, device and mode menus, bubbles | Pass | |
+| US1: Color range Auto shows `Auto (Full)`, Full and Limited change the image at once | Pass | On the C920 and the ezcap |
+| US2 at 150 %: device and mode switches | Pass | First frame 470–518 ms after each choice (the C920, the ezcap in Auto max FPS, 2560 × 1440 @ 60, 1080p60) |
+| US3: the 1080p120 mode with a 60 Hz source reads about "111 / 120 FPS"; each bubble's hover settings button offers its three displays; the choice survives a restart | Pass | |
+| 150 %, English: settings panel | Pass | General, Appearance, Preview, About |
+| 150 %: fullscreen (F11) and back | Pass | |
+| Item 7: snap to the left half, F11, F11 → back in the left half (FR-025) | Pass | |
+| The ezcap's identity | Read | A USB composite device with the serial `00000001` (`USB\VID_32ED&PID_3201\00000001`) on port 7 of the card's own USB controller; the id the app keeps is the camera interface path (`mf:\\?\usb#vid_32ed&pid_3201&mi_00#9&37ee7830&0&0000#…`), whose `9&37ee7830` prefix Windows derives from that parent. Caps recorded in `crates/capture/tests/data/ezcap-windows.txt` |
+
 ### Known limits
 
 - **The ezcap Live GAMER ULTRA is an internal PCI Express card** (the system sees a UVC device on
@@ -389,8 +427,15 @@ notifications carry a token and raise it (T077).
 - No Auto source mode on UVC cards (the ezcap exposes fixed modes only).
 - Windows "in use" versus "failed" is a heuristic (research R6); it read OBS right in US4.
 - The ezcap's identity: on Linux it carries the serial `00000001` and its bus path; on Windows
-  it is read at the Windows run. Being internal, its port never changes, so its choices always
-  follow it.
+  the camera interface path under its serial-numbered USB parent (`00000001`). Being internal,
+  its port never changes, so its choices always follow it.
+- **A webcam plugged in on Windows reaches the menu in about 4–5 s** (C920: 4.1 s after its
+  camera interface is enabled, 5.4 s after the USB arrival), missing SC-004's 3 s; the device is
+  not readable sooner (a fresh Media Foundation enumeration blocks until then). Removal is
+  immediate, and on Linux the same webcam arrives in 0.2–0.5 s (research R1; maintainer
+  accepted, 2026-11-13).
+- On Windows no hardware MJPEG decoder is registered on the maintainer's PC; MJPG goes to
+  `jpegdec` (research R4), and webcams with the Camera Frame Server get NV12 anyway.
 - System notifications are hidden by the system while another app is fullscreen (R15).
 - On Linux the ezcap gives 120 FPS in the 1080p120 mode with a 60 Hz source; on Windows about
   111 (driver), visible as judder (T039).

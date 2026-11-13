@@ -1,6 +1,6 @@
 # Handoff: Device Preview
 
-**Updated**: 2026-11-12 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
+**Updated**: 2026-11-13 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261106-170507-device-preview`
 
 ## State
 
@@ -573,6 +573,24 @@ Nothing pushed.
 
 ## Next step
 
+- **Next (2026-11-13)**: **T059** (wrap-up: handoff, docs/roadmap.md status of #3, product.md
+  if a description changed, then the PR). Every other task is done. The Windows batch with the
+  ezcap is done and recorded, **not committed** (waiting for the maintainer's validation):
+  T034 Windows (measurements/acceptance.md "US2" Windows), T076 Windows (research R4: the C920's
+  MJPG is 4:2:2, `jpegdec` decodes it; no `d3d12mjpegdec` nor `nvjpegdec` registered on this PC,
+  so the rule stays), T058 Windows (acceptance.md "Full acceptance (T058)" Windows: 150 % on the
+  Arzopa, English, US1, US3 111/120, settings, F11, item 7 snap; the ezcap's Windows identity:
+  serial `00000001` on the card's USB controller, port 7), T040's checkbox, the ezcap caps file
+  `crates/capture/tests/data/ezcap-windows.txt` (+ README row), logs in
+  measurements/raw/t058-windows/. **Found**: on Windows a plugged C920 reaches the menu ~4.1 s
+  after its camera interface is enabled (5.4 s after the USB arrival), missing SC-004's 3 s; a
+  fresh Media Foundation enumeration blocks just as long, so it is the system's or the webcam's
+  wait. The maintainer accepted it as a known limit (2026-11-13): spec SC-004 note, research R1,
+  acceptance.md "Known limits". Suggested commits: `test: record the ezcap caps on windows`
+  (data file + README) and `docs: record the windows part of the full acceptance` (spec,
+  research, tasks, acceptance.md, raw/t058-windows/, this handoff). Windows state: release build
+  of `a36e8db` in `target/t058w` (can be deleted); the Arzopa still at 150 % (maintainer's
+  choice to change back). The ezcap can go back to CachyOS.
 - **Next (2026-11-12, evening)**: the ezcap moves to the **Windows PC** once; do there, in one
   session, everything that needs it: **T034's Windows half** (quickstart Manual acceptance 2 with
   the ezcap and the C920), **T076's Windows check** (a C920 MJPG mode: does `d3d12mjpegdec` take

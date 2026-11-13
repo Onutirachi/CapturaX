@@ -30,8 +30,14 @@ marks what was not run.
   hidden window and re-probes every device on each arrival or removal (each opened for about
   40 ms), so events arrive tens to hundreds of ms late, and an audio interface of the same card
   can trigger extra re-probes (filtered as duplicates). A device that cannot be opened during the
-  probe (camera access denied) is not listed at all: see R6. Verified in source; plug and unplug
-  not run.
+  probe (camera access denied) is not listed at all: see R6. Verified in source. Measured at
+  T034 (2026-11-13, C920): a removal reaches the app 19–76 ms after Windows drops the device, but
+  an arrival only ~4.1 s after the camera interface is enabled (~5.4 s after the USB arrival).
+  The wait is the system's or the webcam's: a fresh Media Foundation enumeration started at the
+  moment of arrival blocks ~5 s and returns with the C920, against ~1.2 s otherwise, so its modes
+  cannot be read, nor the device opened, any sooner. SC-004's 3 s for an arrival is missed on
+  Windows with the C920 and accepted as a known limit (maintainer, 2026-11-13); on CachyOS the
+  same webcam arrives in 0.2–0.5 s.
 - **Linux**: `v4l2deviceprovider` watches udev (`video4linux`), posts add and remove; the ezcap's
   metadata node `/dev/video1` is not listed (no capture capability). Verified in source and by
   listing; a physical unplug was not run (quickstart checks it). No `DEVICE_CHANGED` is posted.
@@ -132,7 +138,12 @@ marks what was not run.
   `nvjpegdec` only for `YCbCr-4:2:0`, `jpegdec` when the sampling is unknown (T076, found at
   T046 on CachyOS, 2026-11-10: the C920 sends 4:2:2 MJPEG, which `nvjpegdec` rejects with "No
   valid frames decoded", while a 4:2:0 JPEG decodes; most UVC devices send 4:2:2).
-  `d3d12mjpegdec` with 4:2:2 is checked on Windows with a C920 MJPG mode. The appsink keeps `sync=false max-buffers=1 drop=true`; plane
+  On Windows (checked 2026-11-13) the C920's MJPG is 4:2:2 too and `jpegdec` decodes it, but
+  `d3d12mjpegdec` and `nvjpegdec` are not registered on the maintainer's PC (GStreamer 1.28.8,
+  RTX 5070 Ti and the AMD integrated GPU expose no D3D12 MJPEG decoder), so whether
+  `d3d12mjpegdec` takes 4:2:2 could not be checked; the rule stays as it is. The app never picks
+  MJPG for the C920 on Windows anyway: the Camera Frame Server offers NV12 at the same sizes
+  (R3). The appsink keeps `sync=false max-buffers=1 drop=true`; plane
   buffers are reused through a small pool (no allocation per frame).
 - **Rationale**: the spike converted to RGBA before the app (`d3d12upload ! d3d12convert !
   d3d12download` on Windows, `videoconvert` on CPU on Linux) and still measured 30.4 ms; skipping
