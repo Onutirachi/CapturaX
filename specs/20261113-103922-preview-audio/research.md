@@ -191,7 +191,7 @@ the code that relies on it.
   |---|---|---|---|
   | `Gone` | `AUDCLNT_E_DEVICE_INVALIDATED`, endpoint not active | node removed, stream `Unconnected` with the node gone | input: Disconnected (waits for `Added` with the same id); output: falls back to the default |
   | `InUse` | `AUDCLNT_E_DEVICE_IN_USE`, `AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED` on an exclusive open | — | exclusive open → reopen shared, tag In use; a shared open → `Failed` |
-  | `Blocked` | `E_ACCESSDENIED` on an input, or `platform::microphone_access()` = Denied | — | Blocked, action opens `ms-settings:privacy-microphone` |
+  | `Blocked` | `E_ACCESSDENIED` on an input, or `platform::access(Capability::Microphone)` = Denied | — | Blocked, action opens `ms-settings:privacy-microphone` |
   | `Format` | `AUDCLNT_E_UNSUPPORTED_FORMAT` on every exclusive format | stream `Error` at format negotiation | exclusive → shared, tag In use; shared → `Failed` |
   | `Failed(text)` | anything else | stream `Error`, connection lost | Failed, **Try again** |
 

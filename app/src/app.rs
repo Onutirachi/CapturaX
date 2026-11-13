@@ -1834,7 +1834,7 @@ impl ApplicationHandler<UserEvent> for App {
 
 /// The camera privacy switch, for the session's error mapping (research R6).
 fn camera_access() -> capture::Access {
-    match platform::camera_access() {
+    match platform::access(platform::Capability::Camera) {
         platform::Access::Allowed => capture::Access::Allowed,
         platform::Access::Denied => capture::Access::Denied,
         platform::Access::Unknown => capture::Access::Unknown,

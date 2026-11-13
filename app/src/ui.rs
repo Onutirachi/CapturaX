@@ -304,7 +304,7 @@ impl Ui {
                 }
             }
             // Blocked on Windows (research R6).
-            "open-privacy" => platform::open_camera_privacy(),
+            "open-privacy" => platform::open_privacy(platform::Capability::Camera),
             _ => log::warn!("state message: unknown action {id:?}"),
         });
         app.show()?;

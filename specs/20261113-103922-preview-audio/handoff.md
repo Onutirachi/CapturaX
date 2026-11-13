@@ -62,6 +62,16 @@ Settings (2026-11-13):
   `Default` is now written by hand. Entries with `exclusive = false` stay in memory but are not
   written.
 
+Privacy (2026-11-13):
+
+- T016 done: `crates/platform/src/privacy.rs` with `Capability::{Camera, Microphone}`,
+  `access(Capability)`, `open_privacy(Capability)`; `windows/privacy.rs` builds the consent store
+  keys (`webcam` / `microphone`, plus `NonPackaged`) and the Settings page per capability;
+  `linux/privacy.rs` returns `Unknown`. Camera callers in app.rs and ui.rs pass
+  `Capability::Camera`; camera behavior unchanged. This PC reads Allow for both. research R7's
+  `Blocked` row now names `platform::access(Capability::Microphone)`. Linux build not checked
+  here (trivial module).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -104,4 +114,4 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on any PC: T016 (no hardware), then T015; T013 after T008's Linux half.
+3. Meanwhile, on any PC: T015; T013 after T008's Linux half.
