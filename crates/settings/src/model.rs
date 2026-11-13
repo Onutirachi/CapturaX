@@ -11,6 +11,10 @@ pub const MIN_HEIGHT: u32 = 360;
 pub const RECENT_LIMIT: usize = 8;
 /// Device entries kept in `devices` (rule 3); the least recently used is dropped.
 pub const DEVICES_LIMIT: usize = 32;
+/// Entries kept in `audio_devices` (preview audio, contracts/settings-file.md rule 3).
+pub const AUDIO_DEVICES_LIMIT: usize = 32;
+/// The preview's volume when none is stored or it is not a number (preview audio FR-012).
+pub const DEFAULT_VOLUME: u8 = 80;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Settings {
@@ -20,6 +24,39 @@ pub struct Settings {
     pub overlay: Overlay,
     /// Choices per device id, most recently used first.
     pub devices: Vec<(String, DeviceChoices)>,
+    pub audio: Audio,
+    /// Audio endpoint flags per endpoint id, most recently used first.
+    pub audio_devices: Vec<(String, AudioDevice)>,
+}
+
+/// The `[audio]` table (preview audio data-model.md "Output choice", "Volume").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Audio {
+    /// `"default"` or an output endpoint id, read by the audio crate (`OutputChoice::parse`). An
+    /// id that is not present now is kept (rule 1).
+    pub output: String,
+    /// 0–100.
+    pub volume: u8,
+    pub muted: bool,
+}
+
+impl Default for Audio {
+    fn default() -> Self {
+        Self {
+            output: "default".into(),
+            volume: DEFAULT_VOLUME,
+            muted: false,
+        }
+    }
+}
+
+/// An `[audio_devices."<id>"]` entry (preview audio data-model.md "Exclusive flags").
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AudioDevice {
+    /// For people reading the file; not used to match.
+    pub name: String,
+    /// Windows only; ignored on Linux. Entries are written only when true (rule 3).
+    pub exclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -177,7 +214,7 @@ pub enum ModeDisplay {
 }
 
 /// A `[devices."<id>"]` entry.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceChoices {
     /// For people reading the file; not used to match.
     pub name: String,
@@ -185,6 +222,20 @@ pub struct DeviceChoices {
     /// empty when none was chosen. An unknown value is kept and opens the default mode (rule 2).
     pub mode: String,
     pub color_range: ColorRange,
+    /// The audio choice as text (`"auto"`, `"none"` or an input endpoint id), read by the audio
+    /// crate (`AudioChoice::parse`). A missing or empty value is `"auto"` (preview audio rule 1).
+    pub audio: String,
+}
+
+impl Default for DeviceChoices {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            mode: String::new(),
+            color_range: ColorRange::default(),
+            audio: "auto".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -251,6 +302,25 @@ impl Settings {
         choices
     }
 
+    /// The flags stored for an audio endpoint.
+    pub fn audio_device(&self, id: &str) -> Option<&AudioDevice> {
+        self.audio_devices.iter().find(|(key, _)| key == id).map(|(_, d)| d)
+    }
+
+    /// The flags of an audio endpoint, created with defaults when missing, moved to the front
+    /// (most recently used) with its name updated. Keeps at most [`AUDIO_DEVICES_LIMIT`] entries.
+    pub fn touch_audio_device(&mut self, id: &str, name: &str) -> &mut AudioDevice {
+        let entry = match self.audio_devices.iter().position(|(key, _)| key == id) {
+            Some(index) => self.audio_devices.remove(index),
+            None => (id.to_string(), AudioDevice::default()),
+        };
+        self.audio_devices.insert(0, entry);
+        self.audio_devices.truncate(AUDIO_DEVICES_LIMIT);
+        let device = &mut self.audio_devices[0].1;
+        device.name = name.to_string();
+        device
+    }
+
     /// Records a device the user chose: `preview.device`, the front of `preview.recent` (at most
     /// [`RECENT_LIMIT`]) and its device entry.
     pub fn remember_device(&mut self, id: &str, name: &str) {
@@ -270,6 +340,7 @@ impl Settings {
         let window = table.get("window").and_then(Value::as_table);
         let preview = table.get("preview").and_then(Value::as_table);
         let overlay = table.get("overlay").and_then(Value::as_table);
+        let audio = table.get("audio").and_then(Value::as_table);
         fn get<'a>(t: Option<&'a Table>, key: &str) -> Option<&'a Value> {
             t.and_then(|t| t.get(key))
         }
@@ -339,6 +410,15 @@ impl Settings {
                 mode: ModeDisplay::parse(get(overlay, "mode").and_then(Value::as_str)),
             },
             devices: read_devices(table.get("devices").and_then(Value::as_table)),
+            audio: Audio {
+                output: get(audio, "output")
+                    .and_then(Value::as_str)
+                    .filter(|text| !text.is_empty())
+                    .map_or(defaults.audio.output, str::to_string),
+                volume: read_volume(get(audio, "volume")),
+                muted: flag(audio, "muted", defaults.audio.muted),
+            },
+            audio_devices: read_audio_devices(table.get("audio_devices").and_then(Value::as_table)),
         }
     }
 
@@ -411,9 +491,39 @@ impl Settings {
             let mode = (!choices.mode.is_empty()).then(|| Value::String(choices.mode.clone()));
             set_or_remove(&mut entry, "mode", mode);
             entry.insert("color_range".into(), Value::String(choices.color_range.as_str().into()));
+            entry.insert("audio".into(), Value::String(choices.audio.clone()));
             devices.insert(id.clone(), Value::Table(entry));
         }
         table.insert("devices".into(), Value::Table(devices));
+
+        let a = &self.audio;
+        let audio = category(table, "audio");
+        audio.insert("output".into(), Value::String(a.output.clone()));
+        audio.insert("volume".into(), Value::Integer(a.volume.min(100).into()));
+        audio.insert("muted".into(), Value::Boolean(a.muted));
+
+        // Only exclusive entries are written, most recently used first, at most the limit (rule 3);
+        // the unknown keys of the kept ones survive.
+        let mut old = match table.remove("audio_devices") {
+            Some(Value::Table(old)) => old,
+            _ => Table::new(),
+        };
+        let mut audio_devices = Table::new();
+        for (id, device) in self
+            .audio_devices
+            .iter()
+            .filter(|(_, d)| d.exclusive)
+            .take(AUDIO_DEVICES_LIMIT)
+        {
+            let mut entry = match old.remove(id) {
+                Some(Value::Table(entry)) => entry,
+                _ => Table::new(),
+            };
+            entry.insert("name".into(), Value::String(device.name.clone()));
+            entry.insert("exclusive".into(), Value::Boolean(true));
+            audio_devices.insert(id.clone(), Value::Table(entry));
+        }
+        table.insert("audio_devices".into(), Value::Table(audio_devices));
     }
 }
 
@@ -434,6 +544,44 @@ fn read_devices(devices: Option<&Table>) -> Vec<(String, DeviceChoices)> {
                     name: text("name").unwrap_or_default().to_string(),
                     mode: text("mode").unwrap_or_default().to_string(),
                     color_range: ColorRange::parse(text("color_range")),
+                    audio: text("audio")
+                        .filter(|text| !text.is_empty())
+                        .map_or_else(|| DeviceChoices::default().audio, str::to_string),
+                },
+            ))
+        })
+        .collect()
+}
+
+/// `[audio] volume`: clamped to 0–100; a non-number takes [`DEFAULT_VOLUME`] (rule 2).
+fn read_volume(value: Option<&Value>) -> u8 {
+    let volume = match value {
+        Some(Value::Integer(v)) => (*v).clamp(0, 100),
+        Some(Value::Float(v)) if !v.is_nan() => v.round().clamp(0.0, 100.0) as i64,
+        _ => return DEFAULT_VOLUME,
+    };
+    u8::try_from(volume).unwrap_or(DEFAULT_VOLUME)
+}
+
+/// The `[audio_devices."<id>"]` entries in file order (most recently used first); entries that
+/// are not tables are skipped, a missing or invalid `exclusive` is false.
+fn read_audio_devices(devices: Option<&Table>) -> Vec<(String, AudioDevice)> {
+    let Some(devices) = devices else {
+        return Vec::new();
+    };
+    devices
+        .iter()
+        .filter_map(|(id, entry)| {
+            let entry = entry.as_table()?;
+            Some((
+                id.clone(),
+                AudioDevice {
+                    name: entry
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    exclusive: entry.get("exclusive").and_then(Value::as_bool).unwrap_or(false),
                 },
             ))
         })
@@ -829,5 +977,192 @@ mod tests {
         assert!(table["window"].get("x").is_none());
         assert!(table["window"].get("y").is_none());
         assert!(table["window"].get("monitor").is_none());
+    }
+
+    /// An endpoint id as contracts/settings-file.md (preview audio) shows them.
+    const EZCAP_INPUT: &str = "{0.0.1.00000000}.{6a1c0000-0000-0000-0000-000000000001}";
+
+    #[test]
+    fn audio_defaults() {
+        let s = read("[audio]\n[audio_devices]\n[devices.\"mf:a\"]");
+        assert_eq!(s.audio, Audio::default());
+        assert_eq!(
+            (s.audio.output.as_str(), s.audio.volume, s.audio.muted),
+            ("default", 80, false)
+        );
+        assert!(s.audio_devices.is_empty());
+        assert_eq!(s.device("mf:a").unwrap().audio, "auto");
+        assert_eq!(DeviceChoices::default().audio, "auto");
+        assert_eq!(read(""), Settings::default());
+
+        let mut table = Table::new();
+        Settings::default().write_into(&mut table);
+        assert_eq!(table["audio"]["output"].as_str(), Some("default"));
+        assert_eq!(table["audio"]["volume"].as_integer(), Some(80));
+        assert_eq!(table["audio"]["muted"].as_bool(), Some(false));
+        assert!(table["audio_devices"].as_table().unwrap().is_empty());
+    }
+
+    #[test]
+    fn audio_values() {
+        let s = read(&format!(
+            r#"
+            [audio]
+            output = "{{0.0.0.00000000}}.{{g533}}"
+            volume = 35
+            muted = true
+            [devices."mf:a"]
+            audio = "none"
+            [devices."mf:b"]
+            audio = "{EZCAP_INPUT}"
+            [audio_devices."{EZCAP_INPUT}"]
+            name = "Digital Audio Interface (ezcap Live Gamer Ultra)"
+            exclusive = true
+            "#
+        ));
+        assert_eq!(
+            s.audio,
+            Audio {
+                output: "{0.0.0.00000000}.{g533}".into(),
+                volume: 35,
+                muted: true
+            }
+        );
+        assert_eq!(s.device("mf:a").unwrap().audio, "none");
+        assert_eq!(s.device("mf:b").unwrap().audio, EZCAP_INPUT);
+        let ezcap = s.audio_device(EZCAP_INPUT).unwrap();
+        assert_eq!(ezcap.name, "Digital Audio Interface (ezcap Live Gamer Ultra)");
+        assert!(ezcap.exclusive);
+    }
+
+    #[test]
+    fn audio_invalid_values_take_their_default() {
+        let s = read(
+            r#"
+            [audio]
+            output = 3
+            volume = "loud"
+            muted = "yes"
+            [devices."mf:a"]
+            audio = 1
+            [devices."mf:b"]
+            audio = ""
+            [audio_devices]
+            broken = 1
+            [audio_devices.x]
+            exclusive = "yes"
+            "#,
+        );
+        assert_eq!(s.audio, Audio::default());
+        assert_eq!(s.device("mf:a").unwrap().audio, "auto");
+        assert_eq!(s.device("mf:b").unwrap().audio, "auto");
+        assert_eq!(s.audio_devices.len(), 1);
+        assert!(!s.audio_device("x").unwrap().exclusive);
+        assert_eq!(read("[audio]\noutput = \"\"").audio.output, "default");
+        assert_eq!(read("audio = 5").audio, Audio::default());
+    }
+
+    #[test]
+    fn audio_ids_not_present_are_kept() {
+        // Any text other than the keywords is an id: kept even when no such device is present
+        // now (rule 1); the audio crate treats it as missing.
+        let mut table = parse("[audio]\noutput = \"gone\"\n[devices.\"mf:a\"]\naudio = \"gone too\"");
+        let s = Settings::read(&table, LANGUAGES);
+        assert_eq!(s.audio.output, "gone");
+        assert_eq!(s.device("mf:a").unwrap().audio, "gone too");
+        s.write_into(&mut table);
+        assert_eq!(table["audio"]["output"].as_str(), Some("gone"));
+        assert_eq!(table["devices"]["mf:a"]["audio"].as_str(), Some("gone too"));
+    }
+
+    #[test]
+    fn volume_outside_the_range_is_clamped() {
+        let volume = |text: &str| read(&format!("[audio]\nvolume = {text}")).audio.volume;
+        assert_eq!(volume("0"), 0);
+        assert_eq!(volume("100"), 100);
+        assert_eq!(volume("-5"), 0);
+        assert_eq!(volume("250"), 100);
+        assert_eq!(volume("99999999999"), 100);
+        assert_eq!(volume("42.6"), 43);
+        assert_eq!(volume("1e9"), 100);
+        assert_eq!(volume("nan"), DEFAULT_VOLUME);
+        assert_eq!(volume("true"), DEFAULT_VOLUME);
+        assert_eq!(volume("[50]"), DEFAULT_VOLUME);
+    }
+
+    #[test]
+    fn only_exclusive_audio_devices_are_written() {
+        let mut s = Settings::default();
+        s.touch_audio_device("a", "A").exclusive = true;
+        s.touch_audio_device("b", "B");
+        s.touch_audio_device("c", "C").exclusive = true;
+        let mut table = Table::new();
+        s.write_into(&mut table);
+        let written = table["audio_devices"].as_table().unwrap();
+        let ids: Vec<&str> = written.keys().map(String::as_str).collect();
+        assert_eq!(ids, ["c", "a"], "most recently used first, `b` not written");
+        assert_eq!(written["c"]["name"].as_str(), Some("C"));
+        assert_eq!(written["c"]["exclusive"].as_bool(), Some(true));
+
+        // Turning exclusive off removes the entry on the next save.
+        s.touch_audio_device("a", "A").exclusive = false;
+        s.write_into(&mut table);
+        let ids: Vec<&str> = table["audio_devices"]
+            .as_table()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(ids, ["c"]);
+    }
+
+    #[test]
+    fn thirty_three_audio_devices_keep_thirty_two() {
+        let mut s = Settings::default();
+        for i in 0..33 {
+            s.touch_audio_device(&format!("e{i}"), "E").exclusive = true;
+        }
+        assert_eq!(s.audio_devices.len(), AUDIO_DEVICES_LIMIT);
+        assert!(s.audio_device("e0").is_none(), "the least recently used is dropped");
+        s.touch_audio_device("e1", "E");
+        assert_eq!(s.audio_devices[0].0, "e1");
+
+        // The same on write, for a file that already holds 33 entries.
+        let entries: String = (0..33)
+            .map(|i| format!("[audio_devices.e{i}]\nname = \"E\"\nexclusive = true\n"))
+            .collect();
+        let mut table = parse(&entries);
+        let read_back = Settings::read(&table, LANGUAGES);
+        assert_eq!(read_back.audio_devices.len(), 33);
+        read_back.write_into(&mut table);
+        let written = table["audio_devices"].as_table().unwrap();
+        assert_eq!(written.len(), AUDIO_DEVICES_LIMIT);
+        assert!(written.get("e32").is_none());
+        assert_eq!(written.keys().next().map(String::as_str), Some("e0"));
+    }
+
+    #[test]
+    fn audio_round_trip_with_quoted_ids_and_unknown_keys() {
+        let mut s = Settings {
+            audio: Audio {
+                output: "{0.0.0.00000000}.{g533}".into(),
+                volume: 0,
+                muted: true,
+            },
+            ..Default::default()
+        };
+        s.touch_device(C920, "HD Pro Webcam C920").audio = EZCAP_INPUT.into();
+        s.touch_audio_device(EZCAP_INPUT, "Digital Audio Interface (ezcap Live Gamer Ultra)")
+            .exclusive = true;
+        let mut table = parse(&format!(
+            "[audio]\nlater = 1\n[audio_devices.\"{EZCAP_INPUT}\"]\nexclusive = true\nfuture = \"kept\""
+        ));
+        s.write_into(&mut table);
+        let text = toml::to_string(&table).unwrap();
+        assert!(text.contains("[audio_devices.\"{0.0.1."), "{text}");
+        let written: Table = text.parse().unwrap();
+        assert_eq!(written["audio"]["later"].as_integer(), Some(1));
+        assert_eq!(written["audio_devices"][EZCAP_INPUT]["future"].as_str(), Some("kept"));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
     }
 }

@@ -50,6 +50,18 @@ Phase 2 pure crate (2026-11-13):
   of the offset; the +300/−300 levels differ by ~1.2 ms, the follower's proportional error
   (300 ppm × 2 s ≈ 0.6 ms each way).
 
+Settings (2026-11-13):
+
+- T021 done: `crates/settings/src/model.rs`. `Settings.audio: Audio { output, volume, muted }`,
+  `DeviceChoices.audio`, `Settings.audio_devices: Vec<(id, AudioDevice { name, exclusive })>`
+  most recently used first, with `audio_device(id)` and `touch_audio_device(id, name)` (as
+  `touch_device`). `output` and `audio` are kept as text, as `mode`: the settings crate does not
+  depend on `crates/audio`, the app parses them with `OutputChoice::parse` / `AudioChoice::parse`.
+  Rules chosen here: a non-text or empty `output`/`audio` takes `"default"`/`"auto"`; a float
+  `volume` is rounded then clamped (NaN takes 80); `DeviceChoices::default().audio` is `"auto"`, so
+  `Default` is now written by hand. Entries with `exclusive = false` stay in memory but are not
+  written.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -92,4 +104,4 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on any PC: T016, T021 (no hardware); T013 after T008's Linux half.
+3. Meanwhile, on any PC: T016 (no hardware), then T015; T013 after T008's Linux half.
