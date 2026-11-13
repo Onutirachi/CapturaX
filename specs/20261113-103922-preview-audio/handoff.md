@@ -95,8 +95,32 @@ Windows endpoints (2026-11-13):
   `Format` (T018 extends it). `video_link` = T007's `CM_*` path; the null container id is no
   link. `windows-core` is now a direct dependency (the `implement` macro names it). Checked live
   on this PC: ezcap and C920 video and audio links equal (same values as T008); unplugging the
-  C920 gave `Removed` then `Added`; switching the default output gave `DefaultOutput`. The
-  session is still the stub until T018.
+  C920 gave `Removed` then `Added`; switching the default output gave `DefaultOutput`.
+
+Windows session (2026-11-13):
+
+- T018 done: `crates/platform/src/windows/audio/stream.rs` (threads `audio-in`/`audio-out`,
+  one `Stream` per open; reopen requests through a channel, the newest wins; the last thread to
+  end posts `Closed`) and `format.rs` (`bytes`, `wave_format`, `mask_of`, `standard_mask`,
+  `read`/`write` with round-trip tests; integers scaled by 2^15/2^23/2^31 and clamped, so they
+  round-trip exactly). The `Com` guard moved to `windows/audio/mod.rs`. Exclusive output tries
+  the input's opened rate first (an atomic per side; 0 until that side opens).
+- New example `crates/platform/examples/audio_session.rs` (passthrough without the bridge,
+  prints events, delivered rates, a reopen halfway, the close time). Kept (maintainer,
+  2026-11-13): it checks a session without the app, here before T023 and for T020 on CachyOS.
+- Measured here with the ezcap: shared opens in ~25 ms (ezcap 10 ms period, Voicemeeter output
+  2.67 ms through `IAudioClient3`), 48000 frames/s both sides; ezcap exclusive i16 3 ms, C24
+  monitor exclusive i24in32 3 ms, Voicemeeter Input exclusive i24 2 ms; reopen ~15 ms; `Closed`
+  5–100 ms after close. `GetStreamLatency` is 0 for shared through `IAudioClient3`: reported as
+  `None`.
+- **Decision changed (maintainer, 2026-11-13)**: an exclusive open *takes* a device other apps
+  use shared (they get `AUDCLNT_E_DEVICE_INVALIDATED`, the endpoint stays active), and
+  `AUDCLNT_E_DEVICE_IN_USE` only comes when another app already holds it exclusive (a shared open
+  is refused too). Now: those two → `InUse`, `Gone` only when the endpoint left; new app state
+  `Held` (tag In use, `Audio device in use` / `Try again`, manual retry). Updated: spec (US4
+  scenarios 3 and 6, FR-015, FR-017, the states table), data-model, research R7,
+  contracts/platform.md, tasks T018, T038, T041. The G533 here is held exclusive by another app
+  (Voicemeeter, probably): CapturaX gets `InUse` on it.
 
 ## Done in the last sessions
 
@@ -140,4 +164,5 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on Windows: T018 (session). T013 after T008's Linux half.
+3. T018 is done; Phase 2 has no Windows-only task left (T022 needs T019). Next on Windows only
+   after CachyOS: T013 (after T008's Linux half), then T022.

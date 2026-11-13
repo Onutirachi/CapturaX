@@ -18,12 +18,10 @@ use windows::Win32::Media::Audio::{
     IMMNotificationClient, IMMNotificationClient_Impl, MMDeviceEnumerator, eAll, eCapture, eConsole, eRender,
 };
 use windows::Win32::System::Com::StructuredStorage::PropVariantToStringAlloc;
-use windows::Win32::System::Com::{
-    CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, STGM_READ,
-};
+use windows::Win32::System::Com::{CLSCTX_ALL, CoCreateInstance, CoTaskMemFree, STGM_READ};
 use windows::core::{Interface, PCWSTR, implement};
 
-use super::{container, format};
+use super::{Com, container, format};
 use crate::audio::{AudioError, AudioEvent, Endpoint, Flow, OnAudioEvent, numbered};
 
 /// What the notification callbacks and the owner post to the monitor's thread.
@@ -62,26 +60,6 @@ impl Monitor {
 impl Drop for Monitor {
     fn drop(&mut self) {
         let _ = self.messages.send(Message::Stop);
-    }
-}
-
-/// The multithreaded COM apartment for the life of the thread.
-struct Com(bool);
-
-impl Com {
-    fn init() -> Self {
-        // SAFETY: once, at the start of the monitor's own thread.
-        Self(unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok())
-    }
-}
-
-impl Drop for Com {
-    fn drop(&mut self) {
-        if self.0 {
-            // SAFETY: balances the successful CoInitializeEx; every interface is released first
-            // (declared after this guard).
-            unsafe { CoUninitialize() };
-        }
     }
 }
 
