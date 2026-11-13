@@ -23,6 +23,17 @@ Phase 2 validations (2026-11-13, committed in `test: add the audio probe example
   `{00000000-0000-0000-ffff-ffffffffffff}`; research R5 and data-model.md "Pairing" now say it
   is no link.
 
+Phase 2 pure crate (2026-11-13):
+
+- T009 done: `crates/audio/src/resample.rs`. `Format`, `interpolate(samples, channels,
+  position, out)` (Catmull-Rom on a contiguous interleaved slice; needs one frame before and two
+  after the position, so T011's ring hands it a contiguous window), `ChannelMap::new(in, out)
+  .apply(frame, frame)`. Rules not in the task text, chosen here: input channels up to the
+  output's count go 1:1 (so 5.1 → 7.1 keeps its order), and a mono output gets the average of the
+  stereo mix-down. −3 dB is `1/√2`.
+- T010 done: `crates/audio/src/volume.rs`. `gain`, `icon` → `VolumeIcon`, `wheel`, `Ramp::new(gain,
+  rate)` with `set_target`, `advance()` (gain for the next output frame), `current`, `target`.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -65,4 +76,4 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on any PC: the pure crate (T009, T010, T013, T014), then T011, T012.
+3. Meanwhile, on any PC: the rest of the pure crate (T013 after T008, T014), then T011, T012.
