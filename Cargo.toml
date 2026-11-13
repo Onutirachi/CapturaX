@@ -74,8 +74,9 @@ windows = { version = "0.62", features = [
     "Win32_System_Variant",
     "Win32_UI_Shell_PropertiesSystem",
 ] }
-# PipeWire client for the preview audio on Linux (spec 20261113-103922-preview-audio, research R3)
-pipewire = "0.10"
+# PipeWire client for the preview audio on Linux (spec 20261113-103922-preview-audio, research R3);
+# 0.3.49 for `target.object` and a playback buffer's requested size
+pipewire = { version = "0.10", features = ["v0_3_49"] }
 zbus = "5"
 ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
 # NVIDIA driver library on Linux (spec 20261106-170507-device-preview, research R14)

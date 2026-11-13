@@ -138,7 +138,9 @@ the code that relies on it.
        function of one physical device). Video: from the Media Foundation symbolic link (the
        device id after `mf:`) through `CM_Get_Device_Interface_PropertyW(DEVPKEY_Device_InstanceId)`
        → `CM_Locate_DevNodeW` → `CM_Get_DevNode_PropertyW(DEVPKEY_Device_ContainerId)`. Audio:
-       `PKEY_Device_ContainerId` from the endpoint's property store.
+       `PKEY_Device_ContainerId` from the endpoint's property store. The null container id
+       `{00000000-0000-0000-ffff-ffffffffffff}`, which every virtual endpoint reports (Voicemeeter,
+       Steam's microphone; measurements/pairing.md), is no link.
      - Linux: the USB device's udev path. Video: `device.bus_path` from the V4L2 device's
        properties (part of its id), e.g. `pci-0000:00:14.0-usb-0:3:1.0`, with the interface
        suffix (`:1.0`) removed. Audio: the PipeWire device's `device.bus-path` (from udev

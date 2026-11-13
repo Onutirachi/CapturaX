@@ -28,6 +28,9 @@ monitor.
    matched by cleaned name.
 3. An input whose link is present and different is never paired.
 
+The platform reports no link (`None`) where the system has none, including Windows' null
+container id `{00000000-0000-0000-ffff-ffffffffffff}` (every virtual endpoint has it).
+
 ## Audio choice per video device (FR-008)
 
 | Value | Settings text | Plays |

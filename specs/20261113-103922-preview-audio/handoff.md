@@ -6,8 +6,22 @@
 
 Spec, plan and tasks committed. Phase 1 (T001–T004) done and committed (`build: add audio
 crate`): empty `crates/audio` wired into the app and the boundary test, `pipewire` 0.10 and the
-WASAPI features in the workspace, PipeWire build packages in CI. The Linux build of the
-`pipewire` crate is not checked yet (CI on the PR, or CachyOS). Not pushed.
+WASAPI features in the workspace, PipeWire build packages in CI. Not pushed.
+
+Phase 2 validations (2026-11-13, committed in `test: add the audio probe examples`):
+
+- T005 written: `crates/platform/examples/pipewire_probe.rs`. **Not compiled**: this PC has no
+  Linux toolchain (WSL Ubuntu has no Rust or PipeWire headers), so the first build is on
+  CachyOS. Written against the `pipewire` 0.10.1 sources; it needs the crate feature `v0_3_49`
+  (`target.object`, a playback buffer's `requested` size), now set in the workspace Cargo.toml.
+  Signals: the main thread's own PipeWire loop holds the `SIGINT`/`SIGTERM` sources (spa blocks
+  the signal in the adding thread, and `add_signal_local` asserts the thread is named `main`)
+  and is set up before the `pipewire` thread starts, so that thread inherits the blocked mask.
+- T007 done: `crates/platform/examples/audio_endpoints.rs`, run here (T008's Windows half,
+  recorded in measurements/pairing.md): the ezcap and the C920 each show one container id on
+  video and audio. Finding: virtual endpoints all report the null container id
+  `{00000000-0000-0000-ffff-ffffffffffff}`; research R5 and data-model.md "Pairing" now say it
+  is no link.
 
 ## Done in the last sessions
 
@@ -47,7 +61,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-Phase 2. T005 (the Linux probe example) and T007 (the pairing keys example) first, so the
-maintainer can run T006 (ezcap on CachyOS) and T008 (both PCs); meanwhile the pure crate (T009,
-T010, T013, T014), then T011, T012. Check on CachyOS that `cargo build` passes with the
-`pipewire` crate (needs `pipewire` headers and `clang`).
+1. While the ezcap is on this Windows PC: nothing else of T006/T008 needs it here.
+2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
+   `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
+   "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
+3. Meanwhile, on any PC: the pure crate (T009, T010, T013, T014), then T011, T012.
