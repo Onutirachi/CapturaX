@@ -1,12 +1,14 @@
 <!--
 Sync Impact Report
-- Version: 1.1.0 -> 1.1.1 (PATCH: clarification)
-- Modified: II. Simple by Default ("one source at a time" now reads "one source per output":
-  recording and streaming may use different sources; compositing stays out of scope)
+- Version: 1.1.1 -> 1.2.0 (MINOR: guidance expanded)
+- Modified: III. One Native Media Pipeline (the preview's audio may leave GStreamer on Linux too,
+  through PipeWire directly, as on Windows through WASAPI; the audio input is part of that path,
+  so the bullet now says "video capture" stays in GStreamer)
 - Added sections: none. Removed sections: none.
 - Templates: plan-template.md, spec-template.md, tasks-template.md need no change.
-- Follow-up: docs/product.md F15, F16, F25-F27 revised (separate sources and audio per output).
-- Source: maintainer decision, 2026-11-04.
+- Follow-up: none; specs/20261113-103922-preview-audio plan no longer needs a deviation.
+- Source: maintainer decision, 2026-11-13, from the stack spike's Linux findings (GStreamer's
+  PipeWire elements hang on stop and starve).
 -->
 
 # CapturaX Constitution
@@ -57,8 +59,9 @@ Rationale: the previous version grew verbose and cluttered; simplicity is a feat
   when GStreamer cannot do the job, and the plan MUST justify it.
 - The UI never handles raw media: it controls the pipeline and displays the rendered preview.
 - The preview may leave GStreamer at its last step when a measurement shows it is faster: the
-  app presents preview frames with its own GPU renderer, and on Windows plays preview audio
-  through WASAPI directly. Capture, encoding, recording and streaming stay in GStreamer.
+  app presents preview frames with its own GPU renderer, and plays preview audio, from the
+  input to the output, through the system's audio API directly (WASAPI on Windows, PipeWire on
+  Linux). Video capture, encoding, recording and streaming stay in GStreamer.
 - Recordings and streams keep audio and video on one clock; synchronization is automatic, not
   a user setting. The preview plays each frame and each sound as soon as it arrives, so its
   audio and video are kept close by low latency on both sides, not by a shared clock.
@@ -184,4 +187,4 @@ starting from a fresh context.
 - Every plan MUST include a constitution check, and every pull request review MUST verify
   compliance. Deviations MUST be documented in the plan with a justification.
 
-**Version**: 1.1.1 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-11-04
+**Version**: 1.2.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-11-13
