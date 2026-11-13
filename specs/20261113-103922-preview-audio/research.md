@@ -189,12 +189,18 @@ the code that relies on it.
 
   | Platform error | Windows source | Linux source | State |
   |---|---|---|---|
-  | `Gone` | `AUDCLNT_E_DEVICE_INVALIDATED`, endpoint not active | node removed, stream `Unconnected` with the node gone | input: Disconnected (waits for `Added` with the same id); output: falls back to the default |
-  | `InUse` | `AUDCLNT_E_DEVICE_IN_USE`, `AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED` on an exclusive open | — | exclusive open → reopen shared, tag In use; a shared open → `Failed` |
+  | `Gone` | endpoint not found or not active (`AUDCLNT_E_DEVICE_INVALIDATED` with the endpoint gone) | node removed, stream `Unconnected` with the node gone | input: Disconnected (waits for `Added` with the same id); output: falls back to the default |
+  | `InUse` | `AUDCLNT_E_DEVICE_IN_USE` (any open); `AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED` (exclusive open); `AUDCLNT_E_DEVICE_INVALIDATED` while the endpoint is still active (another app took it in exclusive mode) | — | exclusive open → the platform reopens shared (`SharedAfterInUse`, state In use); still refused, or taken while playing → state Held, **Try again** |
   | `Blocked` | `E_ACCESSDENIED` on an input, or `platform::access(Capability::Microphone)` = Denied | — | Blocked, action opens `ms-settings:privacy-microphone` |
   | `Format` | `AUDCLNT_E_UNSUPPORTED_FORMAT` on every exclusive format | stream `Error` at format negotiation | exclusive → shared, tag In use; shared → `Failed` |
   | `Failed(text)` | anything else | stream `Error`, connection lost | Failed, **Try again** |
 
+  - Measured on Windows (T018, 2026-11-13): an exclusive open **takes** a device other apps use
+    shared (they get `AUDCLNT_E_DEVICE_INVALIDATED` while the endpoint stays active), and
+    `AUDCLNT_E_DEVICE_IN_USE` comes only when another app already holds the device exclusive, in
+    which case a shared open is refused too. So the shared fallback only helps when exclusive is
+    not allowed or no format fits; a device held by another app is the Held state, retried by
+    hand (Windows does not say when it is released). Maintainer, 2026-11-13.
   - The microphone privacy switch is read as the camera's is (device preview R6), from the
     `microphone` consent store (all apps and `NonPackaged`); `camera.rs` generalizes to a
     capability argument.

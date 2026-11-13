@@ -90,16 +90,18 @@ What the Audio dropdown shows. Never shown while the video device is not open (F
 | `Playing` | both sides running | `Exclusive` when a side is exclusive | — | — |
 | `NoPair` | Auto and no pair | — | No paired audio / Choose an input | — |
 | `Disconnected(name)` | the chosen or paired input is missing or was removed | Disconnected | {} disconnected / Waiting to reconnect | — (reopens on `Added` with the same id) |
-| `InUse` | playing, an exclusive side was refused | In use | Audio device in use / Exclusive mode unavailable | — (exclusive tried again at the next open) |
+| `InUse` | playing, an exclusive side was refused (mode `SharedAfterInUse`) | In use | Audio device in use / Exclusive mode unavailable | — (exclusive tried again at the next open) |
+| `Held(name)` | a side reported `InUse`: another app holds the device alone (Windows), at open or taken while playing shared | In use | Audio device in use / Try again | Try again (reopen) |
 | `Blocked` | Windows microphone privacy denies the input | Blocked | Access blocked / Desktop app permission is off | Open privacy settings |
 | `Failed(name)` | any other open error, or a shared open refused | Failed | Cannot open {} / Try again | Try again (reopen) |
 
 **Output fallback** is a flag beside the state, shown the same way when the state is `Playing` or
 `InUse`: header `{output} disconnected / Playing on the system default`, no tag. It is set when a
-`Device(id)` output is missing or fails, cleared when the output reopens on it.
+`Device(id)` output is missing, fails or is held by another app, cleared when the output reopens on it.
 
 Transitions (beyond the table): `Disconnected` → `Opening` on the input's `Added`; any state →
-`Off` when the video session closes; `Failed` → `Opening` on Try again; `Blocked` → `Opening`
+`Off` when the video session closes; `Failed` and `Held` → `Opening` on Try again (no automatic
+retry: Windows does not say when the other app releases the device); `Blocked` → `Opening`
 when the privacy switch reads Allowed again (checked when the window regains focus, as the
 camera's).
 

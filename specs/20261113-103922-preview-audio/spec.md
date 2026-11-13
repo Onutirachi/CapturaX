@@ -151,14 +151,20 @@ uses it.
    device while the preview uses it.
 2. **Given** a device in use by the preview is marked exclusive, **When** the box changes,
    **Then** the sound reopens that device in the new mode within the time of SC-006.
-3. **Given** a device is marked exclusive but another app holds it, **When** the preview opens
-   it, **Then** the preview plays it shared instead and shows **Audio device in use** /
-   **Exclusive mode unavailable**; it tries exclusive again the next time it opens the device.
+3. **Given** a device is marked exclusive but exclusive mode is refused (the system setting
+   forbids it, or the device takes no usable format), **When** the preview opens it, **Then** the
+   preview plays it shared instead and shows **Audio device in use** / **Exclusive mode
+   unavailable**; it tries exclusive again the next time it opens the device.
 4. **Given** a device is marked exclusive, **When** the preview stops using it (another input,
    another output, the video device closes), **Then** it is released at once for other apps.
 5. **Given** the app runs on Linux, **When** the settings panel is open, **Then** there is no
    exclusive mode (product.md F47 is Windows only); the Linux path already skips what it can
    (FR-016).
+6. **Given** another app holds a device alone (exclusive mode), **When** the preview opens it, or
+   that app takes it while the preview plays it shared, **Then** that side stops and shows
+   **Audio device in use** / **Try again**; **Try again** opens it again (it works once the other
+   app releases it). Taking a device in exclusive mode is expected to cut it off from apps that
+   used it shared (measured on Windows, 2026-11-13).
 
 ---
 
@@ -289,8 +295,9 @@ The wording of every state is in FR-022.
   saying that no other app can use an exclusive device while the preview uses it (product.md F47).
   The settings are remembered per audio device across restarts.
 - **FR-015**: An exclusive device MUST be opened in exclusive mode, skipping the system mixer;
-  when that fails (in use, format refused), the app MUST play it shared and show it in the audio
-  choice (User Story 4, scenario 3). Exclusive devices are released as soon as the preview stops
+  when exclusive is refused (not allowed, format refused), the app MUST play it shared and show it
+  in the audio choice (User Story 4, scenario 3); when another app holds the device alone, the side
+  does not play and shows it (User Story 4, scenario 6). Exclusive devices are released as soon as the preview stops
   using them.
 - **FR-016**: On Linux the app MUST play through the system's sound server directly (PipeWire)
   with the smallest buffering it grants the app, and show no exclusive mode. Whether the
@@ -302,7 +309,8 @@ The wording of every state is in FR-022.
   before the value in the dropdown and, at the top of its menu, the state's title, detail and
   action (FR-022): no paired input, input disconnected (it returns by itself), access blocked
   (with an action that opens the system's microphone privacy page on Windows), exclusive device
-  in use (it plays shared), failed (with **Try again**). The output's fallback to the system
+  in use (it plays shared), device held by another app (with **Try again**), failed (with **Try
+  again**). The output's fallback to the system
   default is shown the same way.
 - **FR-018**: An audio problem MUST never stop or change the video, and a video state (No signal,
   Disconnected) MUST not be shown again as an audio state: when the video device is gone, the
@@ -351,6 +359,7 @@ The wording of every state is in FR-022.
   | No paired input | — | No paired audio / Choose an input | Sem áudio pareado / Escolha uma entrada |
   | Input disconnected | Disconnected · Desconectado | {} disconnected* / Waiting to reconnect* | {} desconectado* / Aguardando reconexão* |
   | Exclusive device in use | In use · Em uso | Audio device in use / Exclusive mode unavailable | Dispositivo de áudio em uso / Modo exclusivo indisponível |
+  | Device held by another app (Windows) | In use · Em uso | Audio device in use / Try again* | Dispositivo de áudio em uso / Tentar novamente* |
   | Access blocked (Windows) | Blocked · Bloqueado | Access blocked* / Desktop app permission is off* / Open privacy settings* | Acesso bloqueado* / Permissão para aplicativos da área de trabalho desativada* / Abrir configurações de privacidade* |
   | Failed | Failed · Falhou | Cannot open {}* / Try again* | Não foi possível abrir {}* / Tentar novamente* |
   | Chosen output missing | — | {} disconnected* / Playing on the system default | {} desconectado* / Tocando na saída padrão |

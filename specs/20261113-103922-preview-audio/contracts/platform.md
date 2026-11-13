@@ -27,7 +27,11 @@ Rules:
 
 - No function blocks the caller on a device: every outcome is an event (research R9).
 - Windows exclusive: tried first when asked; `InUse` or `Format` → the platform opens the same side
-  shared and reports `mode = SharedAfterInUse`; never asked again until the next open.
+  shared and reports `mode = SharedAfterInUse`; never asked again until the next open. When the
+  shared open is refused too (another app holds the device exclusive), the side reports
+  `Error(InUse)`.
+- Windows: a running side whose device another app takes in exclusive mode reports
+  `Error(InUse)`, not `Gone` (the endpoint is still active); `Gone` means the endpoint left.
 - Linux: `output = None` leaves `target.object` unset, so PipeWire follows the default itself; the
   `DefaultOutput` event still comes, for the name.
 
