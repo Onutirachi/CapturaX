@@ -7,7 +7,7 @@ everything there stays. Names are indicative; tasks fix the exact signatures.
 
 | Function | Windows | Linux | Spec |
 |---|---|---|---|
-| `audio::Monitor::start(on_event) -> Monitor` | `IMMDeviceEnumerator` + `IMMNotificationClient` (callbacks only post) | registry and `default` metadata on the `pipewire` thread | FR-009, FR-010, research R6 |
+| `audio::Monitor::start(on_event) -> Result<Monitor, AudioError>` | `IMMDeviceEnumerator` + `IMMNotificationClient` (callbacks only post) | registry and `default` metadata on the `pipewire` thread | FR-009, FR-010, research R6 |
 | `AudioEvent` | `Listed { inputs, outputs, default_output }` once, then `Added(Endpoint)`, `Removed(id)`, `DefaultOutput(Option<id>)` | same | |
 | `audio::Endpoint` | data-model.md "Audio endpoint" (`id`, `name`, `flow`, `link`, `format`) | same | |
 | `video_link(video_id) -> Option<String>` | container id of the Media Foundation device (`CM_*` calls, research R5) | the USB path from the V4L2 id's bus path, interface suffix removed | FR-007 |
@@ -16,7 +16,7 @@ everything there stays. Names are indicative; tasks fix the exact signatures.
 
 | Function | Windows | Linux | Spec |
 |---|---|---|---|
-| `audio::Session::open(SessionRequest, bridge, on_event) -> Session` | two threads `audio-in`, `audio-out`, MMCSS Pro Audio, event-driven WASAPI (research R2) | two `pw_stream`s in one `node.group` on the `pipewire` thread (research R3) | FR-001 to FR-006 |
+| `audio::Session::open(SessionRequest, samples: Arc<dyn Samples>, on_event) -> Session` | two threads `audio-in`, `audio-out`, MMCSS Pro Audio, event-driven WASAPI (research R2) | two `pw_stream`s in one `node.group` on the `pipewire` thread (research R3) | FR-001 to FR-006 |
 | `SessionRequest` | `{ number, input: id, output: Option<id> (None = default), input_exclusive, output_exclusive }` | exclusive ignored | FR-015, FR-016 |
 | `Session::reopen_output(output, exclusive)`, `Session::reopen_input(input, exclusive)` | the side's thread closes and opens again | the stream is disconnected and connected again | FR-005 |
 | `Session::close()` | stop flag, `Stop`, threads end on their own; returns at once | message to the `pipewire` thread; returns at once | FR-006, research R9 |

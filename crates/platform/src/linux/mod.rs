@@ -11,6 +11,7 @@ use winit::window::{Window, WindowAttributes};
 
 mod activation;
 pub use activation::activate;
+pub mod audio;
 pub mod autostart;
 pub mod instance;
 pub mod notify;

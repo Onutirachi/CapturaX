@@ -19,6 +19,7 @@ use winit::platform::windows::{MonitorHandleExtWindows, WindowAttributesExtWindo
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowAttributes};
 
+pub mod audio;
 pub mod autostart;
 mod dpi_rect;
 pub mod instance;

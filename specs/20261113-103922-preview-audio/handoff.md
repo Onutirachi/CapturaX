@@ -72,6 +72,19 @@ Privacy (2026-11-13):
   `Blocked` row now names `platform::access(Capability::Microphone)`. Linux build not checked
   here (trivial module).
 
+Platform interface (2026-11-13):
+
+- T015 done: `crates/platform/src/audio.rs` with the types of contracts/platform.md; stubs in
+  `windows/audio.rs` and `linux/audio.rs` (`Monitor::start` errs, sessions post
+  `Error(Failed("not implemented"))` for both sides, `close` posts `Closed`). Signatures fixed
+  here (task text and contract updated): `Monitor::start` returns `Result<Monitor, AudioError>`;
+  the session takes `Arc<dyn Samples>` (trait with `on_input` and `fill`, called on the audio
+  threads) instead of two closures; `Endpoint` has `base_name` and `numbered` (per flow) as video
+  devices, so the app renumbers after `Added`/`Removed`; `Format` carries the sample format
+  (`48000/2/i32`); `reported_latency_ms` is an `Option`; `Session` closes on drop. T017 turns
+  `windows/audio.rs` into `windows/audio/mod.rs`; T019/T020 put the Linux code in
+  `linux/pipewire.rs` behind `linux/audio.rs`. Linux build not checked here.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -114,4 +127,5 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on any PC: T015; T013 after T008's Linux half.
+3. Meanwhile, on Windows: T017 (endpoints and link), then T018 (session). T013 after T008's
+   Linux half.
