@@ -339,8 +339,8 @@ the code that relies on it.
 
 - **Decision**: `crates/audio` unit tests: follower holding the level with input and output
   clocks ±300 ppm apart over a simulated 30 minutes (no drop, no gap after priming, level within
-  1 ms of the target), a stall (40 ms burst dropped once), start-up priming, 48 → 44.1 kHz and
-  mono → stereo of a 1 kHz sine (frequency and level kept, distortion below −60 dB), mix-down of
+  1 ms of its settled value once the follower has taken away the priming, about 8 s), a stall
+  (40 ms burst dropped once), start-up priming, 48 → 44.1 kHz and mono → stereo of a 1 kHz sine (frequency and level kept, distortion below −60 dB), mix-down of
   5.1, volume ramps (no step larger than the ramp allows), pairing (links, names of the ezcap and
   the C920 on both systems, two identical cards), choice resolution. `app` tests: the audio state
   machine with a fake platform (event sequences of US1–US5). Platform audio is checked by hand

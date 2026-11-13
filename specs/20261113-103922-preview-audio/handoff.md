@@ -42,6 +42,13 @@ Phase 2 pure crate (2026-11-13):
   margin (as priming), because down to the margin alone gave a 5 ms gap in the burst test; after
   any silence the gain ramps from 0 again (no click when the sound returns). Ring capped at 200 ms
   of input while nobody pulls (counted as dropped). `drop_ms` counts priming, cuts and the cap.
+- T012 done: `crates/audio/tests/drift.rs` (4 cases, 30 simulated minutes each, ~14 s in
+  debug). Criterion changed in the task text and research R15: the waiting audio is compared with
+  its value at second 10, not second 1, because priming leaves one input period above the margin
+  and the follower takes it away in about 8 s (median 8.3 → 6.8 ms at +300 ppm, 8.0 → 5.6 ms at
+  −300 ppm). Settled: the median moves less than 0.1 ms over 30 min, `rate_ppm` within ±20 ppm
+  of the offset; the +300/−300 levels differ by ~1.2 ms, the follower's proportional error
+  (300 ppm × 2 s ≈ 0.6 ms each way).
 
 ## Done in the last sessions
 
@@ -85,4 +92,4 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on any PC: T012 (drift test, uses `Bridge` as it is), then T013 after T008's Linux half.
+3. Meanwhile, on any PC: T016, T021 (no hardware); T013 after T008's Linux half.
