@@ -8,6 +8,4 @@ device (name, caps, properties), kept as printed. GStreamer 1.28.8 on both machi
 |---|---|---|---|---|
 | `c920-windows.txt` | Logitech HD Pro Webcam C920 | Windows 11 PC | `gst-device-monitor-1.0 Video/Source`, the `device.api = mediafoundation` block | 2026-11-06 |
 | `ezcap-linux.txt` | ezcap Live Gamer Ultra | CachyOS PC, over SSH | `gst-device-monitor-1.0 -i Video/Source` (`-i` shows the V4L2 provider that PipeWire hides), the `v4l2src` block | 2026-11-06 |
-
-`ezcap-windows.txt` is added when the ezcap is plugged into the Windows PC (same command as the
-C920).
+| `ezcap-windows.txt` | ezcap Live Gamer Ultra | Windows 11 PC | `gst-device-monitor-1.0 Video/Source`, the `device.api = mediafoundation` block | 2026-11-13 |

@@ -1,0 +1,21 @@
+Device found:
+
+	name  : ezcap Live GAMER ULTRA
+	class : Source/Video
+	caps  : video/x-raw, format=BGRx, width=1920, height=1080, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=BGRx, width=1280, height=720, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=NV12, width=3840, height=2160, framerate=30/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=NV12, width=2560, height=1440, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=10000000/83333, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=NV12, width=1920, height=1080, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=NV12, width=1280, height=720, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=P010_10LE, width=1920, height=1080, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=P010_10LE, width=1280, height=720, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=2560, height=1440, framerate=50/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1920, height=1080, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	        video/x-raw, format=YUY2, width=1280, height=720, framerate=60/1, pixel-aspect-ratio=1/1, colorimetry=2:3:0:1, chroma-site=dv
+	properties:
+		device.api = mediafoundation
+		device.path = \\?\usb#vid_32ed&pid_3201&mi_00#9&37ee7830&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\global
+		device.name = ezcap Live GAMER ULTRA
+	gst-launch-1.0 mfvideosrc device-path="\\\\?\\usb#vid_32ed&pid_3201&mi_00#9&37ee7830&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\\global" ! ...
