@@ -33,6 +33,15 @@ Phase 2 pure crate (2026-11-13):
   stereo mix-down. −3 dB is `1/√2`.
 - T010 done: `crates/audio/src/volume.rs`. `gain`, `icon` → `VolumeIcon`, `wheel`, `Ramp::new(gain,
   rate)` with `set_target`, `advance()` (gain for the next output frame), `current`, `target`.
+- T014 done: `crates/audio/src/choice.rs`. `AudioChoice::parse` / `Display`,
+  `OutputChoice::parse` / `Display`, `resolve(&choice, pair, &inputs) -> Resolved`,
+  `output_for(&choice, &outputs) -> (Option<String>, bool)` (`None` = the system default). The
+  task's `default` argument was dropped: no rule uses it (contract and task updated).
+- T011 done: `crates/audio/src/bridge.rs`. Two rules changed from the spike, in research R4,
+  data-model.md "Bridge" and the task text: a stall's backlog is cut down to one input period +
+  margin (as priming), because down to the margin alone gave a 5 ms gap in the burst test; after
+  any silence the gain ramps from 0 again (no click when the sound returns). Ring capped at 200 ms
+  of input while nobody pulls (counted as dropped). `drop_ms` counts priming, cuts and the cap.
 
 ## Done in the last sessions
 
@@ -76,4 +85,4 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on any PC: the rest of the pure crate (T013 after T008, T014), then T011, T012.
+3. Meanwhile, on any PC: T012 (drift test, uses `Bridge` as it is), then T013 after T008's Linux half.

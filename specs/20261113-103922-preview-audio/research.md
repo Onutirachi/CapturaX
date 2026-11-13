@@ -107,9 +107,12 @@ the code that relies on it.
   - **Rate follower** (the spike's constants): every 500 ms the lowest spare level seen at output
     events is compared with a **2 ms** margin; the read ratio moves to correct the error in about
     2 s, never beyond ±1000 ppm. Above 40 ms of spare audio (a stall, not drift) the oldest audio
-    is dropped down to the margin and counted. At start, what piled up while the output opened is
+    is dropped down to one input period plus the margin and counted (the spike dropped down to the
+    margin alone, which in the bridge's tests left a 5 ms gap at the next output event when the
+    next input packet had not arrived yet). At start, what piled up while the output opened is
     dropped down to one input period plus the margin before playing ("primed"); an empty ring
-    plays silence, counted as a gap, and primes again.
+    plays silence, counted as a gap, and primes again; the sound then returns with the 10 ms gain
+    ramp from 0, so it does not click.
   - **Rate and channels**: the read position advances by `ratio × input_rate / output_rate`; the
     sample is taken by 4-point cubic (Catmull-Rom) interpolation, which also serves the ±1000 ppm
     correction. Channels: mono to every output channel; stereo to the output's front left and

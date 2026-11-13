@@ -109,9 +109,9 @@ camera's).
 |---|---|
 | `margin` | 2 ms of spare audio held above what the output takes |
 | `ratio` | read rate correction, `1 ± 0.001` at most, set every 500 ms to correct in 2 s |
-| `cut_above` | 40 ms spare: the oldest audio dropped down to the margin |
+| `cut_above` | 40 ms spare: the oldest audio dropped down to one input period + margin, as priming (down to the margin alone left a 5 ms gap at the next output event in tests) |
 | `primed` | false at start and after an empty ring; priming drops down to one input period + margin |
-| `gain`, `target_gain` | current and target gain; 10 ms linear ramp |
+| `gain`, `target_gain` | current and target gain; 10 ms linear ramp; after silence (start or a gap) the gain ramps from 0 again |
 | counters | waiting audio per output event (median, max per second), gap frames, dropped frames, mean ratio |
 
 ## Settings additions
