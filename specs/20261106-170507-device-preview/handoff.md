@@ -573,6 +573,15 @@ Nothing pushed.
 
 ## Next step
 
+- **Next (2026-11-13, T059 done)**: every task is done. T059 set roadmap #3 to done (with a
+  "Done:" paragraph: what was settled and what is carried on), AGENTS.md's status to built, and
+  ticked T059; product.md needed nothing more (F3, F4, F11, F43 and F56–F58 were updated during
+  the spec). The Windows batch is committed (92f7a16, f2086f7). Waiting for the maintainer:
+  validate and commit `docs: close the device preview` (roadmap, AGENTS.md, tasks, this
+  handoff), then, when asked, push the branch and open the PR (squash, title `feat: add the
+  device preview`) with the description the agent prepared (what the preview delivers, the
+  SC-001 to SC-008 table, known limits; same shape as the app shell's PR #3). Can be deleted:
+  `target/t058w` on Windows, `~/capx/*` on CachyOS. After the merge: roadmap #4 (Preview audio).
 - **Next (2026-11-13)**: **T059** (wrap-up: handoff, docs/roadmap.md status of #3, product.md
   if a description changed, then the PR). Every other task is done. The Windows batch with the
   ezcap is done and recorded, **not committed** (waiting for the maintainer's validation):

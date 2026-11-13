@@ -228,7 +228,7 @@ snapped-window fullscreen return. Needs US1 working on Windows.
 - [x] T056 [P] Check dependencies (`cargo tree --depth 1 -e normal` per crate): every direct dependency of `crates/capture`, the new `libloading` and the `windows` crate in `crates/platform` match research R14 (`windows` at the version already in the tree, no second copy); `cargo deny check licenses bans` passes; remove anything unused
 - [x] T057 Complete app/lang/pt-BR/LC_MESSAGES/capturax.po for every new text and fix any failing contrast pair; `cargo test` passes on both platforms
 - [X] T058 (maintainer) Full manual acceptance of quickstart.md on Windows 11 and CachyOS KDE Plasma Wayland at 100% and 150%, in both languages, with the ezcap and the C920 (SC-008); the agent records the results and known limits (Auto source not available on UVC cards, Windows in-use heuristic, ezcap identity on Windows, system notifications hidden by the system while another app is fullscreen) in measurements/acceptance.md Done: CachyOS 2026-11-12, Windows 2026-11-13 (measurements/acceptance.md "Full acceptance (T058)" and "Known limits").
-- [ ] T059 Update handoff.md, docs/roadmap.md (status of #3) and docs/product.md if a feature's description changed; prepare the pull request description (what the preview delivers, latency and stall measurements, known limits)
+- [x] T059 Update handoff.md, docs/roadmap.md (status of #3) and docs/product.md if a feature's description changed; prepare the pull request description (what the preview delivers, latency and stall measurements, known limits)
 
 ---
 

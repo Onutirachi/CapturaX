@@ -10,7 +10,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 |---|---|---|---|---|
 | 1 | [Stack spike](#1-stack-spike) ([spec](../specs/20261026-154808-stack-spike/spec.md)) | — | — | done |
 | 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
-| 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | in progress |
+| 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
 | 4 | [Preview audio](#4-preview-audio) | F12–F14, F47 | 3 | |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
@@ -72,6 +72,16 @@ the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
 ```
 
 ### 3. Device preview
+
+Done: [handoff](../specs/20261106-170507-device-preview/handoff.md),
+[latency](../specs/20261106-170507-device-preview/measurements/latency.md),
+[stalls](../specs/20261106-170507-device-preview/measurements/stalls.md) and
+[acceptance](../specs/20261106-170507-device-preview/measurements/acceptance.md). The Linux GPU
+clocks and the Windows stalls the app shell carried are settled (the NVIDIA performance request;
+the one stall left, leaving fullscreen, is the system's). Carried on: the GPU request on AMD and
+Intel GPUs and the Accelerate GPU setting (spec #15), the KWin fullscreen spikes while the
+interface animates (to look into if they matter in use), and the latency estimate reading low in
+the 1080p120 modes.
 
 ```text
 /speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11, F43 and F52
