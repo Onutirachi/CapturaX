@@ -74,6 +74,8 @@ windows = { version = "0.62", features = [
     "Win32_System_Variant",
     "Win32_UI_Shell_PropertiesSystem",
 ] }
+# `#[implement]` of the endpoint notifications names this crate (preview audio, research R6)
+windows-core = "0.62"
 # PipeWire client for the preview audio on Linux (spec 20261113-103922-preview-audio, research R3);
 # 0.3.49 for `target.object` and a playback buffer's requested size
 pipewire = { version = "0.10", features = ["v0_3_49"] }

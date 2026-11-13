@@ -85,6 +85,19 @@ Platform interface (2026-11-13):
   `windows/audio.rs` into `windows/audio/mod.rs`; T019/T020 put the Linux code in
   `linux/pipewire.rs` behind `linux/audio.rs`. Linux build not checked here.
 
+Windows endpoints (2026-11-13):
+
+- T017 done: `crates/platform/src/windows/audio/{mod.rs, endpoints.rs, container.rs, format.rs}`.
+  Monitor thread `audio-monitor` (COM multithreaded): notifications registered before the first
+  list; it keeps the ids and the default output it reported, so nothing is reported twice
+  (Windows calls `OnDefaultDeviceChanged` twice per change, measured). Mix format read from an
+  activated, not initialized, `IAudioClient`; `format.rs` maps `WAVEFORMATEX`/`EXTENSIBLE` to
+  `Format` (T018 extends it). `video_link` = T007's `CM_*` path; the null container id is no
+  link. `windows-core` is now a direct dependency (the `implement` macro names it). Checked live
+  on this PC: ezcap and C920 video and audio links equal (same values as T008); unplugging the
+  C920 gave `Removed` then `Added`; switching the default output gave `DefaultOutput`. The
+  session is still the stub until T018.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -127,5 +140,4 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
    `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
    "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. Meanwhile, on Windows: T017 (endpoints and link), then T018 (session). T013 after T008's
-   Linux half.
+3. Meanwhile, on Windows: T018 (session). T013 after T008's Linux half.

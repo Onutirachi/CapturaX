@@ -801,6 +801,7 @@ dependencies = [
  "wayland-client",
  "wayland-protocols",
  "windows",
+ "windows-core",
  "windows-sys 0.61.2",
  "winit",
  "zbus",

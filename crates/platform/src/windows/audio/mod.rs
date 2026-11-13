@@ -1,24 +1,24 @@
-//! Audio devices and streams on Windows (WASAPI); T017 and T018 replace it. Until then every call reports
-//! `Failed("not implemented")`.
+//! Audio devices and streams on Windows (WASAPI; preview audio research R2, R5, R6).
+//!
+//! - [`endpoints`]: the monitor (`IMMDeviceEnumerator` and an `IMMNotificationClient`).
+//! - [`container`]: the container id that links a video device to its audio (pairing).
+//! - [`format`]: the system's wave formats in the platform's terms.
+//!
+//! The session is a stub until T018: every open reports `Failed("not implemented")`.
+
+mod container;
+mod endpoints;
+mod format;
 
 use std::sync::Arc;
 
-use crate::audio::{AudioError, OnAudioEvent, OnSessionEvent, Samples, SessionEvent, SessionRequest, Side};
+pub use container::video_link;
+pub use endpoints::Monitor;
+
+use crate::audio::{AudioError, OnSessionEvent, Samples, SessionEvent, SessionRequest, Side};
 
 fn not_implemented() -> AudioError {
     AudioError::Failed("not implemented".into())
-}
-
-pub struct Monitor;
-
-impl Monitor {
-    pub fn start(_on_event: OnAudioEvent) -> Result<Self, AudioError> {
-        Err(not_implemented())
-    }
-}
-
-pub fn video_link(_video_id: &str) -> Option<String> {
-    None
 }
 
 pub struct Session {
