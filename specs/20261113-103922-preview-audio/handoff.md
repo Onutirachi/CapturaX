@@ -4,43 +4,48 @@
 
 ## State
 
-Spec written, its three open questions answered and validated by the maintainer, committed
-(`docs: specify the preview audio`). No [NEEDS CLARIFICATION] left. Not pushed.
+Spec committed (`docs: specify the preview audio`). Plan written (`/speckit-plan`): plan.md,
+research.md (R1–R15), data-model.md, contracts/ (audio, platform, settings-file, stats, cli),
+quickstart.md. **Not committed yet**: waiting for the maintainer's review. Not pushed.
 
-## Done in the last session
+## Done in the last sessions
 
-- PR #9 (device preview) squash-merged into `main` (2f4beea) at the maintainer's request; this
-  branch starts from it.
-- spec.md and checklists/requirements.md written; docs/roadmap.md #4 set to in progress with the
-  spec link.
+- PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
+- spec.md and checklists/requirements.md; docs/roadmap.md #4 in progress with the spec link.
 - Mockup page for the UI decisions (private Artifact):
-  https://claude.ai/artifact/DWT9wMk8mY64QXU9woPy2n (Audio dropdown, volume popover, settings
-  Audio category, every state, the real endpoint names of the maintainer's Windows PC). Version 2
-  fixed the Audio menu running off the window.
+  https://claude.ai/artifact/DWT9wMk8mY64QXU9woPy2n (version 2).
+- Plan (2026-11-13), main decisions:
+  - New pure crate `crates/audio` (bridge: ring, spike's rate follower with 2 ms margin, cubic
+    interpolation, channel map, volume ramp; pairing; choices). Device streams in
+    `crates/platform` (research R1, R13).
+  - Windows: the spike's WASAPI engine, now in any device format (shared via `IAudioClient3`
+    with the mix format, exclusive probing formats) (R2).
+  - Linux: PipeWire directly with the `pipewire` 0.10 crate, one `pipewire` thread, both streams
+    in one `node.group` (as module-loopback), `node.latency` 128/48000, format held explicitly;
+    no PulseAudio layer unless the probe fails (R3).
+  - Pairing by the system's link: Windows container id, Linux USB bus path without the interface
+    suffix; name fallback; never across different links (R5).
+  - Volume in the app's bridge, cubic law, 10 ms ramp; OS stream volume untouched (R8).
+  - Nothing waits for an audio thread; quit waits at most 1 s for the audio close (R9).
+  - Linux measurement: null sink `capturax-measure` with the card on the left and the app on the
+    right, plus the output's reported latency; `analyze.py audio --drift` for the 30-minute runs
+    (R10).
+  - Constitution amended to 1.2.0 (maintainer, 2026-11-13): principle III's preview audio
+    exception now names PipeWire on Linux next to WASAPI, so the plan has no deviation.
 
 ## Decisions
 
-All recorded in spec.md (maintainer, 2026-11-13):
-
-- Auto pairs a webcam's microphone like any other input (FR-007): there is no reliable way to
-  tell a capture card from a webcam; the user picks No audio once and it is remembered.
-- The output is chosen in two places, the Audio menu (Output group) and the volume popover
-  (FR-009).
-- Volume button (FR-011): click toggles mute; hover (~300 ms) or right click opens the popover
-  (mute button, slider, output); the wheel changes the volume; on touch a tap opens the popover
-  (no long press); Tab focus opens it, Enter/Space mutes.
-- Linux is measured inside the PC through PipeWire plus the output's reported latency
-  (FR-020, SC-002): no splitter cable nor second input on the Windows PC for an end-to-end
-  recording.
-- Texts in FR-022; the maintainer will check them again in the interface. State texts follow
-  the video devices' ("Waiting to reconnect", not explanatory sentences).
+Spec decisions (maintainer, 2026-11-13) are in spec.md. The maintainer accepted the plan's
+engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution amendment
+(2026-11-13). `--no-audio` (contracts/cli.md) is kept unless the maintainer removes it.
 
 ## Open questions
 
-- None in the spec. For the plan: the pairing link per platform (Windows container ID, Linux
-  sysfs/PipeWire device properties), the Linux engine (PipeWire directly, the spike's hang and
-  starvation), and the 30-minute drift runs.
+- Validated during implementation, before the code that depends on them: the Linux engine probe
+  and the pairing keys (`--list-devices`) on both systems (quickstart).
 
 ## Next step
 
-`/speckit-plan`.
+After the maintainer validates, commit the constitution amendment and the plan
+(`docs: allow PipeWire for the preview audio` and `docs: plan the preview audio`), then
+`/speckit-tasks`.

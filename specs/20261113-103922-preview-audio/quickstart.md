@@ -1,0 +1,130 @@
+# Quickstart: Preview Audio
+
+How to validate the feature on the maintainer's machines. Build and run as in the
+[README](../../README.md); `--stats` lines are in [contracts/stats.md](contracts/stats.md).
+Results go to `measurements/` (`latency.md`, `drift.md`, `acceptance.md`). Following the batch
+rule, every check that needs the ezcap on one PC is done before moving it.
+
+## Before the engine: validation steps
+
+These run first; the code that depends on them waits for their result.
+
+### Linux engine probe (research R3)
+
+A small example in `crates/platform/examples/pipewire_probe.rs` plays the ezcap's node on the
+default output through two streams in one node group, with `--stats`.
+
+1. **Hang**: 10 runs of `timeout -s INT -k 5 3 <probe>`; each must exit within 1 s of the signal,
+   and `pw-top` must show no stuck client. (Spike: 4 and 7 of 10 hung with `pipewiresink`.)
+2. **Starvation**: 60 s run; the input's delivered rate within ±500 ppm of 48 kHz and
+   `gap_ms` 0 after the first second. (Spike: 17–25 % delivered with `pipewiresrc`.)
+3. **Format**: `pw-dump` shows the capture stream at 2 channels FL FR, F32.
+4. **One cycle**: `pw-top` shows both streams under the same driver; `rate_ppm` stays within
+   ±50 ppm.
+
+Pass → PipeWire directly. Fail → stop and decide with the maintainer (research R3).
+
+### Pairing (research R5)
+
+Run `capturax --list-devices` on each system with the ezcap and the C920 plugged in:
+
+- Windows: the ezcap's video and its `Digital Audio Interface` input show the same container id;
+  the C920's video and microphone the same; `pair` gives each video device its own input.
+- Linux: the V4L2 bus path and the PipeWire device's bus path, both without the interface suffix,
+  are equal for each device; `pair` as above.
+
+If a link is missing, the name fallback must still pair them; record the printed keys in
+`measurements/pairing.md`.
+
+## Automated
+
+```sh
+cargo test -p capturax-audio          # bridge, drift simulation, formats, volume, pairing
+cargo test -p capturax                # audio state machine, settings, boundary
+```
+
+## Latency budget (SC-001 to SC-004)
+
+Method: research R10; reference and limits: spec "Latency budget and how it is measured".
+
+**Windows** (ezcap, PS5 menu sounds, Voicemeeter recording the line input left and the preview's
+output right, the app's output = the Voicemeeter virtual input):
+
+| Run | Settings (Audio category) | Clip | Budget |
+|---|---|---|---|
+| shared | none exclusive | 25 s | median ≤ 62 ms, p95 ≤ median + 5 |
+| input exclusive | the ezcap input | 25 s | ≤ 50 ms |
+| both exclusive | ezcap input and the virtual input | 25 s | ≤ 22 ms |
+
+```sh
+uv run tools/latency/analyze.py --measurements specs/20261113-103922-preview-audio/measurements \
+    audio clips/<clip>.wav --stereo --path wasapi --variant <run> --platform windows
+```
+
+A/V: in the same session measure spec #3's glass to glass (its quickstart), then offset = audio −
+video; within 45 ms ahead and 125 ms behind (SC-004).
+
+**Linux** (CachyOS, ezcap, PS5):
+
+```sh
+tools/latency/pipewire-measure.sh start     # null sink capturax-measure, card on the left
+capturax --stats                            # Audio menu → Output → capturax-measure
+tools/latency/pipewire-measure.sh record clips/linux-<n>.wav 25
+tools/latency/pipewire-measure.sh stop      # removes the sink and the links
+uv run tools/latency/analyze.py … audio clips/linux-<n>.wav --stereo --path pipewire --platform linux
+```
+
+Then play on the real output and read `out_latency_ms` from `[audio-source]`; the result is the
+measured median plus that value: median ≤ 25 ms, p95 ≤ 30 ms (SC-002). Variant: `node.latency`
+64/48000 and 256/48000, recorded for comparison.
+
+## Drift and continuity (SC-003, SC-005)
+
+For each Windows setting and for Linux: 30 minutes of play with `--stats` logged, recording as
+above for the whole run, then:
+
+```sh
+uv run tools/latency/analyze.py … audio clips/<run>.wav --stereo --drift …
+```
+
+Pass: minute 30 within 10 ms of minute 0; the `[audio]` lines show `wait_ms` steady, `gap_ms`
+and `drop_ms` 0 after the first second; the maintainer hears no click, dropout or pitch change.
+Record in `measurements/drift.md`.
+
+Hardware output (spec Assumptions): one 30-minute run on the G533 directly, by ear and by the
+stats only.
+
+## Responsiveness (SC-006)
+
+With `--stats` and the log's timestamps: sound within 1 s of the first frame; change of input,
+output or exclusive box plays within 1 s; volume and mute heard within 100 ms; an audio device
+plugged or removed in the menu within 3 s; a reconnected input and a changed default output play
+within 3 s.
+
+## Video unchanged (SC-007)
+
+With the sound playing (shared and both exclusive on Windows; Linux): spec #3's glass to glass
+(Windows) and frame ready → presented and frame rate (both) still within their budgets. Compare
+with `--no-audio` in the same session.
+
+## States and closing (SC-008)
+
+Force each state, in English and Portuguese, and use its action:
+
+| State | How |
+|---|---|
+| No paired audio | a video device without an audio input: a virtual camera on Windows, `v4l2loopback` on Linux |
+| Disconnected | unplug the ezcap's USB while playing; plug it back: sound within 3 s |
+| Blocked | Windows: Settings → Privacy → Microphone → desktop apps off |
+| In use | Windows: hold the output exclusive in another app (e.g. a second CapturaX build, or an ASIO/exclusive player), mark it exclusive here |
+| Failed | Windows: an input exclusive in another app while ours is shared |
+| Output fallback | pick the G533, then unplug its receiver; plug it back: sound moves back |
+
+Closing: 100 closes in a row with sound playing on each system (switching the video device back
+and forth, and quitting with `--stats`), none over 1 s in the log, no hang of the app or of the
+system's sound.
+
+## Acceptance (SC-009)
+
+The maintainer plays on Windows 11 and on CachyOS KDE Plasma Wayland with the ezcap and the C920
+through User Stories 1 to 5; results in `measurements/acceptance.md`.
