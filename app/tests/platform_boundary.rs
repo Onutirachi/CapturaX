@@ -1,8 +1,8 @@
 //! Constitution IV: only `crates/platform` talks to the operating system (research R2, R13).
 //!
 //! `cargo deny` cannot ban `windows-sys` or `zbus` by name, since winit, wgpu and Slint pull them
-//! in, so this test checks the direct dependencies of `app`, `settings` and `capture` and the
-//! platform conditions in their sources (device preview research R12).
+//! in, so this test checks the direct dependencies of `app`, `settings`, `capture` and `audio` and
+//! the platform conditions in their sources (device preview research R12).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,13 +18,15 @@ const OS_CRATES: &[&str] = &[
     "libc",
     "nix",
     "libloading",
+    "pipewire",
+    "libspa",
 ];
 
 /// Words that make a `cfg` condition platform-specific.
 const PLATFORM_PREDICATES: &[&str] = &["windows", "unix", "target_os", "target_family"];
 
 /// The crates that must stay free of OS code, relative to the workspace root.
-const CHECKED_CRATES: &[&str] = &["app", "crates/settings", "crates/capture"];
+const CHECKED_CRATES: &[&str] = &["app", "crates/settings", "crates/capture", "crates/audio"];
 
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

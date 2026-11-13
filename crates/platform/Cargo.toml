@@ -20,6 +20,7 @@ tray-icon.workspace = true
 zbus.workspace = true
 ksni.workspace = true
 libloading.workspace = true
+pipewire.workspace = true
 wayland-client.workspace = true
 wayland-backend.workspace = true
 wayland-protocols.workspace = true

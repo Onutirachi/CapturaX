@@ -42,13 +42,16 @@ jobs:
 
       # gstreamer1.0-plugins-base: videotestsrc, videoconvert and appsink for the capture
       # pipeline tests (device preview); the Windows installer already ships them.
+      # libpipewire-0.3-dev and clang: the pipewire crate builds its bindings with bindgen
+      # (preview audio research R14).
       - name: Install system libraries (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base \
-            libxkbcommon-dev libwayland-dev libdbus-1-dev libfontconfig1-dev
+            libxkbcommon-dev libwayland-dev libdbus-1-dev libfontconfig1-dev \
+            libpipewire-0.3-dev clang
 
       # One Inno Setup installer with runtime and development files since 1.28. The default
       # all-users folder matches PKG_CONFIG_PATH in .cargo/config.toml.

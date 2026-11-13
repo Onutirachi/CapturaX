@@ -4,9 +4,10 @@
 
 ## State
 
-Spec, constitution amendment 1.2.0 and plan committed (`docs: allow PipeWire for the preview
-audio`, `docs: plan the preview audio`). tasks.md written (T001–T046), **not committed yet**:
-waiting for the maintainer's review. Not pushed.
+Spec, plan and tasks committed. Phase 1 (T001–T004) done and committed (`build: add audio
+crate`): empty `crates/audio` wired into the app and the boundary test, `pipewire` 0.10 and the
+WASAPI features in the workspace, PipeWire build packages in CI. The Linux build of the
+`pipewire` crate is not checked yet (CI on the PR, or CachyOS). Not pushed.
 
 ## Done in the last sessions
 
@@ -46,6 +47,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-Maintainer reviews tasks.md; after validation commit it (`docs: add the preview audio tasks`),
-then `/speckit-implement` from T001. Implementation needs the maintainer's explicit go-ahead.
-Early hardware steps: T006 (Linux probe, ezcap on CachyOS) and T008 (pairing keys on both PCs).
+Phase 2. T005 (the Linux probe example) and T007 (the pairing keys example) first, so the
+maintainer can run T006 (ezcap on CachyOS) and T008 (both PCs); meanwhile the pure crate (T009,
+T010, T013, T014), then T011, T012. Check on CachyOS that `cargo build` passes with the
+`pipewire` crate (needs `pipewire` headers and `clang`).

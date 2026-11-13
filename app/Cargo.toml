@@ -14,6 +14,7 @@ path = "src/main.rs"
 settings = { package = "capturax-settings", path = "../crates/settings" }
 platform = { package = "capturax-platform", path = "../crates/platform" }
 capture = { package = "capturax-capture", path = "../crates/capture" }
+audio = { package = "capturax-audio", path = "../crates/audio" }
 slint.workspace = true
 winit.workspace = true
 bytemuck.workspace = true
