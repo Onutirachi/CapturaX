@@ -1,0 +1,101 @@
+// A segmented control (FR-031, research R18): a pill with one segment per option for a choice of
+// two or three short options, the chosen segment filled with the accent (maintainer, 2026-11-07:
+// no dot), 40 px tall like every settings control (FR-034), corners like the dropdowns rather
+// than a full pill. One Tab stop; Left and Right (Up, Down, Home, End too) move the
+// choice; a click picks a segment. Read as a radio group of radio buttons.
+import { Theme } from "../theme.slint";
+import { FocusRing } from "focus-ring.slint";
+
+export component Segmented inherits Rectangle {
+    in property <[string]> options;
+    in-out property <int> current;
+    // The setting's name, for screen readers.
+    in property <string> label;
+    // A longer explanation (the row's tooltip), for screen readers.
+    in property <string> description;
+    // False keeps it out of the Tab order.
+    in property <bool> focusable: true;
+    out property <bool> has-focus: focus.has-focus;
+    callback selected(int);
+
+    function choose(index: int) {
+        if (index >= 0 && index < root.options.length && index != root.current) {
+            root.current = index;
+            root.selected(index);
+        }
+    }
+
+    height: 40px;
+    border-radius: 12px;
+    background: Theme.c.base;
+    accessible-role: radio-group;
+    accessible-label: root.label;
+    accessible-description: root.description;
+
+    forward-focus: focus;
+
+    focus := FocusScope {
+        enabled: root.focusable;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
+                root.choose(root.current + 1);
+                return accept;
+            }
+            if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                root.choose(root.current - 1);
+                return accept;
+            }
+            if (event.text == Key.Home) {
+                root.choose(0);
+                return accept;
+            }
+            if (event.text == Key.End) {
+                root.choose(root.options.length - 1);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    HorizontalLayout {
+        padding: 3px;
+        spacing: 3px;
+
+        for option[i] in root.options: segment := Rectangle {
+            property <bool> chosen: i == root.current;
+            border-radius: 9px;
+            background: self.chosen ? (area.has-hover ? Theme.c.accent-hover : Theme.c.accent)
+                : area.has-hover ? Theme.c.hover : transparent;
+            animate background { duration: Theme.quick; }
+            accessible-role: radio-button;
+            accessible-label: option;
+            accessible-checkable: true;
+            accessible-checked: self.chosen;
+            accessible-action-default => { root.choose(i); }
+
+            area := TouchArea {
+                clicked => { root.choose(i); }
+            }
+
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                alignment: center;
+
+                Text {
+                    text: option;
+                    color: segment.chosen ? Theme.c.accent-ink : Theme.c.text;
+                    font-size: Theme.text-m;
+                    font-weight: segment.chosen ? 600 : 500;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: root.border-radius;
+    }
+}

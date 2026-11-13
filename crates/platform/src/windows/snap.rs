@@ -15,23 +15,28 @@
 //! back to the app as `SnapEvent`s. Presses are not passed on, so the system does not draw or track
 //! a classic caption button; moves are, as they start the flyout and the system's own leave
 //! tracking (`WM_NCMOUSELEAVE`).
+//!
+//! Also the snapped place a window returns to after fullscreen (FR-025, research R10).
 
 use std::cell::Cell;
 use std::rc::Rc;
 
-use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::UI::Controls::MARGINS;
 use windows_sys::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    HTCLIENT, HTMAXBUTTON, IsZoomed, NCCALCSIZE_PARAMS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, SetWindowPos, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDBLCLK, WM_NCLBUTTONDOWN,
-    WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_NCRBUTTONDBLCLK, WM_NCRBUTTONDOWN, WM_NCRBUTTONUP,
+    GetWindowRect, HTCLIENT, HTMAXBUTTON, IsWindowArranged, IsZoomed, NCCALCSIZE_PARAMS, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST,
+    WM_NCLBUTTONDBLCLK, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_NCRBUTTONDBLCLK,
+    WM_NCRBUTTONDOWN, WM_NCRBUTTONUP,
 };
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::Window;
 
+use crate::Rect;
 use crate::snap::{ButtonRect, SnapEvent};
 
 const SUBCLASS_ID: usize = 0x5A4B;
@@ -140,6 +145,46 @@ pub fn attach(window: &Window, on_event: Box<dyn Fn(SnapEvent)>) -> Snap {
         snap.hwnd = Some(hwnd);
     }
     snap
+}
+
+/// The outer rectangle of a snapped window (research R10).
+pub fn arranged_rect(window: &Window) -> Option<Rect> {
+    let hwnd = super::hwnd(window)?;
+    let mut r = RECT::default();
+    // SAFETY: the handle is valid for the window's life; the out pointer is to a local.
+    let snapped = unsafe { IsWindowArranged(hwnd) != 0 && GetWindowRect(hwnd, &mut r) != 0 };
+    if !snapped {
+        return None;
+    }
+    let size = PhysicalSize::new(
+        u32::try_from(r.right - r.left).ok()?,
+        u32::try_from(r.bottom - r.top).ok()?,
+    );
+    Some((PhysicalPosition::new(r.left, r.top), size))
+}
+
+pub fn set_outer_rect(window: &Window, (pos, size): Rect) {
+    let Some(hwnd) = super::hwnd(window) else {
+        return;
+    };
+    let (Ok(width), Ok(height)) = (i32::try_from(size.width), i32::try_from(size.height)) else {
+        return;
+    };
+    // SAFETY: the handle is valid for the window's life; no z-order or activation change.
+    let moved = unsafe {
+        SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            pos.x,
+            pos.y,
+            width,
+            height,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+    };
+    if moved == 0 {
+        log::warn!("window not moved back to its snapped place");
+    }
 }
 
 /// The screen point packed in a non-client message's lparam (signed: monitors left of or above

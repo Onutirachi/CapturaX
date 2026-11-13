@@ -65,7 +65,8 @@ export component Tooltip inherits Raised {
         // light text on dark reads thin and blurred at 100% (maintainer's comparison of sizes and
         // weights).
         font-size: 15px;
-        horizontal-alignment: center;
+        // Left: a tooltip of several lines (the latency bubble's) reads as a list.
+        horizontal-alignment: left;
         vertical-alignment: center;
         overflow: elide;
     }

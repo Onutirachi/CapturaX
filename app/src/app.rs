@@ -2,7 +2,7 @@
 //! thread, the Slint UI drawn there and handed to the video thread with the scene.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use slint::{ComponentHandle, Global};
 use winit::application::ApplicationHandler;
@@ -17,10 +17,12 @@ use crate::cli::StartupOptions;
 use crate::frame::{self, Escape};
 use crate::i18n;
 use crate::icon;
+use crate::latency;
 use crate::notices::{Kind, Notices};
 use crate::placement::{self, Rect};
+use crate::present_log::{self, Event as LogEvent, Stage};
+use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
-use crate::test_video::TestVideo;
 use crate::theme::{self, SystemTheme};
 use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
 use platform::autostart;
@@ -32,8 +34,17 @@ pub const EXIT_NO_RENDERER: i32 = 2;
 /// Exit code when `--test-video` cannot play: GStreamer or `videotestsrc` is missing.
 pub const EXIT_NO_TEST_VIDEO: i32 = 69;
 
-/// Events reaching the main thread from the UI's callbacks and, later, from the platform layer.
-#[derive(Debug, Clone, Copy)]
+/// The main loop's tick, which notices a wake from sleep and runs the device list's re-read.
+const TICK: Duration = Duration::from_secs(1);
+/// A tick this much later than due, by the wall clock, means the system slept: the process does
+/// not run meanwhile, and on Linux `Instant` does not count the suspended time.
+const WAKE_GAP: Duration = Duration::from_secs(10);
+/// How often the device list is read again while the preview waits for a device (research R1).
+const RELIST_EVERY: Duration = Duration::from_secs(3);
+
+/// Events reaching the main thread from the UI's callbacks, the platform layer and the capture
+/// crate's threads.
+#[derive(Debug, Clone)]
 pub enum UserEvent {
     Window(WindowAction),
     DismissNotice,
@@ -46,6 +57,56 @@ pub enum UserEvent {
     Snap(SnapEvent),
     /// The system's theme changed where winit does not report it (FR-017, Linux).
     SystemTheme(Option<platform::theme::Theme>),
+    /// The device monitor's events.
+    Monitor(capture::MonitorEvent),
+    /// An event of the session with this number.
+    Session {
+        session: u64,
+        event: capture::SessionEvent,
+    },
+    /// The toolbar's color range choice: 0 Auto, 1 Full, 2 Limited.
+    ColorRange(i32),
+    /// A row of the device menu, by index.
+    DevicePicked(i32),
+    /// A row of the mode menu, by index.
+    ModePicked(i32),
+    /// The state message's **Try again** (FR-019).
+    TryAgain,
+    /// **Open** on a device notice (FR-027), in the app's balloon or on a system notification
+    /// (`system`), which also brings the window back.
+    NoticeOpen {
+        device: String,
+        system: bool,
+    },
+    /// The video thread's summary of the last second (FR-016).
+    Second(crate::stats::Summary),
+    /// The device list read again ([`capture::Monitor::relist`]); `timer` for the 3 s re-read.
+    Relisted {
+        devices: Vec<capture::Device>,
+        timer: bool,
+    },
+}
+
+/// The watermark's opacity over the background (data-model.md "Video backdrop").
+const WATERMARK_OPACITY: f32 = 0.06;
+
+/// What the video thread draws around the video, from the settings (F56, F57).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Backdrop {
+    black: bool,
+    watermark: bool,
+    /// The shadow is drawn (Always; With ambient light draws none until spec #6).
+    shadow: bool,
+}
+
+impl From<&settings::Preview> for Backdrop {
+    fn from(p: &settings::Preview) -> Self {
+        Self {
+            black: p.background == settings::Background::Black,
+            watermark: p.watermark,
+            shadow: p.shadow == settings::Shadow::Always,
+        }
+    }
 }
 
 /// A change made in the settings panel.
@@ -57,6 +118,15 @@ pub enum SettingChange {
     StartFullscreen(bool),
     KeepInTray(bool),
     StartWithSystem(bool),
+    NotificationPosition(settings::NotificationPosition),
+    Background(settings::Background),
+    Watermark(bool),
+    Shadow(settings::Shadow),
+    Presentation(settings::Presentation),
+    /// A bubble's display (FR-016a, FR-017), chosen from its menu.
+    LatencyDisplay(settings::LatencyDisplay),
+    FpsDisplay(settings::FpsDisplay),
+    ModeDisplay(settings::ModeDisplay),
 }
 
 /// What the UI asks the window to do.
@@ -85,13 +155,43 @@ pub struct App {
     /// fullscreen if it was (research R11).
     window_gone: bool,
     reopen_fullscreen: bool,
-    test_video: Option<TestVideo>,
+    /// The test video's session and the precise timers that pace it.
+    test_video: Option<(capture::Session, platform::TimerGuard)>,
+    /// What the video area shows and which device is open (data-model.md "Preview state").
+    preview: Preview,
+    /// The device and mode menus last shown, whose rows the toolbar's picks index.
+    menus: Option<(Vec<preview::Item>, Vec<preview::Item>)>,
+    /// The device monitor, unless the test video plays or GStreamer cannot start.
+    monitor_devices: Option<capture::Monitor>,
+    /// Camera access when the monitor started or was last checked: a monitor started while
+    /// access was denied never lists the devices that come back with it (T045).
+    monitor_access: capture::Access,
+    /// A re-read of the device list is running (`Some(timer)`), and one asked for meanwhile, run
+    /// once it is back (a list read before a session error may still hold the device).
+    relisting: Option<bool>,
+    relist_queued: Option<bool>,
+    /// The next tick, and the wall clock at the last one (a wake from sleep); `None` before the
+    /// first, so a slow start is not taken for a sleep.
+    tick_at: Instant,
+    tick_wall: Option<SystemTime>,
+    /// The next 3 s re-read while the preview waits for a device.
+    relist_at: Instant,
+    /// The open device's session, and when it was asked for (SC-004).
+    session: Option<(capture::Session, Instant)>,
+    /// The open device, for the `[source]` line of `--stats` (contracts/stats.md).
+    source: Option<crate::stats::Source>,
+    /// The video thread's summary of the last second, for the bubbles.
+    second: crate::stats::Summary,
     /// The scene last handed to the video thread.
     scene: Option<Scene>,
+    /// The video background and watermark settings (F56, F57), for the scene.
+    backdrop: Backdrop,
     /// When the UI was last handed over and the monitor's refresh interval: animations redraw at
     /// most once per refresh.
     last_ui: Instant,
     refresh: Duration,
+    /// The refresh interval the monitor reports, for the latency estimate; `None` when unknown.
+    monitor_refresh: Option<Duration>,
     /// The monitor the refresh interval was read from.
     monitor: Option<MonitorHandle>,
     /// The edge or corner under the pointer, where a press resizes the window.
@@ -103,6 +203,9 @@ pub struct App {
     awaiting_size: bool,
     /// When to ask the system to leave fullscreen ([`Self::set_fullscreen`]).
     leave_fullscreen_at: Option<Instant>,
+    /// Where the window was snapped when it entered fullscreen: leaving puts it back there, since
+    /// winit restores the place before the snap (FR-025, research R10).
+    snapped_rect: Option<platform::Rect>,
     /// The single-instance listener; dropped in the quit sequence, which releases the name.
     instance: Option<platform::Serving>,
     /// The tray icon, while Keep in tray is on and the desktop has a tray (FR-014a): closing the
@@ -116,8 +219,18 @@ pub struct App {
     /// A language or theme switch waiting for its first UI image (SC-005): the log line's label
     /// and when the switch started.
     switch: Option<(String, Instant)>,
+    /// A language switch whose first UI image is timed by stage (FR-024; `--stats` or
+    /// `--present-log`).
+    language_stages: bool,
     /// The system's theme, for the Automatic setting (FR-017).
     system_theme: Option<SystemTheme>,
+    /// The window has the keyboard focus: device notices show in the app, else as system
+    /// notifications (FR-027).
+    focused: bool,
+    /// The last device notice shown in the app, its text redone on a language switch, and the
+    /// number that shows each one.
+    device_notice: Option<DeviceNotice>,
+    device_notice_serial: i32,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -133,7 +246,9 @@ impl App {
     ) -> Self {
         let state = ui.app.global::<WindowState>();
         let tray_available = tray::available();
+        let backdrop = Backdrop::from(&store.get().preview);
         ui.app.global::<Prefs>().set_tray_available(tray_available);
+        ui.app.set_privacy_settings(platform::IS_WINDOWS);
         let sender = proxy.clone();
         let send = move |event: UserEvent| {
             let _ = proxy.send_event(event);
@@ -150,34 +265,94 @@ impl App {
         state.on_start_move(move || on(UserEvent::Window(WindowAction::StartMove)));
         let on = send.clone();
         ui.app.on_dismiss_notice(move || on(UserEvent::DismissNotice));
+        let on = send.clone();
+        ui.app
+            .on_color_range_changed(move |index| on(UserEvent::ColorRange(index)));
+        let on = send.clone();
+        ui.app.on_device_picked(move |index| on(UserEvent::DevicePicked(index)));
+        let on = send.clone();
+        ui.app.on_mode_picked(move |index| on(UserEvent::ModePicked(index)));
+        let on = send.clone();
+        ui.app.on_try_again(move || on(UserEvent::TryAgain));
+        let on = send.clone();
+        ui.app.on_device_notice_open(move |device| {
+            on(UserEvent::NoticeOpen {
+                device: device.into(),
+                system: false,
+            })
+        });
+        let overlay = store.get().overlay;
+        ui.app.set_latency_display(latency::latency_index(overlay.latency));
+        ui.app.set_fps_display(latency::fps_index(overlay.fps));
+        ui.app.set_mode_display(latency::mode_index(overlay.mode));
+        let on = send.clone();
+        ui.app.on_latency_display_changed(move |index| {
+            on(UserEvent::Setting(SettingChange::LatencyDisplay(
+                latency::latency_display(index),
+            )));
+        });
+        let on = send.clone();
+        ui.app.on_fps_display_changed(move |index| {
+            on(UserEvent::Setting(SettingChange::FpsDisplay(latency::fps_display(
+                index,
+            ))));
+        });
+        let on = send.clone();
+        ui.app.on_mode_display_changed(move |index| {
+            on(UserEvent::Setting(SettingChange::ModeDisplay(latency::mode_display(
+                index,
+            ))));
+        });
         bind_prefs(&ui, &store, send);
+        // The Presentation setting reaches the video thread before it starts (FR-022).
+        let inbox = Arc::new(Inbox::default());
+        inbox.set_presentation(store.get().preview.presentation);
         Self {
             options,
             process_start,
             store,
             ui,
             notices: Notices::default(),
+            focused: false,
+            device_notice: None,
+            device_notice_serial: 0,
             window: None,
             video: None,
-            inbox: Arc::new(Inbox::default()),
+            inbox,
             video_started: false,
             window_gone: false,
             reopen_fullscreen: false,
             test_video: None,
+            preview: Preview::with_access(camera_access),
+            menus: None,
+            monitor_devices: None,
+            monitor_access: capture::Access::Unknown,
+            relisting: None,
+            relist_queued: None,
+            tick_at: Instant::now(),
+            tick_wall: None,
+            relist_at: Instant::now(),
+            session: None,
+            source: None,
+            second: crate::stats::Summary::EMPTY,
             scene: None,
+            backdrop,
             last_ui: Instant::now(),
             refresh: Duration::from_millis(16),
+            monitor_refresh: None,
             monitor: None,
             resize: None,
             placement_changed: false,
             awaiting_size: false,
             leave_fullscreen_at: None,
+            snapped_rect: None,
             instance,
             tray: None,
             tray_available,
             snap: None,
             snap_button: None,
             switch: None,
+            language_stages: false,
             system_theme: None,
             proxy: sender,
             exit_code: 0,
@@ -212,6 +387,396 @@ impl App {
         }
     }
 
+    /// Starts the device monitor: its events reach the main thread as [`UserEvent::Monitor`].
+    fn start_monitor(&mut self) {
+        self.monitor_access = camera_access();
+        let proxy = self.proxy.clone();
+        match capture::Monitor::start(move |event| {
+            let _ = proxy.send_event(UserEvent::Monitor(event));
+        }) {
+            Ok(monitor) => self.monitor_devices = Some(monitor),
+            // The video area shows the shell's `no-source` state.
+            Err(err) => {
+                log::error!("device monitor unavailable: {err}");
+                self.ui.app.set_preview_state("no-source".into());
+            }
+        }
+    }
+
+    /// Hands an event to the preview and runs the commands it gives; a state change is logged
+    /// with the event that caused it.
+    fn preview_event(&mut self, event: preview::Event) {
+        let settings = self.store.get();
+        let reason = event.reason();
+        let before = self.preview.state();
+        let was_waiting = self.preview.waiting();
+        let commands = self.preview.handle(event, &settings);
+        let after = self.preview.state();
+        if after != before {
+            log::info!("preview state {before:?} -> {after:?} ({reason})");
+        }
+        if self.preview.waiting() && !was_waiting {
+            // The first re-read comes a full period after the state's own (no reopen loop faster
+            // than the period after an error).
+            self.relist_at = Instant::now() + RELIST_EVERY;
+        }
+        for command in commands {
+            self.run(command);
+        }
+        self.show_menus();
+    }
+
+    /// Reads the device list again off the main thread; the result comes back as
+    /// [`UserEvent::Relisted`]. One at a time: a request meanwhile runs once the first is back.
+    fn relist(&mut self, timer: bool) {
+        let Some(monitor) = &self.monitor_devices else {
+            return;
+        };
+        if self.relisting.is_some() {
+            self.relist_queued = Some(self.relist_queued.unwrap_or(false) | timer);
+            return;
+        }
+        self.relisting = Some(timer);
+        let proxy = self.proxy.clone();
+        monitor.relist(move |devices| {
+            let _ = proxy.send_event(UserEvent::Relisted { devices, timer });
+        });
+    }
+
+    /// The main loop's tick: a wake from sleep reopens the device (spec edge case), while the
+    /// preview waits for a device the list is read again every 3 s (research R1), and while a
+    /// listed device is blocked camera access is read every 3 s (FR-021).
+    fn tick(&mut self, now: Instant) {
+        let wall = SystemTime::now();
+        let since = self
+            .tick_wall
+            .replace(wall)
+            .and_then(|last| wall.duration_since(last).ok())
+            .unwrap_or_default();
+        self.tick_at = now + TICK;
+        if since > WAKE_GAP {
+            log::info!("woke from sleep: {:.0} s since the last tick", since.as_secs_f64());
+            self.preview_event(preview::Event::Resumed);
+        }
+        if self.preview.waiting() && now >= self.relist_at {
+            self.relist_at = now + RELIST_EVERY;
+            let access = camera_access();
+            let restored = self.monitor_access == capture::Access::Denied && access != capture::Access::Denied;
+            self.monitor_access = access;
+            if restored && self.preview.device().is_none() && self.monitor_devices.is_some() {
+                // The running monitor lists nothing: a new one lists the devices again.
+                log::info!("camera access is back: the device monitor starts again");
+                self.monitor_devices = None;
+                self.relisting = None;
+                self.relist_queued = None;
+                self.start_monitor();
+            } else {
+                self.relist(true);
+            }
+        } else if self.preview.watches_access() && now >= self.relist_at {
+            // Blocked with the device listed: only camera access is read (FR-021).
+            self.relist_at = now + RELIST_EVERY;
+            self.preview_event(preview::Event::AccessCheck);
+        }
+    }
+
+    /// Shows the device and mode menus when they changed (a device came or left, another one
+    /// opened, a stored choice changed); an open menu follows at once (spec edge case).
+    fn show_menus(&mut self) {
+        let menus = self.preview.menus(&self.store.get());
+        self.ui.app.set_modes_reachable(self.preview.modes_reachable());
+        self.ui
+            .app
+            .set_device_missing(self.preview.missing_name().unwrap_or_default().into());
+        if self.menus.as_ref() == Some(&menus) {
+            return;
+        }
+        let app = &self.ui.app;
+        let texts = Texts::get(app);
+        let model = |items: &[preview::Item]| {
+            let rows: Vec<MenuItem> = items.iter().map(|i| crate::ui::menu_item(i, &texts)).collect();
+            slint::ModelRc::new(slint::VecModel::from(rows))
+        };
+        let current = |items: &[preview::Item]| {
+            items
+                .iter()
+                .position(|i| i.current)
+                .map_or(-1, |i| i32::try_from(i).unwrap_or(-1))
+        };
+        app.set_device(current(&menus.0));
+        app.set_mode(current(&menus.1));
+        app.set_devices(model(&menus.0));
+        app.set_modes(model(&menus.1));
+        self.menus = Some(menus);
+        self.request_redraw();
+    }
+
+    /// Shows the menus again even if unchanged: a select marks the row picked itself, which the
+    /// preview may not follow.
+    fn reset_menus(&mut self) {
+        self.menus = None;
+        self.show_menus();
+    }
+
+    /// What a pick of row `index` of a menu does, if it does anything.
+    fn picked(&self, modes: bool, index: i32) -> Option<preview::Pick> {
+        let (devices, mode_rows) = self.menus.as_ref()?;
+        let rows = if modes { mode_rows } else { devices };
+        rows.get(usize::try_from(index).ok()?)?.pick.clone()
+    }
+
+    fn run(&mut self, command: Command) {
+        match command {
+            Command::Open {
+                device,
+                mode,
+                range,
+                session,
+            } => {
+                self.close_session();
+                self.inbox.set_session(Some(crate::render::Feed {
+                    session,
+                    fps: mode.fps_f64(),
+                    gpu_performance: true,
+                }));
+                let inbox = self.inbox.clone();
+                let proxy = self.proxy.clone();
+                let opened = capture::Session::open(
+                    &device,
+                    &mode,
+                    range,
+                    session,
+                    capture::ErrorContext {
+                        windows: platform::IS_WINDOWS,
+                        access: Box::new(camera_access),
+                    },
+                    move |frame| inbox.send_frame(frame),
+                    move |event| {
+                        let _ = proxy.send_event(UserEvent::Session { session, event });
+                    },
+                );
+                self.session = Some((opened, Instant::now()));
+                self.source = Some(crate::stats::Source {
+                    device: device.name.clone(),
+                    id: device.id.clone(),
+                    mode,
+                    playing: None,
+                });
+            }
+            Command::Close => self.close_session(),
+            Command::Relist => self.relist(false),
+            Command::SaveChoice { id, name } => {
+                log::info!("device {id} remembered");
+                self.store.update(|s| s.remember_device(&id, &name));
+            }
+            Command::SaveMode { id, name, choice } => {
+                self.store
+                    .update(|s| s.touch_device(&id, &name).mode = choice.to_string());
+            }
+            Command::SetRange(range) => {
+                if let Some((session, _)) = &self.session {
+                    session.set_range(range);
+                }
+            }
+            Command::SaveRange { id, name, range } => {
+                self.store
+                    .update(|s| s.touch_device(&id, &name).color_range = preview::color_range(range));
+            }
+            Command::ShowRange => {
+                let (choice, in_use) = self.preview.range();
+                let app = &self.ui.app;
+                app.set_color_range(match choice {
+                    capture::RangeChoice::Auto => 0,
+                    capture::RangeChoice::Full => 1,
+                    capture::RangeChoice::Limited => 2,
+                });
+                app.set_range_full(in_use == Some(capture::Range::Full));
+                self.request_redraw();
+            }
+            Command::ShowState => self.show_preview_state(),
+            Command::Notice {
+                kind,
+                device_id,
+                name,
+                open,
+            } => self.device_notice(DeviceNotice {
+                kind,
+                device: device_id,
+                name,
+                open,
+            }),
+        }
+    }
+
+    /// Tells the user a device joined or left (FR-027): in the app's balloon while the window has
+    /// focus, else as a system notification, with the same texts.
+    fn device_notice(&mut self, notice: DeviceNotice) {
+        let texts = Texts::get(&self.ui.app);
+        let text = notice_text(&notice, &texts);
+        let summary = format!(
+            "{} ({}) {:?}, open {}",
+            notice.name, notice.device, notice.kind, notice.open
+        );
+        if self.focused && self.window.is_some() {
+            log::info!("notice: {summary} -> app");
+            self.device_notice_serial += 1;
+            let app = &self.ui.app;
+            app.set_device_notice_kind(notice_kind(notice.kind).into());
+            app.set_device_notice_text(text.into());
+            app.set_device_notice_can_open(notice.open);
+            app.set_device_notice_device(notice.device.as_str().into());
+            app.set_device_notice_serial(self.device_notice_serial);
+            self.device_notice = Some(notice);
+            self.request_redraw();
+        } else {
+            let shown = platform::notify(&platform::Notice {
+                title: text,
+                action: notice.open.then(|| texts.get_notice_open().into()),
+                tag: notice.device.clone(),
+            });
+            let to = if shown {
+                "system"
+            } else {
+                "nowhere (system notifications unavailable)"
+            };
+            log::info!("notice: {summary} -> {to}");
+        }
+    }
+
+    /// Shows the preview's state in the video area, in the current language.
+    fn show_preview_state(&mut self) {
+        let state = self.preview.state();
+        let name = match &state {
+            PreviewState::Blocked { device, .. } => {
+                device.as_deref().map(|id| self.preview.name(id)).unwrap_or_default()
+            }
+            PreviewState::Opening(id)
+            | PreviewState::InUse(id)
+            | PreviewState::Disconnected(id)
+            | PreviewState::NoSignal(id)
+            | PreviewState::Failed(id) => self.preview.name(id),
+            PreviewState::NoDevices | PreviewState::Playing | PreviewState::NoSource => String::new(),
+        };
+        let (id, title, detail) =
+            crate::ui::state_message(&state, &name, platform::IS_WINDOWS, &Texts::get(&self.ui.app));
+        // Before the monitor's first list the video area waits as when opening (no message).
+        let id = if !self.preview.listed() && self.monitor_devices.is_some() {
+            "opening"
+        } else {
+            id
+        };
+        let app = &self.ui.app;
+        app.set_device_open(self.preview.device().is_some());
+        app.set_preview_state(id.into());
+        app.set_state_title(title.into());
+        app.set_state_detail(detail.into());
+        self.show_info();
+    }
+
+    /// Shows the info bubbles (FR-016) while a device plays: its name and mode, and the frame rate
+    /// and latency of the video thread's last second once one with frames came; empty (hidden)
+    /// otherwise.
+    fn show_info(&mut self) {
+        let app = &self.ui.app;
+        let texts = Texts::get(app);
+        let playing = self.preview.state() == PreviewState::Playing;
+        let source = self.source.as_ref().filter(|_| playing);
+        let (name, size, tag, tag_kind, aspect) = source.map_or_else(Default::default, |s| {
+            let tags = s.mode.tags();
+            let (tag, kind) = match tags.name {
+                Some(name) => (
+                    name.into(),
+                    tags.family.map_or_else(|| "custom".into(), |f| f.to_string().into()),
+                ),
+                None => (texts.get_custom_resolution(), "custom".into()),
+            };
+            let aspect = tags.aspect.to_string().into();
+            (s.device.as_str().into(), s.mode.size_text().into(), tag, kind, aspect)
+        });
+        let (fps, latency, parts) = match (source, self.second.latency_ms) {
+            (Some(s), Some(measured)) => {
+                let overlay = self.store.get().overlay;
+                // The estimate (data-model.md "Latency estimate"): no platform call reports
+                // variable refresh in this spec, so `vrr` is false; the calibration absorbs it.
+                let platform = latency::Platform::current();
+                let estimated = latency::estimate(
+                    platform,
+                    Duration::from_secs_f64(1.0 / s.mode.fps_f64()),
+                    self.monitor_refresh.unwrap_or(Duration::from_secs_f64(1.0 / 60.0)),
+                    false,
+                    platform.calibration(),
+                );
+                let measured = Duration::from_secs_f64(measured / 1e3);
+                (
+                    latency::fps_text(overlay.fps, self.second.presented, s.mode.fps),
+                    latency::latency_text(overlay.latency, measured, estimated),
+                    Some(latency::LatencyParts::new(measured, estimated)),
+                )
+            }
+            _ => Default::default(),
+        };
+        app.set_info_source(name);
+        app.set_info_mode(size);
+        app.set_info_mode_tag(tag);
+        app.set_info_mode_tag_kind(tag_kind);
+        app.set_info_mode_aspect(aspect);
+        app.set_info_fps(fps.into());
+        app.set_info_latency(latency.into());
+        let parts = parts.unwrap_or(latency::LatencyParts {
+            measured: String::new(),
+            estimated: String::new(),
+            total: String::new(),
+        });
+        app.set_info_latency_measured(parts.measured.into());
+        app.set_info_latency_estimated(parts.estimated.into());
+        app.set_info_latency_total(parts.total.into());
+        self.request_redraw();
+    }
+
+    fn close_session(&mut self) {
+        self.inbox.set_session(None);
+        self.inbox.clear_video();
+        self.source = None;
+        // The next device's bubbles wait for its own first second.
+        self.second = crate::stats::Summary::EMPTY;
+        if let Some((session, _)) = self.session.take() {
+            session.close();
+        }
+    }
+
+    /// A session event: the time from the choice to the first frame is logged (SC-004), then the
+    /// preview gets it.
+    fn session_event(&mut self, session: u64, event: capture::SessionEvent) {
+        if event == capture::SessionEvent::FirstFrame
+            && let Some((open, asked)) = &self.session
+            && open.id() == session
+        {
+            log::info!(
+                "session {session}: first frame {:.0} ms after the choice",
+                asked.elapsed().as_secs_f64() * 1e3
+            );
+        }
+        let current = self.session.as_ref().is_some_and(|(open, _)| open.id() == session);
+        let range = match &event {
+            capture::SessionEvent::Playing { format, matrix } if current => {
+                if let Some(source) = &mut self.source {
+                    source.playing = Some((*format, *matrix));
+                }
+                None
+            }
+            capture::SessionEvent::Range(range) if current => Some(*range),
+            _ => None,
+        };
+        self.preview_event(preview::Event::Session { session, event });
+        // The session sends the range in use right after `Playing` and on each change.
+        if let (Some(range), true) = (range, self.options.stats) {
+            let auto = self.preview.range().0 == capture::RangeChoice::Auto;
+            if let Some(line) = self.source.as_ref().and_then(|s| s.line(range, auto)) {
+                crate::render::print_stats(&line);
+            }
+        }
+    }
+
     fn tray_labels(&self) -> Labels {
         let texts = Texts::get(&self.ui.app);
         Labels {
@@ -229,9 +794,11 @@ impl App {
             return;
         };
         window.set_visible(false);
+        self.inbox.set_shown(false);
         if let Some(video) = &self.video {
             video.set_visible(false);
         }
+        self.preview_event(preview::Event::Hidden);
         // Wayland cannot hide a window: it stayed on screen, frozen. It goes instead (research R11).
         if window.is_visible().is_none() {
             self.destroy_window(window);
@@ -257,6 +824,7 @@ impl App {
         self.resize = None;
         self.awaiting_size = false;
         self.leave_fullscreen_at = None;
+        self.snapped_rect = None;
         self.scene = None;
         self.ui.app.global::<WindowState>().set_fullscreen(false);
         self.ui.window_gone();
@@ -305,6 +873,12 @@ impl App {
     fn apply_language(&mut self, language: &str) {
         let started = Instant::now();
         crate::ui::select_language(language);
+        let stages = self.options.stats || present_log::enabled();
+        if stages {
+            let ms = started.elapsed().as_secs_f64() * 1e3;
+            present_log::stage(Stage::Catalog, ms, self.options.stats);
+        }
+        let catalog_end = Instant::now();
         if let Some(tray) = &self.tray {
             tray.set_labels(&self.tray_labels());
         }
@@ -312,7 +886,19 @@ impl App {
             window.set_title(Texts::get(&self.ui.app).get_app_name().as_str());
         }
         set_language_items(&self.ui);
+        // The menus' named texts are read again from the new catalog.
+        self.reset_menus();
         self.show_notice();
+        if let Some(notice) = &self.device_notice {
+            let text = notice_text(notice, &Texts::get(&self.ui.app));
+            self.ui.app.set_device_notice_text(text.into());
+        }
+        self.show_preview_state();
+        if stages {
+            let ms = catalog_end.elapsed().as_secs_f64() * 1e3;
+            present_log::stage(Stage::Property, ms, self.options.stats);
+            self.language_stages = true;
+        }
         self.switch = Some((format!("language switch {language}"), started));
         self.request_redraw();
     }
@@ -341,6 +927,38 @@ impl App {
         self.apply_theme();
     }
 
+    /// The watermark's color and opacity for the scene: the ground's text tone (white on the dark
+    /// theme and on black, black on the light theme) at 6%, none when off (data-model.md "Video
+    /// backdrop").
+    fn watermark(&self) -> [f32; 4] {
+        if !self.backdrop.watermark {
+            return [0.0; 4];
+        }
+        let light = !self.backdrop.black && !self.ui.app.global::<UiTheme>().get_dark();
+        let tone = if light { 0.0 } else { 1.0 };
+        [tone, tone, tone, WATERMARK_OPACITY]
+    }
+
+    /// The shadow's strength: half on the light theme's ground, where a black shadow looks dirty;
+    /// none when off (With ambient light draws none until the ambient light exists, spec #6).
+    fn shadow_strength(&self) -> f32 {
+        if !self.backdrop.shadow {
+            0.0
+        } else if !self.backdrop.black && !self.ui.app.global::<UiTheme>().get_dark() {
+            0.5
+        } else {
+            1.0
+        }
+    }
+
+    /// Applies the video background and watermark settings: the scene and the state messages'
+    /// tones (light text on black in both themes).
+    fn apply_backdrop(&mut self) {
+        self.backdrop = Backdrop::from(&self.store.get().preview);
+        self.ui.app.set_video_black(self.backdrop.black);
+        self.request_redraw();
+    }
+
     fn request_redraw(&self) {
         if let Some(w) = &self.window {
             w.request_redraw();
@@ -348,10 +966,12 @@ impl App {
     }
 
     /// Shows the window for another start (FR-013): out of the tray or the taskbar, then to the
-    /// front where the platform allows it (winit's focus needs a visible, restored window). Before
+    /// front where the platform allows it (winit's focus needs a visible, restored window; on
+    /// Wayland the activation token of the click that asked for it, research R15). Before
     /// the window exists there is nothing to do: it is about to be shown. A window destroyed to
     /// hide it is made again (research R11).
     fn show_window(&mut self, event_loop: &ActiveEventLoop) {
+        self.preview_event(preview::Event::Shown);
         if self.window.is_none() && std::mem::take(&mut self.window_gone) {
             let Some(window) = self.open_window(event_loop) else {
                 return;
@@ -362,7 +982,8 @@ impl App {
             }
             self.update_ui();
             window.set_visible(true);
-            window.focus_window();
+            self.update_shown();
+            platform::raise_window(&window);
             log::info!("window made again out of the tray");
             return;
         }
@@ -374,8 +995,18 @@ impl App {
         }
         window.set_visible(true);
         window.set_minimized(false);
-        window.focus_window();
+        self.update_shown();
+        platform::raise_window(&window);
         self.request_redraw();
+    }
+
+    /// Tells the video thread whether the window is on screen, for Follow the monitor (research
+    /// R9). Where the system does not say, it counts as on screen.
+    fn update_shown(&self) {
+        if let Some(w) = &self.window {
+            self.inbox
+                .set_shown(w.is_visible() != Some(false) && w.is_minimized() != Some(true));
+        }
     }
 
     /// Reads the refresh interval of the monitor the window is on, when it is another monitor:
@@ -393,7 +1024,13 @@ impl App {
             .filter(|r| *r > 0)
         {
             self.refresh = Duration::from_secs_f64(1000.0 / f64::from(mhz));
+            self.monitor_refresh = Some(self.refresh);
+        } else {
+            self.monitor_refresh = None;
         }
+        // The video thread presents UI changes between slow video frames when a refresh fits
+        // (research R16).
+        self.inbox.set_refresh(self.refresh);
     }
 
     /// Advances timers and animations, draws the UI if Slint says it changed, and hands it to the
@@ -401,11 +1038,23 @@ impl App {
     fn update_ui(&mut self) {
         let Some(video) = &self.video else { return };
         self.ui.update_timers();
-        let image = self.ui.draw_if_needed();
+        let mut image = self.ui.draw_if_needed();
+        if let Some(image) = &mut image
+            && std::mem::take(&mut self.language_stages)
+        {
+            image.language = true;
+            present_log::stage(Stage::Draw, image.draw_ms, self.options.stats);
+        }
         let size = self.ui.size();
         let scene = Scene {
             video: self.ui.video_area(),
-            backdrop: self.ui.backdrop(),
+            backdrop: if self.backdrop.black {
+                [0.0; 3]
+            } else {
+                self.ui.backdrop()
+            },
+            watermark: self.watermark(),
+            shadow: [self.ui.scale(), self.shadow_strength()],
             size: (size.width, size.height),
         };
         if image.is_some() || self.scene != Some(scene) {
@@ -469,7 +1118,7 @@ impl App {
     }
 
     /// Borderless fullscreen on the monitor the window is on (research R5); leaving it returns to
-    /// the window's state before, maximized or not.
+    /// the window's state before, maximized, snapped or neither.
     ///
     /// Leaving waits two refreshes with the video thread holding its presents, so a frame of the
     /// fullscreen size already queued by the driver reaches the compositor before the change: on
@@ -487,8 +1136,12 @@ impl App {
 
     /// Asks the system for the change; see [`Self::set_fullscreen`].
     fn apply_fullscreen(&mut self, w: &Window, on: bool) {
+        present_log::event(LogEvent::Fullscreen(on));
         self.leave_fullscreen_at = None;
         if on {
+            if w.fullscreen().is_none() {
+                self.snapped_rect = platform::arranged_rect(w);
+            }
             platform::set_fullscreen_frame(w, true);
         } else if let Some(video) = &self.video {
             // Held again from here: the first present after the change must have the new size.
@@ -498,6 +1151,10 @@ impl App {
         w.set_fullscreen(on.then_some(Fullscreen::Borderless(None)));
         if !on {
             platform::set_fullscreen_frame(w, false);
+            // After winit's own restore, which ran inside set_fullscreen on this thread.
+            if let Some(rect) = self.snapped_rect.take() {
+                platform::set_outer_rect(w, rect);
+            }
         }
         self.ui.app.global::<WindowState>().set_fullscreen(on);
         self.set_resize(w, None);
@@ -597,12 +1254,17 @@ impl App {
             present: self.options.present,
         };
         let first = (!self.video_started).then_some(self.process_start);
+        let proxy = self.proxy.clone();
+        let on_second = Box::new(move |summary| {
+            let _ = proxy.send_event(UserEvent::Second(summary));
+        });
         match VideoThread::start(
             window.clone(),
             self.inbox.clone(),
             presentation,
             first,
             self.options.stats,
+            on_second,
         ) {
             Ok(video) => self.video = Some(video),
             Err(err) => {
@@ -651,6 +1313,8 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     let general = store.get().general;
     prefs.set_start_fullscreen(general.start_fullscreen);
     prefs.set_keep_in_tray(general.keep_in_tray);
+    prefs.set_notification_position(position_index(general.notification_position));
+    set_notification_position(ui, general.notification_position);
     // Read from the system each time the panel opens: the user may change it in the system's
     // own tools (FR-014b).
     let app = ui.app.as_weak();
@@ -679,7 +1343,87 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     prefs.on_start_fullscreen_changed(move |v| on(UserEvent::Setting(SettingChange::StartFullscreen(v))));
     let on = send.clone();
     prefs.on_keep_in_tray_changed(move |v| on(UserEvent::Setting(SettingChange::KeepInTray(v))));
-    prefs.on_start_with_system_changed(move |v| send(UserEvent::Setting(SettingChange::StartWithSystem(v))));
+    let on = send.clone();
+    prefs.on_start_with_system_changed(move |v| on(UserEvent::Setting(SettingChange::StartWithSystem(v))));
+    let on = send.clone();
+    prefs.on_notification_position_changed(move |index| {
+        on(UserEvent::Setting(SettingChange::NotificationPosition(
+            position_choice(index),
+        )));
+    });
+    // Preview (F56–F58): the segments' order is the enums' order.
+    let preview = store.get().preview;
+    prefs.set_background(match preview.background {
+        settings::Background::Theme => 0,
+        settings::Background::Black => 1,
+    });
+    prefs.set_watermark(preview.watermark);
+    ui.app
+        .set_video_black(preview.background == settings::Background::Black);
+    prefs.set_shadow(match preview.shadow {
+        settings::Shadow::Always => 0,
+        settings::Shadow::Ambient => 1,
+        settings::Shadow::Off => 2,
+    });
+    prefs.set_presentation(match preview.presentation {
+        settings::Presentation::LowestLatency => 0,
+        settings::Presentation::FollowMonitor => 1,
+    });
+    let on = send.clone();
+    prefs.on_background_changed(move |index| {
+        let background = if index == 1 {
+            settings::Background::Black
+        } else {
+            settings::Background::Theme
+        };
+        on(UserEvent::Setting(SettingChange::Background(background)));
+    });
+    let on = send.clone();
+    prefs.on_watermark_changed(move |v| on(UserEvent::Setting(SettingChange::Watermark(v))));
+    let on = send.clone();
+    prefs.on_shadow_changed(move |index| {
+        let shadow = match index {
+            0 => settings::Shadow::Always,
+            2 => settings::Shadow::Off,
+            _ => settings::Shadow::Ambient,
+        };
+        on(UserEvent::Setting(SettingChange::Shadow(shadow)));
+    });
+    prefs.on_presentation_changed(move |index| {
+        let presentation = if index == 1 {
+            settings::Presentation::FollowMonitor
+        } else {
+            settings::Presentation::LowestLatency
+        };
+        send(UserEvent::Setting(SettingChange::Presentation(presentation)));
+    });
+}
+
+/// The notification position's cell in the settings panel's grid (FR-032): top left, top right,
+/// bottom left, bottom right.
+fn position_index(position: settings::NotificationPosition) -> i32 {
+    use settings::NotificationPosition as P;
+    match position {
+        P::TopLeft => 0,
+        P::TopRight => 1,
+        P::BottomLeft => 2,
+        P::BottomRight => 3,
+    }
+}
+
+fn position_choice(index: i32) -> settings::NotificationPosition {
+    use settings::NotificationPosition as P;
+    match index {
+        0 => P::TopLeft,
+        1 => P::TopRight,
+        3 => P::BottomRight,
+        _ => P::BottomLeft,
+    }
+}
+
+/// Places the in-app notices in their corner, at once for one on screen (FR-032).
+fn set_notification_position(ui: &Ui, position: settings::NotificationPosition) {
+    ui.app.set_notification_position(position.as_str().into());
 }
 
 /// The settings panel's Language entries (FR-024): Automatic in the interface's language, then
@@ -688,7 +1432,10 @@ fn set_language_items(ui: &Ui) {
     let automatic = Texts::get(&ui.app).get_automatic();
     let items: Vec<MenuItem> = std::iter::once(automatic)
         .chain(i18n::LANGUAGES.iter().map(|l| l.native_name.into()))
-        .map(|text| MenuItem { text })
+        .map(|text| MenuItem {
+            text,
+            ..Default::default()
+        })
         .collect();
     ui.app
         .global::<Prefs>()
@@ -728,19 +1475,41 @@ impl ApplicationHandler<UserEvent> for App {
             let _ = proxy.send_event(UserEvent::SystemTheme(theme));
         });
         if let Some(size) = self.options.test_video {
-            match TestVideo::start(size, self.inbox.clone()) {
-                Ok(test_video) => self.test_video = Some(test_video),
-                Err(err) => {
-                    log::error!("{err}");
-                    eprintln!("{err}");
-                    self.exit_code = EXIT_NO_TEST_VIDEO;
-                    event_loop.exit();
-                    return;
-                }
+            if let Err(err) = capture::test_source::available() {
+                let err = format!("test video unavailable: {err}");
+                log::error!("{err}");
+                eprintln!("{err}");
+                self.exit_code = EXIT_NO_TEST_VIDEO;
+                event_loop.exit();
+                return;
             }
+            // Through the capture crate in NV12, like a device (contracts/cli.md); no device is
+            // opened.
+            // The GPU request only for comparison runs (contracts/platform.md).
+            self.inbox.set_session(Some(crate::render::Feed {
+                session: 0,
+                fps: f64::from(size.fps),
+                gpu_performance: self.options.stats,
+            }));
+            let inbox = self.inbox.clone();
+            let session = capture::Session::test_video(
+                size.width,
+                size.height,
+                size.fps,
+                0,
+                move |frame| inbox.send_frame(frame),
+                |event| log::info!("test video: {event:?}"),
+            );
+            // Paces `videotestsrc` evenly on Windows (app shell research R9).
+            self.test_video = Some((session, platform::precise_timers()));
+        } else {
+            self.start_monitor();
         }
-        // Without a source the video area shows the `no-source` state (FR-035).
-        self.ui.app.set_source_open(self.test_video.is_some());
+        // The test video plays at once; else the video area waits as when opening until the
+        // monitor's first list (main.slint's initial state).
+        if self.test_video.is_some() {
+            self.ui.app.set_preview_state("playing".into());
+        }
         self.window = Some(window.clone());
         self.sync_tray();
         // Started by the system with Keep in tray on: only the tray icon, whatever Start in
@@ -749,6 +1518,8 @@ impl ApplicationHandler<UserEvent> for App {
             if let Some(video) = &self.video {
                 video.set_visible(false);
             }
+            // No device opens until the window is shown.
+            self.preview_event(preview::Event::Hidden);
             log::info!("started hidden in the tray");
             return;
         }
@@ -762,6 +1533,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
         self.update_ui();
         window.set_visible(true);
+        self.update_shown();
         log::info!(
             "window shown {:.0} ms after start",
             self.process_start.elapsed().as_secs_f64() * 1e3
@@ -771,6 +1543,14 @@ impl ApplicationHandler<UserEvent> for App {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
         match event {
             UserEvent::Window(action) => self.act(event_loop, action),
+            UserEvent::TryAgain => self.preview_event(preview::Event::TryAgain),
+            UserEvent::NoticeOpen { device, system } => {
+                // Chosen before the window shows: while hidden, the preview opens it when shown.
+                self.preview_event(preview::Event::NoticeOpen(device));
+                if system {
+                    self.show_window(event_loop);
+                }
+            }
             UserEvent::DismissNotice => {
                 self.notices.dismiss();
                 self.show_notice();
@@ -785,6 +1565,37 @@ impl ApplicationHandler<UserEvent> for App {
                     self.apply_theme();
                 }
                 SettingChange::StartFullscreen(on) => self.store.update(|s| s.general.start_fullscreen = on),
+                SettingChange::NotificationPosition(position) => {
+                    self.store.update(|s| s.general.notification_position = position);
+                    set_notification_position(&self.ui, position);
+                }
+                SettingChange::Background(background) => {
+                    self.store.update(|s| s.preview.background = background);
+                    self.apply_backdrop();
+                }
+                SettingChange::Watermark(on) => {
+                    self.store.update(|s| s.preview.watermark = on);
+                    self.apply_backdrop();
+                }
+                SettingChange::Shadow(shadow) => {
+                    self.store.update(|s| s.preview.shadow = shadow);
+                    self.apply_backdrop();
+                }
+                // Applies at once, without reopening the device (FR-022).
+                SettingChange::Presentation(presentation) => {
+                    self.store.update(|s| s.preview.presentation = presentation);
+                    self.inbox.set_presentation(presentation);
+                }
+                SettingChange::LatencyDisplay(display) => {
+                    self.store.update(|s| s.overlay.latency = display);
+                    self.show_info();
+                }
+                SettingChange::FpsDisplay(display) => {
+                    self.store.update(|s| s.overlay.fps = display);
+                    self.show_info();
+                }
+                // The bubble shows its tags itself; only the setting is stored.
+                SettingChange::ModeDisplay(display) => self.store.update(|s| s.overlay.mode = display),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);
                     self.sync_tray();
@@ -801,6 +1612,60 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::ShowWindow | UserEvent::Tray(TrayEvent::Open) => self.show_window(event_loop),
             UserEvent::Tray(TrayEvent::Quit) => event_loop.exit(),
             UserEvent::SystemTheme(theme) => self.system_theme_changed(theme.map(SystemTheme::from)),
+            UserEvent::Monitor(event) => self.preview_event(preview::Event::Monitor(event)),
+            UserEvent::Session { session, event } => self.session_event(session, event),
+            UserEvent::ColorRange(index) => {
+                let range = match index {
+                    1 => capture::RangeChoice::Full,
+                    2 => capture::RangeChoice::Limited,
+                    _ => capture::RangeChoice::Auto,
+                };
+                self.preview_event(preview::Event::ChooseRange(range));
+            }
+            UserEvent::DevicePicked(index) => {
+                match self.picked(false, index) {
+                    Some(preview::Pick::Device(id)) => {
+                        log::info!("device {id} chosen");
+                        self.preview_event(preview::Event::ChooseDevice(id));
+                    }
+                    pick => log::warn!("device menu: row {index} picks {pick:?}"),
+                }
+                self.reset_menus();
+            }
+            UserEvent::ModePicked(index) => {
+                match self.picked(true, index) {
+                    Some(preview::Pick::Mode(choice)) => {
+                        log::info!("mode {choice} chosen");
+                        self.preview_event(preview::Event::ChooseMode(choice));
+                    }
+                    pick => log::warn!("mode menu: row {index} picks {pick:?}"),
+                }
+                self.reset_menus();
+            }
+            UserEvent::Second(summary) => {
+                self.second = summary;
+                // On Wayland the window has no monitor yet when it is created and no `Moved`
+                // event follows, so the refresh is read again while it is unknown.
+                if self.monitor.is_none()
+                    && let Some(window) = self.window.clone()
+                {
+                    self.update_refresh(&window);
+                }
+                self.show_info();
+            }
+            UserEvent::Relisted { devices, timer } => {
+                self.relisting = None;
+                let names: Vec<&str> = devices.iter().map(|d| d.name.as_str()).collect();
+                if timer {
+                    log::debug!("devices read again (3 s timer): {names:?}");
+                } else {
+                    log::info!("devices read again after the error: {names:?}");
+                }
+                self.preview_event(preview::Event::Relisted { devices, timer });
+                if let Some(timer) = self.relist_queued.take() {
+                    self.relist(timer);
+                }
+            }
             UserEvent::Snap(event) => {
                 let state = self.ui.app.global::<WindowState>();
                 match event {
@@ -816,7 +1681,16 @@ impl ApplicationHandler<UserEvent> for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => self.close(event_loop),
+            WindowEvent::Focused(focused) => {
+                present_log::event(LogEvent::Focus(focused));
+                self.focused = focused;
+                // Where minimizing cannot be read (Wayland), focus is the sign the window is back.
+                if focused {
+                    self.update_shown();
+                }
+            }
             WindowEvent::Resized(_) => {
+                self.update_shown();
                 if let Some(w) = self.window.clone() {
                     self.ui.set_size(platform::drawn_size(&w));
                     self.ui.app.global::<WindowState>().set_maximized(w.is_maximized());
@@ -924,15 +1798,25 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(at) = self.leave_fullscreen_at {
             wake = Some(wake.map_or(at, |w| w.min(at)));
         }
+        let now = Instant::now();
+        if now >= self.tick_at {
+            self.tick(now);
+        }
+        wake = Some(wake.map_or(self.tick_at, |w| w.min(self.tick_at)));
         event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // Quit sequence (FR-014): the test video stops first so no frame arrives during the stop;
-        // the video thread holds the surface, so it stops while the window still exists; then the
-        // settings are flushed and the window destroyed.
-        if let Some(mut test_video) = self.test_video.take() {
-            test_video.stop();
+        // Quit sequence (FR-014): the session and the test video stop first so no frame arrives
+        // during the stop, then the device monitor; the video thread holds the surface, so it
+        // stops while the window still exists; then the settings are flushed and the window
+        // destroyed.
+        self.close_session();
+        if let Some(mut monitor) = self.monitor_devices.take() {
+            monitor.stop();
+        }
+        if let Some((test_video, _timers)) = self.test_video.take() {
+            test_video.close();
         }
         if let Some(mut video) = self.video.take() {
             video.stop();
@@ -945,5 +1829,45 @@ impl ApplicationHandler<UserEvent> for App {
         self.snap = None;
         self.window = None;
         log::info!("quit");
+    }
+}
+
+/// The camera privacy switch, for the session's error mapping (research R6).
+fn camera_access() -> capture::Access {
+    match platform::camera_access() {
+        platform::Access::Allowed => capture::Access::Allowed,
+        platform::Access::Denied => capture::Access::Denied,
+        platform::Access::Unknown => capture::Access::Unknown,
+    }
+}
+
+/// A device notice (FR-027), kept to redo its text in another language.
+#[derive(Debug, Clone)]
+struct DeviceNotice {
+    kind: preview::NoticeKind,
+    device: String,
+    /// The device's name as the menu shows it.
+    name: String,
+    /// It offers **Open**.
+    open: bool,
+}
+
+/// The notice's text in the current language ("C920 connected").
+fn notice_text(notice: &DeviceNotice, texts: &Texts) -> String {
+    let name = notice.name.as_str().into();
+    match notice.kind {
+        preview::NoticeKind::Connected => texts.invoke_notice_connected(name),
+        preview::NoticeKind::Reconnected => texts.invoke_notice_reconnected(name),
+        preview::NoticeKind::Disconnected => texts.invoke_notice_disconnected(name),
+    }
+    .into()
+}
+
+/// The balloon's kind (main.slint `device-notice-kind`).
+fn notice_kind(kind: preview::NoticeKind) -> &'static str {
+    match kind {
+        preview::NoticeKind::Connected => "connected",
+        preview::NoticeKind::Reconnected => "reconnected",
+        preview::NoticeKind::Disconnected => "disconnected",
     }
 }

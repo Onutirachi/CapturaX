@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 settings = { package = "capturax-settings", path = "../crates/settings" }
 platform = { package = "capturax-platform", path = "../crates/platform" }
+capture = { package = "capturax-capture", path = "../crates/capture" }
 slint.workspace = true
 winit.workspace = true
 bytemuck.workspace = true
@@ -21,9 +22,6 @@ clap.workspace = true
 log.workspace = true
 anyhow.workspace = true
 sys-locale.workspace = true
-gst.workspace = true
-gst-app.workspace = true
-gst-video.workspace = true
 
 # Forced backends do not fall back (research R4): each platform builds only the backends it uses.
 [target.'cfg(windows)'.dependencies]

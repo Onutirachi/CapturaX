@@ -3,13 +3,36 @@
 // drawn last in main.slint, places it: below the control and aligned to its left; if it does not
 // fit below, above; if it does not fit to the right, aligned to the control's right edge (plan,
 // Menu placement; FR-010). A menu taller than the room it gets scrolls. One menu is open at a time.
-// Keys: Up, Down, Home, End move; Enter or Space picks; Esc or Tab closes (FR-020).
+// Keys: Up, Down, Home, End move, skipping headers and disabled items; Enter or Space picks; Esc
+// or Tab closes (FR-020). Rows as the spike's dropdown menu (research R13): group headers 30 px in
+// faint text, items 36 px, 48 px with their detail on a second line; the menu slides open.
+// A grid menu (`Menus.show-grid`, the notification position, FR-032) lays its items out in
+// columns of icon cells, 52 × 40 px, each named in its tooltip and for screen readers; the arrows
+// move in both directions.
 import { Theme } from "../theme.slint";
+import { Tooltips, Side } from "tooltip.slint";
 import { Raised } from "raised.slint";
 import { FocusRing } from "focus-ring.slint";
+import { Tag } from "tag.slint";
 
+// One row of a menu. Every field but `text` may be left out: an empty `kind` is an item.
 export struct MenuItem {
     text: string,
+    // `item` (or empty) or `header`: a header names the group below it and cannot be picked.
+    kind: string,
+    // A second line under the text.
+    detail: string,
+    // The frame rate tag ("60 FPS"), after the detail line when there is one, else after the text.
+    rate: string,
+    // The name tag ("Full HD") and its ratio family (`16:9`, `custom`), then the aspect tag.
+    tag: string,
+    tag-kind: string,
+    aspect: string,
+    // Shown but not selectable (default false, so a menu built without it is all enabled).
+    disabled: bool,
+    // A grid menu's cell: the icon in the muted tone and its part drawn in the accent.
+    icon: image,
+    accent: image,
 }
 
 export global Menus {
@@ -26,11 +49,32 @@ export global Menus {
     out property <length> anchor-y;
     out property <length> anchor-width;
     out property <length> anchor-height;
+    // The narrowest the menu may be (the dropdown look asks for 320 px).
+    out property <length> min-width: 160px;
+    // More than one: a grid of icon cells with this many columns.
+    out property <int> columns: 1;
+    // The token of the tooltip a grid cell shows, hidden when the menu closes.
+    in-out property <int> tip;
     // The last pick: its owner, its item, and a count that changes on every pick.
     out property <int> picked-owner;
     out property <int> picked-index;
     out property <int> picks;
     property <int> ids;
+
+    // The index of the next selectable item from `from` (excluded) in direction `step` (1 or -1),
+    // or `from` when there is none; set by Rust (app/src/ui.rs, `next_selectable`), since Slint
+    // functions cannot loop.
+    pure callback next-selectable(items: [MenuItem], from: int, step: int) -> int;
+    // The top of row `index` in the list (`index` = the count: the list's height plus one
+    // spacing); set by Rust (`item_top`) with the row heights below and a 2 px spacing.
+    pure callback item-top(items: [MenuItem], index: int) -> length;
+    // `items` after a group header named `title` (the icon look's menu); set by Rust, since Slint
+    // cannot join arrays.
+    pure callback with-header(title: string, items: [MenuItem]) -> [MenuItem];
+
+    public pure function selectable(item: MenuItem) -> bool {
+        return item.kind != "header" && !item.disabled;
+    }
 
     // A new owner id for a control that opens menus; call it once, from `init`.
     public function new-id() -> int {
@@ -38,19 +82,40 @@ export global Menus {
         return self.ids;
     }
 
-    public function show(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length, height: length) {
+    public function show(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length, height: length,
+        min-width: length) {
         self.items = items;
+        self.min-width = min-width;
         self.current = current;
-        self.highlighted = max(0, current);
+        self.highlighted = current >= 0 ? current : self.next-selectable(items, -1, 1);
         self.anchor-x = x;
         self.anchor-y = y;
         self.anchor-width = width;
         self.anchor-height = height;
+        self.columns = 1;
+        Tooltips.hide(self.tip);
         self.owner = owner;
     }
 
+    // A grid menu of icon cells, `columns` wide, placed as a list menu is.
+    public function show-grid(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length,
+        height: length, columns: int) {
+        self.show(owner, items, current, x, y, width, height, 0px);
+        self.columns = max(1, columns);
+    }
+
+    // The open menu's items changed (a device came or left): shown at once; the highlight stays
+    // unless its row is gone or no longer selectable.
+    public function update(items: [MenuItem], current: int) {
+        self.items = items;
+        self.current = current;
+        if (self.highlighted < 0 || self.highlighted >= items.length || !self.selectable(items[self.highlighted])) {
+            self.highlighted = current >= 0 ? current : self.next-selectable(items, -1, 1);
+        }
+    }
+
     public function pick(index: int) {
-        if (self.open && index >= 0 && index < self.items.length) {
+        if (self.open && index >= 0 && index < self.items.length && self.selectable(self.items[index])) {
             self.picked-owner = self.owner;
             self.picked-index = index;
             self.picks += 1;
@@ -59,6 +124,8 @@ export global Menus {
     }
 
     public function close() {
+        Tooltips.hide(self.tip);
+        self.tip = 0;
         self.owner = 0;
     }
 }
@@ -69,10 +136,18 @@ export component MenuLayer inherits Rectangle {
     property <length> margin: 8px;
     property <length> space: 4px;
     property <length> pad: 6px;
-    property <length> item-height: 36px;
+    // Must match `item_top` in app/src/ui.rs.
     property <length> spacing: 2px;
     property <int> count: Menus.items.length;
-    property <length> content-height: root.count * root.item-height + max(0, root.count - 1) * root.spacing;
+    // The grid's cells (the mockup's corner picker).
+    property <bool> grid: Menus.columns > 1;
+    property <length> cell-width: 52px;
+    property <length> cell-height: 40px;
+    property <length> cell-gap: 4px;
+    property <int> grid-rows: floor((root.count + Menus.columns - 1) / Menus.columns);
+    property <length> grid-width: Menus.columns * root.cell-width + (Menus.columns - 1) * root.cell-gap;
+    property <length> content-height: root.grid ? max(0px, root.grid-rows * (root.cell-height + root.cell-gap) - root.cell-gap)
+        : max(0px, Menus.item-top(Menus.items, root.count) - root.spacing);
     property <length> natural-height: root.content-height + 2 * root.pad;
     property <length> ax: Menus.anchor-x;
     property <length> ay: Menus.anchor-y;
@@ -82,23 +157,60 @@ export component MenuLayer inherits Rectangle {
     property <length> room-above: root.ay - root.space - root.margin;
     property <bool> below: root.natural-height <= root.room-below || root.room-below >= root.room-above;
     property <length> menu-height: max(0px, min(root.natural-height, root.below ? root.room-below : root.room-above));
-    property <length> menu-width: min(max(root.aw, rows.preferred-width + 2 * root.pad, 160px), root.width - 2 * root.margin);
+    property <length> menu-width: min(max(root.aw, rows.preferred-width + 2 * root.pad, Menus.min-width), root.width - 2 * root.margin);
     property <bool> right-aligned: root.ax + root.menu-width > root.width - root.margin;
 
     // The menu takes the keyboard when it opens or another control's menu replaces it.
     property <int> owner: Menus.owner;
     changed owner => { keys.focus(); }
-    init => { keys.focus(); }
+    // Slides 8 px away from its control while it fades in.
+    property <float> appear: 0;
+    animate appear { duration: Theme.quick; easing: ease-out; }
+    init => {
+        keys.focus();
+        self.appear = 1;
+    }
 
     // Keeps the highlighted item inside the visible part of the list.
     property <int> highlighted: Menus.highlighted;
     changed highlighted => {
-        let top = self.highlighted * (self.item-height + self.spacing);
+        if (self.grid) {
+            return;
+        }
+        let top = Menus.item-top(Menus.items, self.highlighted);
+        let bottom = Menus.item-top(Menus.items, self.highlighted + 1) - self.spacing;
         if (top < -scroller.content-y) {
             scroller.content-y = -top;
-        } else if (top + self.item-height > -scroller.content-y + scroller.height) {
-            scroller.content-y = -(top + self.item-height - scroller.height);
+        } else if (bottom > -scroller.content-y + scroller.height) {
+            scroller.content-y = -(bottom - scroller.height);
         }
+    }
+
+    // A grid cell's tooltip: after 500 ms of hover, at once when the arrows reach it; above the
+    // first row, below the others. The cell under the pointer, -1 for none.
+    property <int> hover-cell: -1;
+    property <bool> tip-shown: Menus.tip > 0 && Menus.tip == Tooltips.owner;
+
+    function cell-tip(i: int) {
+        let column = mod(i, Menus.columns);
+        let row = floor(i / Menus.columns);
+        Menus.tip = Tooltips.show(Menus.items[i].text, row == 0 ? Side.top : Side.bottom,
+            menu.x + root.pad + column * (root.cell-width + root.cell-gap),
+            menu.y + root.pad + row * (root.cell-height + root.cell-gap), root.cell-width, root.cell-height);
+    }
+
+    // The grid's arrows: to `to` when it is a selectable cell.
+    function grid-move(to: int) {
+        if (to >= 0 && to < root.count && Menus.selectable(Menus.items[to])) {
+            Menus.highlighted = to;
+            root.cell-tip(to);
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: root.grid && root.hover-cell >= 0 && !root.tip-shown;
+        triggered => { root.cell-tip(root.hover-cell); }
     }
 
     // A click anywhere else closes the menu and goes no further.
@@ -108,14 +220,27 @@ export component MenuLayer inherits Rectangle {
 
     keys := FocusScope {
         key-pressed(event) => {
-            if (event.text == Key.DownArrow) {
-                Menus.highlighted = min(root.count - 1, Menus.highlighted + 1);
+            let column = mod(Menus.highlighted, Menus.columns);
+            if (root.grid && event.text == Key.DownArrow) {
+                root.grid-move(Menus.highlighted + Menus.columns);
+            } else if (root.grid && event.text == Key.UpArrow) {
+                root.grid-move(Menus.highlighted - Menus.columns);
+            } else if (root.grid && event.text == Key.RightArrow) {
+                if (column < Menus.columns - 1) {
+                    root.grid-move(Menus.highlighted + 1);
+                }
+            } else if (root.grid && event.text == Key.LeftArrow) {
+                if (column > 0) {
+                    root.grid-move(Menus.highlighted - 1);
+                }
+            } else if (event.text == Key.DownArrow) {
+                Menus.highlighted = Menus.next-selectable(Menus.items, Menus.highlighted, 1);
             } else if (event.text == Key.UpArrow) {
-                Menus.highlighted = max(0, Menus.highlighted - 1);
+                Menus.highlighted = Menus.next-selectable(Menus.items, Menus.highlighted, -1);
             } else if (event.text == Key.Home) {
-                Menus.highlighted = 0;
+                Menus.highlighted = Menus.next-selectable(Menus.items, -1, 1);
             } else if (event.text == Key.End) {
-                Menus.highlighted = root.count - 1;
+                Menus.highlighted = Menus.next-selectable(Menus.items, root.count, -1);
             } else if (event.text == Key.Return || event.text == Key.Space) {
                 Menus.pick(Menus.highlighted);
             } else if (event.text == Key.Escape || event.text == Key.Tab || event.text == Key.Backtab) {
@@ -130,9 +255,11 @@ export component MenuLayer inherits Rectangle {
     menu := Raised {
         fill: Theme.c.raised;
         x: root.right-aligned ? max(root.margin, root.ax + root.aw - root.menu-width) : root.ax;
-        y: root.below ? root.ay + root.ah + root.space : root.ay - root.space - root.menu-height;
+        y: root.below ? root.ay + root.ah + root.space + 8px * root.appear
+            : root.ay - root.space - root.menu-height - 8px * root.appear;
         width: root.menu-width;
         height: root.menu-height;
+        opacity: root.appear;
         accessible-role: list;
 
         property <bool> scrolls: root.content-height > scroller.height;
@@ -151,44 +278,153 @@ export component MenuLayer inherits Rectangle {
 
             rows := VerticalLayout {
                 width: scroller.width;
-                spacing: root.spacing;
 
-                for item[i] in Menus.items: Rectangle {
-                    height: root.item-height;
-                    border-radius: Theme.radius-s;
-                    background: i == Menus.current ? Theme.c.press : i == Menus.highlighted ? Theme.c.hover : transparent;
-                    accessible-role: list-item;
-                    accessible-label: item.text;
-                    accessible-item-selected: i == Menus.current;
-                    accessible-item-index: i;
-                    accessible-action-default => { Menus.pick(i); }
+                if root.grid: Rectangle {
+                    min-width: root.grid-width;
+                    height: root.content-height;
 
-                    item-area := TouchArea {
-                        clicked => { Menus.pick(i); }
-                        changed has-hover => {
-                            if (self.has-hover) {
-                                Menus.highlighted = i;
+                    for item[i] in Menus.items: cell := Rectangle {
+                        property <bool> selectable: Menus.selectable(item);
+                        x: mod(i, Menus.columns) * (root.cell-width + root.cell-gap);
+                        y: floor(i / Menus.columns) * (root.cell-height + root.cell-gap);
+                        width: root.cell-width;
+                        height: root.cell-height;
+                        border-radius: Theme.radius-s;
+                        background: !self.selectable ? transparent
+                            : i == Menus.current ? Theme.c.press
+                            : i == Menus.highlighted ? Theme.c.hover
+                            : transparent;
+                        opacity: item.disabled ? 0.35 : 1;
+                        accessible-role: list-item;
+                        accessible-label: item.text;
+                        accessible-enabled: self.selectable;
+                        accessible-item-selected: i == Menus.current;
+                        accessible-item-index: i;
+                        accessible-action-default => { Menus.pick(i); }
+
+                        TouchArea {
+                            enabled: cell.selectable;
+                            clicked => { Menus.pick(i); }
+                            changed has-hover => {
+                                if (self.has-hover) {
+                                    Menus.highlighted = i;
+                                    root.hover-cell = i;
+                                    Tooltips.hide(Menus.tip);
+                                } else if (root.hover-cell == i) {
+                                    root.hover-cell = -1;
+                                    Tooltips.hide(Menus.tip);
+                                }
                             }
                         }
-                    }
 
-                    HorizontalLayout {
-                        padding-left: Theme.gap-m;
-                        padding-right: Theme.gap-m;
-                        Text {
-                            text: item.text;
-                            color: Theme.c.text;
-                            font-size: Theme.text-m;
-                            vertical-alignment: center;
-                            overflow: elide;
+                        Image {
+                            source: item.icon;
+                            colorize: Theme.c.text-muted;
+                            accessible-role: none;
+                        }
+
+                        Image {
+                            source: item.accent;
+                            colorize: Theme.c.accent-text;
+                            accessible-role: none;
+                        }
+
+                        FocusRing {
+                            focused: cell.selectable && i == Menus.highlighted;
+                            radius: Theme.radius-s;
+                            offset: -Theme.focus-ring;
                         }
                     }
+                }
 
-                    FocusRing {
-                        focused: i == Menus.highlighted;
-                        radius: Theme.radius-s;
-                        // Inside the item, so the list's clip does not cut it.
-                        offset: -Theme.focus-ring;
+                if !root.grid: VerticalLayout {
+                    spacing: root.spacing;
+
+                    for item[i] in Menus.items: row := Rectangle {
+                        property <bool> header: item.kind == "header";
+                        property <bool> selectable: Menus.selectable(item);
+                        height: self.header ? 30px : item.detail != "" ? 48px : 36px;
+                        border-radius: Theme.radius-s;
+                        background: !self.selectable ? transparent
+                            : i == Menus.current ? Theme.c.press
+                            : i == Menus.highlighted ? Theme.c.hover
+                            : transparent;
+                        accessible-role: list-item;
+                        accessible-label: item.text;
+                        accessible-description: item.detail;
+                        accessible-enabled: self.selectable;
+                        accessible-item-selected: i == Menus.current;
+                        accessible-item-index: i;
+                        accessible-action-default => { Menus.pick(i); }
+
+                        item-area := TouchArea {
+                            enabled: row.selectable;
+                            clicked => { Menus.pick(i); }
+                            changed has-hover => {
+                                if (self.has-hover) {
+                                    Menus.highlighted = i;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            spacing: 10px;
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                // Room between the text and its detail line with the rate tag.
+                                spacing: 4px;
+                                HorizontalLayout {
+                                    alignment: start;
+                                    spacing: 6px;
+                                    Text {
+                                        text: item.text;
+                                        color: row.header || item.disabled ? Theme.c.text-faint : Theme.c.text;
+                                        font-size: row.header ? Theme.text-s : Theme.text-m;
+                                        font-weight: row.header ? 600 : 400;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                    if item.detail == "" && item.rate != "": Tag { value: item.rate; kind: "rate"; }
+                                }
+                                if item.detail != "": HorizontalLayout {
+                                    alignment: start;
+                                    spacing: 6px;
+                                    Text {
+                                        text: item.detail;
+                                        color: item.disabled ? Theme.c.text-faint : Theme.c.text-muted;
+                                        font-size: Theme.text-s;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                    if item.rate != "": Tag { value: item.rate; kind: "rate"; }
+                                }
+                            }
+
+                            if item.tag != "" || item.aspect != "": HorizontalLayout {
+                                alignment: end;
+                                spacing: 6px;
+                                horizontal-stretch: 0;
+                                VerticalLayout {
+                                    alignment: center;
+                                    Tag { value: item.tag; kind: item.tag-kind; }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    Tag { value: item.aspect; kind: "aspect"; }
+                                }
+                            }
+                        }
+
+                        FocusRing {
+                            focused: row.selectable && i == Menus.highlighted;
+                            radius: Theme.radius-s;
+                            // Inside the item, so the list's clip does not cut it.
+                            offset: -Theme.focus-ring;
+                        }
                     }
                 }
             }

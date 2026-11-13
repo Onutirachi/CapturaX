@@ -26,6 +26,54 @@ export global Texts {
     public pure function settings-unreadable() -> string {
         @tr("The settings file could not be read. Default settings are in use.")
     }
+    // The preview's state messages (FR-019, research R13): a title, then a one-line detail.
+    out property <string> preview-no-devices: @tr("No devices");
+    out property <string> preview-no-devices-detail: @tr("Connect a video device");
+    public pure function preview-disconnected(device: string) -> string {
+        @tr("{} disconnected", device)
+    }
+    out property <string> preview-disconnected-detail: @tr("Waiting to reconnect");
+    // Blocked on Windows (the desktop apps camera switch is off).
+    out property <string> preview-blocked: @tr("Access blocked");
+    out property <string> preview-blocked-detail: @tr("Desktop app permission is off");
+    // Blocked on Linux names the node ("Cannot open /dev/video0"); Failed names the device.
+    public pure function preview-cannot-open(device: string) -> string {
+        @tr("Cannot open {}", device)
+    }
+    out property <string> preview-no-permission: @tr("No permission to use the device");
+    out property <string> preview-in-use: @tr("In use");
+    public pure function preview-in-use-detail(device: string) -> string {
+        @tr("{} is being used elsewhere", device)
+    }
+    out property <string> preview-no-signal: @tr("No signal");
+    out property <string> preview-no-signal-detail: @tr("No video signal detected");
+    // Device notices (FR-027), in the app's balloon and as system notifications, with **Open** on
+    // a device that did not open by itself.
+    public pure function notice-connected(device: string) -> string {
+        @tr("{} connected", device)
+    }
+    public pure function notice-reconnected(device: string) -> string {
+        @tr("{} reconnected", device)
+    }
+    public pure function notice-disconnected(device: string) -> string {
+        @tr("{} disconnected", device)
+    }
+    out property <string> notice-open: @tr("Open");
+    // The mode menu (FR-007): its group headers, the automatic modes' names, and the detail line of
+    // an automatic choice, its name then the mode it opens ("Auto max FPS · 1920 × 1080 · 120").
+    out property <string> modes-automatic: @tr("Automatic");
+    out property <string> modes-native: @tr("Modes");
+    out property <string> mode-auto-source: @tr("Auto source");
+    out property <string> mode-auto-max-resolution: @tr("Auto max resolution");
+    out property <string> mode-auto-max-fps: @tr("Auto max FPS");
+    public pure function mode-auto-detail(choice: string, mode: string) -> string {
+        @tr("{} · {}", choice, mode)
+    }
+    // The frame rate tag ("60 FPS") and the name tag of a size outside the standards.
+    public pure function rate(fps: string) -> string {
+        @tr("{} FPS", fps)
+    }
+    out property <string> custom-resolution: @tr("Custom");
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
     out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
     out property <string> already-open: @tr("CapturaX is already open.");

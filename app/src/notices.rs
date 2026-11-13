@@ -1,5 +1,6 @@
-//! The notice queue (FR-034, data-model.md "State message and notice"): one notice shown at a
-//! time at the top of the video area, the rest waiting; each id is shown at most once per run.
+//! The settings notices' queue (app shell FR-034, here FR-033; data-model.md "State message and
+//! notice"): one notice shown at a time in the notice balloon, in the corner of the Notification
+//! position setting, the rest waiting; each id is shown at most once per run.
 
 use std::collections::{HashSet, VecDeque};
 use std::path::Path;

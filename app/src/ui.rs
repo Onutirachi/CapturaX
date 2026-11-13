@@ -19,6 +19,162 @@ use crate::shadows;
 
 slint::include_modules!();
 
+/// What the video area shows for a preview state (data-model.md "Preview state", research R13):
+/// the state id of `main.slint`, the title and the detail. `name` is the state's device name;
+/// `windows` picks Blocked's texts (the privacy switch on Windows, the device node on Linux).
+pub fn state_message(
+    state: &crate::preview::PreviewState,
+    name: &str,
+    windows: bool,
+    texts: &Texts,
+) -> (&'static str, String, String) {
+    use crate::preview::PreviewState as S;
+    let name = slint::SharedString::from(name);
+    let (id, title, detail) = match state {
+        S::Playing => ("playing", Default::default(), Default::default()),
+        S::NoSource => ("no-source", Default::default(), Default::default()),
+        S::NoDevices => (
+            "no-devices",
+            texts.get_preview_no_devices(),
+            texts.get_preview_no_devices_detail(),
+        ),
+        // No text: the video area fades, then shows the progress ring (research R17).
+        S::Opening(_) => ("opening", Default::default(), Default::default()),
+        S::Disconnected(_) => (
+            "disconnected",
+            texts.invoke_preview_disconnected(name),
+            texts.get_preview_disconnected_detail(),
+        ),
+        S::Blocked { .. } if windows => (
+            "blocked",
+            texts.get_preview_blocked(),
+            texts.get_preview_blocked_detail(),
+        ),
+        // Linux: the node that could not be opened, else the device's name.
+        S::Blocked { node, .. } => (
+            "blocked",
+            texts.invoke_preview_cannot_open(node.as_deref().map_or(name, Into::into)),
+            texts.get_preview_no_permission(),
+        ),
+        S::InUse(_) => (
+            "in-use",
+            texts.get_preview_in_use(),
+            texts.invoke_preview_in_use_detail(name),
+        ),
+        S::NoSignal(_) => (
+            "no-signal",
+            texts.get_preview_no_signal(),
+            texts.get_preview_no_signal_detail(),
+        ),
+        S::Failed(_) => ("failed", texts.invoke_preview_cannot_open(name), Default::default()),
+    };
+    (id, title.into(), detail.into())
+}
+
+/// A row of the device or mode menu as Slint shows it, its named texts read from the catalog.
+pub fn menu_item(item: &crate::preview::Item, texts: &Texts) -> MenuItem {
+    use crate::preview::Label;
+    let text = match &item.text {
+        Label::Plain(text) => text.as_str().into(),
+        Label::NoDevices => texts.get_preview_no_devices(),
+        Label::Automatic => texts.get_modes_automatic(),
+        Label::Modes => texts.get_modes_native(),
+        Label::Auto(choice) => auto_name(choice, texts),
+    };
+    let detail = item
+        .detail
+        .as_ref()
+        .map_or_else(Default::default, |d| match &d.automatic {
+            Some(choice) => texts.invoke_mode_auto_detail(auto_name(choice, texts), d.mode.as_str().into()),
+            None => d.mode.as_str().into(),
+        });
+    let (tag, tag_kind, aspect) = item.tags.map_or_else(Default::default, |t| {
+        let aspect = t.aspect.to_string().into();
+        match t.name {
+            Some(name) => (
+                name.into(),
+                t.family.map_or_else(|| "custom".into(), |f| f.to_string().into()),
+                aspect,
+            ),
+            None => (texts.get_custom_resolution(), "custom".into(), aspect),
+        }
+    });
+    MenuItem {
+        text,
+        kind: if item.text.is_header() {
+            "header".into()
+        } else {
+            Default::default()
+        },
+        detail,
+        rate: item
+            .rate
+            .as_ref()
+            .map_or_else(Default::default, |r| texts.invoke_rate(r.as_str().into())),
+        tag,
+        tag_kind,
+        aspect,
+        disabled: item.disabled,
+        ..Default::default()
+    }
+}
+
+/// The name of an automatic mode choice; a manual one has none.
+fn auto_name(choice: &capture::mode::ModeChoice, texts: &Texts) -> slint::SharedString {
+    use capture::mode::ModeChoice as C;
+    match choice {
+        C::AutoSource => texts.get_mode_auto_source(),
+        C::AutoMaxResolution => texts.get_mode_auto_max_resolution(),
+        C::AutoMaxFps => texts.get_mode_auto_max_fps(),
+        C::Manual { .. } => Default::default(),
+    }
+}
+
+/// The kinds of menu rows, by height (menu.slint).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuRow {
+    Header,
+    Item,
+    WithDetail,
+}
+
+impl MenuRow {
+    fn height(self) -> f32 {
+        match self {
+            Self::Header => 30.0,
+            Self::Item => 36.0,
+            Self::WithDetail => 48.0,
+        }
+    }
+}
+
+/// The space between menu rows (menu.slint).
+const MENU_SPACING: f32 = 2.0;
+
+/// The top of row `index` in a menu's list, in logical pixels; for `index` = the count, the
+/// list's height plus one spacing. Out of range clamps.
+pub fn item_top(rows: &[MenuRow], index: i32) -> f32 {
+    let end = usize::try_from(index.max(0)).unwrap_or(0).min(rows.len());
+    rows[..end].iter().map(|r| r.height() + MENU_SPACING).sum()
+}
+
+/// The next selectable item of a menu from `from` (excluded) in direction `step` (1 or -1), or
+/// `from` when there is none (the highlight stays). `from` may be -1 or `len` to start at an end.
+pub fn next_selectable(selectable: &[bool], from: i32, step: i32) -> i32 {
+    let step = step.signum();
+    if step == 0 {
+        return from;
+    }
+    let mut i = from + step;
+    while i >= 0 && (i as usize) < selectable.len() {
+        if selectable[i as usize] {
+            return i;
+        }
+        i += step;
+    }
+    from
+}
+
 /// A finished UI image: premultiplied RGBA, rows packed, the size of the surface it was drawn for.
 pub struct UiImage {
     pub pixels: Arc<[u8]>,
@@ -26,6 +182,9 @@ pub struct UiImage {
     pub height: u32,
     /// Draw and copy time on the main thread, for the stats.
     pub draw_ms: f64,
+    /// The first image after a language switch whose stages are timed (FR-024): the video
+    /// thread logs its upload and present.
+    pub language: bool,
 }
 
 /// Slint platform: one software-rendered window whose pixels the app composites itself.
@@ -72,17 +231,50 @@ impl Ui {
         // Slint picks a catalog from the system's locale when the component is created; the
         // app's own rule (setting, `--lang`, system) replaces that choice.
         select_language(language);
-        // Surface images by physical size, scale, fill and shadow strength; a few surfaces, so
-        // the cache stays small, and it is dropped when it grows (tooltips vary with their text).
-        let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32), slint::Image>::new());
+        // Surface images by physical size, corner radius, scale, fill and shadow strength; a few
+        // surfaces, so the cache stays small, and it is dropped when it grows (tooltips vary with
+        // their text).
+        let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32, u32), slint::Image>::new());
+        app.global::<Menus>().on_item_top(|items, index| {
+            use slint::Model;
+            let rows: Vec<MenuRow> = items
+                .iter()
+                .map(|i| {
+                    if i.kind == "header" {
+                        MenuRow::Header
+                    } else if i.detail.is_empty() {
+                        MenuRow::Item
+                    } else {
+                        MenuRow::WithDetail
+                    }
+                })
+                .collect();
+            item_top(&rows, index)
+        });
+        app.global::<Menus>().on_next_selectable(|items, from, step| {
+            use slint::Model;
+            let selectable: Vec<bool> = items.iter().map(|i| i.kind != "header" && !i.disabled).collect();
+            next_selectable(&selectable, from, step)
+        });
+        app.global::<Menus>().on_with_header(|title, items| {
+            use slint::Model;
+            let header = MenuItem {
+                text: title,
+                kind: "header".into(),
+                ..Default::default()
+            };
+            let rows: Vec<MenuItem> = std::iter::once(header).chain(items.iter()).collect();
+            slint::ModelRc::new(slint::VecModel::from(rows))
+        });
         app.global::<Theme>()
-            .on_surface(move |width, height, scale, fill, strength| {
+            .on_surface(move |width, height, radius, scale, fill, strength| {
                 let (w, h) = shadows::image_size(width, height, scale);
                 let fill = slint::RgbaColor::<u8>::from(fill);
                 let fill = slint::Rgba8Pixel::new(fill.red, fill.green, fill.blue, fill.alpha);
                 let key = (
                     w,
                     h,
+                    radius.to_bits(),
                     (scale * 100.0).round() as u32,
                     u32::from_be_bytes([fill.r, fill.g, fill.b, fill.a]),
                     strength.to_bits(),
@@ -93,11 +285,28 @@ impl Ui {
                 }
                 cache
                     .entry(key)
-                    .or_insert_with(|| slint::Image::from_rgba8(shadows::make(width, height, scale, fill, strength)))
+                    .or_insert_with(|| {
+                        slint::Image::from_rgba8(shadows::make(width, height, radius, scale, fill, strength))
+                    })
                     .clone()
             });
-        // The state message's actions (FR-033); the `no-source` state has none in this spec.
-        app.on_state_action(|id| log::warn!("state message: unknown action {id:?}"));
+        // The state message's actions (FR-033).
+        let weak = app.as_weak();
+        app.on_state_action(move |id| match id.as_str() {
+            "open-devices" => {
+                if let Some(app) = weak.upgrade() {
+                    app.invoke_open_device_menu();
+                }
+            }
+            "try-again" => {
+                if let Some(app) = weak.upgrade() {
+                    app.invoke_try_again();
+                }
+            }
+            // Blocked on Windows (research R6).
+            "open-privacy" => platform::open_camera_privacy(),
+            _ => log::warn!("state message: unknown action {id:?}"),
+        });
         app.show()?;
         Ok(Self {
             window,
@@ -251,6 +460,7 @@ impl Ui {
             width: w,
             height: h,
             draw_ms: started.elapsed().as_secs_f64() * 1e3,
+            language: false,
         })
     }
 
@@ -265,6 +475,11 @@ impl Ui {
             a.get_video_radius(),
         ]
         .map(|v| v * self.scale)
+    }
+
+    /// Physical pixels per logical pixel.
+    pub fn scale(&self) -> f32 {
+        self.scale
     }
 
     /// The theme's deepest tone, the ground around the video: RGB from 0 to 1.
@@ -309,4 +524,42 @@ fn slint_key(event: &KeyEvent) -> Option<slint::SharedString> {
         _ => return None,
     };
     Some(key.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn menu_rows_stack_with_their_heights() {
+        use MenuRow::*;
+        let rows = [Header, Item, WithDetail, Item];
+        assert_eq!(item_top(&rows, 0), 0.0);
+        assert_eq!(item_top(&rows, 1), 32.0);
+        assert_eq!(item_top(&rows, 2), 70.0);
+        assert_eq!(item_top(&rows, 3), 120.0);
+        // The list's height is the end minus one spacing.
+        assert_eq!(item_top(&rows, 4) - MENU_SPACING, 156.0);
+        assert_eq!(item_top(&rows, 9), item_top(&rows, 4));
+        assert_eq!(item_top(&rows, -1), 0.0);
+    }
+
+    #[test]
+    fn menu_keys_skip_headers_and_disabled_items() {
+        // header, item, disabled, item, header, item
+        let menu = [false, true, false, true, false, true];
+        assert_eq!(next_selectable(&menu, -1, 1), 1, "Home");
+        assert_eq!(next_selectable(&menu, 6, -1), 5, "End");
+        assert_eq!(next_selectable(&menu, 1, 1), 3);
+        assert_eq!(next_selectable(&menu, 3, 1), 5);
+        assert_eq!(next_selectable(&menu, 5, 1), 5, "stays at the last");
+        assert_eq!(next_selectable(&menu, 3, -1), 1);
+        assert_eq!(
+            next_selectable(&menu, 1, -1),
+            1,
+            "stays at the first, not on the header"
+        );
+        assert_eq!(next_selectable(&[], -1, 1), -1);
+        assert_eq!(next_selectable(&[false, false], -1, 1), -1);
+    }
 }

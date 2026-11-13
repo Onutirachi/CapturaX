@@ -113,6 +113,16 @@ const fn icon(color: &'static str, layers: &'static [&'static str], used: &'stat
     }
 }
 
+const fn text_over_video(color: &'static str, layers: &'static [&'static str], used: &'static str) -> Pair {
+    Pair {
+        color,
+        layers,
+        behind: Behind::Video,
+        min: TEXT,
+        used,
+    }
+}
+
 const fn icon_over_video(color: &'static str, layers: &'static [&'static str], used: &'static str) -> Pair {
     Pair {
         color,
@@ -127,17 +137,24 @@ const fn icon_over_video(color: &'static str, layers: &'static [&'static str], u
 /// icon adds a row here. Not listed: the toggle track and knob, the menu's scroll indicator and
 /// the focus ring (states, not text or icons).
 const PAIRS: &[Pair] = &[
-    // Raised surfaces: settings panel, notice, menu.
-    text("text", &["raised"], "settings panel title, notice text, menu items"),
+    // Raised surfaces: settings panel and its rows, notice, menu.
+    text("text", &["raised"], "setting row names, notice text, menu items"),
+    // A row under the pointer: the soft accent gradient, strongest at its start.
+    text("text", &["raised", "accent-soft"], "setting row hovered"),
     text("text", &["raised", "hover"], "menu item highlighted"),
     text("text", &["raised", "press"], "menu item chosen"),
-    text("text-muted", &["raised"], "version in About"),
-    // Top surfaces: tooltip, select, setting row under the pointer.
-    text("text", &["top"], "tooltip, select, setting row hovered"),
+    text("text-muted", &["raised"], "version in About, menu item detail"),
+    text("text-muted", &["raised", "hover"], "menu item detail highlighted"),
+    text("text-muted", &["raised", "press"], "menu item detail chosen"),
+    // Top surfaces: tooltip, select.
+    text("text", &["top"], "tooltip, select"),
     text("text", &["top", "hover"], "select hovered"),
     text("text", &["top", "press"], "select pressed"),
-    // Base: setting rows and the category well.
-    text("text", &["base"], "setting row names"),
+    text("text-muted", &["top"], "dropdown title"),
+    text("text-muted", &["top", "hover"], "dropdown title hovered"),
+    text("text-faint", &["raised"], "menu group headers"),
+    // Base: the category column.
+    text("text", &["base"], "settings panel title"),
     text("text", &["base", "hover"], "category hovered"),
     text("text-muted", &["base"], "category names"),
     text("accent-text", &["base", "accent-soft"], "category chosen"),
@@ -173,6 +190,7 @@ const PAIRS: &[Pair] = &[
     icon("#ffffff", &["#c42b1c"], "close button hovered"),
     icon("#ffffff", &["#a32417"], "close button pressed"),
     // Settings panel.
+    icon("text", &["base"], "settings icon by the title"),
     icon("text", &["raised"], "panel close button"),
     icon("text", &["raised", "hover"], "panel close button hovered"),
     icon("text", &["raised", "press"], "panel close button pressed"),
@@ -182,17 +200,61 @@ const PAIRS: &[Pair] = &[
     icon("text-muted", &["top"], "select chevron"),
     icon("text-muted", &["top", "hover"], "select chevron hovered"),
     icon("text-muted", &["top", "press"], "select chevron pressed"),
+    // The notification position's corner icon (FR-032): the frame in the muted tone (as the
+    // chevron above on the select), the mark in the accent text tone, on the select and in its
+    // grid menu.
+    icon("accent-text", &["top"], "corner mark on the select"),
+    icon("accent-text", &["top", "hover"], "corner mark on the select hovered"),
+    icon("text-muted", &["raised"], "corner frame in the grid"),
+    icon("text-muted", &["raised", "hover"], "corner frame in the grid hovered"),
+    icon("text-muted", &["raised", "press"], "corner frame in the grid chosen"),
+    icon("accent-text", &["raised"], "corner mark in the grid"),
+    icon("accent-text", &["raised", "hover"], "corner mark in the grid hovered"),
+    icon("accent-text", &["raised", "press"], "corner mark in the grid chosen"),
     // State message, on the video area's ground; its secondary action is a top surface (listed
     // above) and its primary one the accent.
     text("text", &["deep"], "state message title"),
     text("text-muted", &["deep"], "state message detail"),
+    text("on-black-text", &["ground-black"], "state message title on black"),
+    text("on-black-muted", &["ground-black"], "state message detail on black"),
+    icon(
+        "on-black-muted",
+        &["ground-black"],
+        "state message icon and progress ring on black",
+    ),
     icon("text-muted", &["deep"], "state message icon"),
-    // Notice.
+    // Segmented control: its track is the base tone, the chosen segment the accent.
+    text("text", &["base"], "segment"),
+    text("text", &["base", "hover"], "segment hovered"),
+    text("accent-ink", &["accent"], "segment chosen"),
+    text("accent-ink", &["accent-hover"], "segment chosen hovered"),
+    // Mode tags: white text on each fill (the rate tag is the text color on the menu).
+    text("#ffffff", &["tag-1-1"], "1:1 tag"),
+    text("#ffffff", &["tag-5-4"], "5:4 tag"),
+    text("#ffffff", &["tag-11-9"], "11:9 tag"),
+    text("#ffffff", &["tag-4-3"], "4:3 tag"),
+    text("#ffffff", &["tag-3-2"], "3:2 tag"),
+    text("#ffffff", &["tag-25-16"], "25:16 tag"),
+    text("#ffffff", &["tag-16-10"], "16:10 tag"),
+    text("#ffffff", &["tag-5-3"], "5:3 tag"),
+    text("#ffffff", &["tag-16-9"], "16:9 tag"),
+    text("#ffffff", &["tag-17-9"], "17:9 tag"),
+    text("#ffffff", &["tag-21-9"], "21:9 tag"),
+    text("#ffffff", &["tag-32-9"], "32:9 tag"),
+    text("#ffffff", &["tag-custom"], "custom tag"),
+    text("#ffffff", &["tag-aspect"], "aspect tag"),
+    // Info bubbles over the video; their mode tag is a filled tag (listed above).
+    text_over_video("info-text", &["info-bubble"], "info bubble text"),
+    // The settings notice balloon (FR-033): its title and text are "notice text" above.
     icon("accent-text", &["raised"], "notice info icon"),
     icon("warn", &["raised"], "notice warning icon"),
     icon("text-muted", &["raised"], "notice close"),
     icon("text-muted", &["raised", "hover"], "notice close hovered"),
     icon("text-muted", &["raised", "press"], "notice close pressed"),
+    // The device notice balloon (FR-027): its text is "notice text" above, Open is the accent
+    // button, × the notice close.
+    icon("ok", &["raised"], "device notice connected icon"),
+    icon("text-muted", &["raised"], "device notice disconnected icon"),
 ];
 
 /// Reads `name: #hex,` lines of each palette in the `Palettes` global.

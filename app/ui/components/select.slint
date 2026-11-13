@@ -1,18 +1,66 @@
 // A select: an opaque control showing the chosen item and a chevron that opens a menu of the
 // items in the top layer (menu.slint), ported from the stack spike's `dropdown.slint`. Enter,
 // Space, Up or Down opens it from the keyboard; the focus comes back here when it closes (FR-020).
+// Two looks: plain (40 px, for the settings panel's rows, FR-034) and, with a `title`, the spike's
+// dropdown (research R13): a raised control 48 px tall with its leading icon, its title inside,
+// above the chosen value in bold, its frame rate tag (when it is on the item's first line) and its
+// name tag, whose menu is at least 320 px wide. A titled select also has an icon look (FR-002a):
+// 56 px wide, the icon and the chevron only; its tooltip gives the title and the value, and its
+// menu starts with the title as a group header. A plain select has an icon look too (the
+// notification position, FR-032): 40 px, the chosen item's icon and the chevron, its tooltip giving
+// the setting's name and the value; with `columns` above 1 its menu is a grid of icon cells.
 import { Theme } from "../theme.slint";
-import { FocusRing } from "focus-ring.slint";
+import { FocusRing, Input } from "focus-ring.slint";
 import { Menus, MenuItem } from "menu.slint";
+import { Tag } from "tag.slint";
+import { Tooltips, Side } from "tooltip.slint";
 
 export component Select inherits Rectangle {
     in property <[MenuItem]> items;
     in-out property <int> current;
     in property <bool> enabled: true;
+    // False keeps it out of the Tab order (behind the settings panel).
+    in property <bool> focusable: true;
+    // Shown in the button instead of the chosen item's text when not empty ("Auto (Full)").
+    in property <string> shown;
+    // `shown` in the muted tone: it names something the menu does not offer (a device that left).
+    in property <bool> shown-muted;
+    // The small title inside the control (the dropdown look); empty for the plain look.
+    in property <string> title;
+    // The leading icon of the dropdown look.
+    in property <image> icon;
+    // The icon look: of a titled select, its leading icon (the toolbar does not fit the full
+    // look); of a plain one, the chosen item's icon.
+    in property <bool> icon-only;
+    // More than one: the menu is a grid of icon cells, this many columns wide.
+    in property <int> columns: 1;
+    // Where the icon look's tooltip prefers to open.
+    in property <Side> tooltip-side: Side.bottom;
     // The setting's name, for screen readers.
     in property <string> label;
     out property <bool> has-focus: focus.has-focus;
     callback selected(int);
+
+    property <bool> titled: root.title != "";
+    property <bool> valid: root.current >= 0 && root.current < root.items.length;
+    property <string> chosen: root.valid ? root.items[root.current].text : "";
+    property <string> tag: root.valid ? root.items[root.current].tag : "";
+    property <string> tag-kind: root.valid ? root.items[root.current].tag-kind : "";
+    // The rate tag shows when it follows the item's text (no detail line).
+    property <string> rate: root.valid && root.items[root.current].detail == "" ? root.items[root.current].rate : "";
+    // The value as the button shows it, in one line: the icon look's tooltip ("Mode: 1920 × 1080 •
+    // 60 FPS").
+    property <string> value: root.shown != "" ? root.shown : root.rate != "" ? root.chosen + " • " + root.rate : root.chosen;
+    property <bool> icon-look: root.icon-only;
+    // The plain icon look shows the chosen item's icon.
+    property <bool> plain-icon: root.icon-only && !root.titled;
+    property <image> no-image;
+    property <image> item-icon: root.valid ? root.items[root.current].icon : root.no-image;
+    property <image> item-accent: root.valid ? root.items[root.current].accent : root.no-image;
+    // The menu's rows: the titled icon look adds the title as a header, so its rows are the items'
+    // plus one.
+    property <int> offset: root.icon-look && root.titled ? 1 : 0;
+    property <[MenuItem]> menu-items: root.offset == 1 ? Menus.with-header(root.title, root.items) : root.items;
 
     property <int> id;
     init => { self.id = Menus.new-id(); }
@@ -21,8 +69,28 @@ export component Select inherits Rectangle {
     property <int> picks: Menus.picked-owner == self.id ? Menus.picks : 0;
     changed picks => {
         if (self.picks != 0) {
-            self.current = Menus.picked-index;
+            self.current = Menus.picked-index - self.offset;
             self.selected(self.current);
+            // A pick with the pointer shows the new value in the tooltip for a moment.
+            if (self.icon-look && !Input.keyboard) {
+                self.just-picked = true;
+            }
+        }
+    }
+    // New items while the menu is open (a device came or left) reach the menu at once; a select
+    // left with no item closes it.
+    changed items => {
+        if (self.open) {
+            if (self.items.length > 0) {
+                Menus.update(self.menu-items, self.current >= 0 ? self.current + self.offset : -1);
+            } else {
+                Menus.close();
+            }
+        }
+    }
+    changed enabled => {
+        if (!self.enabled && self.open) {
+            Menus.close();
         }
     }
     // Closed (not replaced by another menu): the keyboard comes back here.
@@ -32,22 +100,77 @@ export component Select inherits Rectangle {
         }
     }
 
-    function open-menu() {
+    public function open-menu() {
         if (root.enabled && root.items.length > 0) {
-            Menus.show(root.id, root.items, root.current, root.absolute-position.x, root.absolute-position.y,
-                root.width, root.height);
+            root.hide-tip();
+            if (root.columns > 1) {
+                Menus.show-grid(root.id, root.menu-items, root.current, root.absolute-position.x,
+                    root.absolute-position.y, root.width, root.height, root.columns);
+            } else {
+                Menus.show(root.id, root.menu-items, root.current >= 0 ? root.current + root.offset : -1,
+                    root.absolute-position.x, root.absolute-position.y, root.width, root.height,
+                    root.titled ? 320px : 200px);
+            }
         }
     }
 
-    min-width: 120px;
-    height: 36px;
-    border-radius: Theme.radius-s;
-    background: Theme.c.top;
+    // The icon look's tooltip, as `IconButton`'s: after 500 ms of hover, at once on keyboard focus
+    // (the focus counts only while the keyboard is in use: a menu picked with the pointer gives the
+    // focus back here, and the tooltip would stay after the chrome hides), and at once after a pick
+    // with the pointer, until the pointer leaves the select or 1.5 s pass with it elsewhere; not
+    // while the menu is open. The token of the tooltip shown, 0 when none.
+    property <int> tip;
+    property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
+    property <bool> just-picked;
+    property <bool> wants-tip: root.icon-look && (area.has-hover || (focus.has-focus && Input.keyboard) || root.just-picked)
+        && !root.open && root.visible;
+
+    function show-tip() {
+        root.tip = Tooltips.show((root.titled ? root.title : root.label) + ": " + root.value, root.tooltip-side,
+            root.absolute-position.x, root.absolute-position.y, root.width, root.height);
+    }
+
+    function hide-tip() {
+        Tooltips.hide(root.tip);
+        root.tip = 0;
+    }
+
+    // The value or the language changed while the tooltip shows.
+    changed value => {
+        if (self.tip-shown) {
+            self.show-tip();
+        }
+    }
+    changed wants-tip => {
+        if (!self.wants-tip) {
+            self.hide-tip();
+        } else if (!area.has-hover) {
+            self.show-tip();
+        }
+    }
+
+    Timer {
+        interval: 1.5s;
+        running: root.just-picked && !area.has-hover;
+        triggered => { root.just-picked = false; }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: area.has-hover && !root.tip-shown && root.wants-tip;
+        triggered => { root.show-tip(); }
+    }
+
+    min-width: root.icon-look ? 56px : 120px;
+    height: root.titled ? 48px : 40px;
+    border-radius: root.titled ? Theme.radius-m : 12px;
+    // The dropdown look draws its fill with its shadow (as `Raised`).
+    background: root.titled ? transparent : Theme.c.top;
     opacity: root.enabled ? 1 : 0.35;
 
     accessible-role: combobox;
     accessible-label: root.label;
-    accessible-value: root.current >= 0 && root.current < root.items.length ? root.items[root.current].text : "";
+    accessible-value: root.value;
     accessible-enabled: root.enabled;
     accessible-expandable: true;
     accessible-expanded: root.open;
@@ -56,20 +179,35 @@ export component Select inherits Rectangle {
 
     forward-focus: focus;
 
-    // Hover and open tint over the fill.
+    if root.titled: Image {
+        x: -36px;
+        y: -36px;
+        width: root.width + 72px;
+        height: root.height + 72px + 10px;
+        source: Theme.surface(root.width, root.height, Theme.radius-m, 1px / 1phx, Theme.c.top, Theme.c.shadow);
+    }
+
+    // Hover and open tint over the fill; the dropdown look has no pressed tint (as the spike).
     Rectangle {
         border-radius: root.border-radius;
-        background: area.pressed ? Theme.c.press : area.has-hover || root.open ? Theme.c.hover : transparent;
+        background: area.pressed && !root.titled ? Theme.c.press
+            : area.has-hover || root.open ? Theme.c.hover
+            : transparent;
         animate background { duration: Theme.quick; }
     }
 
     area := TouchArea {
         enabled: root.enabled;
         clicked => { root.open-menu(); }
+        changed has-hover => {
+            if (!self.has-hover) {
+                root.just-picked = false;
+            }
+        }
     }
 
     focus := FocusScope {
-        enabled: root.enabled;
+        enabled: root.enabled && root.focusable;
         focus-on-click: false;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow
@@ -82,17 +220,82 @@ export component Select inherits Rectangle {
     }
 
     HorizontalLayout {
-        padding-left: Theme.gap-m;
-        padding-right: Theme.gap-s + 4px;
-        spacing: Theme.gap-s;
+        padding-left: root.plain-icon ? 14px : root.icon-look ? 10px : root.titled ? 12px : 14px;
+        padding-right: root.plain-icon ? 12px : root.icon-look ? 6px : root.titled ? 10px : 12px;
+        spacing: root.plain-icon ? 10px : root.icon-look ? 4px : root.titled ? 10px : Theme.gap-s;
 
-        Text {
-            text: root.current >= 0 && root.current < root.items.length ? root.items[root.current].text : "";
-            color: Theme.c.text;
-            font-size: Theme.text-m;
-            vertical-alignment: center;
-            overflow: elide;
+        // The chosen item's icon in the muted tone, its accent part over it.
+        if root.plain-icon: VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Rectangle {
+                width: 24px;
+                height: 16px;
+                Image {
+                    source: root.item-icon;
+                    colorize: Theme.c.text-muted;
+                    accessible-role: none;
+                }
+                Image {
+                    source: root.item-accent;
+                    colorize: Theme.c.accent-text;
+                    accessible-role: none;
+                }
+            }
+        }
+
+        if root.titled: VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Image {
+                source: root.icon;
+                width: 20px;
+                height: 20px;
+                colorize: Theme.c.text;
+                accessible-role: none;
+            }
+        }
+
+        if !root.icon-look: VerticalLayout {
+            alignment: center;
+            spacing: 1px;
             horizontal-stretch: 1;
+
+            if root.titled: Text {
+                text: root.title;
+                // The spike's faint tone falls below 4.5:1 on the hovered control (FR-018).
+                color: Theme.c.text-muted;
+                font-size: 11px;
+                font-weight: 600;
+                overflow: elide;
+                accessible-role: none;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Text {
+                    text: root.shown != "" ? root.shown : root.chosen;
+                    color: root.shown != "" && root.shown-muted ? Theme.c.text-muted : Theme.c.text;
+                    font-size: Theme.text-m;
+                    font-weight: root.titled ? 600 : 500;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+
+                if root.titled && root.rate != "": VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Tag { value: root.rate; kind: "rate"; }
+                }
+
+                if root.titled && root.tag != "": VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Tag { value: root.tag; kind: root.tag-kind; }
+                }
+            }
         }
 
         VerticalLayout {

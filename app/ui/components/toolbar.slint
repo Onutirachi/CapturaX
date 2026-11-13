@@ -1,0 +1,105 @@
+// The toolbar (research R13, FR-002, FR-002a, FR-010): a dock like the side docks, floating at the
+// top center of the video area, holding the preview's dropdowns in the Float order device, mode,
+// color range, as wide as they are with 6 px gaps. It slides away with the docks. The dropdowns
+// show their full look (icon, title, value) while the room fits all of them at 280 px, sharing it
+// up to 305 px each; below that all of them show the icon look together. The keyboard reaches it
+// before the docks (it comes first in main.slint).
+import { Theme } from "../theme.slint";
+import { Select } from "select.slint";
+import { MenuItem } from "menu.slint";
+import { Raised } from "raised.slint";
+
+export component Toolbar inherits Raised {
+    // The widest the toolbar may get: the video area's width less its edges.
+    in property <length> room;
+    // False while the settings panel holds the keyboard.
+    in property <bool> focusable: true;
+    // A device is open or opening: its choices can change.
+    in property <bool> device-open;
+    // The mode menu can be used: a device is open, or an error state's device is listed (No
+    // signal keeps it reachable, device preview US4).
+    in property <bool> modes-reachable;
+    // The device and mode menus (app/src/ui.rs builds them from app/src/preview.rs) and the row
+    // each marks, -1 for none; a pick reports its row.
+    in property <[MenuItem]> devices;
+    // The name of the state's device when it is not listed (disconnected), shown muted in the
+    // Device select's button; empty otherwise.
+    in property <string> device-missing;
+    in-out property <int> device;
+    callback device-picked(int);
+    in property <[MenuItem]> modes;
+    in-out property <int> mode;
+    callback mode-picked(int);
+    // Color range chosen: 0 Auto, 1 Full, 2 Limited; with Auto, `range-full` says which range is
+    // in use, shown in the button as "Auto (Full)" or "Auto (Limited)" (data-model.md).
+    in-out property <int> color-range;
+    in property <bool> range-full;
+    callback color-range-changed(int);
+    out property <bool> has-focus: device-select.has-focus || mode-select.has-focus || range-select.has-focus;
+
+    // Opens the device menu, which takes the keyboard (the state message's action, US2 scenario 5).
+    public function open-device-menu() {
+        device-select.open-menu();
+    }
+
+    // The dropdowns' widths (research R13 "Toolbar and docks at any size"): the full look from
+    // 280 px (the mode's value and its two tags, measured) up to 305 px, else the icon look's 56 px.
+    property <int> count: 3;
+    property <length> gap: 6px;
+    property <length> pad: 8px;
+    property <length> chrome: 2 * root.pad + (root.count - 1) * root.gap;
+    property <bool> full: root.count * 280px + root.chrome <= root.room;
+    property <length> select-width: root.full ? min(305px, floor((root.room - root.chrome) / root.count / 1px) * 1px) : 56px;
+
+    // The side docks' panel (dock.slint), in a row.
+    fill: Theme.c.panel;
+    radius: Theme.radius-dock;
+    width: root.count * root.select-width + root.chrome;
+    height: 48px + 2 * root.pad;
+
+    HorizontalLayout {
+        padding: root.pad;
+        spacing: root.gap;
+
+        device-select := Select {
+            width: root.select-width;
+            title: @tr("Device");
+            label: @tr("Device");
+            icon: @image-url("../assets/icons/video.svg");
+            icon-only: !root.full;
+            focusable: root.focusable;
+            items: root.devices;
+            shown: root.device-missing;
+            shown-muted: true;
+            current <=> root.device;
+            selected(index) => { root.device-picked(index); }
+        }
+
+        mode-select := Select {
+            width: root.select-width;
+            title: @tr("Mode");
+            label: @tr("Mode");
+            icon: @image-url("../assets/icons/aspect_ratio.svg");
+            icon-only: !root.full;
+            enabled: root.modes-reachable;
+            focusable: root.focusable;
+            items: root.modes;
+            current <=> root.mode;
+            selected(index) => { root.mode-picked(index); }
+        }
+
+        range-select := Select {
+            width: root.select-width;
+            title: @tr("Color range");
+            label: @tr("Color range");
+            icon: @image-url("../assets/icons/color_filter.svg");
+            icon-only: !root.full;
+            enabled: root.device-open;
+            focusable: root.focusable;
+            items: [{ text: @tr("Auto") }, { text: @tr("Full") }, { text: @tr("Limited") }];
+            current <=> root.color-range;
+            shown: root.color-range != 0 ? "" : root.range-full ? @tr("Auto (Full)") : @tr("Auto (Limited)");
+            selected(index) => { root.color-range-changed(index); }
+        }
+    }
+}

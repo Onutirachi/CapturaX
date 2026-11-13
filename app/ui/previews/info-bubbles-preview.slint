@@ -1,0 +1,56 @@
+// The info bubbles for `slint-viewer` (not built into the app), over a video stand-in half white,
+// half black: a row that fits and a narrow column. Hover the frame rate or latency bubble for its
+// controls (the menu and the tooltip need the app's top layer, so only the controls show here).
+// Sample texts are plain strings: previews are left out of the translation check.
+import { Theme } from "../theme.slint";
+import { InfoBubbles, BubbleControlsLayer } from "../components/info-bubbles.slint";
+import "../assets/fonts/Inter.ttf";
+
+export component InfoBubblesPreview inherits Window {
+    title: "Info bubbles preview";
+    default-font-family: Theme.font;
+    preferred-width: 900px;
+    preferred-height: 420px;
+    background: #000000;
+
+    // The video stand-in: white on the left, black on the right.
+    Rectangle {
+        width: parent.width / 2;
+        x: 0;
+        background: #ffffff;
+    }
+
+    InfoBubbles {
+        x: 20px;
+        y: parent.height - self.height - 20px;
+        width: parent.width - 40px;
+        height: self.used-height;
+        source: "ezcap Live Gamer Ultra";
+        mode: "1920 × 1080";
+        mode-tag: "Full HD";
+        mode-tag-kind: "16:9";
+        mode-aspect: "16:9";
+        fps: "111 / 120 FPS";
+        latency: "3 ms + ~24 ms";
+    }
+
+    InfoBubbles {
+        x: 20px;
+        y: 20px;
+        width: 300px;
+        height: self.used-height;
+        source: "HD Pro Webcam C920";
+        mode: "1280 × 720";
+        mode-tag: "HD";
+        mode-tag-kind: "16:9";
+        mode-aspect: "16:9";
+        mode-display: 1;
+        fps: "30 / 30 FPS";
+        latency: "~41 ms";
+    }
+
+    BubbleControlsLayer {
+        width: parent.width;
+        height: parent.height;
+    }
+}

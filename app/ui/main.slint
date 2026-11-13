@@ -6,8 +6,8 @@
 import { Theme, Palette } from "theme.slint";
 import { Texts } from "texts.slint";
 import { WindowState } from "window-state.slint";
-import { Notice, NoticeKind } from "components/notice.slint";
-import { StateMessage } from "components/state-message.slint";
+import { SettingsNotice, NoticeKind, DeviceNotice, NoticeBox } from "components/notice.slint";
+import { StateMessage, StateAction } from "components/state-message.slint";
 import { Input } from "components/focus-ring.slint";
 import { Menus, MenuItem, MenuLayer } from "components/menu.slint";
 import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
@@ -15,6 +15,9 @@ import { TitleBar } from "components/title-bar.slint";
 import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
 import { SettingsPanel, Prefs } from "components/settings-panel.slint";
+import { Toolbar } from "components/toolbar.slint";
+import { ProgressRing } from "components/progress-ring.slint";
+import { InfoBubbles, BubbleControls, BubbleControlsLayer } from "components/info-bubbles.slint";
 
 export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs }
 
@@ -34,36 +37,135 @@ export component AppWindow inherits Window {
     out property <length> video-height: root.height - root.bar;
     out property <length> video-radius: 0;
 
-    // The notice shown, set by Rust from its queue (app/src/notices.rs).
+    // The settings notice shown (FR-033), set by Rust from its queue (app/src/notices.rs).
     in property <bool> notice-visible;
     in property <NoticeKind> notice-kind;
     in property <string> notice-title;
     in property <string> notice-text;
     callback dismiss-notice();
 
-    // A source is open (the test video in this spec); without one the video area shows the
-    // `no-source` state (FR-035).
-    in property <bool> source-open;
-    // An action of the state message, by id (none in this spec).
+    // The device notice (FR-027), set by Rust while the window has focus (a system notification
+    // otherwise): `connected`, `reconnected` or `disconnected`, the text, whether it offers
+    // **Open**, the device it names, and a number that changes for each notice and shows it.
+    in property <string> device-notice-kind;
+    in property <string> device-notice-text;
+    in property <bool> device-notice-can-open;
+    in property <string> device-notice-device;
+    in property <int> device-notice-serial;
+    callback device-notice-open(string /* device id */);
+    // The corner notices show in: `top-left`, `top-right`, `bottom-left` or `bottom-right`, set
+    // by Rust from the Notification position setting (FR-032).
+    in property <string> notification-position: "bottom-left";
+
+    // What the video area shows, set by Rust from the preview (app/src/preview.rs): `playing`
+    // shows the video; `no-source`, `no-devices`, `opening`, `blocked`, `in-use`, `disconnected`,
+    // `no-signal` and `failed` fill it with their state message (FR-019, FR-035). The title and
+    // detail come from Rust (they name the device), except the shell's `no-source`.
+    // Starts as `opening`: nothing but the backdrop until the monitor's first list.
+    in property <string> preview-state: "opening";
+    in property <string> state-title;
+    in property <string> state-detail;
+    // The video background is black (F56): the states and the progress ring use light tones.
+    in property <bool> video-black;
+    property <bool> no-source: root.preview-state == "no-source";
+    // The toolbar's choices for the open device (components/toolbar.slint), set by Rust.
+    in property <bool> device-open;
+    in property <bool> modes-reachable;
+    in property <[MenuItem]> devices;
+    in property <string> device-missing;
+    in-out property <int> device: -1;
+    callback device-picked(int);
+    in property <[MenuItem]> modes;
+    in-out property <int> mode: -1;
+    callback mode-picked(int);
+    in-out property <int> color-range;
+    in property <bool> range-full;
+    callback color-range-changed(int);
+    // The info bubbles (components/info-bubbles.slint), set by Rust once per second; a bubble with
+    // an empty text is left out. The displays are numbered as `InfoBubbles` documents them.
+    in property <string> info-source;
+    in property <string> info-mode;
+    in property <string> info-mode-tag;
+    in property <string> info-mode-tag-kind;
+    in property <string> info-mode-aspect;
+    in property <string> info-fps;
+    in property <string> info-latency;
+    // Each part of the latency for its tooltip: "3 ms", "~24 ms", "~27 ms".
+    in property <string> info-latency-measured;
+    in property <string> info-latency-estimated;
+    in property <string> info-latency-total;
+    in-out property <int> latency-display: 1;
+    in-out property <int> fps-display: 1;
+    in-out property <int> mode-display: 3;
+    callback latency-display-changed(int);
+    callback fps-display-changed(int);
+    callback mode-display-changed(int);
+
+    // An action of the state message, by id: `open-devices` and `open-privacy` are handled in
+    // app/src/ui.rs, `try-again` calls `try-again()`.
     callback state-action(string /* action id */);
+    callback try-again();
+    // On Windows Blocked offers the privacy settings (research R6); set by Rust.
+    in property <bool> privacy-settings;
 
     // Video area: drawn by the video thread, nothing here.
 
-    // State message layer: the `no-source` state fills the video area while nothing is open
-    // (FR-035), never a black or blank area.
-    if !root.source-open: StateMessage {
+    // State message layer: every state but `playing` and `opening` fills the video area, never a
+    // black or blank area, nor the last frame of a closed device (FR-013).
+    if root.preview-state != "playing" && root.preview-state != "opening": StateMessage {
         x: root.video-x;
         y: root.video-y;
         width: root.video-width;
         height: root.video-height;
         border-radius: root.video-radius;
-        icon: @image-url("assets/icons/device_tv_off.svg");
-        title: @tr("No source");
+        // Icons and actions per state (data-model.md "Preview state", research R13).
+        icon: root.preview-state == "no-source" || root.preview-state == "no-devices" ? @image-url("assets/icons/device_tv_off.svg")
+            : root.preview-state == "disconnected" ? @image-url("assets/icons/plug_connected_x.svg")
+            : root.preview-state == "blocked" ? @image-url("assets/icons/lock.svg")
+            : root.preview-state == "in-use" ? @image-url("assets/icons/player_pause.svg")
+            : root.preview-state == "no-signal" ? @image-url("assets/icons/antenna_bars_off.svg")
+            : @image-url("assets/icons/alert_triangle.svg");
+        title: root.no-source ? @tr("No source") : root.state-title;
+        detail: root.state-detail;
+        // No device open, or the open one disconnected: the action opens the toolbar's device
+        // menu (US2 scenario 5); the error states try the device again, Blocked on Windows first
+        // offers the privacy settings.
+        primary: root.preview-state == "no-source" || root.preview-state == "no-devices" || root.preview-state == "disconnected"
+            ? { id: "open-devices", label: @tr("Choose device") }
+            : root.preview-state == "blocked" && root.privacy-settings
+            ? { id: "open-privacy", label: @tr("Open privacy settings") }
+            : { id: "try-again", label: @tr("Try again") };
+        secondary: root.preview-state == "blocked" && root.privacy-settings
+            ? { id: "try-again", label: @tr("Try again") } : { id: "", label: "" };
+        on-black: root.video-black;
         action(id) => { root.state-action(id); }
     }
 
+    // Opening (FR-013, research R17): nothing over the video area, where the video thread fades
+    // the old source out to the backdrop and the new one in; the progress ring alone only when
+    // opening takes over 1 s.
+    if root.preview-state == "opening": opening := Rectangle {
+        x: root.video-x;
+        y: root.video-y;
+        width: root.video-width;
+        height: root.video-height;
+
+        property <bool> slow;
+        Timer {
+            interval: 1s;
+            running: !opening.slow;
+            triggered => { opening.slow = true; }
+        }
+
+        if opening.slow: ProgressRing {
+            ring: root.video-black ? Theme.c.on-black-muted : Theme.c.text-muted;
+            x: (opening.width - self.width) / 2;
+            y: (opening.height - self.height) / 2;
+        }
+    }
+
     // Chrome layer: the title bar (its window buttons are not in the Tab order, FR-020), then the
-    // toolbar slot and the docks over the video; the keyboard focus goes left dock, right dock.
+    // toolbar dock, the info bubbles and the left dock over the video, in that keyboard order.
 
     // The title bar's maximize button in physical pixels, for the snap layouts flyout (T040).
     out property <int> max-button-x: title-bar.max-button-x;
@@ -78,7 +180,7 @@ export component AppWindow inherits Window {
         visible: !WindowState.fullscreen;
     }
 
-    // The settings panel is open; its button is in the right dock, Esc, its close control or a
+    // The settings panel is open; its button is in the left dock, Esc, its close control or a
     // click outside it close it (FR-025). Closed from the keyboard, the focus goes back to its
     // button.
     in-out property <bool> settings-open;
@@ -89,22 +191,22 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Float at 800 × 520 and above; below it the compact layout puts the docks in the toolbar's
-    // row, so nothing overlaps (FR-009).
+    // Float at 800 × 520 and above; below it the compact layout centers the side docks under
+    // the toolbar, so nothing overlaps (FR-002a).
     out property <bool> compact: root.width < 800px || root.height < 520px;
 
     // A size change moves the controls: an open tooltip or menu would stay where its control was,
     // so both close, as in native apps.
-    changed width => { Tooltips.dismiss(); Menus.close(); }
-    changed height => { Tooltips.dismiss(); Menus.close(); }
+    changed width => { Tooltips.dismiss(); Menus.close(); BubbleControls.dismiss(); }
+    changed height => { Tooltips.dismiss(); Menus.close(); BubbleControls.dismiss(); }
     // The chrome shows while the pointer is on the top of the video, the toolbar or a dock, while a
     // menu is open, or while a chrome control has the keyboard focus; it hides 2 s after (FR-008).
     // The focus counts only while the keyboard is in use (its ring shows): a dock button keeps the
     // focus after the mouse takes over, and the chrome would never hide.
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || right-area.has-hover || Menus.open
-        || ((fullscreen-button.has-focus || settings-button.has-focus) && Input.keyboard);
+        || Menus.open || info.engaged
+        || ((fullscreen-button.has-focus || settings-button.has-focus || toolbar.has-focus) && Input.keyboard);
     changed engaged => {
         if (self.engaged) {
             self.chrome-shown = true;
@@ -129,6 +231,15 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Shows the chrome at once (the menu opens under the select where it stands, not where it
+    // slides from) and opens the device menu, which takes the keyboard (US2 scenario 5).
+    public function open-device-menu() {
+        if (!root.settings-open) {
+            root.reveal-chrome();
+            toolbar.open-device-menu();
+        }
+    }
+
     Timer {
         interval: 2s;
         running: root.chrome-shown && !root.engaged;
@@ -147,10 +258,13 @@ export component AppWindow inherits Window {
         clip: true;
 
         property <length> edge: 12px;
-        // The toolbar's height; in the compact layout the docks sit centered in its row.
-        property <length> toolbar-height: 88px;
         // Off the edge by more than the shadows reach, so no shadow shows while hidden.
         property <length> away: 40px;
+        // Below the toolbar dock: the compact layout centers the side docks in the space under it
+        // (research R13 "Toolbar and docks at any size").
+        property <length> under-toolbar: chrome.edge + toolbar.height;
+        // As tall as the toolbar's selects, so the side docks are as thick as the toolbar dock.
+        property <length> dock-button: 48px;
 
         // Reaching the top of the video brings the chrome back.
         top-zone := TouchArea {
@@ -160,52 +274,93 @@ export component AppWindow inherits Window {
             height: 100px;
         }
 
-        // The toolbar slot: no content and no panel in this spec; spec #3 fills it (FR-015). In the
-        // compact layout it takes the space between the docks.
+        // The toolbar dock (research R13), centered at the top; slides up.
         toolbar-area := TouchArea {
-            x: root.compact ? left-area.width + 2 * chrome.edge : 0;
-            y: -(self.height + chrome.away) * root.hidden;
-            width: root.compact ? parent.width - 2 * (left-area.width + 2 * chrome.edge) : parent.width;
-            height: chrome.toolbar-height;
+            x: (parent.width - self.width) / 2;
+            y: chrome.edge - (chrome.edge + self.height + chrome.away) * root.hidden;
+            width: toolbar.width;
+            height: toolbar.height;
+
+            toolbar := Toolbar {
+                room: chrome.width - 2 * chrome.edge;
+                focusable: !root.settings-open;
+                device-open: root.device-open;
+                modes-reachable: root.modes-reachable;
+                devices: root.devices;
+                device-missing: root.device-missing;
+                device <=> root.device;
+                device-picked(index) => { root.device-picked(index); }
+                modes: root.modes;
+                mode <=> root.mode;
+                mode-picked(index) => { root.mode-picked(index); }
+                color-range <=> root.color-range;
+                range-full: root.range-full;
+                color-range-changed(index) => { root.color-range-changed(index); }
+            }
         }
 
-        // Float: slides out to the left; compact: up with the toolbar's row.
+        // The left dock's top where it stands (it slides sideways only): centered on the video
+        // area's height in Float, in the space under the toolbar in the compact layout.
+        property <length> left-top: root.compact ? chrome.under-toolbar + (chrome.height - chrome.under-toolbar - left-dock.height) / 2
+            : (chrome.height - left-dock.height) / 2;
+
+        // The info bubbles in the video area's bottom right; they fade with the chrome. The
+        // keyboard reaches them after the toolbar. When the left dock reaches down to their row,
+        // the row keeps to the right of it (8 px clear); the right dock is not shown in this spec.
+        info := InfoBubbles {
+            property <bool> meets-left: chrome.left-top + left-dock.height > chrome.height - Theme.gap-l - 44px;
+            x: Theme.gap-l;
+            y: parent.height - self.height - Theme.gap-l;
+            width: parent.width - 2 * Theme.gap-l;
+            height: self.used-height;
+            row-start: self.meets-left ? chrome.edge + left-dock.width + 8px - self.x : 0;
+            row-end: self.width - root.notice-reserve;
+            opacity: 1 - root.hidden;
+            active: root.chrome-shown && !root.settings-open;
+            focusable: !root.settings-open;
+            source: root.info-source;
+            mode: root.info-mode;
+            mode-tag: root.info-mode-tag;
+            mode-tag-kind: root.info-mode-tag-kind;
+            mode-aspect: root.info-mode-aspect;
+            fps: root.info-fps;
+            latency: root.info-latency;
+            latency-measured: root.info-latency-measured;
+            latency-estimated: root.info-latency-estimated;
+            latency-total: root.info-latency-total;
+            latency-display <=> root.latency-display;
+            fps-display <=> root.fps-display;
+            mode-display <=> root.mode-display;
+            latency-display-changed(display) => { root.latency-display-changed(display); }
+            fps-display-changed(display) => { root.fps-display-changed(display); }
+            mode-display-changed(display) => { root.mode-display-changed(display); }
+        }
+
+        // The left dock holds the adjustments (FR-002a): fullscreen, then settings. Slides out to
+        // the left. The right dock (features) is not shown until a later spec adds its first
+        // button (app shell FR-015).
         left-area := TouchArea {
-            x: root.compact ? chrome.edge
-                : chrome.edge - (chrome.edge + self.width + chrome.away) * root.hidden;
-            y: !root.compact ? (parent.height - self.height) / 2
-                : (chrome.toolbar-height - self.height) / 2
-                    - ((chrome.toolbar-height + self.height) / 2 + chrome.away) * root.hidden;
+            x: chrome.edge - (chrome.edge + self.width + chrome.away) * root.hidden;
+            y: chrome.left-top;
             width: left-dock.width;
             height: left-dock.height;
 
             left-dock := Dock {
                 fullscreen-button := IconButton {
+                    size: chrome.dock-button;
                     icon: WindowState.fullscreen ? @image-url("assets/icons/fullscreen_exit.svg")
                         : @image-url("assets/icons/fullscreen.svg");
                     tooltip: WindowState.fullscreen ? @tr("Exit fullscreen (F11)") : @tr("Fullscreen (F11)");
-                    tooltip-side: root.compact ? Side.bottom : Side.right;
+                    tooltip-side: Side.right;
                     focusable: !root.settings-open;
                     clicked => { WindowState.toggle-fullscreen(); }
                 }
-            }
-        }
 
-        // Float: slides out to the right; compact: up with the toolbar's row.
-        right-area := TouchArea {
-            x: root.compact ? parent.width - self.width - chrome.edge
-                : parent.width - self.width - chrome.edge + (self.width + chrome.edge + chrome.away) * root.hidden;
-            y: !root.compact ? (parent.height - self.height) / 2
-                : (chrome.toolbar-height - self.height) / 2
-                    - ((chrome.toolbar-height + self.height) / 2 + chrome.away) * root.hidden;
-            width: right-dock.width;
-            height: right-dock.height;
-
-            right-dock := Dock {
                 settings-button := IconButton {
+                    size: chrome.dock-button;
                     icon: @image-url("assets/icons/settings.svg");
                     tooltip: @tr("Settings");
-                    tooltip-side: root.compact ? Side.bottom : Side.left;
+                    tooltip-side: Side.right;
                     active: root.settings-open;
                     focusable: !root.settings-open;
                     clicked => { root.settings-open = !root.settings-open; }
@@ -214,11 +369,32 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Notices layer.
-    if root.notice-visible: Notice {
-        x: root.video-x + (root.video-width - self.width) / 2;
-        y: root.video-y + Theme.gap-l;
-        width: min(560px, root.video-width - 2 * Theme.gap-l);
+    // The device notice balloon, placed by the properties under "Top layer" below. It is drawn
+    // before the settings panel: while the panel is open the balloon stays under it and its
+    // backdrop (FR-027, maintainer, 2026-11-10).
+    device-notice := DeviceNotice {
+        x: root.video-x + root.notice-corner.x + (root.notice-clear-of.x - root.notice-corner.x) * (1 - root.hidden);
+        y: root.video-y + root.notice-corner.y + (root.notice-clear-of.y - root.notice-corner.y) * (1 - root.hidden);
+        room: root.video-width - 2 * root.notice-edge;
+        top: root.notice-top;
+        left: root.notice-left;
+        focusable: !root.settings-open;
+        kind: root.device-notice-kind;
+        text: root.device-notice-text;
+        can-open: root.device-notice-can-open;
+        serial: root.device-notice-serial;
+        open => { root.device-notice-open(root.device-notice-device); }
+    }
+
+    // The settings notice balloon (FR-033), stacked past the device notice in the same corner.
+    settings-notice := SettingsNotice {
+        x: root.video-x + root.settings-notice-corner.x + (root.settings-notice-clear-of.x - root.settings-notice-corner.x) * (1 - root.hidden);
+        y: root.video-y + root.settings-notice-corner.y + (root.settings-notice-clear-of.y - root.settings-notice-corner.y) * (1 - root.hidden);
+        room: root.video-width - 2 * root.notice-edge;
+        top: root.notice-top;
+        left: root.notice-left;
+        focusable: !root.settings-open;
+        shown: root.notice-visible;
         kind: root.notice-kind;
         title: root.notice-title;
         text: root.notice-text;
@@ -250,8 +426,96 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Top layer (menus, dropdowns, tooltips): drawn last, so nothing covers them (FR-010). A menu
-    // takes every click while open; a click outside it closes it.
+    // Top layer (bubble controls, menus, dropdowns, tooltips): drawn last, so nothing covers them
+    // (FR-010). A menu takes every click while open; a click outside it closes it.
+    // Where the notice balloons stand (FR-027, FR-033, research R15 "In-app balloon"; they are
+    // drawn under the settings panel, above): in their corner, 20 px from the video area's edges,
+    // shown also with the controls hidden. While the controls show they keep clear of them: below
+    // the toolbar dock, beside the left dock (8 px), above the bubbles (12 px; over them when that
+    // would leave the video area); in the bottom right
+    // the device notice joins the bubble row at the corner when the row has room for it, and the
+    // bubbles slide aside. They move with the chrome's slide. With both on screen the device
+    // notice is nearest the corner and the settings notice stacks past it (12 px), sliding as the
+    // device notice comes and goes.
+    property <bool> notice-top: root.notification-position == "top-left" || root.notification-position == "top-right";
+    property <bool> notice-left: root.notification-position == "top-left" || root.notification-position == "bottom-left";
+    property <length> notice-edge: Theme.gap-l;
+    property <NoticeBox> notice-corner: {
+        x: root.notice-left ? root.notice-edge : root.video-width - root.notice-edge - device-notice.width,
+        y: root.notice-top ? root.notice-edge : root.video-height - root.notice-edge - device-notice.height,
+        w: device-notice.width,
+        h: device-notice.height,
+    };
+    // In the bottom right, at the end of the bubble row.
+    property <bool> notice-joins: root.notification-position == "bottom-right"
+        && info.row-width + Theme.gap-m + device-notice.width <= info.width - info.row-start;
+    // The bubbles leave the notice its place at the row's end as it grows in.
+    property <length> notice-reserve: root.notice-joins ? (device-notice.width + Theme.gap-m) * device-notice.appear : 0;
+    // What the notice keeps clear of, in the video area, where it stands when shown.
+    property <NoticeBox> toolbar-box: { x: toolbar-area.x, y: chrome.edge, w: toolbar.width, h: toolbar.height };
+    property <NoticeBox> dock-box: { x: chrome.edge, y: chrome.left-top, w: left-dock.width, h: left-dock.height };
+    property <NoticeBox> bubbles-box: { x: info.x + info.used-x, y: info.y, w: info.used-width, h: info.used-height };
+
+    pure function notice-hits(a: NoticeBox, b: NoticeBox) -> bool {
+        b.w > 0 && b.h > 0 && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+    }
+
+    // `r` moved past `o` when it covers it: beside it (the left dock) or towards the video's middle.
+    pure function notice-past(r: NoticeBox, o: NoticeBox, beside: bool) -> NoticeBox {
+        !root.notice-hits(r, o) ? r
+            : beside ? { x: o.x + o.w + 8px, y: r.y, w: r.w, h: r.h }
+            : root.notice-top ? { x: r.x, y: o.y + o.h + Theme.gap-m, w: r.w, h: r.h }
+            : { x: r.x, y: o.y - Theme.gap-m - r.h, w: r.w, h: r.h }
+    }
+
+    pure function notice-inside(r: NoticeBox) -> bool {
+        r.x >= 0 && r.y >= 0 && r.x + r.w <= root.video-width && r.y + r.h <= root.video-height
+    }
+
+    // Past the toolbar and the left dock, twice: moving past one may land on the other.
+    pure function notice-clear-chrome(r: NoticeBox) -> NoticeBox {
+        root.notice-past(root.notice-past(root.notice-past(root.notice-past(r,
+            root.toolbar-box, false), root.dock-box, true), root.toolbar-box, false), root.dock-box, true)
+    }
+
+    // `r` above the bubbles is allowed: inside the video area, clear of the toolbar and the dock.
+    pure function notice-fits(r: NoticeBox) -> bool {
+        root.notice-inside(r) && !root.notice-hits(r, root.toolbar-box) && !root.notice-hits(r, root.dock-box)
+    }
+
+    // Clear of the toolbar and the dock, then above the bubbles when it fits there; else it
+    // covers them (a small window, where they stand in a column; FR-027).
+    pure function notice-clear(r: NoticeBox) -> NoticeBox {
+        root.notice-fits(root.notice-past(root.notice-clear-chrome(r), root.bubbles-box, false))
+            ? root.notice-past(root.notice-clear-chrome(r), root.bubbles-box, false)
+            : root.notice-clear-chrome(r)
+    }
+
+    property <NoticeBox> notice-clear-of: root.notice-joins ? root.notice-corner : root.notice-clear(root.notice-corner);
+
+    // The settings notice in the corner, moved past the device notice `d` while that one shows.
+    pure function settings-notice-from(d: NoticeBox) -> NoticeBox {
+        {
+            x: root.notice-left ? root.notice-edge : root.video-width - root.notice-edge - settings-notice.width,
+            y: root.notice-top
+                ? root.notice-edge + max(0, d.y + d.h + Theme.gap-m - root.notice-edge) * device-notice.appear
+                : root.video-height - root.notice-edge - settings-notice.height
+                    - max(0, root.video-height - root.notice-edge - (d.y - Theme.gap-m)) * device-notice.appear,
+            w: settings-notice.width,
+            h: settings-notice.height,
+        }
+    }
+
+    property <NoticeBox> settings-notice-corner: root.settings-notice-from(root.notice-corner);
+    property <NoticeBox> settings-notice-clear-of: root.notice-clear(root.settings-notice-from(root.notice-clear-of));
+
+    BubbleControlsLayer {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+    }
+
     if Menus.open: MenuLayer {
         x: 0;
         y: 0;

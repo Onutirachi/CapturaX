@@ -9,8 +9,13 @@ use winit::platform::wayland::WindowAttributesExtWayland;
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{Window, WindowAttributes};
 
+mod activation;
+pub use activation::activate;
 pub mod autostart;
+pub mod camera;
 pub mod instance;
+pub mod notify;
+mod nvml;
 pub mod snap;
 pub mod theme;
 pub mod tray;
@@ -60,6 +65,8 @@ fn run(program: &str, args: &[&str]) -> bool {
 }
 
 /// Linux timers are already precise.
+pub use nvml::PerformanceGuard;
+
 pub struct TimerGuard;
 
 impl TimerGuard {
@@ -80,6 +87,32 @@ pub fn follow_dpi_rect(_window: &Window) {}
 pub fn drawn_size(window: &Window) -> PhysicalSize<u32> {
     window.inner_size()
 }
+
+/// `CLOCK_MONOTONIC` in nanoseconds. Declared here rather than through the `libc` crate: one call,
+/// to the C library std already links.
+pub fn qpc() -> i64 {
+    #[repr(C)]
+    struct Timespec {
+        tv_sec: i64,
+        tv_nsec: i64,
+    }
+    const CLOCK_MONOTONIC: i32 = 1;
+    unsafe extern "C" {
+        fn clock_gettime(clock: i32, time: *mut Timespec) -> i32;
+    }
+    let mut time = Timespec { tv_sec: 0, tv_nsec: 0 };
+    // SAFETY: `time` matches `struct timespec` on 64-bit Linux (64-bit `time_t` and `long`) and
+    // outlives the call; CLOCK_MONOTONIC always exists, so the call does not fail.
+    unsafe { clock_gettime(CLOCK_MONOTONIC, &mut time) };
+    time.tv_sec * 1_000_000_000 + time.tv_nsec
+}
+
+/// KWin restores a tile itself after fullscreen (checked in the app shell).
+pub fn arranged_rect(_window: &Window) -> Option<crate::Rect> {
+    None
+}
+
+pub fn set_outer_rect(_window: &Window, _rect: crate::Rect) {}
 
 /// Wayland does not tell clients about panels; X11's `_NET_WORKAREA` covers all monitors at once.
 pub fn work_area(_monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {

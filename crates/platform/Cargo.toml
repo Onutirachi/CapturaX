@@ -13,8 +13,17 @@ dirs.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
+windows.workspace = true
 tray-icon.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus.workspace = true
 ksni.workspace = true
+libloading.workspace = true
+wayland-client.workspace = true
+wayland-backend.workspace = true
+wayland-protocols.workspace = true
+
+[dev-dependencies]
+# The notify example shows the app icon (brand/X.svg).
+resvg.workspace = true

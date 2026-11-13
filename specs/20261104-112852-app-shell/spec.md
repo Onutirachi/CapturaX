@@ -255,6 +255,9 @@ change that only breaks one platform's build; each is reported and blocks the me
   screen in Windows' snap layouts). Below the size the Float layout needs (800 × 520 in the
   spike), the main screen MUST switch to a compact layout in which no control overlaps another
   (F8).
+  *Revised 2026-11-09*: the docks no longer move into the toolbar's row in the compact layout;
+  they stay in the middle of the sides, and settings moves to the left dock (device preview
+  spec FR-002a).
 - **FR-010**: Menus, dropdowns and tooltips MUST stay inside the window, and a control's hover
   area MUST never be covered by another control (spike open question).
 - **FR-011**: On Windows 11 the app SHOULD show the snap layouts flyout when the pointer rests
@@ -334,7 +337,8 @@ change that only breaks one platform's build; each is reported and blocks the me
   only the icons, with the names in tooltips. In this spec: **General** (Start in
   fullscreen, FR-012a; Keep in tray when closed, FR-014a; Start with the system, FR-014b),
   **Appearance** (language, theme) and **About** (the logo, FR-006, and the app's version). Later specs add their
-  categories to the same panel (F40). (Maintainer, 2026-11-05: a central panel with categories
+  categories to the same panel (F40). (Look revised by the device preview spec's FR-034,
+  2026-11-09: the title moves to the top of a full-height category column, taller rows and controls.) (Maintainer, 2026-11-05: a central panel with categories
   replaces the panel beside the dock, because later settings include lists such as audio
   devices and hotkeys.)
 - **FR-026**: Settings MUST be stored in one human-readable file in the folder that holds the
@@ -363,7 +367,8 @@ change that only breaks one platform's build; each is reported and blocks the me
 - **FR-034**: The app MUST have one non-blocking, dismissible notice for shell-level messages
   (settings fallback, damaged settings, settings not kept), shaped as the settings panel: a
   header with an icon for its kind, a title of its own and the close control (FR-025), then its
-  text.
+  text. (Superseded by the device preview spec's FR-033, 2026-11-09: these notices now use the
+  notice balloon, in the corner of the Notification position setting.)
 - **FR-035**: The video area MUST show the empty state "no source" when nothing is open, never a
   black or blank area.
 - **FR-036**: If the renderer cannot start, the app MUST show a system message in the user's

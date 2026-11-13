@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["app", "crates/settings", "crates/platform"]
+members = ["app", "crates/settings", "crates/platform", "crates/capture"]
 
 [workspace.package]
 version = "0.1.0"
@@ -18,7 +18,7 @@ wgpu = { version = "30", default-features = false }
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "1"
 
-# Media (test video; spec #3 reuses it)
+# Media: capture and decode in crates/capture (spec 20261106-170507-device-preview)
 gst = { package = "gstreamer", version = "0.25" }
 gst-app = { package = "gstreamer-app", version = "0.25" }
 gst-video = { package = "gstreamer-video", version = "0.25" }
@@ -44,6 +44,7 @@ windows-sys = { version = "0.61", features = [
     "Win32_Security",
     "Win32_Storage_FileSystem",
     "Win32_System_IO",
+    "Win32_System_Performance",
     "Win32_System_Pipes",
     "Win32_System_Registry",
     "Win32_System_Threading",
@@ -53,8 +54,17 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 tray-icon = "0.26"
+# WinRT toast notifications (spec 20261106-170507-device-preview, research R15)
+windows = { version = "0.62", features = ["UI_Notifications", "Data_Xml_Dom"] }
 zbus = "5"
 ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+# NVIDIA driver library on Linux (spec 20261106-170507-device-preview, research R14)
+libloading = "0.8"
+# Raise the window with an XDG activation token on Wayland (spec 20261106-170507-device-preview,
+# research R15); already compiled through winit
+wayland-client = "0.31"
+wayland-backend = { version = "0.3", features = ["client_system"] }
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 
 [profile.release]
 debug = "line-tables-only"

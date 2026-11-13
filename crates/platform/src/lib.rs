@@ -20,6 +20,22 @@ use linux as os;
 
 pub use os::autostart;
 
+/// Built for Windows: the latency estimate counts the USB transfer there (device-preview
+/// data-model.md "Latency estimate"), so the app needs no platform condition of its own.
+pub const IS_WINDOWS: bool = cfg!(windows);
+
+mod camera;
+pub use camera::{Access, camera_access, open_camera_privacy};
+
+mod activation;
+pub use activation::raise_window;
+
+mod gpu;
+pub use gpu::{PerformanceGuard, gpu_performance};
+
+mod notify;
+pub use notify::{Notice, NoticeIcon, init_notifications, notify};
+
 pub mod snap;
 pub mod theme;
 pub mod tray;
@@ -123,6 +139,30 @@ pub fn work_area(monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, Phys
     os::work_area(monitor)
 }
 
+/// A window's outer rectangle in physical pixels, desktop coordinates.
+pub type Rect = (PhysicalPosition<i32>, PhysicalSize<u32>);
+
+/// A raw timestamp for the present log (FR-023, research R8): `QueryPerformanceCounter` on
+/// Windows, so the lines match PresentMon's `--qpc_time` columns; `CLOCK_MONOTONIC` in
+/// nanoseconds on Linux.
+pub fn qpc() -> i64 {
+    os::qpc()
+}
+
+/// Where the window is while the system has it snapped (arranged) on Windows, its outer
+/// rectangle; None when it is not snapped, and always on Linux, where the compositor restores
+/// tiles itself (FR-025, research R10). Read it before entering fullscreen.
+pub fn arranged_rect(window: &Window) -> Option<Rect> {
+    os::arranged_rect(window)
+}
+
+/// Moves and sizes the window to an outer rectangle without changing its z-order or activating
+/// it: puts a window that left fullscreen back where [`arranged_rect`] found it, since winit
+/// restores the place before the snap (FR-025). Nothing to do on Linux.
+pub fn set_outer_rect(window: &Window, rect: Rect) {
+    os::set_outer_rect(window, rect);
+}
+
 /// Keeps the system's timers precise while it lives: Windows wakes sleeping threads every 15.6 ms
 /// by default, which makes GStreamer's live sources deliver frames in bursts (research R9).
 /// Nothing to do on Linux.
@@ -174,5 +214,14 @@ mod tests {
         std::fs::write(&file, b"x").unwrap();
         assert!(!is_writable(&file.join("inside")));
         std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn qpc_moves_forward() {
+        let first = qpc();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let second = qpc();
+        assert!(first > 0);
+        assert!(second > first);
     }
 }

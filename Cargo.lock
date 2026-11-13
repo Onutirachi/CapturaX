@@ -744,12 +744,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytemuck",
+ "capturax-capture",
  "capturax-platform",
  "capturax-settings",
  "clap",
- "gstreamer",
- "gstreamer-app",
- "gstreamer-video",
  "log",
  "pollster",
  "resvg 0.49.0",
@@ -763,13 +761,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "capturax-capture"
+version = "0.1.0"
+dependencies = [
+ "gstreamer",
+ "gstreamer-app",
+ "gstreamer-video",
+ "log",
+]
+
+[[package]]
 name = "capturax-platform"
 version = "0.1.0"
 dependencies = [
  "dirs",
  "ksni",
+ "libloading 0.8.9",
  "log",
+ "resvg 0.49.0",
  "tray-icon",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols",
+ "windows",
  "windows-sys 0.61.2",
  "winit",
  "zbus",

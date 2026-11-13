@@ -40,12 +40,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # gstreamer1.0-plugins-base: videotestsrc, videoconvert and appsink for the capture
+      # pipeline tests (device preview); the Windows installer already ships them.
       - name: Install system libraries (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base \
             libxkbcommon-dev libwayland-dev libdbus-1-dev libfontconfig1-dev
 
       # One Inno Setup installer with runtime and development files since 1.28. The default

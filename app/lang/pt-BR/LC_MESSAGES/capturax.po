@@ -65,6 +65,21 @@ msgstr "Manter na bandeja ao fechar"
 msgid "Start with the system"
 msgstr "Iniciar com o sistema"
 
+msgid "Notification position"
+msgstr "Posição das notificações"
+
+msgid "Top left"
+msgstr "Superior esquerdo"
+
+msgid "Top right"
+msgstr "Superior direito"
+
+msgid "Bottom left"
+msgstr "Inferior esquerdo"
+
+msgid "Bottom right"
+msgstr "Inferior direito"
+
 msgid "Language"
 msgstr "Idioma"
 
@@ -107,5 +122,185 @@ msgstr "Configurações danificadas"
 msgid "No source"
 msgstr "Nenhuma fonte"
 
+msgid "Choose device"
+msgstr "Escolher dispositivo"
+
+msgid "Color range"
+msgstr "Faixa de cor"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Full"
+msgstr "Completa"
+
+msgid "Limited"
+msgstr "Limitada"
+
+msgid "Auto (Full)"
+msgstr "Auto (Completa)"
+
+msgid "Auto (Limited)"
+msgstr "Auto (Limitada)"
+
+msgid "No devices"
+msgstr "Nenhum dispositivo"
+
+msgid "Connect a video device"
+msgstr "Conecte um dispositivo de vídeo"
+
+msgid "{} disconnected"
+msgstr "{} desconectado"
+
+msgid "{} connected"
+msgstr "{} conectado"
+
+msgid "{} reconnected"
+msgstr "{} reconectado"
+
+msgid "Waiting to reconnect"
+msgstr "Aguardando reconexão"
+
+msgid "Access blocked"
+msgstr "Acesso bloqueado"
+
+msgid "Desktop app permission is off"
+msgstr "Permissão para aplicativos da área de trabalho desativada"
+
+msgid "Cannot open {}"
+msgstr "Não foi possível abrir {}"
+
+msgid "No permission to use the device"
+msgstr "Sem permissão para usar o dispositivo"
+
+msgid "In use"
+msgstr "Em uso"
+
+msgid "{} is being used elsewhere"
+msgstr "{} está sendo usado em outro lugar"
+
+msgid "No signal"
+msgstr "Sem sinal"
+
+msgid "No video signal detected"
+msgstr "Nenhum sinal de vídeo detectado"
+
+msgid "Open privacy settings"
+msgstr "Abrir configurações de privacidade"
+
+msgid "Try again"
+msgstr "Tentar novamente"
+
 msgid "CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again."
 msgstr "O CapturaX não pode iniciar porque nenhum renderizador gráfico funciona neste computador. Atualize o driver de vídeo e tente de novo."
+
+msgid "Device"
+msgstr "Dispositivo"
+
+msgid "Mode"
+msgstr "Modo"
+
+msgid "Modes"
+msgstr "Modos"
+
+msgid "Auto source"
+msgstr "Auto fonte"
+
+msgid "Auto max resolution"
+msgstr "Auto resolução máxima"
+
+msgid "Auto max FPS"
+msgstr "Auto FPS máximo"
+
+msgid "{} · {}"
+msgstr "{} · {}"
+
+msgid "{} FPS"
+msgstr "{} FPS"
+
+msgid "Custom"
+msgstr "Custom"
+
+msgid "Preview"
+msgstr "Preview"
+
+msgid "Video background"
+msgstr "Fundo do vídeo"
+
+msgid "Black"
+msgstr "Preto"
+
+msgid "Watermark"
+msgstr "Marca d'água"
+
+msgid "Video shadow"
+msgstr "Sombra no vídeo"
+
+msgid "Always"
+msgstr "Sempre"
+
+msgid "With ambient light"
+msgstr "Com luz ambiente"
+
+msgid "Off"
+msgstr "Desligada"
+
+msgid "Presentation"
+msgstr "Apresentação"
+
+msgid "Lowest latency"
+msgstr "Menor latência"
+
+msgid "Follow the monitor"
+msgstr "Seguir o monitor"
+
+msgid "Only matters with variable refresh (G-SYNC, FreeSync)"
+msgstr "Só faz diferença com taxa de atualização variável (G-SYNC, FreeSync)"
+
+msgid "Latency"
+msgstr "Latência"
+
+msgid "Measured"
+msgstr "Medida"
+
+msgid "Measured + estimated"
+msgstr "Medida + estimada"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Frame rate"
+msgstr "Taxa de quadros"
+
+msgid "Presented"
+msgstr "Exibidos"
+
+msgid "Presented / nominal"
+msgstr "Exibidos / nominal"
+
+msgid "Nominal"
+msgstr "Nominal"
+
+msgid "Display"
+msgstr "Exibição"
+
+msgid "Resolution"
+msgstr "Resolução"
+
+msgid "Resolution + name"
+msgstr "Resolução + nome"
+
+msgid "Resolution + aspect ratio"
+msgstr "Resolução + proporção"
+
+msgid "Resolution + name + aspect ratio"
+msgstr "Resolução + nome + proporção"
+
+msgid "{}: inside CapturaX (measured)"
+msgstr "{}: dentro do CapturaX (medido)"
+
+msgid "{}: capture card and monitor (estimated)"
+msgstr "{}: placa de captura e monitor (estimado)"
+
+msgid "{} in total"
+msgstr "{} no total"

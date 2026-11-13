@@ -5,17 +5,19 @@ mod cli;
 mod frame;
 mod i18n;
 mod icon;
+mod latency;
 mod log;
 mod notices;
 mod placement;
+mod present_log;
+mod preview;
 mod render;
 mod shadows;
 mod stats;
-mod test_video;
 mod theme;
 mod ui;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use slint::Global;
 use winit::event_loop::EventLoop;
@@ -38,6 +40,9 @@ fn run() -> i32 {
             return exit.code;
         }
     };
+    if options.list_devices {
+        return list_devices();
+    }
 
     // Plan step 2: where settings and log are kept (FR-026–FR-028), then the settings (FR-030).
     let location = settings_location();
@@ -109,6 +114,16 @@ fn run() -> i32 {
         store.save_soon();
     }
     follow_autostart();
+    // After the instance claim: a second start must not empty the running one's log.
+    if let Some(path) = &options.present_log
+        && let Err(err) = present_log::start(path)
+    {
+        let message = format!("present log {}: {err}", path.display());
+        ::log::error!("{message}");
+        eprintln!("{message}");
+        ::log::logger().flush();
+        return cli::EXIT_USAGE;
+    }
 
     let code = match start(options, process_start, store, instance, language, notices) {
         Ok(code) => code,
@@ -118,6 +133,7 @@ fn run() -> i32 {
             1
         }
     };
+    render::flush_stats(Duration::from_secs(1));
     ::log::logger().flush();
     code
 }
@@ -208,6 +224,19 @@ fn start(
 ) -> anyhow::Result<i32> {
     let ui = ui::Ui::new(language)?;
     let event_loop = EventLoop::<app::UserEvent>::with_user_event().build()?;
+    // Before any window: on Windows it sets the app id the toasts are shown under (research R15).
+    // **Open** on a system notification reaches the main loop with the device id.
+    let icon = icon::at_least(64);
+    let proxy = event_loop.create_proxy();
+    platform::init_notifications(
+        platform::NoticeIcon {
+            size: icon.size,
+            rgba: icon.rgba,
+        },
+        move |device| {
+            let _ = proxy.send_event(app::UserEvent::NoticeOpen { device, system: true });
+        },
+    );
     // The listener thread hands `show` to the main loop and answers whether the platform lets the
     // window come to the front.
     let instance = instance.and_then(|listener| {
@@ -231,4 +260,63 @@ fn start(
         platform::show_system_message(platform::MessageKind::Error, &title, &text);
     }
     Ok(app.exit_code)
+}
+
+/// `--list-devices` (contracts/cli.md): every device with its id, the automatic modes it shows and
+/// what they open, and its modes; exit 69 when GStreamer cannot start.
+fn list_devices() -> i32 {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let sender = std::sync::Mutex::new(sender);
+    let monitor = capture::Monitor::start(move |event| {
+        if let capture::MonitorEvent::Listed(devices) = event
+            && let Ok(sender) = sender.lock()
+        {
+            let _ = sender.send(devices);
+        }
+    });
+    let mut monitor = match monitor {
+        Ok(monitor) => monitor,
+        Err(err) => {
+            eprintln!("devices unavailable: {err}");
+            return app::EXIT_NO_TEST_VIDEO;
+        }
+    };
+    let devices = receiver
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .unwrap_or_default();
+    monitor.stop();
+    if devices.is_empty() {
+        println!("No capture device found.");
+    }
+    for device in &devices {
+        println!("{}", device.name);
+        println!("  id: {}", device.id);
+        let automatic = capture::mode::shown_automatic(&device.modes, device.signal);
+        // Aligned columns; the settings text first, so a line can be copied into the settings
+        // file (contracts/cli.md).
+        let width = device.modes.iter().map(|m| m.text().len()).max().unwrap_or(0);
+        let choices = automatic.iter().map(|(c, _)| c.to_string().len()).max().unwrap_or(0);
+        println!("  automatic:");
+        for (choice, mode) in &automatic {
+            let choice = choice.to_string();
+            println!("    {choice:<choices$} -> {}", mode_line(mode, width));
+        }
+        println!("  modes:");
+        for mode in &device.modes {
+            println!("    {}", mode_line(mode, width));
+        }
+    }
+    0
+}
+
+/// `1920x1080@60   NV12  [Full HD] [16:9]`, the settings text padded to `width`.
+fn mode_line(mode: &capture::Mode, width: usize) -> String {
+    let tags = mode.tags();
+    format!(
+        "{:<width$}  {:<4}  [{}] [{}]",
+        mode.text(),
+        mode.format.name(),
+        tags.name.unwrap_or("Custom"),
+        tags.aspect
+    )
 }

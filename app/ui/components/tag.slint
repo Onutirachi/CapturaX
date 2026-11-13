@@ -1,0 +1,43 @@
+// A tag of a mode (F43, data-model.md "Mode"): a filled tag with white text, its fill by `kind`
+// (an aspect ratio family such as `16:9`, `custom`, `aspect`), or with `kind` `rate` the outlined
+// frame rate tag in the text color. Empty `value` draws nothing.
+import { Theme } from "../theme.slint";
+
+export component Tag inherits Rectangle {
+    in property <string> value;
+    in property <string> kind;
+
+    property <bool> shown: root.value != "";
+    property <bool> outlined: root.kind == "rate";
+
+    visible: root.shown;
+    width: root.shown ? label.preferred-width + 10px : 0;
+    height: label.preferred-height + 2px;
+    border-radius: 4px;
+    border-width: root.outlined ? 1px : 0;
+    border-color: Theme.c.text-muted;
+    background: root.outlined ? transparent
+        : root.kind == "1:1" ? Theme.c.tag-1-1
+        : root.kind == "5:4" ? Theme.c.tag-5-4
+        : root.kind == "11:9" ? Theme.c.tag-11-9
+        : root.kind == "4:3" ? Theme.c.tag-4-3
+        : root.kind == "3:2" ? Theme.c.tag-3-2
+        : root.kind == "25:16" ? Theme.c.tag-25-16
+        : root.kind == "16:10" ? Theme.c.tag-16-10
+        : root.kind == "5:3" ? Theme.c.tag-5-3
+        : root.kind == "16:9" ? Theme.c.tag-16-9
+        : root.kind == "17:9" ? Theme.c.tag-17-9
+        : root.kind == "21:9" ? Theme.c.tag-21-9
+        : root.kind == "32:9" ? Theme.c.tag-32-9
+        : root.kind == "custom" ? Theme.c.tag-custom
+        : Theme.c.tag-aspect;
+    accessible-role: text;
+    accessible-label: root.value;
+
+    label := Text {
+        text: root.value;
+        color: root.outlined ? Theme.c.text : #ffffff;
+        font-size: Theme.text-s;
+        font-weight: 600;
+    }
+}

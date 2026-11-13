@@ -10,7 +10,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 |---|---|---|---|---|
 | 1 | [Stack spike](#1-stack-spike) ([spec](../specs/20261026-154808-stack-spike/spec.md)) | — | — | done |
 | 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
-| 3 | [Device preview](#3-device-preview) | F1–F4, F6, F7, F11, F43, F52 | 2 | |
+| 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
 | 4 | [Preview audio](#4-preview-audio) | F12–F14, F47 | 3 | |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
@@ -22,6 +22,8 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37, F53 (app side) | 11 | |
 | 13 | [Packaging and updates](#13-packaging-and-updates) | F41 (installer, firewall), F44, F45 | 2 | |
 | 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
+| 15 | [Accelerate GPU](#15-accelerate-gpu) | F55 | 10 | |
+| 16 | [Getting started guide](#16-getting-started-guide) | F54 | 15 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
 spec 13 can start any time after spec 2.
@@ -71,11 +73,20 @@ the per-user fallback, and CI (format, lint, tests, build on Windows and Linux).
 
 ### 3. Device preview
 
+Done: [handoff](../specs/20261106-170507-device-preview/handoff.md),
+[latency](../specs/20261106-170507-device-preview/measurements/latency.md),
+[stalls](../specs/20261106-170507-device-preview/measurements/stalls.md) and
+[acceptance](../specs/20261106-170507-device-preview/measurements/acceptance.md). The Linux GPU
+clocks and the Windows stalls the app shell carried are settled (the NVIDIA performance request;
+the one stall left, leaving fullscreen, is the system's). Carried on: the GPU request on AMD and
+Intel GPUs and the Accelerate GPU setting (spec #15), the KWin fullscreen spikes while the
+interface animates (to look into if they matter in use), and the latency estimate reading low in
+the 1080p120 modes.
+
 ```text
 /speckit-specify Device preview (see docs/roadmap.md #3): covers F1-F4, F6, F7, F11, F43 and F52
 from docs/product.md. Device list with hot plug, native modes, the automatic modes (source, max resolution, max FPS), reconnect,
-latency and FPS measurement, explicit empty and error states (including a hint to turn off
-HDCP on the console when the image is black while a signal is present). Must state a latency budget and
+latency and FPS measurement, explicit empty and error states. Must state a latency budget and
 how it is measured (constitution principle I); the stack spike measured 30.4 ms median at 1080p60
 on Windows with Direct3D 12 + Mailbox, and lists the open questions this spec inherits. Also
 investigate the Windows stalls at presentation mode changes the app shell measured (focus change
@@ -178,4 +189,32 @@ window of its own on the desktop (the same panel, same size and look, without th
 without opening the preview device); `--live` and `--record` start the app that way (a running
 instance opens them). Live and Record can be open at the same time. Reuses the panels built in
 specs 9 and 10.
+```
+
+### 15. Accelerate GPU
+
+After a usable app with a working live (maintainer, 2026-11-07).
+
+```text
+/speckit-specify Accelerate GPU (see docs/roadmap.md #15): covers F55 from docs/product.md. An
+Accelerate GPU setting (Auto: ask the GPU for full clocks whenever needed except on battery; Off:
+never; On: whenever needed, on battery too) over the GPU performance request of the device
+preview (its research R7). Measure first whether the request helps a live with the preview
+hidden (frames dropped, encoding time, GPU state, 1080p60 and 1080p120, with and without it) and
+add it to the live only if it does. Decide what the setting does on Windows and how battery is
+detected on both systems.
+```
+
+### 16. Getting started guide
+
+Last, so its screenshots show the finished app.
+
+```text
+/speckit-specify Getting started guide (see docs/roadmap.md #16): covers F54 from docs/product.md.
+A short illustrated guide with screenshots of the app: moving the info bubbles, the color range
+setting, the mode chosen against the resolution of the signal the device receives, and HDCP (a
+black image from a console with HDCP on, and how to turn it off). Reopened from the settings.
+Decide when it is first shown. Also tooltips on the more complex settings (Accelerate GPU, color
+range, presentation), a few words of detail each. Texts in both languages; screenshots per
+language and theme if needed.
 ```

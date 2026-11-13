@@ -1,4 +1,5 @@
-Icons in this folder are Tabler Icons (https://tabler.io/icons), outline style, 24 px.
+Icons in this folder are Tabler Icons (https://tabler.io/icons), outline style, 24 px, except
+the corner_*.svg files, drawn for CapturaX (the notification position, device preview FR-032).
 
 MIT License
 

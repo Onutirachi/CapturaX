@@ -35,6 +35,31 @@ export struct Palette {
     scrim: color,
     // Shadow images are drawn at this opacity: light surfaces need softer shadows.
     shadow: float,
+    // The black video background (F56): its ground and the state message tones on it, the same
+    // in both themes.
+    ground-black: color,
+    on-black-text: color,
+    on-black-muted: color,
+    // Mode tags (F43, data-model.md "Mode"): one fill per aspect ratio family, Custom and the
+    // aspect tag neutral; white text, the same in both themes.
+    tag-1-1: color,
+    tag-5-4: color,
+    tag-11-9: color,
+    tag-4-3: color,
+    tag-3-2: color,
+    tag-25-16: color,
+    tag-16-10: color,
+    tag-5-3: color,
+    tag-16-9: color,
+    tag-17-9: color,
+    tag-21-9: color,
+    tag-32-9: color,
+    tag-custom: color,
+    tag-aspect: color,
+    // Info bubbles over the video (FR-016), the same in both themes: black at 55%, the least that
+    // keeps white text at 4.5:1 over a white video.
+    info-bubble: color,
+    info-text: color,
 }
 
 export global Palettes {
@@ -59,6 +84,25 @@ export global Palettes {
         panel: #0e0f13b8,
         scrim: #00000080,
         shadow: 1,
+        ground-black: #000000,
+        on-black-text: #f2f3f6,
+        on-black-muted: #a8abb5,
+        tag-1-1: #9c3d2e,
+        tag-5-4: #8f6a00,
+        tag-11-9: #6b4f3a,
+        tag-4-3: #5d6b25,
+        tag-3-2: #0f7a6e,
+        tag-25-16: #4b5f8a,
+        tag-16-10: #756f92,
+        tag-5-3: #c2410c,
+        tag-16-9: #6d6bbb,
+        tag-17-9: #2f7d32,
+        tag-21-9: #be185d,
+        tag-32-9: #7e3fbf,
+        tag-custom: #62666f,
+        tag-aspect: #4a4d55,
+        info-bubble: #0000008c,
+        info-text: #ffffff,
     };
     out property <Palette> light: {
         deep: #dfe1e7,
@@ -81,6 +125,25 @@ export global Palettes {
         panel: #f7f8fac4,
         scrim: #00000052,
         shadow: 0.35,
+        ground-black: #000000,
+        on-black-text: #f2f3f6,
+        on-black-muted: #a8abb5,
+        tag-1-1: #9c3d2e,
+        tag-5-4: #8f6a00,
+        tag-11-9: #6b4f3a,
+        tag-4-3: #5d6b25,
+        tag-3-2: #0f7a6e,
+        tag-25-16: #4b5f8a,
+        tag-16-10: #756f92,
+        tag-5-3: #c2410c,
+        tag-16-9: #6d6bbb,
+        tag-17-9: #2f7d32,
+        tag-21-9: #be185d,
+        tag-32-9: #7e3fbf,
+        tag-custom: #62666f,
+        tag-aspect: #4a4d55,
+        info-bubble: #0000008c,
+        info-text: #ffffff,
     };
 }
 
@@ -89,10 +152,10 @@ export global Theme {
     in property <bool> dark: true;
     out property <Palette> c: dark ? Palettes.dark : Palettes.light;
 
-    // A raised surface of this logical size at the window's scale: its fill over its shadow at
-    // `shadow` strength, made in Rust in physical pixels so it is drawn 1:1 (research R8). Empty
-    // in the preview.
-    pure callback surface(width: length, height: length, scale: float, fill: color, shadow: float) -> image;
+    // A raised surface of this logical size and corner radius at the window's scale: its fill
+    // over its shadow at `shadow` strength, made in Rust in physical pixels so it is drawn 1:1
+    // (research R8). Empty in the preview.
+    pure callback surface(width: length, height: length, radius: length, scale: float, fill: color, shadow: float) -> image;
 
     out property <string> font: "Inter";
     out property <length> text-s: 12px;
@@ -103,6 +166,9 @@ export global Theme {
     out property <length> radius-s: 10px;
     out property <length> radius-m: 16px;
     out property <length> radius-l: 22px;
+    // A dock's corners: a control's (`radius-m`) plus the dock's 8 px padding, so the gap between
+    // a control and the dock's edge stays even around the corners.
+    out property <length> radius-dock: 24px;
     out property <length> gap-s: 6px;
     out property <length> gap-m: 12px;
     out property <length> gap-l: 20px;

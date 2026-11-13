@@ -1,0 +1,46 @@
+// The opening state's spinner (FR-013, research R17): the Fluent progress ring of Windows 11, an
+// arc that grows, shrinks and turns, with the motion of the mockup page's spinner B: the ring
+// turns once in 2 s while its dash, in units of the 100.5 long circle, goes from 1 to 80 long and
+// then moves its start ahead, every 1.6 s, each half eased in and out.
+import { Theme } from "../theme.slint";
+
+export component ProgressRing {
+    in property <brush> ring: Theme.c.text-muted;
+
+    width: 40px;
+    height: 40px;
+    accessible-role: progress-indicator;
+
+    property <float> circle: 100.53;
+    property <float> phase: mod(animation-tick(), 1600ms) / 1600ms;
+    property <float> half: root.phase < 0.5 ? root.phase * 2 : (root.phase - 0.5) * 2;
+    property <float> eased: root.half * root.half * (3 - 2 * root.half);
+    property <float> tail: root.phase < 0.5 ? 25 * root.eased : 25 + 80 * root.eased;
+    property <float> length: root.phase < 0.5 ? 1 + 79 * root.eased : 80;
+    property <angle> start: mod(animation-tick(), 2000ms) / 2000ms * 360deg + root.tail / root.circle * 360deg;
+    property <angle> sweep: root.length / root.circle * 360deg;
+
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 40;
+        viewbox-height: 40;
+        stroke: root.ring;
+        stroke-width: 3.5px;
+        stroke-line-cap: round;
+
+        MoveTo {
+            x: 20 + 16 * cos(root.start);
+            y: 20 + 16 * sin(root.start);
+        }
+
+        ArcTo {
+            radius-x: 16;
+            radius-y: 16;
+            x: 20 + 16 * cos(root.start + root.sweep);
+            y: 20 + 16 * sin(root.start + root.sweep);
+            sweep: true;
+            large-arc: root.sweep > 180deg;
+        }
+    }
+}

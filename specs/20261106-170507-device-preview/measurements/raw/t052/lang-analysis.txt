@@ -1,0 +1,85 @@
+qpc freq 10000000; 6684 app presents, 4069 PresentMon rows, 3 events; span 95.1 s
+
+## App presents: gaps over 50 ms (present return to present return)
+
+## PresentMon: msBetweenPresents or msBetweenDisplayChange over 50 ms
+  t=  42.99s betweenPresents=  16.4 betweenDisplay= 332.4 inPresent=  0.2 untilDisplayed=  20.2 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 32269 ms before]
+  t=  43.41s betweenPresents=  16.9 betweenDisplay= 416.7 inPresent=  0.2 untilDisplayed=  19.9 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 32686 ms before]
+  t=  43.84s betweenPresents=  16.8 betweenDisplay=  55.6 inPresent=  0.2 untilDisplayed=  17.2 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33120 ms before]
+  t=  44.17s betweenPresents=  16.3 betweenDisplay=  76.4 inPresent=  0.1 untilDisplayed=  10.9 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33452 ms before]
+  t=  44.22s betweenPresents=  16.4 betweenDisplay=  55.6 inPresent=  0.1 untilDisplayed=  16.7 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33502 ms before]
+  t=  44.29s betweenPresents=  17.2 betweenDisplay=  62.5 inPresent=  0.2 untilDisplayed=  11.8 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33569 ms before]
+  t=  44.34s betweenPresents=  16.6 betweenDisplay=  55.6 inPresent=  0.1 untilDisplayed=  18.1 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33619 ms before]
+  t=  44.41s betweenPresents=  16.6 betweenDisplay=  69.5 inPresent=  0.1 untilDisplayed=  20.8 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33685 ms before]
+  t=  44.47s betweenPresents=  16.7 betweenDisplay=  62.5 inPresent=  0.2 untilDisplayed=  16.7 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33752 ms before]
+  t=  44.59s betweenPresents=  16.8 betweenDisplay=  62.5 inPresent=  0.2 untilDisplayed=  17.4 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33869 ms before]
+  t=  44.66s betweenPresents=  16.5 betweenDisplay=  62.5 inPresent=  0.2 untilDisplayed=  13.9 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 33935 ms before]
+  t=  45.11s betweenPresents=  16.2 betweenDisplay= 458.4 inPresent=  0.1 untilDisplayed=  22.2 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 34386 ms before]
+  t=  45.29s betweenPresents=  17.3 betweenDisplay= 174.3 inPresent=  0.2 untilDisplayed=  12.5 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 34570 ms before]
+  t=  45.49s betweenPresents=  16.7 betweenDisplay=  82.7 inPresent=  0.1 untilDisplayed=  14.0 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 34769 ms before]
+  t=  45.64s betweenPresents=  17.2 betweenDisplay= 140.8 inPresent=  0.2 untilDisplayed=  23.0 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 34920 ms before]
+  t=  45.79s betweenPresents=  16.7 betweenDisplay= 139.5 inPresent=  0.1 untilDisplayed=  13.2 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 35069 ms before]
+  t=  47.17s betweenPresents=  17.2 betweenDisplay= 333.4 inPresent=  0.2 untilDisplayed=  18.3 mode Composed: Flip -> Composed: Flip -> Composed: Flip tearing=0 dropped=0  [focus=false 36453 ms before]
+
+## PresentMode changes
+  t=  42.61s Composed: Flip  [focus=false 31885 ms before]
+  t=  47.92s Hardware Composed: Independent Flip  [focus=true 45 ms before]
+
+## PresentMode counts {'Composed: Flip': 319, 'Hardware Composed: Independent Flip': 3750}
+
+## Events
+  t=   0.00s focus=true
+  t=  10.72s focus=false
+  t=  47.88s focus=true
+
+## Language stages
+  t=  54.44s language=catalog 0.0 ms
+  t=  54.44s language=property 0.1 ms
+  t=  54.44s language=draw 2.8 ms
+  t=  54.44s language=upload 0.2 ms
+  t=  54.44s language=present 0.4 ms
+  t=  57.74s language=catalog 0.0 ms
+  t=  57.74s language=property 0.2 ms
+  t=  57.74s language=draw 2.8 ms
+  t=  57.74s language=upload 0.3 ms
+  t=  57.74s language=present 0.7 ms
+  t=  61.93s language=catalog 0.0 ms
+  t=  61.93s language=property 0.1 ms
+  t=  61.93s language=draw 2.6 ms
+  t=  61.93s language=upload 0.2 ms
+  t=  61.94s language=present 7.4 ms
+  t=  65.86s language=catalog 0.0 ms
+  t=  65.86s language=property 0.1 ms
+  t=  65.86s language=draw 2.6 ms
+  t=  65.86s language=upload 0.2 ms
+  t=  65.86s language=present 0.5 ms
+  t=  70.26s language=catalog 0.0 ms
+  t=  70.26s language=property 0.1 ms
+  t=  70.26s language=draw 2.8 ms
+  t=  70.27s language=upload 0.2 ms
+  t=  70.27s language=present 7.8 ms
+  t=  73.95s language=catalog 0.0 ms
+  t=  73.95s language=property 0.1 ms
+  t=  73.95s language=draw 2.6 ms
+  t=  73.95s language=upload 0.2 ms
+  t=  73.96s language=present 2.9 ms
+  t=  77.75s language=catalog 0.0 ms
+  t=  77.75s language=property 0.1 ms
+  t=  77.75s language=draw 2.6 ms
+  t=  77.75s language=upload 0.2 ms
+  t=  77.76s language=present 2.5 ms
+  t=  82.03s language=catalog 0.0 ms
+  t=  82.03s language=property 0.2 ms
+  t=  82.04s language=draw 2.7 ms
+  t=  82.04s language=upload 0.2 ms
+  t=  82.04s language=present 3.0 ms
+  t=  86.21s language=catalog 0.0 ms
+  t=  86.21s language=property 0.1 ms
+  t=  86.21s language=draw 2.5 ms
+  t=  86.21s language=upload 0.2 ms
+  t=  86.21s language=present 0.5 ms
+  t=  90.14s language=catalog 0.0 ms
+  t=  90.14s language=property 0.1 ms
+  t=  90.14s language=draw 2.8 ms
+  t=  90.14s language=upload 0.1 ms
+  t=  90.14s language=present 0.4 ms

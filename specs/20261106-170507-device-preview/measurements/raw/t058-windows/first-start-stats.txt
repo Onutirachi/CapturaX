@@ -1,0 +1,10 @@
+[present] backend=dx12 mode=mailbox adapter="NVIDIA GeForce RTX 5070 Ti" surface=1280x720
+[loop] t=1 recv=0 pres=0 repl=0 ready_ms=-/- gap_ms=- ui=18 ui_ms=0.5/11.7 moves=1 lat_ms=-/- rep=0
+[source] device="ezcap Live GAMER ULTRA" id="mf:\\?\usb#vid_32ed&pid_3201&mi_00#9&37ee7830&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\global" mode=1920x1080@60 format=NV12 matrix=bt709 range=limited(auto)
+[source] device="ezcap Live GAMER ULTRA" id="mf:\\?\usb#vid_32ed&pid_3201&mi_00#9&37ee7830&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\global" mode=1920x1080@60 format=NV12 matrix=bt709 range=full(auto)
+[loop] t=2 recv=30 pres=30 repl=0 ready_ms=0.7/1.0 gap_ms=17.2 ui=103 ui_ms=0.5/2.9 moves=0 lat_ms=2.3/3.6 rep=0
+[loop] t=3 recv=61 pres=60 repl=0 ready_ms=0.7/0.9 gap_ms=17.1 ui=0 ui_ms=-/- moves=0 lat_ms=2.0/2.5 rep=0
+[loop] t=4 recv=60 pres=61 repl=0 ready_ms=0.8/1.4 gap_ms=17.6 ui=0 ui_ms=-/- moves=0 lat_ms=2.1/3.2 rep=0
+[loop] t=5 recv=56 pres=55 repl=0 ready_ms=0.8/1.1 gap_ms=88.7 ui=0 ui_ms=-/- moves=0 lat_ms=2.1/2.9 rep=0
+[loop] t=6 recv=60 pres=60 repl=0 ready_ms=0.8/1.2 gap_ms=17.9 ui=0 ui_ms=-/- moves=0 lat_ms=2.1/3.3 rep=0
+[loop] t=7 recv=60 pres=60 repl=0 ready_ms=0.8/1.3 gap_ms=18.4 ui=0 ui_ms=-/- moves=0 lat_ms=2.0/3.7 rep=0

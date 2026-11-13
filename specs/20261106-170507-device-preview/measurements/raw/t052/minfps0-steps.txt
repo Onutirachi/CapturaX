@@ -1,0 +1,46 @@
+20:19:27.202 started pid=3184
+20:19:38.714 before fg='t052 focus target' 100,1180
+20:19:38.886 focus app True fg='CapturaX' 401,156 at 936,168 'CapturaX'
+20:19:42.085 focus-out 1 False
+20:19:45.267 focus-in 1 True
+20:19:48.448 focus-out 2 False
+20:19:51.640 focus-in 2 True
+20:19:54.847 focus-out 3 False
+20:19:58.053 focus-in 3 True
+20:20:01.245 focus-out 4 False
+20:20:04.430 focus-in 4 True
+20:20:07.631 focus-out 5 False
+20:20:10.836 focus-in 5 True
+20:20:14.028 focus-out 6 False
+20:20:17.201 focus-in 6 True
+20:20:20.410 focus-out 7 False
+20:20:23.602 focus-in 7 True
+20:20:26.819 focus-out 8 False
+20:20:30.019 focus-in 8 True
+20:20:33.241 focus-out 9 False
+20:20:36.418 focus-in 9 True
+20:20:39.616 focus-out 10 False
+20:20:42.798 focus-in 10 True
+20:20:45.812 f11-in 1 True
+20:20:48.824 f11-out 1 True
+20:20:51.841 f11-in 2 True
+20:20:54.860 f11-out 2 True
+20:20:57.861 f11-in 3 True
+20:21:00.878 f11-out 3 True
+20:21:03.884 f11-in 4 True
+20:21:06.902 f11-out 4 True
+20:21:09.925 f11-in 5 True
+20:21:12.937 f11-out 5 True
+20:21:15.946 f11-in 6 True
+20:21:18.975 f11-out 6 True
+20:21:22.008 f11-in 7 True
+20:21:25.017 f11-out 7 True
+20:21:28.040 f11-in 8 True
+20:21:31.071 f11-out 8 True
+20:21:34.098 f11-in 9 True
+20:21:37.105 f11-out 9 True
+20:21:40.123 f11-in 10 True
+20:21:43.130 f11-out 10 True
+20:21:46.153 idle-in True
+20:22:16.185 idle-out True
+20:22:19.530 closed
