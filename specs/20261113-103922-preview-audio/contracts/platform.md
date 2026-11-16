@@ -34,6 +34,14 @@ Rules:
   `Error(InUse)`, not `Gone` (the endpoint is still active); `Gone` means the endpoint left.
 - Linux: `output = None` leaves `target.object` unset, so PipeWire follows the default itself; the
   `DefaultOutput` event still comes, for the name.
+- Linux: a side opens only on a node the registry lists: an id that is not there, or a node that
+  leaves while it plays, is `Error(Gone)`; PipeWire is never left to pick another device.
+- Linux: `Opened` comes at the stream's first cycle (100 ms later when the stream reports no
+  delay yet), with that cycle's size as the period and the stream's delay as the reported
+  latency. Its `format` is the device node's own (as the monitor lists it); the samples come in
+  the graph's rate, which each `Samples` call carries.
+- Linux: when PipeWire stops, each open side reports `Error` (`Gone` when its node left first,
+  else `Failed`); the session stays, and `reopen_*` opens the side on the new connection.
 
 ## Privacy
 

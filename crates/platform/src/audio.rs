@@ -223,7 +223,8 @@ pub enum SessionEvent {
         number: u64,
         side: Side,
         mode: StreamMode,
-        /// What the device runs in.
+        /// What the device runs in. On Linux PipeWire converts between it and the stream, so the
+        /// samples' own rate and channels are the ones [`Samples`] is called with.
         format: Format,
         /// The period the side opened with.
         period_ms: f64,
@@ -238,7 +239,8 @@ pub enum SessionEvent {
 }
 
 /// Where a session's samples go and come from; called on the audio threads, so each call must
-/// return quickly and never block.
+/// return quickly and never block. The `format` of a call is the samples' own: on Windows the
+/// device's, on Linux the graph's rate and the device's channels with `f32` as the sample format.
 pub trait Samples: Send + Sync {
     /// The input's samples, `f32` interleaved in `format`'s rate and channels.
     fn on_input(&self, samples: &[f32], format: Format);

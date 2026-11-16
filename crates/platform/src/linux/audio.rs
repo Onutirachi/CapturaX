@@ -1,16 +1,12 @@
 //! Audio devices and streams on Linux (PipeWire; preview audio research R3, R5, R6). The monitor
-//! is a watcher of the `pipewire` thread ([`super::pipewire`]); the session is T020's and until
-//! then reports `Failed("not implemented")`.
+//! is a watcher of the `pipewire` thread ([`super::pipewire`]) and the session is two streams on it;
+//! both only send it commands, so no call here waits for a device (research R9).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::pipewire::{self, Command};
 use crate::audio::{AudioError, OnAudioEvent, OnSessionEvent, Samples, SessionEvent, SessionRequest, Side};
-
-fn not_implemented() -> AudioError {
-    AudioError::Failed("not implemented".into())
-}
 
 /// The running monitor: a watcher of the `pipewire` thread, removed when this is dropped.
 pub struct Monitor {
@@ -58,45 +54,76 @@ pub fn video_link(video_id: &str) -> Option<String> {
     (!bus_path.is_empty()).then(|| usb_key(bus_path).to_owned())
 }
 
+/// A session on the `pipewire` thread: two streams there, known by the session's number.
 pub struct Session {
     number: u64,
     on_event: OnSessionEvent,
+    /// The `pipewire` thread took the session; false when PipeWire could not be reached.
+    sent: bool,
 }
 
 impl Session {
-    pub fn open(request: SessionRequest, _samples: Arc<dyn Samples>, on_event: OnSessionEvent) -> Self {
-        let session = Self {
-            number: request.number,
-            on_event,
+    pub fn open(request: SessionRequest, samples: Arc<dyn Samples>, on_event: OnSessionEvent) -> Self {
+        let number = request.number;
+        let command = Command::Open {
+            request,
+            samples,
+            on_event: Arc::clone(&on_event),
         };
-        session.fail(Side::Input);
-        session.fail(Side::Output);
+        let mut session = Self {
+            number,
+            on_event,
+            sent: true,
+        };
+        if let Err(error) = pipewire::send(command) {
+            session.sent = false;
+            session.report(vec![
+                SessionEvent::Error {
+                    number,
+                    side: Side::Input,
+                    error: error.clone(),
+                },
+                SessionEvent::Error {
+                    number,
+                    side: Side::Output,
+                    error,
+                },
+            ]);
+        }
         session
     }
 
-    pub fn reopen_input(&self, _input: String, _exclusive: bool) {
-        self.fail(Side::Input);
+    /// The exclusive flag is ignored: PipeWire has no such mode.
+    pub fn reopen_input(&self, input: String, _exclusive: bool) {
+        self.reopen(Side::Input, Some(input));
     }
 
-    pub fn reopen_output(&self, _output: Option<String>, _exclusive: bool) {
-        self.fail(Side::Output);
+    pub fn reopen_output(&self, output: Option<String>, _exclusive: bool) {
+        self.reopen(Side::Output, output);
     }
 
     pub fn close(&self) {
-        let (number, on_event) = (self.number, Arc::clone(&self.on_event));
-        std::thread::spawn(move || on_event(SessionEvent::Closed { number }));
+        if self.sent {
+            pipewire::post(Command::Close(self.number));
+        } else {
+            self.report(vec![SessionEvent::Closed { number: self.number }]);
+        }
     }
 
-    /// Reports the side's error from another thread, as the real streams will.
-    fn fail(&self, side: Side) {
-        let (number, on_event) = (self.number, Arc::clone(&self.on_event));
-        std::thread::spawn(move || {
-            on_event(SessionEvent::Error {
-                number,
-                side,
-                error: not_implemented(),
-            });
-        });
+    fn reopen(&self, side: Side, target: Option<String>) {
+        let number = self.number;
+        if self.sent {
+            pipewire::post(Command::Reopen { number, side, target });
+        } else {
+            let error = AudioError::Failed("PipeWire is not running".into());
+            self.report(vec![SessionEvent::Error { number, side, error }]);
+        }
+    }
+
+    /// Reports from another thread, as the `pipewire` thread would; for a session it never took.
+    fn report(&self, events: Vec<SessionEvent>) {
+        let on_event = Arc::clone(&self.on_event);
+        std::thread::spawn(move || events.into_iter().for_each(|event| on_event(event)));
     }
 }
 

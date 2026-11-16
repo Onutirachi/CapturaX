@@ -181,6 +181,47 @@ audio monitor`):
 - The CachyOS clone is on this branch at the same commit as here (bundle of 2026-11-16, after
   this commit).
 
+Linux session (2026-11-16, built and run on CachyOS over SSH; committed in `feat: add the Linux
+audio session`):
+
+- T020 done: the session's side of `crates/platform/src/linux/pipewire.rs` and the `Session` of
+  `linux/audio.rs`. `Command::{Open, Reopen, Close, Running}`; `Sessions` (kept through every
+  connection, as `Reports`) holds each session's `Samples`, callback and two `Wanted` sides; a
+  side's `Stream` is created on the current connection and dropped with it.
+- Chosen here (task text, research R3 and R7, contracts/platform.md updated):
+  - The format's rate is left out, so the streams run at the graph's rate. `Opened.format` is
+    the device node's own format (the C920: `32000/2/i16`), while `Samples` is called with the
+    stream's (`48000/2/f32`): **T023 must take the bridge's rates from the `Samples` calls, not
+    from `Opened`** (doc of `SessionEvent::Opened` and `Samples` in `crates/platform/src/audio.rs`).
+  - A side opens after the connection's first list and only on a listed node; an id that is not
+    there, or a node that leaves, is `Gone`. Without this PipeWire's session manager would give
+    the stream another device (a missing capture card would become the microphone).
+  - `Opened` is reported at the stream's first cycle, told to the `pipewire` thread through its
+    own command channel (`Running`). The delay comes with the link's latency, which in about one
+    start of ten came after the first cycle (seen as `Some(0.0)` in a release build): a stream
+    that says 0 is asked again 100 ms later (`SETTLE_MS`).
+  - A stream that ends inside its own callback is kept in `Sessions::ended` and destroyed at the
+    next flush.
+  - Stream names (shown by mixers as the media name): `Preview audio` and `Preview audio input`.
+- Checked on CachyOS with `audio_session` (ezcap, IEC958 output): both sides open 15–95 ms after
+  the call, `48000/2/i16` in and `48000/2/i32` out, period 2.67 ms, reported latency 4.0 ms in
+  and 2.67 ms out, 48000 frames/s each way with no silence; a reopen of the output takes ~12 ms;
+  `Closed` 0.3 ms after `close`, 10 of 10 runs. Unknown input id → `Gone` at once and the output
+  still opens. C920 as the input with its card profile switched off → `Gone` in 15 ms. A null
+  sink as the named output, unloaded → `Gone`. Default output moved to a null sink and back with
+  `output = None`: PipeWire relinks the stream itself, no event, no lost frame count.
+  `systemctl --user restart pipewire` while playing: the input reports `Gone` (its node is
+  removed before the connection closes) and the default output `Failed("PipeWire closed the
+  stream")`; a `reopen_output` 3 s later opens on the new connection. fmt, clippy (workspace)
+  and the platform tests pass there; fmt and clippy of the platform crate pass on Windows.
+- **Decision (maintainer, 2026-11-16)**: after a PipeWire restart the input comes back by the
+  usual `Removed`/`Added` path, but the default output is left in `Failed`; the app reopens an
+  output side that failed while playing on the system default when `DefaultOutput` names an
+  output again, without **Try again**. In research R7, data-model.md "Transitions" and T034.
+- Not checked: nobody listened (T029); a real unplug; a device with more than two channels.
+- The CachyOS clone is on this branch at the same commit as here (bundle of 2026-11-16, after
+  this commit).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -219,7 +260,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. While the ezcap is on CachyOS: T020 (build and check there over SSH, with
-   `audio_session.rs`), then T029 and the Linux halves of T033, T036, T042, T044 as their code
-   lands.
-2. T013 (pure, any PC) is unblocked; T022 needs T013 (T019 is done).
+1. T013 (pure, any PC), then T022, then US1 (T023–T027).
+2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
+   code lands.

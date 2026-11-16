@@ -91,6 +91,15 @@ the code that relies on it.
     card's node at a larger quantum, two things happen in the first seconds after the streams
     start, left to the listening test (T029): the graph runs up to 0.8 % fast for about 4 s,
     and the output's ALSA node logs `resync` while it joins the card's cycle.
+  - **In the session (T020, 2026-11-16)**: the format's rate is left out, so each stream runs at
+    the graph's rate and PipeWire's adapter converts the device's (the C920's node is
+    `32000/2/i16`, its samples come at 48000). A side is opened only after the connection's
+    first list and only on a node that is listed, because PipeWire's session manager gives a
+    stream whose target is missing another device. `Opened` is reported at the stream's first
+    cycle: the cycle's size is the period and `pw_stream_get_time`'s delay the reported latency
+    (ezcap input 192 frames, IEC958 output 128, the same 2 s later). The delay comes with the
+    link's latency, which in about one start of ten arrives after the first cycle; a stream
+    that says 0 there is asked again 100 ms later and reported then (a null sink's delay is 0).
 - **Rationale**: the spike's hang and starvation were in GStreamer's PipeWire plugin (reproduced
   with `gst-launch-1.0`, not with `pulsesink`); the PipeWire client library itself is what every
   desktop app's sound goes through on CachyOS. The node group puts the delay at about one quantum
@@ -217,6 +226,14 @@ the code that relies on it.
     which case a shared open is refused too. So the shared fallback only helps when exclusive is
     not allowed or no format fits; a device held by another app is the Held state, retried by
     hand (Windows does not say when it is released). Maintainer, 2026-11-13.
+  - Measured on Linux (T020, 2026-11-16): when PipeWire restarts, the server removes its nodes
+    before the connection closes, so a side on a named node reports `Gone` and a side on the
+    default output reports `Failed`; the monitor then reports every endpoint removed and, on the
+    new connection, added again with the default output (R6). The input returns on its `Added`
+    as after a replug; the output would wait for **Try again**, so an output side that failed
+    while playing on the system default is reopened when `DefaultOutput` names an output again
+    (a `reopen_output` after the restart opened on the new connection, measured; maintainer,
+    2026-11-16).
   - The microphone privacy switch is read as the camera's is (device preview R6), from the
     `microphone` consent store (all apps and `NonPackaged`); `camera.rs` generalizes to a
     capability argument.

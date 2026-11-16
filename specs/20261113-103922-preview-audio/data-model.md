@@ -101,7 +101,9 @@ What the Audio dropdown shows. Never shown while the video device is not open (F
 
 Transitions (beyond the table): `Disconnected` → `Opening` on the input's `Added`; any state →
 `Off` when the video session closes; `Failed` and `Held` → `Opening` on Try again (no automatic
-retry: Windows does not say when the other app releases the device); `Blocked` → `Opening`
+retry: Windows does not say when the other app releases the device), with one exception: an
+output side that failed while playing on the system default is reopened when `DefaultOutput`
+names an output again (Linux after PipeWire restarts; research R7); `Blocked` → `Opening`
 when the privacy switch reads Allowed again (checked when the window regains focus, as the
 camera's).
 
