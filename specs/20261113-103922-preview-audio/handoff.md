@@ -222,6 +222,21 @@ audio session`):
 - The CachyOS clone is on this branch at the same commit as here (bundle of 2026-11-16, after
   this commit).
 
+Pairing (2026-11-16, committed in `feat: add the audio pairing`):
+
+- T013 done: `crates/audio/src/pairing.rs`. `Endpoint { id, name, link }`, `VideoKey { link,
+  name }`, `pair(&video, &inputs) -> Option<&str>`, `clean_name(name) -> String`.
+- Chosen here (task text updated): `clean_name` has no per-system switch, so both systems' names
+  are tested on any PC; the name's form decides. A name ending with `(…)` gives its device part
+  (inner parentheses kept: `Realtek(R) Audio`), unless a profile word comes before the
+  parentheses (`… Digital Stereo (IEC958)`). Profile words count only as whole words after the
+  device's name (`Monoprice Capture`, `Mono Capture` stay whole). Of several name matches, the
+  first by id.
+- For T022 and T023: pass the endpoint's `base_name`, not the numbered `name` (a trailing ` (2)`
+  would be read as a device part).
+- Known limit: a video name that itself ends with `(…)` (`UVC Camera (046d:0825)`) is cleaned to
+  the text in the parentheses, so it only pairs by link. Not seen on the maintainer's devices.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -260,6 +275,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. T013 (pure, any PC), then T022, then US1 (T023–T027).
+1. T022 (CLI: `--list-devices` with the audio endpoints and pairs, `--no-audio`), then US1
+   (T023–T027).
 2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
    code lands.
