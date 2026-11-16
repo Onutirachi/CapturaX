@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-13 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-16 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -122,6 +122,28 @@ Windows session (2026-11-13):
   contracts/platform.md, tasks T018, T038, T041. The G533 here is held exclusive by another app
   (Voicemeeter, probably): CapturaX gets `InUse` on it.
 
+Linux probe (2026-11-16, on CachyOS over SSH; committed in `docs: record the Linux engine probe
+and pairing keys`):
+
+- T006 done, **gate passed** (measurements/probe.md): the probe compiled unchanged on the first
+  build (PipeWire 1.6.10, kernel 7.3.1); 10 of 10 runs closed in 0 ms, 60 s without a gap or a
+  drop, format F32 FL FR held, the ezcap's node drives the output and both streams at 128/48000.
+  The Linux engine is PipeWire directly; T019 and T020 can start. Recorded in research R3.
+- Run twice: with OBS open on the ezcap's node (the maintainer had left it open), then with it
+  closed. Both pass. Only with OBS open, two things happen in the first seconds after the
+  streams start: the whole graph runs up to 0.8 % fast for about 4 s (about 20 ms of input
+  caught up, no gap), and PipeWire's journal logs the IEC958 output's `resync`. With OBS closed
+  neither appears. T029 should also listen to a start with another app open on the card.
+- Not covered: only the internal IEC958 output was tried; nobody listened.
+- T008 done (measurements/pairing.md): on Linux the ezcap (video `…-usb-0:3:1.0`, audio
+  `…-usb-0:3:1.2`) and the C920 (`…-usb-0:1:1.0`, `…-usb-0:1:1.2`) each give one key; research
+  R5's rule holds on both systems. The C920 is now plugged into the CachyOS PC.
+- `audio_endpoints.rs` changed (folded into `test: add the audio probe examples`): the
+  registry's global has no `device.bus-path`, so the example binds each device and reads its
+  info; T019's text and research R5 now say so. Its doc points to `capturax --list-devices` for
+  the video path (`gst-device-monitor-1.0` shows PipeWire's entry, without `device.bus_path`).
+- The CachyOS clone is on this branch, at the same commit as here (bundle of 2026-11-16).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -160,9 +182,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. While the ezcap is on this Windows PC: nothing else of T006/T008 needs it here.
-2. On CachyOS (ezcap and C920 moved there): `cargo build` (needs `pipewire` headers and
-   `clang`), fix the probe if it does not compile (fold into the commit), then T006 (quickstart
-   "Linux engine probe") and T008's Linux half (commands in measurements/pairing.md).
-3. T018 is done; Phase 2 has no Windows-only task left (T022 needs T019). Next on Windows only
-   after CachyOS: T013 (after T008's Linux half), then T022.
+1. While the ezcap is on CachyOS: T019, then T020 (build and check there over SSH, with
+   `audio_session.rs`), then T029 and the Linux halves of T033, T036, T042, T044 as their code
+   lands.
+2. T013 (pure, any PC) is unblocked; T022 needs T013 and T019.

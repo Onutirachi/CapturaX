@@ -85,6 +85,12 @@ the code that relies on it.
     and 7 of 10), the input's delivered rate (the spike's starvation: 17–25 %), and the format.
     If the probe fails, implementation stops and the fallback (both sides through
     `pipewire-pulse`, as the spike) is decided with the maintainer.
+    **Result (2026-11-16, measurements/probe.md)**: passed on CachyOS with PipeWire 1.6.10: 10
+    of 10 runs closed at once, no gap in 60 s, format held, one driver for both streams, in two
+    series (OBS open on the card, then closed). Only with another app already running the
+    card's node at a larger quantum, two things happen in the first seconds after the streams
+    start, left to the listening test (T029): the graph runs up to 0.8 % fast for about 4 s,
+    and the output's ALSA node logs `resync` while it joins the card's cycle.
 - **Rationale**: the spike's hang and starvation were in GStreamer's PipeWire plugin (reproduced
   with `gst-launch-1.0`, not with `pulsesink`); the PipeWire client library itself is what every
   desktop app's sound goes through on CachyOS. The node group puts the delay at about one quantum
@@ -147,9 +153,10 @@ the code that relies on it.
      - Linux: the USB device's udev path. Video: `device.bus_path` from the V4L2 device's
        properties (part of its id), e.g. `pci-0000:00:14.0-usb-0:3:1.0`, with the interface
        suffix (`:1.0`) removed. Audio: the PipeWire device's `device.bus-path` (from udev
-       `ID_PATH`), the same suffix removed. Inferred: whether the ALSA device's path ends at the
-       interface or at the device; the rule compares after removing a trailing `:<n>.<n>` from
-       both, and `--list-devices` prints both keys for the check (quickstart "Pairing").
+       `ID_PATH`), the same suffix removed; it comes with the bound device's info, the registry
+       global does not carry it. Measured with the ezcap (measurements/pairing.md): both paths
+       end at the interface (video `…-usb-0:3:1.0`, audio `…-usb-0:3:1.2`) and are equal without
+       it; `--list-devices` prints both keys for the check (quickstart "Pairing").
   2. **Name**: when no input carries the video's key (no link from the system), names compared
      after lowercasing and removing the platform's decorations: on Linux the V4L2 suffix after
      `: ` and PipeWire's profile words (`Analog Stereo`, `Estéreo analógico`, `Digital Stereo`,
