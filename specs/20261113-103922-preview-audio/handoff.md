@@ -144,6 +144,43 @@ and pairing keys`):
   the video path (`gst-device-monitor-1.0` shows PipeWire's entry, without `device.bus_path`).
 - The CachyOS clone is on this branch, at the same commit as here (bundle of 2026-11-16).
 
+Linux monitor (2026-11-16, built and run on CachyOS over SSH; committed in `feat: add the Linux
+audio monitor`):
+
+- T019 done: `crates/platform/src/linux/pipewire.rs` and `linux/audio.rs` (`Monitor` = a
+  watcher of the thread, `usb_key`, `video_link`; the session is still the stub). In
+  `pipewire.rs`: `send(Command)` starts the `pipewire` thread when needed and waits only for the
+  connection, `post` sends only when it runs; `Connection` is one connection with its listeners;
+  `State` is what that connection's server says (nodes, devices, the `default` metadata);
+  `Reports` is what the watchers were told and outlives a connection.
+- Nothing is reported as it arrives: each change asks for a `sync`, and the answer to the latest
+  one sends the difference from what was reported (research R6).
+- **Decision (maintainer, 2026-11-16)**: when the connection to PipeWire is lost the thread
+  reports every endpoint `Removed`, connects again (one try a second, commands served meanwhile)
+  and reports the new endpoints `Added`. The thread never ends once set up. In research R6 and
+  the task text.
+- For T020: its commands go in `Command`, its streams belong to a `Connection` (they die with
+  it, so a lost connection is the session's `Failed`, research R7, and the app's retry opens them
+  on the new one). The node table has no channel positions yet: read them from the same
+  `EnumFormat` in `raw_format`.
+- Checked on CachyOS with a temporary example (not kept): `Listed` 2 ms after start with the
+  ezcap `48000/2/i16`, the internal input and IEC958 output `48000/2/i32`, the C920
+  `32000/2/i16`, default output the IEC958; links `pci-0000:03:00.0-usb-0:3` (ezcap) and
+  `pci-0000:00:14.0-usb-0:1` (C920), equal to `video_link` of their V4L2 ids; a null sink loaded
+  and unloaded gave `Added` (link none, `48000/2/f32`) and `Removed`; `pactl set-default-sink`
+  gave `DefaultOutput`; the C920's card profile off and back gave `Removed` then `Added`; a
+  second monitor started later got its own `Listed`. fmt, clippy (workspace) and the platform
+  tests pass there.
+- Reconnection checked: `systemctl --user restart pipewire` gave the removals, the connection
+  back 20 ms later and every endpoint `Added` within 0.7 s (WirePlumber's `auto_null` sink shows
+  up and leaves on the way); with PipeWire, its sockets and WirePlumber stopped for 6 s, a
+  monitor started meanwhile got an empty `Listed`, and both monitors got the endpoints and the
+  default output when the services came back.
+- Not checked: a real unplug (the profile switch stood in for it).
+- The maintainer allows restarting services on the CachyOS PC (a test machine, not in daily use).
+- The CachyOS clone is on this branch at the same commit as here (bundle of 2026-11-16, after
+  this commit).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -182,7 +219,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. While the ezcap is on CachyOS: T019, then T020 (build and check there over SSH, with
+1. While the ezcap is on CachyOS: T020 (build and check there over SSH, with
    `audio_session.rs`), then T029 and the Linux halves of T033, T036, T042, T044 as their code
    lands.
-2. T013 (pure, any PC) is unblocked; T022 needs T013 and T019.
+2. T013 (pure, any PC) is unblocked; T022 needs T013 (T019 is done).

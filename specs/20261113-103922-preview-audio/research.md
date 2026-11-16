@@ -183,6 +183,15 @@ the code that relies on it.
   - Linux: the registry on the `pipewire` thread: `Audio/Source` and `Audio/Sink` nodes (monitor
     sources excluded), `node.name` as id, `node.description` as name, the parent device's
     `device.bus-path` as link; the `default` metadata's `default.audio.sink` for the default.
+    PipeWire answers in pieces (the global, the bound device's info, the node's `EnumFormat`, the
+    metadata's properties), so every change asks the server for a `sync` and the difference from
+    what was reported is sent when the latest one is answered: removals, additions, then the
+    default output. The format is the node's first raw `EnumFormat`, open properties (several
+    sample formats, a range of rates) read at their default. When the connection to PipeWire is
+    lost (the server restarted), every endpoint is reported removed and the thread connects
+    again, trying once a second; the new connection's endpoints are then reported added and the
+    default output again, so the app's lists and the preview's device come back as after a
+    replug (maintainer, 2026-11-16).
   - Ids: Windows endpoint id; Linux `node.name` (stable across restarts, built from udev).
 - **Rationale**: the same API that plays the device lists it, so ids match without translation;
   GStreamer's device monitor has no default-change event and its Windows ids are not endpoint

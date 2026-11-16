@@ -16,6 +16,7 @@ pub mod autostart;
 pub mod instance;
 pub mod notify;
 mod nvml;
+mod pipewire;
 pub mod privacy;
 pub mod snap;
 pub mod theme;
