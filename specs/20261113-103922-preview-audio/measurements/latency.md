@@ -53,3 +53,22 @@ out the first 3 seconds and the last line, as spec #3.
 SC-007 passes on Linux: spec #3's SC-003 holds with the sound playing. No `[audio]` second had a
 gap or drop. Captured → presented (`lat_ms`, not part of SC-003) is about 0.25 ms higher with the
 sound in both pairs, as in earlier unrecorded runs.
+
+## T029: SC-004 on Linux, A/V offset
+
+### CachyOS — 2026-11-17
+
+**Computed** (spec SC-004's Linux definition): sound 4.7 ms (SC-002 above, 128) minus spec #3's
+glass-to-glass video 29.6–30.1 ms median (runs L4 and L5) = the sound about **25 ms ahead** of
+the image, inside the 45 ms ahead / 125 ms behind limits. It leaves out what the card adds before
+the PC (the same for both) and the sound device's own delay.
+
+**By ear**: the CachyOS PC has no speakers or headphones, so the maintainer listened on the
+Windows PC through the existing VBAN service (`vban.service`, a `vban_out` sink set as default
+while it runs; PipeWire moved the preview's playback to it). VBAN only adds delay to the sound,
+so this checks the "behind" side, not the 25 ms ahead. About 5 minutes of play, release build of
+0bf962c: the maintainer noticed no offset. No `[audio]` second had a gap or drop after the
+first, including the move to `vban_out`.
+
+**Decision (maintainer, 2026-11-17)**: SC-004 on Linux passes by the computed offset plus this
+listening; the direct listening is left to Windows (T028), which runs the same bridge.
