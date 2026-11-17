@@ -7,6 +7,7 @@
 Usage, from the repository root (see tools/latency/README.md):
     uv run tools/latency/analyze.py --measurements <dir> video <clip> --path <p> --variant <v> --mode <m> --platform <os>
     uv run tools/latency/analyze.py --measurements <dir> audio <clip> --platform <os> --output <device> --minute <n>
+    uv run tools/latency/analyze.py --measurements <dir> audio <clip> --platform <os> --output <device> --drift
     uv run tools/latency/analyze.py --measurements <dir> summary [--paths a,b,c] [--av-reference p,v,m]
 
 <dir> is the spec's measurements folder (e.g. specs/<spec>/measurements); clips stay in clips/
@@ -20,6 +21,8 @@ PS5 menu screen change) is an event; each TV event is paired with the next previ
 Audio: a recording where every sound is heard twice, first from the reference (TV or line input),
 then from the preview. Each pair of sound onsets is one sample. With --stereo the reference is on
 the left channel and the preview on the right, and the preview may come first (negative delay).
+With --drift the clip is a long run (30 minutes): each pair's minute is its time in the clip, and
+the medians of the first and last minutes, their difference and the slope go to audio-drift.csv.
 
 Re-running a clip replaces its rows, so a clip can be analyzed again with other settings.
 """
@@ -45,6 +48,11 @@ SUMMARY_MD = "summary.md"
 
 VIDEO_FIELDS = ["clip", "path", "variant", "mode", "platform", "flash_index", "delay_ms"]
 AUDIO_FIELDS = ["clip", "platform", "output", "minute", "beep_index", "delay_ms"]
+DRIFT_CSV = "audio-drift.csv"  # one row per clip analyzed with audio --drift
+DRIFT_FIELDS = [
+    "clip", "platform", "output", "first_minute", "first_median_ms", "last_minute", "last_median_ms",
+    "difference_ms", "slope_ms_per_min",
+]
 
 MIN_PAIRS = 5  # a clip with fewer pairs is rejected (data-model.md)
 MAX_DELAY_MS = 500.0  # above this a pair is a detection error and is excluded
@@ -351,28 +359,72 @@ def mono_pairs(samples: np.ndarray, args: argparse.Namespace) -> list[tuple[int,
 
 
 def audio(args: argparse.Namespace) -> None:
+    if (args.minute is None) == (not args.drift):
+        sys.exit("audio takes --minute, or --drift to take each pair's minute from its time, not both")
     clip = pathlib.Path(args.clip)
     samples = read_audio(clip, 2 if args.stereo else 1)
     print(f"{clip.name}: {len(samples) / AUDIO_RATE:.1f} s")
     pairs = stereo_pairs(samples, args) if args.stereo else mono_pairs(samples, args)
+    del samples
 
     rows = []
-    print("  pair  reference s  preview s  delay ms")
+    if not args.drift:
+        print("  pair  reference s  preview s  delay ms")
     for ref, preview in pairs:
         delay = preview - ref
+        minute = ref // 60000 if args.drift else args.minute
         rows.append(
             {
                 "clip": clip_key(clip), "platform": args.platform, "output": args.output,
-                "minute": args.minute, "beep_index": len(rows) + 1, "delay_ms": f"{delay:.0f}",
+                "minute": minute, "beep_index": len(rows) + 1, "delay_ms": f"{delay:.0f}",
             }
         )
-        print(f"  {len(rows):>4}  {ref / 1000:>11.3f}  {preview / 1000:>9.3f}  {delay:>8.0f}")
+        if not args.drift:
+            print(f"  {len(rows):>4}  {ref / 1000:>11.3f}  {preview / 1000:>9.3f}  {delay:>8.0f}")
 
     if len(rows) < MIN_PAIRS:
         sys.exit(f"rejected: {len(rows)} pairs, at least {MIN_PAIRS} needed; nothing written")
+    if args.drift:
+        result = drift(clip, pairs, args)
     write_rows(args.measurements / AUDIO_CSV, AUDIO_FIELDS, clip_key(clip), rows)
+    if args.drift:
+        write_rows(args.measurements / DRIFT_CSV, DRIFT_FIELDS, clip_key(clip), [result])
     delays = np.array([float(r["delay_ms"]) for r in rows])
     print(f"{len(rows)} samples written: median {np.median(delays):.0f} ms, p95 {np.percentile(delays, 95):.0f} ms")
+
+
+def drift(clip: pathlib.Path, pairs: list[tuple[int, int]], args: argparse.Namespace) -> dict:
+    """The pairs' delays per minute of the recording (by the reference's time), the medians of the
+    first and last minutes with at least MIN_PAIRS pairs, their difference, and the least-squares
+    slope of every pair's delay over its time. Prints them and returns the row for DRIFT_CSV."""
+    times = np.array([ref for ref, _ in pairs], dtype=np.float64) / 60000  # minutes
+    delays = np.array([preview - ref for ref, preview in pairs], dtype=np.float64)
+    minutes = times.astype(int)
+    print("  minute  pairs  median ms  p95 ms")
+    counted = []
+    for m in range(minutes.max() + 1):
+        values = delays[minutes == m]
+        if len(values) >= MIN_PAIRS:
+            counted.append(m)
+            print(f"  {m:>6}  {len(values):>5}  {np.median(values):>9.1f}  {np.percentile(values, 95):>6.1f}")
+        else:
+            print(f"  {m:>6}  {len(values):>5}  not counted: fewer than {MIN_PAIRS} pairs")
+    if len(counted) < 2:
+        sys.exit(f"rejected: --drift needs 2 minutes with {MIN_PAIRS} pairs or more, this clip has {len(counted)}; nothing written")
+    first, last = counted[0], counted[-1]
+    first_median = float(np.median(delays[minutes == first]))
+    last_median = float(np.median(delays[minutes == last]))
+    slope = float(np.polyfit(times, delays, 1)[0])
+    print(
+        f"drift: minute {first} median {first_median:.1f} ms, minute {last} median {last_median:.1f} ms, "
+        f"difference {last_median - first_median:+.1f} ms, slope {slope:+.3f} ms/min"
+    )
+    return {
+        "clip": clip_key(clip), "platform": args.platform, "output": args.output,
+        "first_minute": first, "first_median_ms": f"{first_median:.1f}",
+        "last_minute": last, "last_median_ms": f"{last_median:.1f}",
+        "difference_ms": f"{last_median - first_median:.1f}", "slope_ms_per_min": f"{slope:.3f}",
+    }
 
 
 # ---------------------------------------------------------------- summary
@@ -486,6 +538,14 @@ def summary(args: argparse.Namespace) -> None:
     else:
         lines.append("No audio samples yet.")
 
+    drift_rows = read_rows(args.measurements / DRIFT_CSV)
+    if drift_rows:
+        lines += ["", "### Drift runs", ""]
+        lines += table(
+            ["Clip", "Platform", "Output", "First minute", "Median", "Last minute", "Median", "Difference", "Slope ms/min"],
+            [[r[f] for f in DRIFT_FIELDS] for r in drift_rows],
+        )
+
     out = args.measurements / SUMMARY_MD
     out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print(f"written {out}")
@@ -514,7 +574,10 @@ def main() -> None:
     p.add_argument("clip")
     p.add_argument("--platform", required=True, choices=["windows", "linux"])
     p.add_argument("--output", required=True)
-    p.add_argument("--minute", required=True, type=int)
+    p.add_argument("--minute", type=int, help="the minute of the session this clip was taken in (not with --drift)")
+    p.add_argument("--drift", action="store_true",
+                   help="long recording: each pair's minute is its time in the clip; per-minute medians, "
+                        "first-to-last difference and slope, appended to " + DRIFT_CSV)
     p.add_argument("--max-delay", type=float, default=300, help="most ms between the two sounds of a pair")
     p.add_argument("--rise", type=float, default=12, help="dB a sound must rise over the 30 ms before it")
     p.add_argument("--min-gap", type=float, default=20, help="ms after an onset during which others are the same sound")

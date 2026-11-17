@@ -58,7 +58,7 @@ output right, the app's output = the Voicemeeter virtual input):
 
 ```sh
 uv run tools/latency/analyze.py --measurements specs/20261113-103922-preview-audio/measurements \
-    audio clips/<clip>.wav --stereo --path wasapi --variant <run> --platform windows
+    audio clips/<clip>.wav --stereo --platform windows --output <run> --minute 0
 ```
 
 A/V: in the same session measure spec #3's glass to glass (its quickstart), then offset = audio −
@@ -71,7 +71,7 @@ tools/latency/pipewire-measure.sh start     # null sink capturax-measure, card o
 capturax --stats                            # Audio menu → Output → capturax-measure
 tools/latency/pipewire-measure.sh record clips/linux-<n>.wav 25
 tools/latency/pipewire-measure.sh stop      # removes the sink and the links
-uv run tools/latency/analyze.py … audio clips/linux-<n>.wav --stereo --path pipewire --platform linux
+uv run tools/latency/analyze.py … audio clips/linux-<n>.wav --stereo --platform linux --output pipewire-128 --minute 0
 ```
 
 Then play on the real output and read `out_latency_ms` from `[audio-source]`; the result is the
@@ -80,14 +80,16 @@ measured median plus that value: median ≤ 25 ms, p95 ≤ 30 ms (SC-002). Varia
 
 ## Drift and continuity (SC-003, SC-005)
 
-For each Windows setting and for Linux: 30 minutes of play with `--stats` logged, recording as
-above for the whole run, then:
+For each Windows setting and for Linux: 31 minutes of play with `--stats` logged (so minute 30
+has pairs), recording as above for the whole run with a sound every few seconds, then:
 
 ```sh
-uv run tools/latency/analyze.py … audio clips/<run>.wav --stereo --drift …
+uv run tools/latency/analyze.py … audio clips/<run>.wav --stereo --platform <os> --output <run> --drift
 ```
 
-Pass: minute 30 within 10 ms of minute 0; the `[audio]` lines show `wait_ms` steady, `gap_ms`
+It prints each minute's median, minute 0 and the last minute, their difference and the slope in
+ms per minute, and adds a row to `measurements/audio-drift.csv`. Pass: minute 30 within 10 ms of
+minute 0; the `[audio]` lines show `wait_ms` steady, `gap_ms`
 and `drop_ms` 0 after the first second; the maintainer hears no click, dropout or pitch change.
 Record in `measurements/drift.md`.
 

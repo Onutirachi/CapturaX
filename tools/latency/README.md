@@ -29,8 +29,24 @@ dependencies declared in each script.
    On the first run a window asks for the reference region, then the preview region; they are
    saved next to the clip. Add `--fps 240` when the clip stores its playback rate.
 4. Audio: record where every sound is heard twice, reference first (for example the reference
-   on the left channel and the preview on the right with `--stereo`), and run `audio`.
-5. `summary` writes `summary.md` with median, p95 and dropped frames per path and mode.
+   on the left channel and the preview on the right with `--stereo`), and run `audio`:
+
+   ```sh
+   uv run tools/latency/analyze.py --measurements specs/<spec>/measurements audio clips/<clip>.wav \
+       --stereo --platform linux --output <device or setting> --minute 0
+   ```
+
+   `--minute` is the minute of the session the clip was taken in, for a run measured in short
+   clips.
+5. Drift: record a whole long run (30 minutes or more, a sound every few seconds) and run
+   `audio` with `--drift` instead of `--minute`. Each pair's minute is then its time in the
+   recording (by the reference's onset). It prints each minute's pairs, median and p95, then the
+   medians of the first and the last minute with at least 5 pairs, their difference, and the
+   least-squares slope of every pair's delay over its time, in ms per minute (positive: the
+   preview falls behind). Those go to `audio-drift.csv`, one row per clip, and the pairs to
+   `audio-samples.csv` as usual. Onsets are found to the millisecond.
+6. `summary` writes `summary.md` with median, p95 and dropped frames per path and mode, the audio
+   per minute, and a table of the drift runs.
 
 Options, file formats and the rules for rejected samples are in the spike's
 [contracts/cli.md](../../specs/20261026-154808-stack-spike/contracts/cli.md),

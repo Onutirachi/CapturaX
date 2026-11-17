@@ -325,6 +325,20 @@ Stats lines (2026-11-17, committed in `feat: add the audio stats lines`):
   priming's extra period, as research R15). Windows: no paired device here (only NVIDIA Broadcast).
 - The CachyOS clone is at `fabfd7d` with T025 applied as uncommitted changes.
 
+Drift analysis (2026-11-17, committed in `feat: add the audio drift analysis`):
+
+- T026 done: `tools/latency/analyze.py audio --drift` (in place of `--minute`): each pair's
+  minute is the reference onset's time in the clip; prints each minute's pairs, median and p95,
+  then the first and last minutes with at least 5 pairs, their medians' difference and the
+  least-squares slope over every pair (ms/min). New `audio-drift.csv` (one row per clip, replaced
+  on re-run) and a "Drift runs" table in `summary.md`. README documents it.
+- Fixed in quickstart.md: the audio commands used `--path`/`--variant`, which `audio` never had;
+  now `--output <run>` with `--minute 0` or `--drift`. The drift run is now 31 minutes so minute
+  30 (SC-003) has pairs.
+- Checked on Windows with a synthetic 30.5-minute stereo WAV (right 20 ms behind, +0.1 ms/min):
+  1830 pairs, minute 0 20.0 ms, minute 30 23.0 ms, difference +3.0, slope +0.093 ms/min, a few
+  seconds to run. A 25 s clip with `--drift` is rejected (one minute); `--minute` mode unchanged.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -363,6 +377,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. T026–T027.
+1. T027 (`pipewire-measure.sh`; written here, run on CachyOS).
 2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
    code lands.
