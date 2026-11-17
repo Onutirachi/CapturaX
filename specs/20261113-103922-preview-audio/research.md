@@ -112,7 +112,10 @@ the code that relies on it.
   which other apps hear). `pipewire-pulse` (the spike's workaround): an extra server hop and a
   fragment size the app does not control. Smaller quanta (64): kept as a measurement variant;
   `node.latency` lowers the whole graph's quantum while the preview plays, which costs CPU for
-  every app, so the default is the smallest value that meets SC-002.
+  every app, so the default balances delay against that cost.
+  **Result (T029, 2026-11-17, measurements/latency.md)**: 64, 128 and 256 all meet SC-002 (3.3,
+  4.7 and 7.3 ms median with the output's latency, no gap). 128 stays (maintainer): 64 saves
+  1.4 ms, which cannot be heard, at the cost above; 256 adds 2.6 ms for nothing on this PC.
 
 ## R4. The bridge (FR-002, FR-003, FR-004, FR-012)
 
