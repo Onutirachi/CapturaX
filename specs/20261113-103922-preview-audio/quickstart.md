@@ -67,16 +67,17 @@ video; within 45 ms ahead and 125 ms behind (SC-004).
 **Linux** (CachyOS, ezcap, PS5):
 
 ```sh
-tools/latency/pipewire-measure.sh start     # null sink capturax-measure, card on the left
-capturax --stats                            # Audio menu → Output → capturax-measure
+capturax --stats                            # preview of the ezcap, audio playing on the real output
+tools/latency/pipewire-measure.sh start     # null sink capturax-measure: card left, app right
 tools/latency/pipewire-measure.sh record clips/linux-<n>.wav 25
-tools/latency/pipewire-measure.sh stop      # removes the sink and the links
+tools/latency/pipewire-measure.sh stop      # removes the sink and its links
 uv run tools/latency/analyze.py … audio clips/linux-<n>.wav --stereo --platform linux --output pipewire-128 --minute 0
 ```
 
-Then play on the real output and read `out_latency_ms` from `[audio-source]`; the result is the
-measured median plus that value: median ≤ 25 ms, p95 ≤ 30 ms (SC-002). Variant: `node.latency`
-64/48000 and 256/48000, recorded for comparison.
+Read `out_latency_ms` from the `[audio-source]` line of the same run (the app keeps playing on
+the real output while the sink records); the result is the measured median plus that value:
+median ≤ 25 ms, p95 ≤ 30 ms (SC-002). Variant: `node.latency` 64/48000 and 256/48000, recorded
+for comparison.
 
 ## Drift and continuity (SC-003, SC-005)
 

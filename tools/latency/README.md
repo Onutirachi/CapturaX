@@ -10,6 +10,7 @@ principle I); these tools are the method the spike used.
 | `flash.html` | Page that flashes white for 50 ms once per second. Serve it from the PC (for example `live-server`) and open it in the console's browser. |
 | `make_sync_video.py` | Makes a 1080p60 video with a white flash and a 1 kHz beep once per second, for a media player on the console. |
 | `analyze.py` | Measures the delays in the clips and writes CSV samples and a summary into a spec's measurements folder. |
+| `pipewire-measure.sh` | Linux: records the preview audio's own delay inside the PC with a PipeWire null sink (below). |
 
 Run from the repository root with [uv](https://docs.astral.sh/uv/), which installs the
 dependencies declared in each script.
@@ -47,6 +48,32 @@ dependencies declared in each script.
    `audio-samples.csv` as usual. Onsets are found to the millisecond.
 6. `summary` writes `summary.md` with median, p95 and dropped frames per path and mode, the audio
    per minute, and a table of the drift runs.
+
+## Preview audio inside the PC (Linux)
+
+Linux has no second recorder, so the preview audio is measured inside PipeWire (research R10 of
+the [preview-audio spec](../../specs/20261113-103922-preview-audio/research.md)). With the app
+playing a preview with sound:
+
+```sh
+tools/latency/pipewire-measure.sh start                       # needs jq and the PipeWire tools
+tools/latency/pipewire-measure.sh record clips/linux-1.wav 25
+tools/latency/pipewire-measure.sh stop
+uv run tools/latency/analyze.py --measurements specs/<spec>/measurements audio clips/linux-1.wav     --stereo --platform linux --output pipewire-128 --minute 0
+```
+
+`start` creates a null sink `capturax-measure` and links into it:
+
+- **left**: the left channel of the device that feeds the app's audio input (the card), as it
+  arrives;
+- **right**: the app's playback left channel, the same sound after the preview's path.
+
+The app's own links are untouched, so it keeps playing on the real output. Every linked node
+runs under one driver and both channels are written in the same graph cycles, so the clip's
+delay is the app's own; add the real output's latency, `out_latency_ms` in the app's
+`[audio-source]` stats line (`--stats`) of the same run. `record` records the sink's monitor
+for the given seconds (the whole run for a drift recording) and refuses when the links are gone,
+as after an app restart: run `start` again. `stop` removes the sink and its links.
 
 Options, file formats and the rules for rejected samples are in the spike's
 [contracts/cli.md](../../specs/20261026-154808-stack-spike/contracts/cli.md),

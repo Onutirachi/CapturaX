@@ -323,7 +323,6 @@ Stats lines (2026-11-17, committed in `feat: add the audio stats lines`):
   `[audio]` from t=1 with the same `t` as `[loop]`: second 1 `gap_ms=8.0` (before priming), then
   0; `wait_ms` 7.4 → 4.9 ms over 6 s with `rate_ppm` +921 → +105 (the follower taking away the
   priming's extra period, as research R15). Windows: no paired device here (only NVIDIA Broadcast).
-- The CachyOS clone is at `fabfd7d` with T025 applied as uncommitted changes.
 
 Drift analysis (2026-11-17, committed in `feat: add the audio drift analysis`):
 
@@ -338,6 +337,32 @@ Drift analysis (2026-11-17, committed in `feat: add the audio drift analysis`):
 - Checked on Windows with a synthetic 30.5-minute stereo WAV (right 20 ms behind, +0.1 ms/min):
   1830 pairs, minute 0 20.0 ms, minute 30 23.0 ms, difference +3.0, slope +0.093 ms/min, a few
   seconds to run. A 25 s clip with `--drift` is rejected (one minute); `--minute` mode unchanged.
+
+Linux measurement script (2026-11-17, committed in `feat: add the PipeWire measurement script`):
+
+- T027 done: `tools/latency/pipewire-measure.sh` (`start`, `record <file> <seconds>`, `stop`;
+  needs jq), README section "Preview audio inside the PC (Linux)".
+- Method changed (research R10, quickstart "Linux", T027 updated first): the app is no longer
+  moved to the null sink. `start` finds the app's streams in `pw-dump` and adds two links: the
+  device feeding the app's input, FL → sink FL; the app's playback FL → sink FR. The app keeps
+  WirePlumber's links and plays on the real output, so `out_latency_ms` comes from the same run
+  and T034's output menu is not needed. `stop` destroys the sink (its links go with it).
+  `record` refuses when the sink has fewer than 2 input links.
+- Fixed on CachyOS: the streams are found by `media.name` (`Preview audio input`, `Preview
+  audio`); both have `node.name` `capturax`, so the first version found nothing.
+- Checked on CachyOS (ezcap, PS5, release, IEC958 output): `start` adds both links, a second
+  `start` says "already linked"; `pw-top` shows the app's streams and `capturax-measure` under
+  the ezcap's driver (one cycle); a 25 s `record` gives a 48 kHz stereo WAV. `analyze.py audio
+  --stereo` read it but found 0 onsets: the PS5 gave continuous sound (background −27 dBFS), so
+  **T029 needs distinct sounds a few seconds apart** (e.g. menu clicks), not game music.
+  A cross-correlation of that WAV: right (app) = left (card) 2.06 ms later, correlation 0.999, in
+  every 4 s window; level ratio 0.512 = 0.8³ (the app's volume at 80 on the cubic law). `stop`
+  leaves no `capturax-measure` node or link and the app's own links untouched; `stop` again,
+  `record` without the sink, `record` after the app quit, `start` without the app: each a clear
+  message and exit 1 (bad arguments: usage, exit 2). shellcheck not run (not installed).
+- Over SSH, an app started with `&` ignores SIGINT (non-interactive shell); stop it with SIGTERM.
+- The CachyOS clone is at `89379bb` plus this commit's files copied over (its T025 changes were
+  dropped, a backup is in `/tmp/t025-before-sync.patch`).
 
 ## Done in the last sessions
 
@@ -377,6 +402,5 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. T027 (`pipewire-measure.sh`; written here, run on CachyOS).
-2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
+1. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
    code lands.

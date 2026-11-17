@@ -286,13 +286,18 @@ the code that relies on it.
     `analyze.py audio --stereo`. Each setting (shared, input exclusive, both exclusive) gets a
     25 s clip for SC-001 and a 30-minute recording for SC-003.
   - **Linux** (SC-002, SC-003): inside the PC (maintainer, 2026-11-13). A script
-    `tools/latency/pipewire-measure.sh` creates a null sink `capturax-measure`, links the card's
-    node to its left channel and lets the app play on it (the app's output set to that sink),
-    with the right channel taking the app's left channel; `pw-record` records the sink's monitor.
-    Both channels pass the same graph cycles, so `analyze.py audio --stereo` gives the app's own
-    delay. The latency the real output reports while the app plays on it (the stream's
-    `pw_stream_get_time` delay, printed in the app's `[audio-source]` stats line, R11) is added
-    to that figure. The script restores the links and removes the sink on exit.
+    `tools/latency/pipewire-measure.sh` creates a null sink `capturax-measure` and, while the app
+    plays on its usual output, adds two links with `pw-link`: the left channel of the node that
+    feeds the app's capture stream (the card) to the sink's left, and the app's playback left
+    channel to the sink's right. The app's own links stay as WirePlumber made them, so it keeps
+    playing on the real output (heard, and its `out_latency_ms` printed in the same run) and no
+    output choice in the app is needed (changed at T027, 2026-11-17: the app's output set to the
+    sink needed T034's menu and a relink against WirePlumber's policy). `pw-record` records the
+    sink's monitor. Every linked node runs under one driver, so both channels pass the same graph
+    cycles and `analyze.py audio --stereo` gives the app's own delay. The latency the real output
+    reports while the app plays on it (the stream's `pw_stream_get_time` delay, printed in the
+    app's `[audio-source]` stats line, R11) is added to that figure. `stop` removes the sink,
+    which removes its links.
   - **Drift** (SC-003): `analyze.py audio` gains `--drift`: the pairs' delays grouped per minute,
     the medians of minute 0 and the last minute, and the slope by least squares, in ms per
     minute; the stats log of the same run is kept next to the recording.
