@@ -237,6 +237,28 @@ Pairing (2026-11-16, committed in `feat: add the audio pairing`):
 - Known limit: a video name that itself ends with `(…)` (`UVC Camera (046d:0825)`) is cleaned to
   the text in the parentheses, so it only pairs by link. Not seen on the maintainer's devices.
 
+Command line (2026-11-16, committed in `feat: add the audio command line options`):
+
+- T022 done: `app/src/cli.rs` (`--no-audio`, `StartupOptions::no_audio` and `audio()`),
+  `app/src/main.rs` (`list_audio`, `print_endpoints`), README options table.
+- `StartupOptions::audio()` is false with `--no-audio` or `--test-video`: **T023 asks it before
+  starting the audio monitor or a session**. Until then its only use is a log line at start
+  (`preview audio off for this start`).
+- `--list-devices` output after the video devices: `Audio inputs:` and `Audio outputs:` (name,
+  `id:`, `link:` or `none`, `format:` or `unknown`; the system default output's name ends with
+  ` [default]`), then `Pairing:` with each video device's `link:` and `audio: <name> (<id>)` or
+  `none`. Audio that cannot be listed goes to stderr and the exit code stays 0. With no video
+  device the `Pairing:` part is left out.
+- Checked on CachyOS (ezcap and C920 there): both pair by link (`pci-0000:03:00.0-usb-0:3`,
+  `pci-0000:00:14.0-usb-0:1`), the IEC958 output is marked default; fmt, clippy and the CLI
+  tests pass. Checked on Windows: fmt, clippy, CLI tests; the devices here now are an Elgato 4K
+  Pro (no link on video or audio: paired by name with `Elgato 4K Pro Audio (Elgato 4K Pro)`)
+  and the NVIDIA Broadcast camera (`none`). The ezcap and C920 on Windows were checked by T008's
+  example, not by `--list-devices`.
+- Seen, not changed: on Linux the internal sound card's endpoints carry a link
+  (`pci-0000:00:1f.3`), not only USB devices.
+- The CachyOS clone is clean at `3a1b506` (bundle of 2026-11-16); it does not have T022.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -275,7 +297,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. T022 (CLI: `--list-devices` with the audio endpoints and pairs, `--no-audio`), then US1
-   (T023–T027).
+1. US1 (T023–T027), starting with T023.
 2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
    code lands.

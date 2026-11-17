@@ -34,9 +34,14 @@ struct Args {
     #[arg(long)]
     stats: bool,
 
-    /// Developer: list the capture devices with their modes, then exit
+    /// Developer: list the capture devices with their modes, the audio devices and each capture
+    /// device's audio input, then exit
     #[arg(long)]
     list_devices: bool,
+
+    /// Developer: start without the preview audio
+    #[arg(long)]
+    no_audio: bool,
 
     /// Developer: write the present log (acquire, present, window events) to this file
     #[arg(long, value_name = "FILE")]
@@ -92,6 +97,7 @@ pub struct StartupOptions {
     pub test_video: Option<VideoSize>,
     pub stats: bool,
     pub list_devices: bool,
+    pub no_audio: bool,
     pub present_log: Option<PathBuf>,
     pub backend: Option<Backend>,
     pub present: Option<PresentMode>,
@@ -99,6 +105,12 @@ pub struct StartupOptions {
 }
 
 impl StartupOptions {
+    /// Whether this start has the preview audio (its monitor and sessions): not with `--no-audio`,
+    /// and never with `--test-video`, which has no audio input (preview audio contracts/cli.md).
+    pub fn audio(&self) -> bool {
+        !self.no_audio && self.test_video.is_none()
+    }
+
     /// Whether this start opens in fullscreen: `--fullscreen` or `--windowed` win over the saved
     /// Start in fullscreen setting, for this start only (FR-012a).
     pub fn starts_fullscreen(&self, saved: bool) -> bool {
@@ -147,6 +159,7 @@ where
         test_video: args.test_video,
         stats: args.stats,
         list_devices: args.list_devices,
+        no_audio: args.no_audio,
         present_log: args.present_log,
         backend: args.backend,
         present: args.present,
@@ -253,6 +266,18 @@ mod tests {
             Some(PathBuf::from("pm log.txt"))
         );
         assert_eq!(run(&["--present-log"]).unwrap_err().code, EXIT_USAGE);
+    }
+
+    #[test]
+    fn audio_is_off_with_no_audio_or_a_test_video() {
+        assert!(run(&[]).unwrap().audio());
+        assert!(run(&["--stats"]).unwrap().audio());
+        let o = run(&["--no-audio"]).unwrap();
+        assert!(o.no_audio);
+        assert!(!o.audio());
+        let o = run(&["--test-video", "1080p60"]).unwrap();
+        assert!(!o.no_audio);
+        assert!(!o.audio());
     }
 
     #[test]

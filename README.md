@@ -49,9 +49,10 @@ Developer options (`--help` lists every option):
 
 | Option | Effect |
 |---|---|
-| `--list-devices` | Prints every device (name, id) with its modes and the automatic modes it shows, then exits |
+| `--list-devices` | Prints every device (name, id) with its modes and the automatic modes it shows, the audio inputs and outputs, and the audio input paired with each device, then exits |
 | `--test-video <PRESET>` | Plays a moving test pattern (`1080p60`, `1440p60` or `WxH@FPS`) instead of a device |
 | `--stats` | Prints presentation statistics once per second (also to `capturax.log`) |
+| `--no-audio` | Starts without the preview audio, to compare the video's measurements with and without sound |
 | `--present-log <FILE>` | Writes one line per acquire, present and window event, to match against PresentMon |
 | `--backend`, `--present` | Force the graphics backend (`dx12`, `vulkan`, `gl`) or the present mode |
 
