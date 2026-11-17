@@ -33,3 +33,23 @@ cross-correlation of a 25 s clip at 128 (PS5 game music, every 4 s window) gave 
 
 **Decision (maintainer, 2026-11-17)**: 128/48000 stays (research R3). 64 saves 1.4 ms, which
 cannot be heard, and runs the whole graph at 1.33 ms while the preview plays; 256 adds 2.6 ms.
+
+## T029: SC-007 on Linux, video with and without sound
+
+### CachyOS — 2026-11-17
+
+**Environment**: as above; release build of 0bf962c, `[present] backend=vulkan mode=mailbox`,
+window 1280 × 720 (not fullscreen, not touched), ezcap at 1080p60 NV12, sound playing on the
+IEC958 output. Four 60 s runs in a row, alternating the default and `--no-audio`. Counts leave
+out the first 3 seconds and the last line, as spec #3.
+
+| Run | Seconds | `ready_ms` median > 1.5 | Max > 3 ms | Worst max | `pres` outside 59–61 | `lat_ms` mean | `repl` |
+|---|---|---|---|---|---|---|---|
+| sound 1 | 58 | 0 | 0 | 1.1 | 0 | 9.84 | 0 |
+| `--no-audio` 1 | 58 | 0 | 0 | 1.7 | 0 | 9.60 | 0 |
+| sound 2 | 58 | 0 | 0 | 1.5 | 0 | 9.87 | 0 |
+| `--no-audio` 2 | 58 | 0 | 0 | 1.7 | 0 | 9.59 | 0 |
+
+SC-007 passes on Linux: spec #3's SC-003 holds with the sound playing. No `[audio]` second had a
+gap or drop. Captured → presented (`lat_ms`, not part of SC-003) is about 0.25 ms higher with the
+sound in both pairs, as in earlier unrecorded runs.
