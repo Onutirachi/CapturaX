@@ -33,7 +33,8 @@
 
 - The three markers were answered by the maintainer on 2026-11-13 (mockup page): webcam
   microphones pair like any input (FR-007), the output is offered in the Audio menu and in the
-  volume popover with click = mute and hover/tap = popover (FR-009, FR-011), and Linux is
+  volume popover with click = mute and hover/tap = popover (FR-009, FR-011; on 2026-11-18 the
+  output left the popover and the popover became a slider only), and Linux is
   measured inside the PC through PipeWire (FR-020, SC-002). Texts in FR-022.
 - Technology names (WASAPI, PipeWire, Voicemeeter, `--stats`, `analyze.py`) appear on purpose, as
   in specs #2 and #3: the constitution (principles I and III) requires each preview spec to state

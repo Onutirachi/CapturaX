@@ -14,6 +14,7 @@ import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
 import { TitleBar } from "components/title-bar.slint";
 import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
+import { VolumeButton } from "components/volume-popover.slint";
 import { SettingsPanel, Prefs } from "components/settings-panel.slint";
 import { Toolbar } from "components/toolbar.slint";
 import { ProgressRing } from "components/progress-ring.slint";
@@ -101,6 +102,16 @@ export component AppWindow inherits Window {
     callback fps-display-changed(int);
     callback mode-display-changed(int);
 
+    // The preview's volume (preview audio FR-011, FR-012): the level 0–100 and the mute, set by
+    // Rust at start and changed here by the volume button; the icon's level from Rust
+    // (`audio::volume::icon`: "off", "low", "medium", "high").
+    in-out property <int> volume: 80;
+    in-out property <bool> muted;
+    in property <string> volume-icon: "high";
+    callback volume-changed(int, bool);
+    // The wheel's vertical move over the volume button, in logical pixels (60 per notch).
+    callback volume-wheel(length);
+
     // An action of the state message, by id: `open-devices` and `open-privacy` are handled in
     // app/src/ui.rs, `try-again` calls `try-again()`.
     callback state-action(string /* action id */);
@@ -185,6 +196,9 @@ export component AppWindow inherits Window {
     // button.
     in-out property <bool> settings-open;
     changed settings-open => {
+        if (self.settings-open) {
+            volume-button.close();
+        }
         if (!self.settings-open && Input.keyboard) {
             root.reveal-chrome();
             settings-button.focus();
@@ -205,8 +219,9 @@ export component AppWindow inherits Window {
     // focus after the mouse takes over, and the chrome would never hide.
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || Menus.open || info.engaged
-        || ((fullscreen-button.has-focus || settings-button.has-focus || toolbar.has-focus) && Input.keyboard);
+        || Menus.open || info.engaged || volume-button.open
+        || ((fullscreen-button.has-focus || volume-button.has-focus || settings-button.has-focus || toolbar.has-focus)
+            && Input.keyboard);
     changed engaged => {
         if (self.engaged) {
             self.chrome-shown = true;
@@ -336,7 +351,8 @@ export component AppWindow inherits Window {
             mode-display-changed(display) => { root.mode-display-changed(display); }
         }
 
-        // The left dock holds the adjustments (FR-002a): fullscreen, then settings. Slides out to
+        // The left dock holds the adjustments (FR-002a): fullscreen, volume, then settings (ambient
+        // light comes before volume with its spec). Slides out to
         // the left. The right dock (features) is not shown until a later spec adds its first
         // button (app shell FR-015).
         left-area := TouchArea {
@@ -354,6 +370,19 @@ export component AppWindow inherits Window {
                     tooltip-side: Side.right;
                     focusable: !root.settings-open;
                     clicked => { WindowState.toggle-fullscreen(); }
+                }
+
+                volume-button := VolumeButton {
+                    size: chrome.dock-button;
+                    focusable: !root.settings-open;
+                    active: root.chrome-shown && !root.settings-open;
+                    window-width: root.width;
+                    window-height: root.height;
+                    volume <=> root.volume;
+                    muted <=> root.muted;
+                    level-icon: root.volume-icon;
+                    volume-changed(volume, muted) => { root.volume-changed(volume, muted); }
+                    wheel(delta) => { root.volume-wheel(delta); }
                 }
 
                 settings-button := IconButton {

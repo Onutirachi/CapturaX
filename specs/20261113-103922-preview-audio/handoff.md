@@ -389,6 +389,36 @@ drift commit), results in measurements/latency.md and drift.md:
   `[audio-source]` line kept naming the IEC958 output (the name update on Linux is T034's).
 - The CachyOS clone is at `0bf962c` (fast-forwarded from a bundle), release and debug built there.
 
+Volume (2026-11-17, T030–T032 done; committed in `feat: add the preview volume`):
+
+- T030: icons `volume`, `volume_2`, `volume_1`, `volume_off`. Tabler has no low volume icon and
+  its `volume-3` is the speaker with an X: `volume_1` is `volume-2` without its wave, `volume_off`
+  is `volume-3` (the mockup's muted speaker); noted in the icons' LICENSE, T030 and research R12.
+- T031: `app/ui/components/volume-popover.slint` (`VolumeButton` with its popover, `VolumeSlider`).
+  The popover is a child of the button inside the chrome, not in the top layer, so Tab goes from
+  the button into the popover (mute, slider) and then to settings; arrows ±5, Home/End on the
+  slider; the popover keeps the chrome shown and closes when the chrome hides or the settings
+  open. `IconButton` gained `takes-wheel`/`wheel`, `right-pressed`, and an empty tooltip hides the
+  shown one (the button's tooltip is empty while the popover shows).
+- Touch: no touch reached the UI before (winit handles Windows' pointer messages itself, so
+  Windows makes no mouse events from touches; Wayland neither). `ui.rs` now forwards the first
+  finger as the left button and sets the new `Input.touch` (Slint's public pointer events carry
+  no finger); a mouse move or press clears it. This makes every control tappable app-wide.
+- T032: `SettingChange::Volume` stores `[audio] volume`/`muted` (saved as other settings) and
+  sends the controller's new `Event::Volume`, which gives `SetGain` while a session is open or
+  opening; the icon name comes from `audio::icon_name` (`audio::volume::icon`). The wheel:
+  `UserEvent::VolumeWheel` → `audio::Wheel` (60 px a notch, touchpad remainder kept) →
+  `audio::volume::wheel`; **chosen here**: the wheel unmutes, as the slider (T031 text updated).
+  The saved values are shown at start.
+- Checked on Windows: fmt, clippy (app, all targets), 173 app tests; the app shows the button
+  between fullscreen and settings and the popover on hover (80 %). The maintainer tried the
+  Windows UI (2026-11-17) and approved it.
+- T033 done (maintainer, 2026-11-17, Windows and CachyOS): no click, change heard at once,
+  restart keeps level and mute, mouse and keyboard behave as FR-011 (no touch screen on either
+  PC). On CachyOS (ezcap, release at `cd030f1`, playback through VBAN) a watcher polled
+  `wpctl get-volume` every 200 ms for the default sink, the app's own playback stream and another
+  app's stream (kded6): all stayed at 1.00 for the whole test, so the OS volumes are untouched.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -427,7 +457,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. US2 code: T030 (volume icons and dock button), T031 (volume popover), T032 (settings and
-   gain), then T033's Linux half while the ezcap is on CachyOS.
-2. Later, with the ezcap still on CachyOS: the Linux halves of T036, T042, T044 as their code
-   lands; T028 and T039 when the ezcap moves to Windows.
+1. Phase 5 (US3, input and output choice): T034 onwards. The CachyOS clone is at `cd030f1`,
+   release built there.
+2. With the ezcap still on CachyOS: the Linux halves of T036, T042, T044 as their code lands;
+   T028 and T039 when the ezcap moves to Windows.

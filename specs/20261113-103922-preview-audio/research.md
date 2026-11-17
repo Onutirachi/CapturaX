@@ -335,17 +335,20 @@ the code that relies on it.
     In the icon look (narrow windows) the icon alone, as the other selects.
   - **Volume button** in the left dock between ambient light and settings; its icon by level
     (`volume_off` muted or 0, `volume_1` up to 33 %, `volume_2` up to 66 %, `volume` above);
-    tooltip `Volume {}% · Muted`. A new `volume-popover.slint`: mute button, horizontal slider
-    with the value, the Output select; anchored beside the dock, inside the window. Hover opens
-    after 300 ms and closes 400 ms after the pointer leaves both; right click opens; wheel
-    changes the level; touch tap opens (Slint's pointer event kind), focus opens, Enter/Space
-    mutes.
+    tooltip `Volume {}% · Muted`. A new `volume-popover.slint`: a horizontal slider with the
+    value (no mute button, no Output select: maintainer, 2026-11-18); anchored beside the dock,
+    inside the window. Hover opens after 300 ms and closes 400 ms after the pointer leaves both;
+    right click opens; wheel changes the level; touch tap opens, a 500 ms hold mutes; focus
+    shows it without giving it the focus, Enter/Space mutes, arrows and Home/End on the button
+    move the level.
   - **Settings Audio category** (Windows only): an `Exclusive mode` section with the line of
     FR-022, groups Inputs and Outputs, one row per device with a checkbox and the `In use by the
     preview` mark. Slint's checkbox is styled like the shell's toggle (a new small
     `checkbox.slint`).
   - Icons from Tabler as the existing ones (`volume`, `volume_2`, `volume_1`, `volume_off`,
-    `microphone`, `headphones`), same license file.
+    `microphone`, `headphones`), same license file. Tabler has no low volume icon: `volume_1` is
+    its `volume-2` without the wave, and `volume_off` is its `volume-3` (speaker with an X), as
+    on the mockup.
 - **Rationale**: the mockup was approved with the spec; every piece extends a component the
   device preview already has.
 - **Alternatives**: none; the decisions are the maintainer's.

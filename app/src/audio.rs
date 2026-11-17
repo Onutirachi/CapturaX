@@ -5,6 +5,7 @@
 
 use ::audio::choice::{self, AudioChoice, Resolved};
 use ::audio::pairing::{self, VideoKey};
+use ::audio::volume::VolumeIcon;
 use platform::audio::{AudioEvent, Endpoint, SessionEvent, SessionRequest, Side};
 use settings::Settings;
 
@@ -46,6 +47,11 @@ pub enum Event {
     VideoClosed {
         session: u64,
     },
+    /// The user set the preview's volume (0–100) or mute (FR-011); the settings already hold it.
+    Volume {
+        level: u8,
+        muted: bool,
+    },
 }
 
 impl Event {
@@ -61,6 +67,7 @@ impl Event {
             Self::Session(event) => format!("audio session: {event:?}"),
             Self::VideoOpened { session, device } => format!("video session {session} opened on {}", device.id),
             Self::VideoClosed { session } => format!("video session {session} closed"),
+            Self::Volume { level, muted } => format!("volume {level} muted {muted}"),
         }
     }
 }
@@ -78,9 +85,42 @@ pub enum Command {
     ReopenOutput { output: Option<String>, exclusive: bool },
     /// Close the open session.
     Close,
-    /// Set the open bridge's gain (`audio::volume::gain`).
-    #[expect(dead_code, reason = "emitted by the volume control (T032)")]
+    /// Set the open bridge's gain (`audio::volume::gain`), at once and without a reopen.
     SetGain(f32),
+}
+
+/// The volume button's icon in `main.slint` (`volume-icon`) for a level and mute.
+pub fn icon_name(level: u8, muted: bool) -> &'static str {
+    match ::audio::volume::icon(level, muted) {
+        VolumeIcon::Off => "off",
+        VolumeIcon::Low => "low",
+        VolumeIcon::Medium => "medium",
+        VolumeIcon::High => "high",
+    }
+}
+
+/// Logical pixels of wheel move per notch, as Slint counts a mouse wheel line.
+const WHEEL_NOTCH: f32 = 60.0;
+
+/// Turns the wheel's moves over the volume button into notches, keeping the remainder so a
+/// touchpad's small moves add up.
+#[derive(Debug, Default)]
+pub struct Wheel {
+    rest: f32,
+}
+
+impl Wheel {
+    /// Whole notches in this move plus what the last ones left; positive is up (louder).
+    pub fn notches(&mut self, delta: f32) -> i32 {
+        // A turn the other way drops what the last direction left.
+        if delta * self.rest < 0.0 {
+            self.rest = 0.0;
+        }
+        self.rest += delta / WHEEL_NOTCH;
+        let notches = self.rest.trunc();
+        self.rest -= notches;
+        notches as i32
+    }
 }
 
 /// The audio session asked for.
@@ -185,6 +225,12 @@ impl AudioController {
                     self.video = None;
                     self.close(&mut out);
                     self.state = Some(AudioState::Off);
+                }
+            }
+            // A session opened later takes its gain from the settings.
+            Event::Volume { level, muted } => {
+                if self.open.is_some() {
+                    out.push(Command::SetGain(::audio::volume::gain(level, muted)));
                 }
             }
         }
@@ -400,6 +446,47 @@ mod tests {
         // Its acknowledgment changes nothing.
         assert!(run.send(Event::Session(SessionEvent::Closed { number: 1 })).is_empty());
         assert_eq!(run.audio.state(), AudioState::Off);
+    }
+
+    #[test]
+    fn wheel_counts_notches_and_keeps_the_rest() {
+        let mut wheel = Wheel::default();
+        assert_eq!(wheel.notches(60.0), 1);
+        assert_eq!(wheel.notches(-120.0), -2);
+        // A touchpad: small moves add up to a notch.
+        assert_eq!(wheel.notches(25.0), 0);
+        assert_eq!(wheel.notches(25.0), 0);
+        assert_eq!(wheel.notches(25.0), 1);
+        // Turning back drops the rest of the other way.
+        assert_eq!(wheel.notches(-50.0), 0);
+        assert_eq!(wheel.notches(-20.0), -1);
+    }
+
+    #[test]
+    fn icon_names_follow_the_level() {
+        assert_eq!(icon_name(80, true), "off");
+        assert_eq!(icon_name(0, false), "off");
+        assert_eq!(icon_name(20, false), "low");
+        assert_eq!(icon_name(50, false), "medium");
+        assert_eq!(icon_name(80, false), "high");
+    }
+
+    #[test]
+    fn the_volume_reaches_only_an_open_session() {
+        let mut run = Run::new();
+        run.send(listed());
+        let volume = |level, muted| Event::Volume { level, muted };
+        assert!(run.send(volume(50, false)).is_empty(), "no session");
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        // Opening already: the bridge takes it as soon as it is made.
+        assert_eq!(run.send(volume(50, false)), [Command::SetGain(0.125)]);
+        assert_eq!(run.send(volume(50, true)), [Command::SetGain(0.0)]);
+        assert_eq!(run.audio.state(), AudioState::Opening, "no reopen");
+        run.send(Event::VideoClosed { session: 1 });
+        assert!(run.send(volume(80, false)).is_empty());
     }
 
     #[test]

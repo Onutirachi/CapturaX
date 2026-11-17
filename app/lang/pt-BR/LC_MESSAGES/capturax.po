@@ -304,3 +304,15 @@ msgstr "{}: placa de captura e monitor (estimado)"
 
 msgid "{} in total"
 msgstr "{} no total"
+
+msgid "Volume {}%"
+msgstr "Volume {}%"
+
+msgid "Muted"
+msgstr "Mudo"
+
+msgid "Preview volume"
+msgstr "Volume do preview"
+
+msgid "{}%"
+msgstr "{}%"

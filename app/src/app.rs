@@ -88,6 +88,8 @@ pub enum UserEvent {
     },
     /// The audio monitor's and audio session's events.
     Audio(crate::audio::Event),
+    /// The wheel over the volume button, in logical pixels (preview audio FR-011).
+    VolumeWheel(f32),
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -130,6 +132,11 @@ pub enum SettingChange {
     LatencyDisplay(settings::LatencyDisplay),
     FpsDisplay(settings::FpsDisplay),
     ModeDisplay(settings::ModeDisplay),
+    /// The preview's volume (0–100) and mute, from the volume button (preview audio FR-011).
+    Volume {
+        level: u8,
+        muted: bool,
+    },
 }
 
 /// What the UI asks the window to do.
@@ -236,6 +243,8 @@ pub struct App {
     device_notice_serial: i32,
     /// The preview's sound; None with `--no-audio` or the test video.
     sound: Option<Sound>,
+    /// The wheel's moves over the volume button not yet a whole notch.
+    volume_wheel: crate::audio::Wheel,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -309,6 +318,21 @@ impl App {
                 index,
             ))));
         });
+        // The saved volume shows at start; the session's bridge reads it when it opens.
+        let audio = &store.get().audio;
+        ui.app.set_volume(i32::from(audio.volume));
+        ui.app.set_muted(audio.muted);
+        ui.app
+            .set_volume_icon(crate::audio::icon_name(audio.volume, audio.muted).into());
+        let on = send.clone();
+        ui.app.on_volume_changed(move |level, muted| {
+            on(UserEvent::Setting(SettingChange::Volume {
+                level: level.clamp(0, 100) as u8,
+                muted,
+            }));
+        });
+        let on = send.clone();
+        ui.app.on_volume_wheel(move |delta| on(UserEvent::VolumeWheel(delta)));
         bind_prefs(&ui, &store, send);
         // The Presentation setting reaches the video thread before it starts (FR-022).
         let inbox = Arc::new(Inbox::default());
@@ -361,6 +385,7 @@ impl App {
             language_stages: false,
             system_theme: None,
             sound,
+            volume_wheel: crate::audio::Wheel::default(),
             proxy: sender,
             exit_code: 0,
         }
@@ -1212,6 +1237,21 @@ impl App {
     /// or minimized; while maximized only the flag, so the size to restore to is kept. Called once
     /// the events of a change are handled: on Windows, maximizing sends `Moved` before winit's
     /// `is_maximized` turns true.
+    /// Keeps the preview's volume (FR-012), shows its icon and gives the open bridge its gain at
+    /// once, without reopening anything (FR-011).
+    fn set_volume(&mut self, level: u8, muted: bool) {
+        self.store.update(|s| {
+            s.audio.volume = level;
+            s.audio.muted = muted;
+        });
+        self.ui
+            .app
+            .set_volume_icon(crate::audio::icon_name(level, muted).into());
+        if let Some(sound) = &mut self.sound {
+            sound.handle(crate::audio::Event::Volume { level, muted }, &self.store.get());
+        }
+    }
+
     fn save_placement(&mut self, w: &Window) {
         let size = w.inner_size();
         if w.fullscreen().is_some() || w.is_minimized() == Some(true) || size.width == 0 || size.height == 0 {
@@ -1618,6 +1658,7 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 // The bubble shows its tags itself; only the setting is stored.
                 SettingChange::ModeDisplay(display) => self.store.update(|s| s.overlay.mode = display),
+                SettingChange::Volume { level, muted } => self.set_volume(level, muted),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);
                     self.sync_tray();
@@ -1639,6 +1680,17 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Audio(event) => {
                 if let Some(sound) = &mut self.sound {
                     sound.handle(event, &self.store.get());
+                }
+            }
+            // The level moves and the sound plays again, as with the slider.
+            UserEvent::VolumeWheel(delta) => {
+                let notches = self.volume_wheel.notches(delta);
+                let level = self.store.get().audio.volume;
+                let moved = ::audio::volume::wheel(level, notches);
+                if notches != 0 {
+                    self.ui.app.set_volume(i32::from(moved));
+                    self.ui.app.set_muted(false);
+                    self.set_volume(moved, false);
                 }
             }
             UserEvent::ColorRange(index) => {

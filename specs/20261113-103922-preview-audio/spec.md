@@ -261,10 +261,10 @@ The wording of every state is in FR-022.
   remembered per video device; the default is Auto.
 - **FR-009**: The app MUST offer the output choice: **System default** (naming the current
   default, following it when it changes) and every output of the computer, remembered across
-  restarts (one choice for the app, not per device). Default: System default. The same choice is
-  offered in two places (maintainer, 2026-11-13, on the mockup page): an **Output** group in the
-  Audio dropdown's menu, under the inputs, and an **Output** select in the volume popover
-  (FR-011).
+  restarts (one choice for the app, not per device). Default: System default. It is offered in
+  the Audio dropdown's menu only, as an **Output** group under the inputs (maintainer,
+  2026-11-18: the Output select once planned in the volume popover was dropped; the output stays
+  one for the app, not per video device).
 - **FR-010**: The lists MUST follow the system: audio devices plugged or removed appear in or
   leave the choices within the time of SC-006, as spec #3's video device list.
 
@@ -273,15 +273,19 @@ The wording of every state is in FR-022.
 - **FR-011**: The left dock MUST gain the volume button (spec #3's FR-002a: fullscreen, ambient
   light, volume, settings), applied to the preview's sound only, never to the system's volume or
   other apps (product.md F14). Its icon shows the level, and a muted speaker when muted or at
-  zero. It works as follows (maintainer, 2026-11-13, on the mockup page):
+  zero. The volume popover holds a slider from 0 to 100 % with its value and nothing else: the
+  button alone mutes, so no second speaker icon stands beside it. It works as follows
+  (maintainer, 2026-11-13 on the mockup page, changed 2026-11-18):
   - **Mouse**: a click toggles mute. Resting the pointer on the button for about 300 ms opens the
-    volume popover: a mute button, a slider from 0 to 100 % with its value, and the Output select
-    (FR-009). The popover stays open while the pointer is on the button or on the popover, and
+    popover. The popover stays open while the pointer is on the button or on the popover, and
     closes shortly after it leaves both. A right click also opens it. The mouse wheel over the
     button changes the volume without opening anything.
-  - **Touch**: a tap opens the popover (volume is used more often than mute); its mute button
-    mutes. A tap outside closes it. No long press.
-  - **Keyboard**: focusing the button (Tab) opens the popover; Enter or Space toggles mute.
+  - **Touch**: a tap opens the popover (volume is used more often than mute); a tap outside
+    closes it. Holding the button (a long press, 500 ms) toggles mute.
+  - **Keyboard**: the button is one stop in the focus order. Focusing it (Tab) shows the popover,
+    which takes no focus; Enter or Space toggles mute; the arrow keys move the volume by 5 %,
+    Home and End to 0 and 100 %. The next Tab leaves the button and the popover closes.
+  - Moving the volume (slider, wheel or keys) while muted unmutes.
 - **FR-012**: The volume and the mute MUST be remembered across restarts (one level for the app,
   not per device), and the level MUST change smoothly (no click when moving or muting).
 - **FR-013**: The preview's sound is only for the user: its volume, mute and output MUST NOT
@@ -343,8 +347,6 @@ The wording of every state is in FR-022.
   | Default output | System default ({}) | Padrão do sistema ({}) |
   | Tag on an exclusive device | Exclusive | Exclusivo |
   | Volume button tooltip | Volume {}% · Muted | Volume {}% · Mudo |
-  | Popover mute button | Mute · Unmute | Silenciar · Ativar som |
-  | Popover output label | Output | Saída |
   | Settings category (Windows) | Audio | Áudio |
   | Settings section | Exclusive mode | Modo exclusivo |
   | Settings line | Lowest delay. No other app can use the device while the preview does. | Menor atraso. Nenhum outro app usa o dispositivo enquanto o preview usa. |

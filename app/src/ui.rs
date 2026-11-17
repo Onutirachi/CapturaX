@@ -12,7 +12,7 @@ use slint::ComponentHandle;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType};
 use slint::platform::{PointerEventButton, WindowAdapter, WindowEvent as SlintEvent};
 use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, Touch, TouchPhase, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
 use crate::shadows;
@@ -210,6 +210,10 @@ pub struct Ui {
     size: PhysicalSize<u32>,
     scale: f32,
     cursor: slint::LogicalPosition,
+    /// The finger forwarded as the pointer, until it lifts; other fingers are ignored.
+    finger: Option<u64>,
+    /// `Input.touch` as last set.
+    touch: bool,
     /// The next draw repaints the whole buffer: Slint repaints only what changed in logical
     /// pixels, but after a resize the buffer is new and after a scale change every physical pixel
     /// moved (moving between monitors changes both, the logical size staying the same).
@@ -315,6 +319,8 @@ impl Ui {
             size: PhysicalSize::new(0, 0),
             scale: 1.0,
             cursor: slint::LogicalPosition::new(0.0, 0.0),
+            finger: None,
+            touch: false,
             full_repaint: true,
         })
     }
@@ -345,6 +351,7 @@ impl Ui {
     pub fn window_event(&mut self, event: &WindowEvent) -> bool {
         let slint_event = match event {
             WindowEvent::CursorMoved { position, .. } => {
+                self.set_touch(false);
                 self.cursor =
                     slint::LogicalPosition::new(position.x as f32 / self.scale, position.y as f32 / self.scale);
                 SlintEvent::PointerMoved { position: self.cursor }
@@ -361,6 +368,7 @@ impl Ui {
                 // The focus ring shows only while the last input was the keyboard (FR-020).
                 if *state == ElementState::Pressed {
                     self.app.global::<Input>().set_keyboard(false);
+                    self.set_touch(false);
                 }
                 match state {
                     ElementState::Pressed => SlintEvent::PointerPressed { position, button },
@@ -398,6 +406,7 @@ impl Ui {
                     ElementState::Released => SlintEvent::KeyReleased { text },
                 }
             }
+            WindowEvent::Touch(touch) => return self.touch_event(touch),
             WindowEvent::Focused(active) => {
                 self.app.global::<WindowState>().set_active(*active);
                 SlintEvent::WindowActiveChanged(*active)
@@ -408,9 +417,59 @@ impl Ui {
         true
     }
 
+    /// A finger as the pointer with the left button (preview audio FR-011): Slint's public pointer
+    /// events carry no finger, so `Input.touch` tells the UI the pointer is a finger. Neither
+    /// system turns the app's touches into mouse events (winit handles Windows' pointer messages
+    /// itself), so without this no touch reaches the UI. Only the first finger down acts.
+    fn touch_event(&mut self, touch: &Touch) -> bool {
+        let position = slint::LogicalPosition::new(
+            touch.location.x as f32 / self.scale,
+            touch.location.y as f32 / self.scale,
+        );
+        let button = PointerEventButton::Left;
+        let events: &[SlintEvent] = match (self.finger, touch.phase) {
+            (None, TouchPhase::Started) => {
+                self.finger = Some(touch.id);
+                self.app.global::<Input>().set_keyboard(false);
+                self.set_touch(true);
+                &[
+                    SlintEvent::PointerMoved { position },
+                    SlintEvent::PointerPressed { position, button },
+                ]
+            }
+            (Some(id), TouchPhase::Moved) if id == touch.id => &[SlintEvent::PointerMoved { position }],
+            (Some(id), TouchPhase::Ended) if id == touch.id => {
+                self.finger = None;
+                // No hover stays behind a lifted finger.
+                &[
+                    SlintEvent::PointerReleased { position, button },
+                    SlintEvent::PointerExited,
+                ]
+            }
+            (Some(id), TouchPhase::Cancelled) if id == touch.id => {
+                self.finger = None;
+                &[SlintEvent::PointerExited]
+            }
+            _ => return false,
+        };
+        self.cursor = position;
+        for event in events {
+            self.window.window().dispatch_event(event.clone());
+        }
+        true
+    }
+
+    fn set_touch(&mut self, touch: bool) {
+        if touch != self.touch {
+            self.touch = touch;
+            self.app.global::<Input>().set_touch(touch);
+        }
+    }
+
     /// The window was destroyed (hidden in the tray on Wayland): no pointer, no focus, and the
     /// next image is drawn whole for the new window's video thread.
     pub fn window_gone(&mut self) {
+        self.finger = None;
         let window = self.window.window();
         window.dispatch_event(SlintEvent::PointerExited);
         self.app.global::<WindowState>().set_active(false);

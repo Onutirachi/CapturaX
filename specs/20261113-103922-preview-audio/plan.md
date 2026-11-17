@@ -124,7 +124,7 @@ exits after saving settings (research R9).
   already counts it in the toolbar's width rules); menu with Input and Output groups, state header,
   tags.
 - `components/dock.slint`: the volume button between ambient light and settings.
-- `components/volume-popover.slint` (new): mute button, slider with value, Output select; hover,
+- `components/volume-popover.slint` (new): slider with value (FR-011 as changed 2026-11-18); hover,
   click, right click, wheel, touch and keyboard behavior of FR-011 (research R12).
 - `components/checkbox.slint` (new) and `components/settings-panel.slint`: category `audio`
   (Windows only) with the Exclusive mode section.
