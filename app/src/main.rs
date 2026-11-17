@@ -1,6 +1,8 @@
 //! CapturaX: watch and hear capture cards with the lowest possible latency.
 
 mod app;
+#[allow(dead_code, reason = "wired into the app by T024")]
+mod audio;
 mod cli;
 mod frame;
 mod i18n;
@@ -360,7 +362,7 @@ fn list_audio(devices: &[capture::Device]) {
     // Pairing reads the system's names: a numbered name's " (2)" would be taken for a device part.
     let candidates: Vec<_> = inputs
         .iter()
-        .map(|input| audio::pairing::Endpoint {
+        .map(|input| ::audio::pairing::Endpoint {
             id: input.id.clone(),
             name: input.base_name.clone(),
             link: input.link.clone(),
@@ -368,12 +370,12 @@ fn list_audio(devices: &[capture::Device]) {
         .collect();
     println!("Pairing:");
     for device in devices {
-        let video = audio::pairing::VideoKey {
+        let video = ::audio::pairing::VideoKey {
             link: platform::audio::video_link(&device.id),
             name: device.base_name.clone(),
         };
         let paired =
-            audio::pairing::pair(&video, &candidates).and_then(|id| inputs.iter().find(|input| input.id == id));
+            ::audio::pairing::pair(&video, &candidates).and_then(|id| inputs.iter().find(|input| input.id == id));
         println!("  {}", device.name);
         println!("    link: {}", video.link.as_deref().unwrap_or("none"));
         match paired {

@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-16 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-17 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -259,6 +259,28 @@ Command line (2026-11-16, committed in `feat: add the audio command line options
   (`pci-0000:00:1f.3`), not only USB devices.
 - The CachyOS clone is clean at `3a1b506` (bundle of 2026-11-16); it does not have T022.
 
+Audio controller (2026-11-17):
+
+- T023 done: `app/src/audio.rs`. `AudioController::handle(Event, &Settings) -> Vec<Command>`,
+  `state()`, `session()` (the audio session number open or opening), `default_output()`;
+  `Event::reason()` for the state-change log line, as the preview's.
+- Chosen here:
+  - `VideoOpened` carries `VideoDevice { id, base_name, link }`: the app (T024) reads
+    `platform::audio::video_link` when the video session opens, so the controller stays pure.
+  - `Command::Open` does not close by itself: a session still open gets an explicit `Close`
+    first (a `VideoOpened` without a `VideoClosed` gives `[Close, Open]`).
+  - A video opened before the monitor's `Listed` shows `Opening`; the list resolves it.
+  - `NoPair` resolves again on every `Added`, so an input that pairs and comes later opens.
+  - `VideoClosed` of a session other than the open one is ignored (late close).
+  - `Error` events are only logged for now (states come with T034, T038, T041); `Settings` is
+    not read yet (Auto and the default output; choices come with T034, exclusive with T038).
+  - `ReopenInput`, `ReopenOutput` and `SetGain` are defined, not emitted yet.
+- The module is declared with `#[allow(dead_code, reason = "wired into the app by T024")]` in
+  `main.rs`; **T024 removes it**. Inside `main.rs` the crate is now `::audio::pairing` (the
+  module `audio` shadows the crate there).
+- fmt, clippy (app, all targets) and the 7 tests pass on Windows. Linux build not checked here
+  (no platform code changed).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -297,6 +319,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. US1 (T023–T027), starting with T023.
+1. US1: T024 (wiring; removes the dead_code allow on `mod audio`), then T025–T027.
 2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
    code lands.
