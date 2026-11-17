@@ -112,7 +112,8 @@ exits after saving settings (research R9).
 - `audio.rs` (new): state machine of data-model.md "Audio state": inputs from the platform
   monitor, the preview's session events, settings and UI picks; outputs: platform requests,
   menu items, the volume button state, the settings category rows.
-- `preview.rs`: emits the session open and close the audio follows; video states unchanged.
+- `sound.rs` (new): runs the audio commands (monitor, session, bridge); `app.rs` hands it the
+  video session's open and close from the preview's `Open` and `Close`; `preview.rs` unchanged.
 - `stats.rs`: `[audio-source]` and `[audio]` lines.
 - `cli.rs`: `--list-devices` additions, `--no-audio`.
 - `ui.rs`: the Audio dropdown, volume button and popover, Audio category bridge.
@@ -186,7 +187,8 @@ crates/platform/examples/pipewire_probe.rs   # quickstart "Linux engine probe"
 
 app/src/
 ├── audio.rs               # NEW: audio state machine, menus, volume state
-├── preview.rs, stats.rs, cli.rs, ui.rs, app.rs, main.rs   # wiring
+├── sound.rs               # NEW: runs the audio commands (monitor, session, bridge)
+├── stats.rs, cli.rs, ui.rs, app.rs, main.rs   # wiring
 app/ui/components/{volume-popover, checkbox}.slint          # NEW
 app/ui/components/{toolbar, dock, menu, settings-panel}.slint, texts.slint, main.slint
 app/ui/assets/icons/{volume, volume_1, volume_2, volume_off, microphone, headphones}.svg

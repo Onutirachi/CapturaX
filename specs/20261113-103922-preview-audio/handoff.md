@@ -281,6 +281,31 @@ Audio controller (2026-11-17):
 - fmt, clippy (app, all targets) and the 7 tests pass on Windows. Linux build not checked here
   (no platform code changed).
 
+Wiring (2026-11-17, not committed yet):
+
+- T024 done: `app/src/sound.rs` (new) runs the controller's commands; `app.rs` gives it
+  `VideoOpened` (with `platform::audio::video_link` read there) when it runs the preview's `Open`,
+  and `VideoClosed` when it closes the video session; `preview.rs` unchanged (every video open and
+  close goes through those commands; task text and plan updated). `UserEvent::Audio(audio::Event)`
+  carries monitor and session events. The audio monitor starts after the video monitor; `App.sound`
+  is None when `StartupOptions::audio()` is false. The dead_code allow on `mod audio` is gone;
+  `ReopenInput`, `ReopenOutput`, `SetGain`, `session()` and `default_output()` carry an `expect`
+  naming the task that uses them (T025, T032, T034).
+- The bridge: `Feed` (the session's `Samples`) makes it from the formats of the `Samples` calls
+  once both sides have called (not from `Opened`, as T020 asked), again when a side's format
+  changes or `ReopenInput` runs; until then input is dropped and the output plays zeros. Gain from
+  `[audio] volume`/`muted` at open, kept for each new bridge. **For T025**: the bridge is in
+  `Feed.formats.bridge` (`sound.rs`); the stats need a getter there.
+- Quit: the session's own callback sets a `Closed` flag (the event loop does not run during
+  `exiting`), the quit waits for it at most 1 s, then drops the monitor. `main` already ends with
+  `std::process::exit`, so a stuck audio thread cannot hold the process.
+- Checked: fmt, clippy (app, all targets) and the app tests (3 new in `sound.rs`) on Windows and
+  CachyOS. On CachyOS (ezcap): paired by link, `Opening` → `Playing` 79 ms after the video open,
+  before the first video frame; the window closed by KWin: audio closed 1 ms into the quit. On
+  Windows only the NVIDIA Broadcast camera is here: `Off` → `NoPair` → `Off` with its video
+  session. Not checked: sound through the bridge (the ezcap's input was silent; nobody listened).
+- The CachyOS clone is at `d233a95` with this work applied as uncommitted changes.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -319,6 +344,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. US1: T024 (wiring; removes the dead_code allow on `mod audio`), then T025–T027.
+1. Commit T024 after the maintainer validates it; then T025–T027.
 2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
    code lands.

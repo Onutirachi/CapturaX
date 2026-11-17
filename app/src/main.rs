@@ -1,7 +1,6 @@
 //! CapturaX: watch and hear capture cards with the lowest possible latency.
 
 mod app;
-#[allow(dead_code, reason = "wired into the app by T024")]
 mod audio;
 mod cli;
 mod frame;
@@ -15,6 +14,7 @@ mod present_log;
 mod preview;
 mod render;
 mod shadows;
+mod sound;
 mod stats;
 mod theme;
 mod ui;

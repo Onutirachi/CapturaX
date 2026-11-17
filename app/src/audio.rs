@@ -71,12 +71,15 @@ pub enum Command {
     /// Open this session; a session still open is closed first by [`Command::Close`].
     Open(SessionRequest),
     /// Reopen the open session's input on this endpoint (the bridge restarts empty).
+    #[expect(dead_code, reason = "emitted by the input choice (T034)")]
     ReopenInput { input: String, exclusive: bool },
     /// Reopen the open session's output (None: the system default).
+    #[expect(dead_code, reason = "emitted by the output choice (T034)")]
     ReopenOutput { output: Option<String>, exclusive: bool },
     /// Close the open session.
     Close,
     /// Set the open bridge's gain (`audio::volume::gain`).
+    #[expect(dead_code, reason = "emitted by the volume control (T032)")]
     SetGain(f32),
 }
 
@@ -115,11 +118,13 @@ impl AudioController {
     }
 
     /// The number of the audio session open or opening; events and samples of others are dropped.
+    #[cfg_attr(not(test), expect(dead_code, reason = "read by the stats lines (T025)"))]
     pub fn session(&self) -> Option<u64> {
         self.open.as_ref().map(|o| o.number)
     }
 
     /// The system default output's id, as the monitor last said.
+    #[cfg_attr(not(test), expect(dead_code, reason = "shown in the Output menu (T034)"))]
     pub fn default_output(&self) -> Option<&str> {
         self.default_output.as_deref()
     }

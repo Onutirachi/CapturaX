@@ -23,6 +23,7 @@ use crate::placement::{self, Rect};
 use crate::present_log::{self, Event as LogEvent, Stage};
 use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
+use crate::sound::Sound;
 use crate::theme::{self, SystemTheme};
 use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
 use platform::autostart;
@@ -85,6 +86,8 @@ pub enum UserEvent {
         devices: Vec<capture::Device>,
         timer: bool,
     },
+    /// The audio monitor's and audio session's events.
+    Audio(crate::audio::Event),
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -231,6 +234,8 @@ pub struct App {
     /// number that shows each one.
     device_notice: Option<DeviceNotice>,
     device_notice_serial: i32,
+    /// The preview's sound; None with `--no-audio` or the test video.
+    sound: Option<Sound>,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -250,6 +255,7 @@ impl App {
         ui.app.global::<Prefs>().set_tray_available(tray_available);
         ui.app.set_privacy_settings(platform::IS_WINDOWS);
         let sender = proxy.clone();
+        let sound = options.audio().then(|| Sound::new(proxy.clone()));
         let send = move |event: UserEvent| {
             let _ = proxy.send_event(event);
         };
@@ -354,6 +360,7 @@ impl App {
             switch: None,
             language_stages: false,
             system_theme: None,
+            sound,
             proxy: sender,
             exit_code: 0,
         }
@@ -556,6 +563,9 @@ impl App {
                     },
                 );
                 self.session = Some((opened, Instant::now()));
+                if let Some(sound) = &mut self.sound {
+                    sound.video_opened(session, &device, &self.store.get());
+                }
                 self.source = Some(crate::stats::Source {
                     device: device.name.clone(),
                     id: device.id.clone(),
@@ -740,7 +750,12 @@ impl App {
         // The next device's bubbles wait for its own first second.
         self.second = crate::stats::Summary::EMPTY;
         if let Some((session, _)) = self.session.take() {
+            let number = session.id();
             session.close();
+            // The audio follows the video session (FR-018).
+            if let Some(sound) = &mut self.sound {
+                sound.video_closed(number, &self.store.get());
+            }
         }
     }
 
@@ -1504,6 +1519,10 @@ impl ApplicationHandler<UserEvent> for App {
             self.test_video = Some((session, platform::precise_timers()));
         } else {
             self.start_monitor();
+            // After the video monitor (plan "Startup and quit").
+            if let Some(sound) = &mut self.sound {
+                sound.start();
+            }
         }
         // The test video plays at once; else the video area waits as when opening until the
         // monitor's first list (main.slint's initial state).
@@ -1614,6 +1633,11 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::SystemTheme(theme) => self.system_theme_changed(theme.map(SystemTheme::from)),
             UserEvent::Monitor(event) => self.preview_event(preview::Event::Monitor(event)),
             UserEvent::Session { session, event } => self.session_event(session, event),
+            UserEvent::Audio(event) => {
+                if let Some(sound) = &mut self.sound {
+                    sound.handle(event, &self.store.get());
+                }
+            }
             UserEvent::ColorRange(index) => {
                 let range = match index {
                     1 => capture::RangeChoice::Full,
@@ -1808,10 +1832,14 @@ impl ApplicationHandler<UserEvent> for App {
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // Quit sequence (FR-014): the session and the test video stop first so no frame arrives
-        // during the stop, then the device monitor; the video thread holds the surface, so it
-        // stops while the window still exists; then the settings are flushed and the window
-        // destroyed.
+        // during the stop, then the audio session (at most 1 s, research R9) and the device
+        // monitor; the video thread holds the surface, so it stops while the window still exists;
+        // then the settings are flushed and the window destroyed. An audio thread still alive
+        // ends with the process (`main` exits with `std::process::exit`).
         self.close_session();
+        if let Some(sound) = &mut self.sound {
+            sound.quit();
+        }
         if let Some(mut monitor) = self.monitor_devices.take() {
             monitor.stop();
         }
