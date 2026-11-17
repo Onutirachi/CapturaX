@@ -361,8 +361,33 @@ Linux measurement script (2026-11-17, committed in `feat: add the PipeWire measu
   `record` without the sink, `record` after the app quit, `start` without the app: each a clear
   message and exit 1 (bad arguments: usage, exit 2). shellcheck not run (not installed).
 - Over SSH, an app started with `&` ignores SIGINT (non-interactive shell); stop it with SIGTERM.
-- The CachyOS clone is at `89379bb` plus this commit's files copied over (its T025 changes were
-  dropped, a backup is in `/tmp/t025-before-sync.patch`).
+Debug latency variable (committed in `test: read the PipeWire latency from the environment in
+debug builds`): `CAPTURAX_PW_LATENCY=<frames>` sets `node.latency` in debug builds; T046 removes it.
+
+Linux measurements (2026-11-17, T029 done; committed in `docs: record the Linux preview audio
+latency`, `docs: record the Linux SC-007 runs`, `docs: record the Linux A/V offset` and the T029
+drift commit), results in measurements/latency.md and drift.md:
+
+- Sound source that works: PS5 **home menu with its background music off**, a navigation sound
+  every 1–2 s (background −83 dBFS). Game menus, even paused, keep music under the clicks and give
+  0 onsets. Clips are in `clips/` (ignored); `--stats` logs in `measurements/raw/t029/` (ignored,
+  `*.log`; the older unrecorded `sc007-*` logs moved to `raw/t029/old/`).
+- SC-002: 64 / 128 / 256 → 3.3 / 4.7 / 7.3 ms median with `out_latency_ms`; the measured part is
+  always the bridge's 2 ms margin. **128 kept** (maintainer); research R3 now says the default
+  balances delay against the graph's CPU cost, T029's wording changed with it.
+- SC-007: four 60 s runs alternating sound and `--no-audio`, spec #3's SC-003 holds; `lat_ms`
+  about 0.25 ms higher with sound.
+- SC-004: computed sound ≈ 25 ms ahead of the image (4.7 − spec #3's ~30 ms glass to glass); by
+  ear through VBAN (the PC has no speakers): no offset noticed. Accepted by the maintainer; the
+  direct listening is Windows' (T028).
+- SC-003/SC-005: 31-minute run, minute 0 and minute 30 both 2.0 ms (+0.0), `wait_ms` 4.8/4.8 from
+  second 8 to the end, no gap or drop in 1940 s.
+- How the runs were done: the screen blanks during long runs, `kde-inhibit --power --screenSaver
+  sleep <s>` keeps it on; to listen from Windows, `systemctl --user start vban.service` (stream
+  `LinuxAudio` to Voicemeeter, `vban_out` becomes the default sink; stop it afterwards).
+- Seen, for T034: when PipeWire moved the playback to `vban_out` (default change), the
+  `[audio-source]` line kept naming the IEC958 output (the name update on Linux is T034's).
+- The CachyOS clone is at `0bf962c` (fast-forwarded from a bundle), release and debug built there.
 
 ## Done in the last sessions
 
@@ -402,5 +427,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
-   code lands.
+1. US2 code: T030 (volume icons and dock button), T031 (volume popover), T032 (settings and
+   gain), then T033's Linux half while the ezcap is on CachyOS.
+2. Later, with the ezcap still on CachyOS: the Linux halves of T036, T042, T044 as their code
+   lands; T028 and T039 when the ezcap moves to Windows.

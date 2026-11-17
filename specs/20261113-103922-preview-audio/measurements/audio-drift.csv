@@ -1,0 +1,2 @@
+clip,platform,output,first_minute,first_median_ms,last_minute,last_median_ms,difference_ms,slope_ms_per_min
+drift-linux.wav,linux,pipewire-128-drift,0,2.0,30,2.0,0.0,-0.000
