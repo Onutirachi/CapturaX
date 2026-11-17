@@ -14,6 +14,7 @@ use winit::event_loop::EventLoopProxy;
 
 use crate::app::UserEvent;
 use crate::audio::{AudioController, Command, Event, VideoDevice};
+use crate::stats::AudioSide;
 
 /// The longest the quit waits for the audio session's `Closed` (research R9).
 const CLOSE_WAIT: Duration = Duration::from_secs(1);
@@ -71,6 +72,11 @@ impl Feed {
             formats.bridge = Some(Arc::new(bridge));
         }
         formats.bridge.clone()
+    }
+
+    /// The bridge playing now, if both sides have called.
+    fn current(&self) -> Option<Arc<Bridge>> {
+        lock(&self.formats).bridge.clone()
     }
 
     /// The input reopens: the next bridge starts empty with the new input's format.
@@ -141,6 +147,20 @@ struct Open {
     session: Session,
     feed: Arc<Feed>,
     closed: Arc<Closed>,
+    /// The endpoints asked for (None: the system default output), as the last open or reopen said.
+    input_id: String,
+    output_id: Option<String>,
+    /// Each side as its last `Opened` said, for the `[audio-source]` line.
+    input: Option<AudioSide>,
+    output: Option<AudioSide>,
+}
+
+/// The `--stats` lines' clock (contracts/stats.md).
+struct StatsClock {
+    /// Where `t` counts from: the video thread's start, so `[audio] t` matches `[loop] t`.
+    origin: Instant,
+    /// When the next `[audio]` line is due; None while no session is open.
+    next: Option<Instant>,
 }
 
 /// The preview's sound in the app: the controller, the monitor and the open session.
@@ -150,17 +170,101 @@ pub struct Sound {
     open: Option<Open>,
     /// The sessions asked to close whose `Closed` has not come, by number.
     closing: Vec<(u64, Arc<Closed>)>,
+    /// Some with `--stats`.
+    stats: Option<StatsClock>,
     proxy: EventLoopProxy<UserEvent>,
 }
 
 impl Sound {
-    pub fn new(proxy: EventLoopProxy<UserEvent>) -> Self {
+    /// `stats`: print the `--stats` lines.
+    pub fn new(proxy: EventLoopProxy<UserEvent>, stats: bool) -> Self {
         Self {
             controller: AudioController::new(),
             monitor: None,
             open: None,
             closing: Vec::new(),
+            stats: stats.then(|| StatsClock {
+                origin: Instant::now(),
+                next: None,
+            }),
             proxy,
+        }
+    }
+
+    /// The video thread started at `origin`: the `[audio]` line's `t` counts from there, as the
+    /// `[loop]` line's.
+    pub fn stats_origin(&mut self, origin: Instant) {
+        if let Some(clock) = &mut self.stats {
+            clock.origin = origin;
+        }
+    }
+
+    /// When the next `[audio]` line is due (`--stats` and a session open).
+    pub fn next_stats(&self) -> Option<Instant> {
+        self.stats.as_ref().and_then(|clock| clock.next)
+    }
+
+    /// Prints the `[audio]` line once its second has passed, with what the bridge did in it
+    /// (`wait_ms=-/-` while no bridge plays).
+    pub fn print_stats(&mut self, now: Instant) {
+        let (Some(clock), Some(open)) = (&mut self.stats, &self.open) else {
+            return;
+        };
+        if clock.next.is_none_or(|next| now < next) {
+            return;
+        }
+        clock.next = Some(now + Duration::from_secs(1));
+        let t = now.saturating_duration_since(clock.origin).as_secs();
+        let stats = open.feed.current().map(|bridge| bridge.take_stats());
+        crate::render::print_stats(&crate::stats::audio_line(t, stats));
+    }
+
+    /// A side of the open session opened: kept for the `[audio-source]` line, printed with
+    /// `--stats` once both sides have opened (again at each reopen).
+    fn side_opened(&mut self, event: &SessionEvent) {
+        let SessionEvent::Opened {
+            number,
+            side,
+            mode,
+            format,
+            period_ms,
+            reported_latency_ms,
+        } = event
+        else {
+            return;
+        };
+        // Events of an older session are dropped (the open one is the controller's).
+        if self.controller.session() != Some(*number) {
+            return;
+        }
+        let Some(open) = self.open.as_mut() else {
+            return;
+        };
+        let id = match side {
+            platform::audio::Side::Input => Some(open.input_id.as_str()),
+            platform::audio::Side::Output => open.output_id.as_deref(),
+        };
+        let name = self
+            .controller
+            .endpoint_name(id)
+            .or(id)
+            .unwrap_or("system default")
+            .to_owned();
+        let opened = Some(AudioSide {
+            name,
+            mode: *mode,
+            format: *format,
+            period_ms: *period_ms,
+            latency_ms: *reported_latency_ms,
+        });
+        match side {
+            platform::audio::Side::Input => open.input = opened,
+            platform::audio::Side::Output => open.output = opened,
+        }
+        if self.stats.is_some()
+            && let (Some(input), Some(output)) = (&open.input, &open.output)
+        {
+            crate::render::print_stats(&crate::stats::audio_source(open.number, input, output));
         }
     }
 
@@ -198,7 +302,10 @@ impl Sound {
             Event::Session(SessionEvent::Closed { number }) => {
                 self.closing.retain(|(closing, _)| closing != number);
             }
-            Event::Session(event @ SessionEvent::Opened { .. }) => log::info!("audio: {event:?}"),
+            Event::Session(event @ SessionEvent::Opened { .. }) => {
+                log::info!("audio: {event:?}");
+                self.side_opened(event);
+            }
             _ => {}
         }
         let reason = event.reason();
@@ -224,6 +331,7 @@ impl Sound {
                 let proxy = self.proxy.clone();
                 log::info!("audio session {number}: open {} -> {:?}", request.input, request.output);
                 let on_closed = Arc::clone(&closed);
+                let (input_id, output_id) = (request.input.clone(), request.output.clone());
                 let session = Session::open(request, Arc::clone(&feed) as Arc<dyn Samples>, move |event| {
                     // Set here, not on the main thread: the quit waits for it there.
                     if matches!(event, SessionEvent::Closed { .. }) {
@@ -236,16 +344,25 @@ impl Sound {
                     session,
                     feed,
                     closed,
+                    input_id,
+                    output_id,
+                    input: None,
+                    output: None,
                 });
+                if let Some(clock) = &mut self.stats {
+                    clock.next = Some(Instant::now() + Duration::from_secs(1));
+                }
             }
             Command::ReopenInput { input, exclusive } => {
-                if let Some(open) = &self.open {
+                if let Some(open) = &mut self.open {
                     open.feed.restart_input();
+                    open.input_id.clone_from(&input);
                     open.session.reopen_input(input, exclusive);
                 }
             }
             Command::ReopenOutput { output, exclusive } => {
-                if let Some(open) = &self.open {
+                if let Some(open) = &mut self.open {
+                    open.output_id.clone_from(&output);
                     open.session.reopen_output(output, exclusive);
                 }
             }
@@ -263,6 +380,9 @@ impl Sound {
         if let Some(mut open) = self.open.take() {
             open.session.close();
             self.closing.push((open.number, open.closed));
+        }
+        if let Some(clock) = &mut self.stats {
+            clock.next = None;
         }
     }
 
@@ -302,7 +422,7 @@ mod tests {
     }
 
     fn current(feed: &Feed) -> Option<Arc<Bridge>> {
-        lock(&feed.formats).bridge.clone()
+        feed.current()
     }
 
     #[test]

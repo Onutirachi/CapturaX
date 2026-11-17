@@ -118,7 +118,6 @@ impl AudioController {
     }
 
     /// The number of the audio session open or opening; events and samples of others are dropped.
-    #[cfg_attr(not(test), expect(dead_code, reason = "read by the stats lines (T025)"))]
     pub fn session(&self) -> Option<u64> {
         self.open.as_ref().map(|o| o.number)
     }
@@ -127,6 +126,16 @@ impl AudioController {
     #[cfg_attr(not(test), expect(dead_code, reason = "shown in the Output menu (T034)"))]
     pub fn default_output(&self) -> Option<&str> {
         self.default_output.as_deref()
+    }
+
+    /// The shown name of a listed endpoint; `output` None names the system default output.
+    pub fn endpoint_name(&self, id: Option<&str>) -> Option<&str> {
+        let id = id.or(self.default_output.as_deref())?;
+        self.inputs
+            .iter()
+            .chain(&self.outputs)
+            .find(|e| e.id == id)
+            .map(|e| e.name.as_str())
     }
 
     pub fn handle(&mut self, event: Event, settings: &Settings) -> Vec<Command> {
@@ -518,8 +527,15 @@ mod tests {
         let mut run = Run::new();
         run.send(listed());
         assert_eq!(run.audio.default_output(), Some(SPEAKERS));
+        assert_eq!(
+            run.audio.endpoint_name(Some(CARD_INPUT)),
+            Some("Digital Audio Interface (ezcap)")
+        );
+        assert_eq!(run.audio.endpoint_name(None), Some("Speakers (Realtek(R) Audio)"));
+        assert_eq!(run.audio.endpoint_name(Some("gone")), None);
         run.send(Event::Monitor(AudioEvent::DefaultOutput(None)));
         assert_eq!(run.audio.default_output(), None);
+        assert_eq!(run.audio.endpoint_name(None), None);
         // The card's input leaves before its video opens: nothing pairs by link.
         run.send(Event::Monitor(AudioEvent::Removed(CARD_INPUT.into())));
         run.send(Event::VideoOpened {

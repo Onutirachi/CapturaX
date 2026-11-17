@@ -255,7 +255,7 @@ impl App {
         ui.app.global::<Prefs>().set_tray_available(tray_available);
         ui.app.set_privacy_settings(platform::IS_WINDOWS);
         let sender = proxy.clone();
-        let sound = options.audio().then(|| Sound::new(proxy.clone()));
+        let sound = options.audio().then(|| Sound::new(proxy.clone(), options.stats));
         let send = move |event: UserEvent| {
             let _ = proxy.send_event(event);
         };
@@ -1269,6 +1269,9 @@ impl App {
             present: self.options.present,
         };
         let first = (!self.video_started).then_some(self.process_start);
+        if let Some(sound) = &mut self.sound {
+            sound.stats_origin(Instant::now());
+        }
         let proxy = self.proxy.clone();
         let on_second = Box::new(move |summary| {
             let _ = proxy.send_event(UserEvent::Second(summary));
@@ -1827,6 +1830,12 @@ impl ApplicationHandler<UserEvent> for App {
             self.tick(now);
         }
         wake = Some(wake.map_or(self.tick_at, |w| w.min(self.tick_at)));
+        if let Some(sound) = &mut self.sound {
+            sound.print_stats(now);
+            if let Some(at) = sound.next_stats() {
+                wake = Some(wake.map_or(at, |w| w.min(at)));
+            }
+        }
         event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 

@@ -281,7 +281,7 @@ Audio controller (2026-11-17):
 - fmt, clippy (app, all targets) and the 7 tests pass on Windows. Linux build not checked here
   (no platform code changed).
 
-Wiring (2026-11-17, not committed yet):
+Wiring (2026-11-17, committed in `feat: wire the preview audio into the app`):
 
 - T024 done: `app/src/sound.rs` (new) runs the controller's commands; `app.rs` gives it
   `VideoOpened` (with `platform::audio::video_link` read there) when it runs the preview's `Open`,
@@ -304,7 +304,26 @@ Wiring (2026-11-17, not committed yet):
   before the first video frame; the window closed by KWin: audio closed 1 ms into the quit. On
   Windows only the NVIDIA Broadcast camera is here: `Off` → `NoPair` → `Off` with its video
   session. Not checked: sound through the bridge (the ezcap's input was silent; nobody listened).
-- The CachyOS clone is at `d233a95` with this work applied as uncommitted changes.
+
+Stats lines (2026-11-17, committed in `feat: add the audio stats lines`):
+
+- T025 done: `app/src/stats.rs` (`AudioSide`, `audio_source`, `audio_line`, pure, tested),
+  `app/src/sound.rs` (each side's `Opened` kept per session; `StatsClock`; `print_stats` takes the
+  playing bridge's `take_stats()` once a second), `app/src/audio.rs` (`endpoint_name(id)`, None
+  names the default output), `app/src/app.rs` (`about_to_wait` wakes for the `[audio]` line).
+- Chosen here (contracts/stats.md updated): `[audio-source]` waits until both sides opened, then
+  again at each `Opened` (a reopen); names from the monitor's list (an unknown id prints the id);
+  `out_latency_ms=-` when the output does not say; while no bridge plays, `wait_ms=-/-` and the
+  other fields 0; `[audio] t` counts from the video thread's start, so it matches `[loop] t`. A
+  bridge replaced mid-second loses that second's counts (only at a format change or input reopen).
+- Checked: fmt, clippy (app, all targets), 170 app tests on Windows. On CachyOS (ezcap, IEC958
+  output, release): `[audio-source] session=1 input="ezcap Live GAMER ULTRA Estéreo analógico"
+  in_mode=shared in_format=48000/2/i16 in_period_ms=2.67 output="Áudio interno Estéreo digital
+  (IEC958)" out_mode=shared out_format=48000/2/i32 out_period_ms=2.67 out_latency_ms=2.7`;
+  `[audio]` from t=1 with the same `t` as `[loop]`: second 1 `gap_ms=8.0` (before priming), then
+  0; `wait_ms` 7.4 → 4.9 ms over 6 s with `rate_ppm` +921 → +105 (the follower taking away the
+  priming's extra period, as research R15). Windows: no paired device here (only NVIDIA Broadcast).
+- The CachyOS clone is at `fabfd7d` with T025 applied as uncommitted changes.
 
 ## Done in the last sessions
 
@@ -344,6 +363,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Commit T024 after the maintainer validates it; then T025–T027.
+1. T026–T027.
 2. While the ezcap is on CachyOS: T029 and the Linux halves of T033, T036, T042, T044 as their
    code lands.
