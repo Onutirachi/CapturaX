@@ -82,6 +82,13 @@ export component AppWindow inherits Window {
     in-out property <int> color-range;
     in property <bool> range-full;
     callback color-range-changed(int);
+    // The Audio dropdown (preview audio FR-008, FR-009), set by Rust: its menu, the row the
+    // keyboard starts on, the value and the No audio icon.
+    in property <[MenuItem]> audio-items;
+    in-out property <int> audio-current: -1;
+    in property <string> audio-value;
+    in property <bool> audio-off;
+    callback audio-picked(int);
     // The info bubbles (components/info-bubbles.slint), set by Rust once per second; a bubble with
     // an empty text is left out. The displays are numbered as `InfoBubbles` documents them.
     in property <string> info-source;
@@ -311,6 +318,11 @@ export component AppWindow inherits Window {
                 color-range <=> root.color-range;
                 range-full: root.range-full;
                 color-range-changed(index) => { root.color-range-changed(index); }
+                audio-items: root.audio-items;
+                audio-current <=> root.audio-current;
+                audio-value: root.audio-value;
+                audio-off: root.audio-off;
+                audio-picked(index) => { root.audio-picked(index); }
             }
         }
 

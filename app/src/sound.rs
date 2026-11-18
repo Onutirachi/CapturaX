@@ -191,6 +191,11 @@ impl Sound {
         }
     }
 
+    /// What the Audio select shows (its menu, value and the open video device).
+    pub fn controller(&self) -> &AudioController {
+        &self.controller
+    }
+
     /// The video thread started at `origin`: the `[audio]` line's `t` counts from there, as the
     /// `[loop]` line's.
     pub fn stats_origin(&mut self, origin: Instant) {

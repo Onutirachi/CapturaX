@@ -59,10 +59,8 @@ pub enum Event {
         muted: bool,
     },
     /// The user picked the open video device's input (FR-008); the settings already hold it.
-    #[cfg_attr(not(test), expect(dead_code, reason = "sent by the Audio select (T035)"))]
     Input(AudioChoice),
     /// The user picked the output (FR-009); the settings already hold it.
-    #[cfg_attr(not(test), expect(dead_code, reason = "sent by the Audio select (T035)"))]
     Output(OutputChoice),
 }
 
@@ -102,8 +100,8 @@ pub enum Command {
     SetGain(f32),
 }
 
-/// One row of the Audio dropdown's menu or the volume popover's Output select. Texts that need a
-/// catalog are named, not written, as `preview::Item`'s.
+/// One row of the Audio dropdown's menu. Texts that need a catalog are named, not written, as
+/// `preview::Item`'s.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     pub text: Label,
@@ -130,7 +128,6 @@ pub enum Label {
 }
 
 impl Label {
-    #[cfg_attr(not(test), expect(dead_code, reason = "read by the Audio select (T035)"))]
     pub fn is_header(&self) -> bool {
         matches!(self, Self::Inputs | Self::Outputs)
     }
@@ -265,8 +262,13 @@ impl AudioController {
         self.open.as_ref().map(|o| o.number)
     }
 
+    /// The open video device, whose input choice the Audio select shows and a pick stores.
+    pub fn video(&self) -> Option<&VideoDevice> {
+        self.video.as_ref().map(|(_, video)| video)
+    }
+
     /// The system default output's id, as the monitor last said.
-    #[cfg_attr(not(test), expect(dead_code, reason = "kept for the Audio select (T035)"))]
+    #[cfg(test)]
     pub fn default_output(&self) -> Option<&str> {
         self.default_output.as_deref()
     }
@@ -333,7 +335,6 @@ impl AudioController {
 
     /// The Audio select's value: the open video device's input choice (FR-008); None while no
     /// video device is open.
-    #[cfg_attr(not(test), expect(dead_code, reason = "shown by the Audio select (T035)"))]
     pub fn value(&self, settings: &Settings) -> Option<Label> {
         let (_, video) = self.video.as_ref()?;
         Some(match input_choice(settings, video) {
@@ -346,7 +347,6 @@ impl AudioController {
     /// The Audio dropdown's menu: the `Input` group (Auto, every input, No audio) while a video
     /// device is open, then the `Output` group; the choices in use marked. A chosen endpoint that
     /// is missing is not offered and nothing of its group is marked (the state says why).
-    #[cfg_attr(not(test), expect(dead_code, reason = "shown by the Audio select (T035)"))]
     pub fn menu(&self, settings: &Settings) -> Vec<Item> {
         let header = |text| Item {
             text,
@@ -382,8 +382,8 @@ impl AudioController {
     }
 
     /// The output choices (System default, every output), the one in use marked: the `Output`
-    /// group of the menu and the volume popover's Output select.
-    pub fn output_items(&self, settings: &Settings) -> Vec<Item> {
+    /// group of the menu.
+    fn output_items(&self, settings: &Settings) -> Vec<Item> {
         let choice = output_choice(settings);
         let default_name = self.default_output.as_deref().map(|id| self.name_of(id));
         std::iter::once(Item {
@@ -1379,11 +1379,6 @@ mod tests {
         assert_eq!(
             run.audio.value(&run.settings),
             Some(Label::Plain("Microphone (Realtek(R) Audio)".into()))
-        );
-        // The popover's select: the same output rows.
-        assert_eq!(
-            run.audio.output_items(&run.settings),
-            run.audio.menu(&run.settings)[6..]
         );
     }
 

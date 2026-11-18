@@ -316,3 +316,27 @@ msgstr "Volume do preview"
 
 msgid "{}%"
 msgstr "{}%"
+
+msgid "Audio"
+msgstr "Áudio"
+
+msgid "Input"
+msgstr "Entrada"
+
+msgid "Output"
+msgstr "Saída"
+
+msgid "Auto ({})"
+msgstr "Auto ({})"
+
+msgid "Auto (none)"
+msgstr "Auto (nenhum)"
+
+msgid "No audio"
+msgstr "Sem áudio"
+
+msgid "System default ({})"
+msgstr "Padrão do sistema ({})"
+
+msgid "System default"
+msgstr "Padrão do sistema"

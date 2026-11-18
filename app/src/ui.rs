@@ -119,6 +119,36 @@ pub fn menu_item(item: &crate::preview::Item, texts: &Texts) -> MenuItem {
     }
 }
 
+/// A row of the Audio menu as Slint shows it; the choices in use are checked (the menu marks an
+/// input and an output).
+pub fn audio_item(item: &crate::audio::Item, texts: &Texts) -> MenuItem {
+    MenuItem {
+        text: audio_label(&item.text, texts),
+        kind: if item.text.is_header() {
+            "header".into()
+        } else {
+            Default::default()
+        },
+        checked: item.current,
+        ..Default::default()
+    }
+}
+
+/// The text of an Audio menu label (also the Audio select's value) from the catalog.
+pub fn audio_label(label: &crate::audio::Label, texts: &Texts) -> slint::SharedString {
+    use crate::audio::Label;
+    match label {
+        Label::Inputs => texts.get_audio_inputs(),
+        Label::Outputs => texts.get_audio_outputs(),
+        Label::Auto(Some(name)) => texts.invoke_audio_auto(name.as_str().into()),
+        Label::Auto(None) => texts.get_audio_auto_none(),
+        Label::NoAudio => texts.get_audio_no_audio(),
+        Label::SystemDefault(Some(name)) => texts.invoke_audio_system_default(name.as_str().into()),
+        Label::SystemDefault(None) => texts.get_audio_system_default_unnamed(),
+        Label::Plain(text) => text.as_str().into(),
+    }
+}
+
 /// The name of an automatic mode choice; a manual one has none.
 fn auto_name(choice: &capture::mode::ModeChoice, texts: &Texts) -> slint::SharedString {
     use capture::mode::ModeChoice as C;

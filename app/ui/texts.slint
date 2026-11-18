@@ -74,6 +74,20 @@ export global Texts {
         @tr("{} FPS", fps)
     }
     out property <string> custom-resolution: @tr("Custom");
+    // The Audio menu (preview audio FR-008, FR-009, FR-022): its group headers, the Auto row with
+    // the paired input's name, No audio, and the System default row with the default output's
+    // name (without a name when the system has no output).
+    out property <string> audio-inputs: @tr("Input");
+    out property <string> audio-outputs: @tr("Output");
+    public pure function audio-auto(input: string) -> string {
+        @tr("Auto ({})", input)
+    }
+    out property <string> audio-auto-none: @tr("Auto (none)");
+    out property <string> audio-no-audio: @tr("No audio");
+    public pure function audio-system-default(output: string) -> string {
+        @tr("System default ({})", output)
+    }
+    out property <string> audio-system-default-unnamed: @tr("System default");
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
     out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
     out property <string> already-open: @tr("CapturaX is already open.");

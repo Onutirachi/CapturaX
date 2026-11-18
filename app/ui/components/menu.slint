@@ -30,6 +30,9 @@ export struct MenuItem {
     aspect: string,
     // Shown but not selectable (default false, so a menu built without it is all enabled).
     disabled: bool,
+    // Marked as chosen besides the menu's `current` (a menu with a choice per group: the Audio
+    // dropdown's input and output).
+    checked: bool,
     // A grid menu's cell: the icon in the muted tone and its part drawn in the accent.
     icon: image,
     accent: image,
@@ -291,14 +294,14 @@ export component MenuLayer inherits Rectangle {
                         height: root.cell-height;
                         border-radius: Theme.radius-s;
                         background: !self.selectable ? transparent
-                            : i == Menus.current ? Theme.c.press
+                            : i == Menus.current || item.checked ? Theme.c.press
                             : i == Menus.highlighted ? Theme.c.hover
                             : transparent;
                         opacity: item.disabled ? 0.35 : 1;
                         accessible-role: list-item;
                         accessible-label: item.text;
                         accessible-enabled: self.selectable;
-                        accessible-item-selected: i == Menus.current;
+                        accessible-item-selected: i == Menus.current || item.checked;
                         accessible-item-index: i;
                         accessible-action-default => { Menus.pick(i); }
 
@@ -346,14 +349,14 @@ export component MenuLayer inherits Rectangle {
                         height: self.header ? 30px : item.detail != "" ? 48px : 36px;
                         border-radius: Theme.radius-s;
                         background: !self.selectable ? transparent
-                            : i == Menus.current ? Theme.c.press
+                            : i == Menus.current || item.checked ? Theme.c.press
                             : i == Menus.highlighted ? Theme.c.hover
                             : transparent;
                         accessible-role: list-item;
                         accessible-label: item.text;
                         accessible-description: item.detail;
                         accessible-enabled: self.selectable;
-                        accessible-item-selected: i == Menus.current;
+                        accessible-item-selected: i == Menus.current || item.checked;
                         accessible-item-index: i;
                         accessible-action-default => { Menus.pick(i); }
 

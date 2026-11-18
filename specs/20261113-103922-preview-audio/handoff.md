@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-17 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-18 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -395,11 +395,13 @@ Volume (2026-11-17, T030–T032 done; committed in `feat: add the preview volume
   its `volume-3` is the speaker with an X: `volume_1` is `volume-2` without its wave, `volume_off`
   is `volume-3` (the mockup's muted speaker); noted in the icons' LICENSE, T030 and research R12.
 - T031: `app/ui/components/volume-popover.slint` (`VolumeButton` with its popover, `VolumeSlider`).
-  The popover is a child of the button inside the chrome, not in the top layer, so Tab goes from
-  the button into the popover (mute, slider) and then to settings; arrows ±5, Home/End on the
-  slider; the popover keeps the chrome shown and closes when the chrome hides or the settings
-  open. `IconButton` gained `takes-wheel`/`wheel`, `right-pressed`, and an empty tooltip hides the
-  shown one (the button's tooltip is empty while the popover shows).
+  The popover is a child of the button inside the chrome, not in the top layer; it holds only
+  the slider and its value and takes no focus (FR-011 as changed 2026-11-18, see below); it keeps
+  the chrome shown and closes when the chrome hides or the settings open. `IconButton` gained
+  `takes-wheel`/`wheel`, `right-pressed`, `takes-hold`/`held` (a 500 ms press; its release clicks
+  nothing), `key` (keys other than Enter and Space), `label` (the screen reader name, the tooltip
+  by default), and an empty tooltip hides the shown one (the button's tooltip is empty while the
+  popover shows).
 - Touch: no touch reached the UI before (winit handles Windows' pointer messages itself, so
   Windows makes no mouse events from touches; Wayland neither). `ui.rs` now forwards the first
   finger as the left button and sets the new `Input.touch` (Slint's public pointer events carry
@@ -441,10 +443,54 @@ Input and output choice (2026-11-17, T034 done, committed in `feat: add the audi
   themselves: the open side's own `Error` acts.
 - Menu model: `audio::Item { text: Label, current, pick: Option<Pick> }`, `menu()` (`Input`
   group only while a video device is open: Auto with the pair's name or None, every input, No
-  audio; then `Output`: System default with the default's name, every output), `output_items()`
-  for the popover's select, `value()` for the select's value. A missing chosen endpoint is not
+  audio; then `Output`: System default with the default's name, every output), `value()` for
+  the select's value. A missing chosen endpoint is not
   offered and nothing in its group is marked. Input `Error`s are still only logged (T040).
 - Checked on Windows: fmt, clippy (app, all targets), 191 app tests (19 new in `audio.rs`).
+
+Audio select (2026-11-18, T035 done, committed in `feat: add the audio select`):
+
+- Toolbar: the fourth select `Audio` (icon `volume`, `volume_off` for No audio); its value is
+  `AudioController::value` shown through the select's `shown`. Its `current` is the input row in
+  use, -1 without a video device, so the button shows no value then; the select stays enabled
+  without a video device and its menu holds only the `Output` group (System default, every
+  output). The narrow toolbar's icon look counts four selects.
+- `MenuItem` gained `checked`: a menu with a choice per group marks both the input and the output
+  in use (`Menus.current` marks one row only). `ui::audio_item`/`audio_label` turn
+  `audio::Item`/`Label` into rows.
+- `app.rs`: `show_audio()` (called by `show_menus`, after every `UserEvent::Audio`, and after a
+  pick) keeps `AudioMenus` (menu, output rows, value) and sets the Slint models when they change.
+  A pick writes `[devices."<id>"] audio` (`touch_device` with the video device's base name) or
+  `[audio] output` and then sends `Event::Input`/`Event::Output`. `AudioController::video()` and
+  `Sound::controller()` added; `default_output()` is now test-only.
+- **Chosen here**: `System default` without a name when the system has no output (a text not in
+  FR-022; pt-BR `Padrão do sistema`). Texts added to the catalog: `Audio`, `Input`, `Output`,
+  `Auto ({})`, `Auto (none)`, `No audio`, `System default ({})`, `System default`.
+- Checked on Windows: fmt, clippy (app, all targets), 191 app tests. The app (debug, no video
+  device usable here: NVIDIA Broadcast's camera was in use) showed the Audio select in the icon
+  look, its menu with `Saída` and the default checked, and a pick of the G533 written to
+  `[audio] output` and back to `default`. The Input group was not seen (needs the ezcap or the
+  C920: T036).
+
+Volume popover and output change (maintainer, 2026-11-18, during T036; folded into `feat: add
+the preview volume` and `feat: add the audio select`, the spec updated first):
+
+- The output is one for the app and is chosen in the Audio menu only (FR-009): the popover's
+  Output select is gone (`OutputPicked`, the `outputs` rows of `AudioMenus` and `Select.expanded`
+  with it; `output_items()` is private to the menu).
+- The popover holds the slider and its value only (no mute button: two speaker icons side by side
+  looked wrong). The button does everything: click mutes; touch tap opens, a 500 ms hold mutes;
+  the keyboard stops on the button once (its focus shows the popover, which takes no focus),
+  Enter/Space mutes, arrows ±5 and Home/End move the level (FR-011). Texts `Mute` and `Unmute`
+  left the catalog.
+- T033 is open again for the mouse and keyboard behaviors (no touch screen on either PC).
+- Found in T036 (Linux, 2026-11-18): the C920 picked as the ezcap's input and unplugged gives the
+  input `Gone`, which is only logged; the session stays "Playing", so the C920's `Added` reopens
+  nothing and the select still names it. This is T040/T041's work (`Disconnected`, reopen on
+  `Added`, the tag); the input unplug is checked in T042, not T036.
+- Maintainer, 2026-11-18 on CachyOS (ezcap and C920, release with this change): the new popover
+  with mouse and keyboard (T033's Linux recheck) and T036's Linux half are ok. No headset on that
+  PC: plugging a headset that becomes the default and the G533 unplug are checked on Windows.
 
 ## Done in the last sessions
 
@@ -484,8 +530,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Phase 5 (US3, input and output choice): T035 (the Audio select and the picks' settings
-   writes in `app.rs`, using `AudioController::menu`/`output_items`/`value`). The CachyOS clone is at `cd030f1`,
-   release built there.
-2. With the ezcap still on CachyOS: the Linux halves of T036, T042, T044 as their code lands;
-   T028 and T039 when the ezcap moves to Windows.
+1. Next code: US5 (T040, T041: audio states, reopen on `Added`, the menu header and tags), so
+   T042's Linux half (and T044's, as its code lands) can run while the ezcap and the C920 are
+   still on CachyOS.
+2. Windows, when the ezcap moves there: T033's mouse and keyboard recheck, T036's Windows half
+   (with the headset and G533 steps), T028, T039, and the Windows halves of T042 and T044.

@@ -90,6 +90,15 @@ pub enum UserEvent {
     Audio(crate::audio::Event),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
+    /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
+    AudioPicked(i32),
+}
+
+/// The Audio select's menu and value last shown, whose rows the picks index.
+#[derive(Debug, PartialEq)]
+struct AudioMenus {
+    menu: Vec<crate::audio::Item>,
+    value: Option<crate::audio::Label>,
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -171,6 +180,7 @@ pub struct App {
     preview: Preview,
     /// The device and mode menus last shown, whose rows the toolbar's picks index.
     menus: Option<(Vec<preview::Item>, Vec<preview::Item>)>,
+    audio_menus: Option<AudioMenus>,
     /// The device monitor, unless the test video plays or GStreamer cannot start.
     monitor_devices: Option<capture::Monitor>,
     /// Camera access when the monitor started or was last checked: a monitor started while
@@ -333,6 +343,8 @@ impl App {
         });
         let on = send.clone();
         ui.app.on_volume_wheel(move |delta| on(UserEvent::VolumeWheel(delta)));
+        let on = send.clone();
+        ui.app.on_audio_picked(move |index| on(UserEvent::AudioPicked(index)));
         bind_prefs(&ui, &store, send);
         // The Presentation setting reaches the video thread before it starts (FR-022).
         let inbox = Arc::new(Inbox::default());
@@ -355,6 +367,7 @@ impl App {
             test_video: None,
             preview: Preview::with_access(camera_access),
             menus: None,
+            audio_menus: None,
             monitor_devices: None,
             monitor_access: capture::Access::Unknown,
             relisting: None,
@@ -515,6 +528,8 @@ impl App {
     /// Shows the device and mode menus when they changed (a device came or left, another one
     /// opened, a stored choice changed); an open menu follows at once (spec edge case).
     fn show_menus(&mut self) {
+        // The Audio menu follows the open video device.
+        self.show_audio();
         let menus = self.preview.menus(&self.store.get());
         self.ui.app.set_modes_reachable(self.preview.modes_reachable());
         self.ui
@@ -547,7 +562,85 @@ impl App {
     /// preview may not follow.
     fn reset_menus(&mut self) {
         self.menus = None;
+        self.audio_menus = None;
         self.show_menus();
+    }
+
+    /// Shows the Audio select's menu and value when they changed (an
+    /// audio device came or left, the default output changed, a video device opened or closed, a
+    /// choice changed). The select's row is the input in use: none without a video device, so its
+    /// value stays empty then.
+    fn show_audio(&mut self) {
+        let menus = {
+            let Some(sound) = &self.sound else {
+                return;
+            };
+            let settings = self.store.get();
+            let controller = sound.controller();
+            AudioMenus {
+                menu: controller.menu(&settings),
+                value: controller.value(&settings),
+            }
+        };
+        if self.audio_menus.as_ref() == Some(&menus) {
+            return;
+        }
+        let app = &self.ui.app;
+        let texts = Texts::get(app);
+        let model = |items: &[crate::audio::Item]| {
+            let rows: Vec<MenuItem> = items.iter().map(|i| crate::ui::audio_item(i, &texts)).collect();
+            slint::ModelRc::new(slint::VecModel::from(rows))
+        };
+        let current = menus
+            .menu
+            .iter()
+            .position(|i| i.current && matches!(i.pick, Some(crate::audio::Pick::Input(_))))
+            .map_or(-1, |i| i32::try_from(i).unwrap_or(-1));
+        app.set_audio_current(current);
+        app.set_audio_items(model(&menus.menu));
+        app.set_audio_value(
+            menus
+                .value
+                .as_ref()
+                .map_or_else(Default::default, |label| crate::ui::audio_label(label, &texts)),
+        );
+        app.set_audio_off(menus.value == Some(crate::audio::Label::NoAudio));
+        self.audio_menus = Some(menus);
+        self.request_redraw();
+    }
+
+    /// Stores an Audio menu pick and hands it to the sound (FR-008, FR-009): the input choice per
+    /// video device (`[devices."<id>"] audio`), the output for the app (`[audio] output`).
+    fn audio_picked(&mut self, index: i32) {
+        let pick = self
+            .audio_menus
+            .as_ref()
+            .and_then(|menus| menus.menu.get(usize::try_from(index).ok()?)?.pick.clone());
+        let Some(sound) = &mut self.sound else {
+            return;
+        };
+        let event = match pick {
+            Some(crate::audio::Pick::Input(choice)) => {
+                let Some(video) = sound.controller().video().cloned() else {
+                    log::warn!("audio menu: input {choice} picked without a video device");
+                    return;
+                };
+                log::info!("audio input {choice} chosen for {}", video.id);
+                self.store
+                    .update(|s| s.touch_device(&video.id, &video.base_name).audio = choice.to_string());
+                crate::audio::Event::Input(choice)
+            }
+            Some(crate::audio::Pick::Output(choice)) => {
+                log::info!("audio output {choice} chosen");
+                self.store.update(|s| s.audio.output = choice.to_string());
+                crate::audio::Event::Output(choice)
+            }
+            None => {
+                log::warn!("audio menu: row {index} picks nothing");
+                return;
+            }
+        };
+        sound.handle(event, &self.store.get());
     }
 
     /// What a pick of row `index` of a menu does, if it does anything.
@@ -1681,6 +1774,13 @@ impl ApplicationHandler<UserEvent> for App {
                 if let Some(sound) = &mut self.sound {
                     sound.handle(event, &self.store.get());
                 }
+                self.show_audio();
+            }
+            // A select marks the row picked itself: the menus are shown again from the choices.
+            UserEvent::AudioPicked(index) => {
+                self.audio_picked(index);
+                self.audio_menus = None;
+                self.show_audio();
             }
             // The level moves and the sound plays again, as with the slider.
             UserEvent::VolumeWheel(delta) => {

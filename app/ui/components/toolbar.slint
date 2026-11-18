@@ -1,6 +1,6 @@
 // The toolbar (research R13, FR-002, FR-002a, FR-010): a dock like the side docks, floating at the
 // top center of the video area, holding the preview's dropdowns in the Float order device, mode,
-// color range, as wide as they are with 6 px gaps. It slides away with the docks. The dropdowns
+// color range, audio (preview audio FR-008), as wide as they are with 6 px gaps. It slides away with the docks. The dropdowns
 // show their full look (icon, title, value) while the room fits all of them at 280 px, sharing it
 // up to 305 px each; below that all of them show the icon look together. The keyboard reaches it
 // before the docks (it comes first in main.slint).
@@ -35,7 +35,17 @@ export component Toolbar inherits Raised {
     in-out property <int> color-range;
     in property <bool> range-full;
     callback color-range-changed(int);
-    out property <bool> has-focus: device-select.has-focus || mode-select.has-focus || range-select.has-focus;
+    // The Audio menu (app/src/ui.rs builds it from app/src/audio.rs): the Input group while a
+    // device is open, then the Output group, the choices in use checked; `audio-current` is the
+    // input's row (or the output's), where the keyboard starts. The value is the input choice;
+    // `audio-off` shows the muted speaker (No audio).
+    in property <[MenuItem]> audio-items;
+    in-out property <int> audio-current: -1;
+    in property <string> audio-value;
+    in property <bool> audio-off;
+    callback audio-picked(int);
+    out property <bool> has-focus: device-select.has-focus || mode-select.has-focus || range-select.has-focus
+        || audio-select.has-focus;
 
     // Opens the device menu, which takes the keyboard (the state message's action, US2 scenario 5).
     public function open-device-menu() {
@@ -44,7 +54,7 @@ export component Toolbar inherits Raised {
 
     // The dropdowns' widths (research R13 "Toolbar and docks at any size"): the full look from
     // 280 px (the mode's value and its two tags, measured) up to 305 px, else the icon look's 56 px.
-    property <int> count: 3;
+    property <int> count: 4;
     property <length> gap: 6px;
     property <length> pad: 8px;
     property <length> chrome: 2 * root.pad + (root.count - 1) * root.gap;
@@ -100,6 +110,19 @@ export component Toolbar inherits Raised {
             current <=> root.color-range;
             shown: root.color-range != 0 ? "" : root.range-full ? @tr("Auto (Full)") : @tr("Auto (Limited)");
             selected(index) => { root.color-range-changed(index); }
+        }
+
+        audio-select := Select {
+            width: root.select-width;
+            title: @tr("Audio");
+            label: @tr("Audio");
+            icon: root.audio-off ? @image-url("../assets/icons/volume_off.svg") : @image-url("../assets/icons/volume.svg");
+            icon-only: !root.full;
+            focusable: root.focusable;
+            items: root.audio-items;
+            current <=> root.audio-current;
+            shown: root.audio-value;
+            selected(index) => { root.audio-picked(index); }
         }
     }
 }
