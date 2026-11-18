@@ -124,8 +124,9 @@ Force each state, in English and Portuguese, and use its action:
 | Output fallback | pick the G533, then unplug its receiver; plug it back: sound moves back |
 
 Closing: 100 closes in a row with sound playing on each system (switching the video device back
-and forth, and quitting with `--stats`), none over 1 s in the log, no hang of the app or of the
-system's sound.
+and forth, and quitting with `--stats`), none over 1 s in the log (`audio session N closed in X ms`
+after a switch, `closed X ms into the quit` at a quit; a `did not close within` line fails), no hang
+of the app or of the system's sound.
 
 ## Acceptance (SC-009)
 

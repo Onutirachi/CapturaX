@@ -340,3 +340,24 @@ msgstr "Padrão do sistema ({})"
 
 msgid "System default"
 msgstr "Padrão do sistema"
+
+msgid "Disconnected"
+msgstr "Desconectado"
+
+msgid "Blocked"
+msgstr "Bloqueado"
+
+msgid "Failed"
+msgstr "Falhou"
+
+msgid "No paired audio"
+msgstr "Sem áudio pareado"
+
+msgid "Choose an input"
+msgstr "Escolha uma entrada"
+
+msgid "Audio device in use"
+msgstr "Dispositivo de áudio em uso"
+
+msgid "Playing on the system default"
+msgstr "Tocando na saída padrão"

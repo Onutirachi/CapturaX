@@ -104,8 +104,8 @@ Transitions (beyond the table): `Disconnected` → `Opening` on the input's `Add
 retry: Windows does not say when the other app releases the device), with one exception: an
 output side that failed while playing on the system default is reopened when `DefaultOutput`
 names an output again (Linux after PipeWire restarts; research R7); `Blocked` → `Opening`
-when the privacy switch reads Allowed again (checked when the window regains focus, as the
-camera's).
+when the privacy switch, read every 3 s while `Blocked` as the camera's (device preview FR-021),
+was read off and then no longer reads off.
 
 ## Bridge (research R4)
 

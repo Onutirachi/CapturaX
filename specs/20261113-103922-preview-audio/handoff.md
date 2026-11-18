@@ -492,6 +492,46 @@ the preview volume` and `feat: add the audio select`, the spec updated first):
   with mouse and keyboard (T033's Linux recheck) and T036's Linux half are ok. No headset on that
   PC: plugging a headset that becomes the default and the G533 unplug are checked on Windows.
 
+Audio states (2026-11-18, T040 and T041 done, committed in `feat: add the audio states`):
+
+- `AudioState` gained `Blocked`, `Held(name)` and `Failed(name)`. **Chosen here**: `Held` comes
+  now, not with T038, because a side's `InUse` needs a state and T041 already shows `In use`;
+  T038 keeps the exclusive flags and `InUse` (`SharedAfterInUse`).
+- An input `Error` closes the session: `Gone` → `Disconnected(name)` (the input leaves the list at
+  once; a later `Added` with its id opens it, other inputs and a list read again change nothing, so
+  Auto's pair that left stays Disconnected, not No paired audio), `Blocked` → `Blocked`, `InUse` →
+  `Held`, `Format`/`Failed` → `Failed`. This fixes T036's C920 unplug finding.
+- Microphone access is read before opening (`Denied` → `Blocked`, nothing opened) and every 3 s
+  while Blocked (app tick, as the camera); it opens once a read went off and then no longer is.
+  **Changed in the spec first**: data-model.md said "when the window regains focus, as the
+  camera's", but the camera reads every 3 s; data-model.md and T040's text now say 3 s.
+- Output on the system default: `Failed`/`Format`/`Blocked` → `Failed(default name)`, `InUse` →
+  `Held(default name)`, the input side kept; it reopens when `DefaultOutput` names an output
+  (state back to Opening) or on Try again (new session). `Gone` → Opening without a tag (Windows
+  names the next default at once). A chosen output's errors still fall back with the flag.
+- Try again works in `Held`/`Failed` only (close + resolve). Nothing retries by itself (the
+  monitor's list changes nothing in these states).
+- Menu: `Label::Notice` (kind `state`: title bold, detail below, on a `top` well; 54 px with a
+  detail, 36 without) and `Label::Action` (kind `action`: a soft accent chip, 40 px, picked like
+  any row so the keyboard reaches it; `Pick::Action` → `Event::TryAgain` or
+  `platform::open_privacy(Microphone)`). The fallback notice shows while Playing.
+- Select: `state-tag`/`state-tag-kind` (`warn`: Disconnected, In use; `bad`: Blocked, Failed) shows
+  the tag before the value, turns the icon into `alert_triangle` in that tone (also the icon look)
+  and starts the tooltip with it. `Tag` gained the `warn` and `bad` kinds (tone on a soft fill).
+- FR-018: `show_audio` drops the notice and tag unless the preview is Opening, Playing or No
+  signal (an input that leaves a moment before its video), and `show_preview_state` calls it.
+- Texts added (pt-BR in the catalog): `Disconnected`, `Blocked`, `Failed`, `No paired audio`,
+  `Choose an input`, `Audio device in use`, `Playing on the system default`; reused `In use`,
+  `{} disconnected`, `Waiting to reconnect`, `Access blocked`, `Desktop app permission is off`,
+  `Cannot open {}`, `Try again`, `Open privacy settings`. `Failed` of a default without a name
+  says `Cannot open System default`.
+- Checked on Windows: fmt, clippy (app, all targets), 205 app tests (14 new).
+- Maintainer, 2026-11-18 on CachyOS (release with this change): the C920 picked as the ezcap's
+  input and unplugged shows the `Disconnected` tag and header, and its sound returns by itself when
+  plugged back. The C920 under Auto pairs its own microphone (accepted), so No paired audio needs a
+  camera without one (NVIDIA Broadcast on Windows). The CachyOS clone was moved to this branch's
+  head; its old state is in `stash@{0}` and the branch `backup/07b88fe` (nothing new in either).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -530,8 +570,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Next code: US5 (T040, T041: audio states, reopen on `Added`, the menu header and tags), so
-   T042's Linux half (and T044's, as its code lands) can run while the ezcap and the C920 are
-   still on CachyOS.
+1. T042's Linux half (and T044's) while the ezcap and the C920 are on CachyOS: every state
+   forced in both languages, and the 100 closes.
 2. Windows, when the ezcap moves there: T033's mouse and keyboard recheck, T036's Windows half
    (with the headset and G533 steps), T028, T039, and the Windows halves of T042 and T044.

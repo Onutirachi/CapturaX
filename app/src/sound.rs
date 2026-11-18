@@ -168,8 +168,8 @@ pub struct Sound {
     controller: AudioController,
     monitor: Option<Monitor>,
     open: Option<Open>,
-    /// The sessions asked to close whose `Closed` has not come, by number.
-    closing: Vec<(u64, Arc<Closed>)>,
+    /// The sessions asked to close whose `Closed` has not come: number, flag, when asked.
+    closing: Vec<(u64, Arc<Closed>, Instant)>,
     /// Some with `--stats`.
     stats: Option<StatsClock>,
     proxy: EventLoopProxy<UserEvent>,
@@ -305,7 +305,14 @@ impl Sound {
     pub fn handle(&mut self, event: Event, settings: &settings::Settings) {
         match &event {
             Event::Session(SessionEvent::Closed { number }) => {
-                self.closing.retain(|(closing, _)| closing != number);
+                if let Some(at) = self.closing.iter().position(|(closing, ..)| closing == number) {
+                    let (_, _, asked) = self.closing.swap_remove(at);
+                    // SC-008: every close under 1 s, read from this line (quickstart).
+                    log::info!(
+                        "audio session {number} closed in {:.0} ms",
+                        asked.elapsed().as_secs_f64() * 1e3
+                    );
+                }
             }
             Event::Session(event @ SessionEvent::Opened { .. }) => {
                 log::info!("audio: {event:?}");
@@ -384,7 +391,7 @@ impl Sound {
     fn close(&mut self) {
         if let Some(mut open) = self.open.take() {
             open.session.close();
-            self.closing.push((open.number, open.closed));
+            self.closing.push((open.number, open.closed, Instant::now()));
         }
         if let Some(clock) = &mut self.stats {
             clock.next = None;
@@ -398,7 +405,7 @@ impl Sound {
         self.close();
         let deadline = Instant::now() + CLOSE_WAIT;
         let started = Instant::now();
-        for (number, closed) in self.closing.drain(..) {
+        for (number, closed, _) in self.closing.drain(..) {
             if closed.wait_until(deadline) {
                 log::info!(
                     "audio session {number} closed {:.0} ms into the quit",

@@ -99,6 +99,8 @@ pub enum UserEvent {
 struct AudioMenus {
     menu: Vec<crate::audio::Item>,
     value: Option<crate::audio::Label>,
+    /// The state's tag before the value.
+    tag: Option<crate::audio::StateTag>,
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -196,6 +198,8 @@ pub struct App {
     tick_wall: Option<SystemTime>,
     /// The next 3 s re-read while the preview waits for a device.
     relist_at: Instant,
+    /// When microphone access is read next while the audio input is Blocked.
+    audio_access_at: Instant,
     /// The open device's session, and when it was asked for (SC-004).
     session: Option<(capture::Session, Instant)>,
     /// The open device, for the `[source]` line of `--stats` (contracts/stats.md).
@@ -375,6 +379,7 @@ impl App {
             tick_at: Instant::now(),
             tick_wall: None,
             relist_at: Instant::now(),
+            audio_access_at: Instant::now(),
             session: None,
             source: None,
             second: crate::stats::Summary::EMPTY,
@@ -490,7 +495,8 @@ impl App {
 
     /// The main loop's tick: a wake from sleep reopens the device (spec edge case), while the
     /// preview waits for a device the list is read again every 3 s (research R1), and while a
-    /// listed device is blocked camera access is read every 3 s (FR-021).
+    /// listed device is blocked camera access is read every 3 s (FR-021), and microphone access
+    /// while the audio input is Blocked.
     fn tick(&mut self, now: Instant) {
         let wall = SystemTime::now();
         let since = self
@@ -522,6 +528,15 @@ impl App {
             // Blocked with the device listed: only camera access is read (FR-021).
             self.relist_at = now + RELIST_EVERY;
             self.preview_event(preview::Event::AccessCheck);
+        }
+        // The audio input is Blocked: microphone access is read (preview audio data-model.md).
+        if let Some(sound) = &mut self.sound
+            && sound.controller().watches_access()
+            && now >= self.audio_access_at
+        {
+            self.audio_access_at = now + RELIST_EVERY;
+            sound.handle(crate::audio::Event::AccessCheck, &self.store.get());
+            self.show_audio();
         }
     }
 
@@ -577,9 +592,22 @@ impl App {
             };
             let settings = self.store.get();
             let controller = sound.controller();
+            let mut menu = controller.menu(&settings);
+            let mut tag = controller.tag();
+            // A video state shows in the video area: the audio says nothing of it (FR-018), also
+            // when its input left a moment before the video did.
+            if !matches!(
+                self.preview.state(),
+                PreviewState::Opening(_) | PreviewState::Playing | PreviewState::NoSignal(_)
+            ) {
+                use crate::audio::Label;
+                menu.retain(|i| !matches!(i.text, Label::Notice(_) | Label::Action(_)));
+                tag = None;
+            }
             AudioMenus {
-                menu: controller.menu(&settings),
+                menu,
                 value: controller.value(&settings),
+                tag,
             }
         };
         if self.audio_menus.as_ref() == Some(&menus) {
@@ -605,6 +633,9 @@ impl App {
                 .map_or_else(Default::default, |label| crate::ui::audio_label(label, &texts)),
         );
         app.set_audio_off(menus.value == Some(crate::audio::Label::NoAudio));
+        let (tag, tag_kind) = crate::ui::audio_tag(menus.tag, &texts);
+        app.set_audio_tag(tag);
+        app.set_audio_tag_kind(tag_kind.into());
         self.audio_menus = Some(menus);
         self.request_redraw();
     }
@@ -634,6 +665,11 @@ impl App {
                 log::info!("audio output {choice} chosen");
                 self.store.update(|s| s.audio.output = choice.to_string());
                 crate::audio::Event::Output(choice)
+            }
+            Some(crate::audio::Pick::Action(crate::audio::Action::TryAgain)) => crate::audio::Event::TryAgain,
+            Some(crate::audio::Pick::Action(crate::audio::Action::OpenPrivacy)) => {
+                platform::open_privacy(platform::Capability::Microphone);
+                return;
             }
             None => {
                 log::warn!("audio menu: row {index} picks nothing");
@@ -799,6 +835,8 @@ impl App {
         app.set_state_title(title.into());
         app.set_state_detail(detail.into());
         self.show_info();
+        // The audio state hides behind a video state (FR-018).
+        self.show_audio();
     }
 
     /// Shows the info bubbles (FR-016) while a device plays: its name and mode, and the frame rate

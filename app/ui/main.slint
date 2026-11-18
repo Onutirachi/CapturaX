@@ -88,6 +88,9 @@ export component AppWindow inherits Window {
     in-out property <int> audio-current: -1;
     in property <string> audio-value;
     in property <bool> audio-off;
+    // The audio state's tag and its kind (components/toolbar.slint).
+    in property <string> audio-tag;
+    in property <string> audio-tag-kind;
     callback audio-picked(int);
     // The info bubbles (components/info-bubbles.slint), set by Rust once per second; a bubble with
     // an empty text is left out. The displays are numbered as `InfoBubbles` documents them.
@@ -322,6 +325,8 @@ export component AppWindow inherits Window {
                 audio-current <=> root.audio-current;
                 audio-value: root.audio-value;
                 audio-off: root.audio-off;
+                audio-tag: root.audio-tag;
+                audio-tag-kind: root.audio-tag-kind;
                 audio-picked(index) => { root.audio-picked(index); }
             }
         }

@@ -19,6 +19,8 @@ import { Tag } from "tag.slint";
 export struct MenuItem {
     text: string,
     // `item` (or empty) or `header`: a header names the group below it and cannot be picked.
+    // `state`: a state's title in bold over its detail on a well, not picked (the Audio menu's
+    // first row, preview audio FR-017); `action`: the state's action as a button-like row.
     kind: string,
     // A second line under the text.
     detail: string,
@@ -76,7 +78,7 @@ export global Menus {
     pure callback with-header(title: string, items: [MenuItem]) -> [MenuItem];
 
     public pure function selectable(item: MenuItem) -> bool {
-        return item.kind != "header" && !item.disabled;
+        return item.kind != "header" && item.kind != "state" && !item.disabled;
     }
 
     // A new owner id for a control that opens menus; call it once, from `init`.
@@ -345,10 +347,15 @@ export component MenuLayer inherits Rectangle {
 
                     for item[i] in Menus.items: row := Rectangle {
                         property <bool> header: item.kind == "header";
+                        property <bool> state: item.kind == "state";
+                        property <bool> action: item.kind == "action";
                         property <bool> selectable: Menus.selectable(item);
-                        height: self.header ? 30px : item.detail != "" ? 48px : 36px;
+                        // Must match `MenuRow` in app/src/ui.rs.
+                        height: self.header ? 30px : self.state ? (item.detail != "" ? 54px : 36px)
+                            : self.action ? 40px : item.detail != "" ? 48px : 36px;
                         border-radius: Theme.radius-s;
-                        background: !self.selectable ? transparent
+                        background: self.state ? Theme.c.top
+                            : !self.selectable || self.action ? transparent
                             : i == Menus.current || item.checked ? Theme.c.press
                             : i == Menus.highlighted ? Theme.c.hover
                             : transparent;
@@ -370,7 +377,61 @@ export component MenuLayer inherits Rectangle {
                             }
                         }
 
-                        HorizontalLayout {
+                        if row.state: VerticalLayout {
+                            alignment: center;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            spacing: 2px;
+                            Text {
+                                text: item.text;
+                                color: Theme.c.text;
+                                font-size: Theme.text-m;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                            if item.detail != "": Text {
+                                text: item.detail;
+                                color: Theme.c.text-muted;
+                                font-size: Theme.text-s;
+                                overflow: elide;
+                            }
+                        }
+
+                        // The action as the mockup's soft accent button, left in its row.
+                        if row.action: HorizontalLayout {
+                            alignment: start;
+                            padding-left: 6px;
+                            padding-top: 4px;
+                            padding-bottom: 4px;
+                            action-chip := Rectangle {
+                                border-radius: Theme.radius-s;
+                                background: Theme.c.accent-soft;
+                                Rectangle {
+                                    border-radius: parent.border-radius;
+                                    background: item-area.pressed ? Theme.c.press
+                                        : i == Menus.highlighted ? Theme.c.hover
+                                        : transparent;
+                                }
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    Text {
+                                        text: item.text;
+                                        color: Theme.c.accent-text;
+                                        font-size: Theme.text-m;
+                                        font-weight: 600;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                FocusRing {
+                                    focused: i == Menus.highlighted;
+                                    radius: Theme.radius-s;
+                                    offset: -Theme.focus-ring;
+                                }
+                            }
+                        }
+
+                        if !row.state && !row.action: HorizontalLayout {
                             padding-left: 12px;
                             padding-right: 12px;
                             spacing: 10px;
@@ -423,7 +484,7 @@ export component MenuLayer inherits Rectangle {
                         }
 
                         FocusRing {
-                            focused: row.selectable && i == Menus.highlighted;
+                            focused: row.selectable && !row.action && i == Menus.highlighted;
                             radius: Theme.radius-s;
                             // Inside the item, so the list's clip does not cut it.
                             offset: -Theme.focus-ring;

@@ -88,6 +88,18 @@ export global Texts {
         @tr("System default ({})", output)
     }
     out property <string> audio-system-default-unnamed: @tr("System default");
+    // The Audio states (preview audio FR-017, FR-022): the tags before the select's value ("In
+    // use" is `preview-in-use`), and the titles and details at the top of its menu that the
+    // video states do not already have; the actions are the state message's.
+    out property <string> audio-tag-disconnected: @tr("Disconnected");
+    out property <string> audio-tag-blocked: @tr("Blocked");
+    out property <string> audio-tag-failed: @tr("Failed");
+    out property <string> audio-no-pair: @tr("No paired audio");
+    out property <string> audio-choose-input: @tr("Choose an input");
+    out property <string> audio-in-use: @tr("Audio device in use");
+    out property <string> audio-playing-on-default: @tr("Playing on the system default");
+    out property <string> try-again: @tr("Try again");
+    out property <string> open-privacy: @tr("Open privacy settings");
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
     out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
     out property <string> already-open: @tr("CapturaX is already open.");

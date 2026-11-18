@@ -43,6 +43,10 @@ export component Toolbar inherits Raised {
     in-out property <int> audio-current: -1;
     in property <string> audio-value;
     in property <bool> audio-off;
+    // The audio state's tag before the value and its kind (`warn`, `bad`); empty when the sound
+    // plays as expected (preview audio FR-017). Its title, detail and action head the menu.
+    in property <string> audio-tag;
+    in property <string> audio-tag-kind;
     callback audio-picked(int);
     out property <bool> has-focus: device-select.has-focus || mode-select.has-focus || range-select.has-focus
         || audio-select.has-focus;
@@ -122,6 +126,8 @@ export component Toolbar inherits Raised {
             items: root.audio-items;
             current <=> root.audio-current;
             shown: root.audio-value;
+            state-tag: root.audio-tag;
+            state-tag-kind: root.audio-tag-kind;
             selected(index) => { root.audio-picked(index); }
         }
     }

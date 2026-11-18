@@ -121,22 +121,51 @@ pub fn menu_item(item: &crate::preview::Item, texts: &Texts) -> MenuItem {
 
 /// A row of the Audio menu as Slint shows it; the choices in use are checked (the menu marks an
 /// input and an output).
+/// The state's notice is a `state` row (its title, its detail below), its action an `action` row.
 pub fn audio_item(item: &crate::audio::Item, texts: &Texts) -> MenuItem {
+    use crate::audio::Label;
+    let (kind, detail) = match &item.text {
+        Label::Notice(notice) => ("state", audio_notice_detail(notice, texts)),
+        Label::Action(_) => ("action", Default::default()),
+        label if label.is_header() => ("header", Default::default()),
+        _ => ("", Default::default()),
+    };
     MenuItem {
         text: audio_label(&item.text, texts),
-        kind: if item.text.is_header() {
-            "header".into()
-        } else {
-            Default::default()
-        },
+        kind: kind.into(),
+        detail,
         checked: item.current,
         ..Default::default()
     }
 }
 
+/// The detail line of the Audio menu's notice (FR-022).
+fn audio_notice_detail(notice: &crate::audio::Notice, texts: &Texts) -> slint::SharedString {
+    use crate::audio::Notice;
+    match notice {
+        Notice::NoPair => texts.get_audio_choose_input(),
+        Notice::Disconnected(_) => texts.get_preview_disconnected_detail(),
+        Notice::Blocked => texts.get_preview_blocked_detail(),
+        Notice::Held | Notice::Failed(_) => Default::default(),
+        Notice::Fallback(_) => texts.get_audio_playing_on_default(),
+    }
+}
+
+/// The tag before the Audio select's value and its kind (`warn` or `bad`, tag.slint).
+pub fn audio_tag(tag: Option<crate::audio::StateTag>, texts: &Texts) -> (slint::SharedString, &'static str) {
+    use crate::audio::StateTag;
+    match tag {
+        None => (Default::default(), ""),
+        Some(StateTag::Disconnected) => (texts.get_audio_tag_disconnected(), "warn"),
+        Some(StateTag::InUse) => (texts.get_preview_in_use(), "warn"),
+        Some(StateTag::Blocked) => (texts.get_audio_tag_blocked(), "bad"),
+        Some(StateTag::Failed) => (texts.get_audio_tag_failed(), "bad"),
+    }
+}
+
 /// The text of an Audio menu label (also the Audio select's value) from the catalog.
 pub fn audio_label(label: &crate::audio::Label, texts: &Texts) -> slint::SharedString {
-    use crate::audio::Label;
+    use crate::audio::{Action, Label};
     match label {
         Label::Inputs => texts.get_audio_inputs(),
         Label::Outputs => texts.get_audio_outputs(),
@@ -146,6 +175,23 @@ pub fn audio_label(label: &crate::audio::Label, texts: &Texts) -> slint::SharedS
         Label::SystemDefault(Some(name)) => texts.invoke_audio_system_default(name.as_str().into()),
         Label::SystemDefault(None) => texts.get_audio_system_default_unnamed(),
         Label::Plain(text) => text.as_str().into(),
+        Label::Notice(notice) => {
+            use crate::audio::Notice;
+            match notice {
+                Notice::NoPair => texts.get_audio_no_pair(),
+                Notice::Disconnected(name) | Notice::Fallback(name) => {
+                    texts.invoke_preview_disconnected(name.as_str().into())
+                }
+                Notice::Blocked => texts.get_preview_blocked(),
+                Notice::Held => texts.get_audio_in_use(),
+                Notice::Failed(name) if name.is_empty() => {
+                    texts.invoke_preview_cannot_open(texts.get_audio_system_default_unnamed())
+                }
+                Notice::Failed(name) => texts.invoke_preview_cannot_open(name.as_str().into()),
+            }
+        }
+        Label::Action(Action::TryAgain) => texts.get_try_again(),
+        Label::Action(Action::OpenPrivacy) => texts.get_open_privacy(),
     }
 }
 
@@ -166,6 +212,9 @@ pub enum MenuRow {
     Header,
     Item,
     WithDetail,
+    /// A state's notice with its detail line (a notice without one is as tall as an item).
+    State,
+    Action,
 }
 
 impl MenuRow {
@@ -174,6 +223,19 @@ impl MenuRow {
             Self::Header => 30.0,
             Self::Item => 36.0,
             Self::WithDetail => 48.0,
+            Self::State => 54.0,
+            Self::Action => 40.0,
+        }
+    }
+
+    /// The row of a menu item (menu.slint's `row` heights).
+    fn of(item: &MenuItem) -> Self {
+        match (item.kind.as_str(), item.detail.is_empty()) {
+            ("header", _) => Self::Header,
+            ("action", _) => Self::Action,
+            (_, true) => Self::Item,
+            ("state", false) => Self::State,
+            (_, false) => Self::WithDetail,
         }
     }
 }
@@ -271,23 +333,15 @@ impl Ui {
         let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32, u32), slint::Image>::new());
         app.global::<Menus>().on_item_top(|items, index| {
             use slint::Model;
-            let rows: Vec<MenuRow> = items
-                .iter()
-                .map(|i| {
-                    if i.kind == "header" {
-                        MenuRow::Header
-                    } else if i.detail.is_empty() {
-                        MenuRow::Item
-                    } else {
-                        MenuRow::WithDetail
-                    }
-                })
-                .collect();
+            let rows: Vec<MenuRow> = items.iter().map(|i| MenuRow::of(&i)).collect();
             item_top(&rows, index)
         });
         app.global::<Menus>().on_next_selectable(|items, from, step| {
             use slint::Model;
-            let selectable: Vec<bool> = items.iter().map(|i| i.kind != "header" && !i.disabled).collect();
+            let selectable: Vec<bool> = items
+                .iter()
+                .map(|i| i.kind != "header" && i.kind != "state" && !i.disabled)
+                .collect();
             next_selectable(&selectable, from, step)
         });
         app.global::<Menus>().on_with_header(|title, items| {
@@ -631,6 +685,24 @@ mod tests {
         assert_eq!(item_top(&rows, 4) - MENU_SPACING, 156.0);
         assert_eq!(item_top(&rows, 9), item_top(&rows, 4));
         assert_eq!(item_top(&rows, -1), 0.0);
+    }
+
+    #[test]
+    fn menu_rows_follow_their_kind_and_detail() {
+        let row = |kind: &str, detail: &str| {
+            MenuRow::of(&MenuItem {
+                kind: kind.into(),
+                detail: detail.into(),
+                ..Default::default()
+            })
+        };
+        assert_eq!(row("header", ""), MenuRow::Header);
+        assert_eq!(row("", ""), MenuRow::Item);
+        assert_eq!(row("", "detail"), MenuRow::WithDetail);
+        assert_eq!(row("state", "Waiting to reconnect"), MenuRow::State);
+        // A notice without a detail line (Cannot open {}) is as tall as an item.
+        assert_eq!(row("state", ""), MenuRow::Item);
+        assert_eq!(row("action", ""), MenuRow::Action);
     }
 
     #[test]

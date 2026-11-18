@@ -10,7 +10,8 @@ use std::collections::HashMap;
 use ::audio::choice::{self, AudioChoice, OutputChoice, Resolved};
 use ::audio::pairing::{self, VideoKey};
 use ::audio::volume::VolumeIcon;
-use platform::audio::{AudioEvent, Endpoint, Flow, SessionEvent, SessionRequest, Side};
+use platform::Access;
+use platform::audio::{AudioError, AudioEvent, Endpoint, Flow, SessionEvent, SessionRequest, Side};
 use settings::Settings;
 
 /// What the Audio dropdown shows (data-model.md "Audio state"); never shown while no video device
@@ -25,8 +26,50 @@ pub enum AudioState {
     Playing,
     /// Auto and no input pairs with the video device.
     NoPair,
-    /// The chosen input is missing, by its last known name; it opens when it returns.
+    /// The chosen or paired input is missing or left, by its last known name; it opens when it
+    /// returns.
     Disconnected(String),
+    /// Windows microphone privacy refuses the input; it opens when the switch is read on again.
+    Blocked,
+    /// Another app holds this endpoint alone (Windows); **Try again** reopens.
+    Held(String),
+    /// This endpoint failed to open or to play; **Try again** reopens.
+    Failed(String),
+}
+
+/// The tag before the Audio select's value (FR-017, FR-022).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateTag {
+    Disconnected,
+    InUse,
+    Blocked,
+    Failed,
+}
+
+/// What the top of the Audio menu says (FR-017, FR-022): a title and a detail line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Notice {
+    /// `No paired audio` / `Choose an input`.
+    NoPair,
+    /// `{} disconnected` / `Waiting to reconnect`.
+    Disconnected(String),
+    /// `Access blocked` / `Desktop app permission is off`.
+    Blocked,
+    /// `Audio device in use` / `Try again`.
+    Held,
+    /// `Cannot open {}`; the name is empty for a system default output without a name.
+    Failed(String),
+    /// `{} disconnected` / `Playing on the system default`: the chosen output.
+    Fallback(String),
+}
+
+/// The action under the menu's notice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    /// `Try again`: a new session.
+    TryAgain,
+    /// `Open privacy settings`: the system's microphone privacy page.
+    OpenPrivacy,
 }
 
 /// The video device whose sound is wanted, as the app read it when its session opened.
@@ -62,6 +105,11 @@ pub enum Event {
     Input(AudioChoice),
     /// The user picked the output (FR-009); the settings already hold it.
     Output(OutputChoice),
+    /// The user pressed **Try again** in the Audio menu.
+    TryAgain,
+    /// Every 3 s while [`AudioController::watches_access`]: microphone access is read, and once
+    /// it was read off and then no longer is, the input opens again.
+    AccessCheck,
 }
 
 impl Event {
@@ -80,6 +128,8 @@ impl Event {
             Self::Volume { level, muted } => format!("volume {level} muted {muted}"),
             Self::Input(choice) => format!("input {choice} picked"),
             Self::Output(choice) => format!("output {choice} picked"),
+            Self::TryAgain => "try again".into(),
+            Self::AccessCheck => "microphone access read".into(),
         }
     }
 }
@@ -125,6 +175,10 @@ pub enum Label {
     SystemDefault(Option<String>),
     /// An endpoint's (numbered) name, or the id of a chosen one never seen.
     Plain(String),
+    /// The state's title and detail, the menu's first row; not picked.
+    Notice(Notice),
+    /// The state's action, the row after the notice.
+    Action(Action),
 }
 
 impl Label {
@@ -137,6 +191,7 @@ impl Label {
 pub enum Pick {
     Input(AudioChoice),
     Output(OutputChoice),
+    Action(Action),
 }
 
 /// The volume button's icon in `main.slint` (`volume-icon`) for a level and mute.
@@ -200,6 +255,15 @@ fn output_choice(settings: &Settings) -> OutputChoice {
     OutputChoice::parse(&settings.audio.output)
 }
 
+/// Reads the microphone privacy switch (`platform::access`; tests set it).
+struct AccessReader(Box<dyn Fn() -> Access + Send>);
+
+impl std::fmt::Debug for AccessReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AccessReader")
+    }
+}
+
 #[derive(Debug)]
 pub struct AudioController {
     state: Option<AudioState>,
@@ -222,11 +286,17 @@ pub struct AudioController {
     reopens_on_default: bool,
     /// Audio session numbers handed out so far.
     sessions: u64,
+    access: AccessReader,
+    /// Microphone access was read off since the state became Blocked: the input opens once it no
+    /// longer is.
+    access_was_denied: bool,
 }
 
 impl Default for AudioController {
     fn default() -> Self {
-        Self::with_default_reopen(platform::IS_WINDOWS)
+        Self::with(platform::IS_WINDOWS, || {
+            platform::access(platform::Capability::Microphone)
+        })
     }
 }
 
@@ -235,9 +305,12 @@ impl AudioController {
         Self::default()
     }
 
-    /// `reopens_on_default`: the system leaves an output on the old default (Windows).
-    fn with_default_reopen(reopens_on_default: bool) -> Self {
+    /// `reopens_on_default`: the system leaves an output on the old default (Windows); `access`
+    /// reads the microphone privacy switch.
+    fn with(reopens_on_default: bool, access: impl Fn() -> Access + Send + 'static) -> Self {
         Self {
+            access: AccessReader(Box::new(access)),
+            access_was_denied: false,
             state: None,
             listed: false,
             inputs: Vec::new(),
@@ -290,10 +363,38 @@ impl AudioController {
 
     /// The chosen output's name while the sound plays on the system default instead
     /// (`{} disconnected` / `Playing on the system default`); None otherwise.
-    #[cfg_attr(not(test), expect(dead_code, reason = "shown by the Audio select (T041)"))]
     pub fn fallback(&self) -> Option<String> {
         self.open.as_ref()?;
         self.fallback.as_deref().map(|id| self.name_of(id))
+    }
+
+    /// The tag before the Audio select's value; None while the sound plays as expected.
+    pub fn tag(&self) -> Option<StateTag> {
+        match self.state() {
+            AudioState::Disconnected(_) => Some(StateTag::Disconnected),
+            AudioState::Held(_) => Some(StateTag::InUse),
+            AudioState::Blocked => Some(StateTag::Blocked),
+            AudioState::Failed(_) => Some(StateTag::Failed),
+            AudioState::Off | AudioState::Opening | AudioState::Playing | AudioState::NoPair => None,
+        }
+    }
+
+    /// The top of the Audio menu: the state's notice and its action, else the output fallback.
+    fn notice(&self) -> Option<(Notice, Option<Action>)> {
+        Some(match self.state() {
+            AudioState::NoPair => (Notice::NoPair, None),
+            AudioState::Disconnected(name) => (Notice::Disconnected(name), None),
+            AudioState::Blocked => (Notice::Blocked, Some(Action::OpenPrivacy)),
+            AudioState::Held(_) => (Notice::Held, Some(Action::TryAgain)),
+            AudioState::Failed(name) => (Notice::Failed(name), Some(Action::TryAgain)),
+            AudioState::Playing => (Notice::Fallback(self.fallback()?), None),
+            AudioState::Off | AudioState::Opening => return None,
+        })
+    }
+
+    /// Microphone access is read every 3 s ([`Event::AccessCheck`]): the input is Blocked.
+    pub fn watches_access(&self) -> bool {
+        self.video.is_some() && self.state() == AudioState::Blocked
     }
 
     /// The input paired with the open video device, among the present inputs.
@@ -344,7 +445,8 @@ impl AudioController {
         })
     }
 
-    /// The Audio dropdown's menu: the `Input` group (Auto, every input, No audio) while a video
+    /// The Audio dropdown's menu: the state's notice and action when there is one, the `Input`
+    /// group (Auto, every input, No audio) while a video
     /// device is open, then the `Output` group; the choices in use marked. A chosen endpoint that
     /// is missing is not offered and nothing of its group is marked (the state says why).
     pub fn menu(&self, settings: &Settings) -> Vec<Item> {
@@ -354,6 +456,16 @@ impl AudioController {
             pick: None,
         };
         let mut items = Vec::new();
+        if let Some((notice, action)) = self.notice() {
+            items.push(header(Label::Notice(notice)));
+            if let Some(action) = action {
+                items.push(Item {
+                    text: Label::Action(action),
+                    current: false,
+                    pick: Some(Pick::Action(action)),
+                });
+            }
+        }
         if let Some((_, video)) = &self.video {
             let choice = input_choice(settings, video);
             items.push(header(Label::Inputs));
@@ -418,7 +530,13 @@ impl AudioController {
                 }
                 self.listed = true;
                 if self.open.is_none() {
-                    self.resolve(settings, &mut out);
+                    match self.state() {
+                        // The first list, or nothing to play.
+                        AudioState::Off | AudioState::Opening => self.resolve(settings, &mut out),
+                        AudioState::NoPair | AudioState::Disconnected(_) => self.play_if_present(settings, &mut out),
+                        // Errors wait for their action or for access.
+                        AudioState::Playing | AudioState::Blocked | AudioState::Held(_) | AudioState::Failed(_) => {}
+                    }
                 }
             }
             Event::Monitor(AudioEvent::Added(endpoint)) => self.added(endpoint, settings, &mut out),
@@ -451,8 +569,34 @@ impl AudioController {
             }
             Event::Input(_) => self.input_picked(settings, &mut out),
             Event::Output(_) => self.output_picked(settings, &mut out),
+            Event::TryAgain => {
+                if matches!(self.state(), AudioState::Held(_) | AudioState::Failed(_)) {
+                    self.close(&mut out);
+                    self.resolve(settings, &mut out);
+                }
+            }
+            Event::AccessCheck => {
+                if self.watches_access() {
+                    if (self.access.0)() == Access::Denied {
+                        self.access_was_denied = true;
+                    } else if self.access_was_denied {
+                        log::info!("audio: microphone access is back, opening the input again");
+                        self.resolve(settings, &mut out);
+                    }
+                }
+            }
         }
         out
+    }
+
+    /// Opens the video device's sound when its input is present now; else the state stays (an
+    /// input that is not the missing one came or left).
+    fn play_if_present(&mut self, settings: &Settings, out: &mut Vec<Command>) {
+        if let Some((_, video)) = &self.video
+            && let Resolved::Play(_) = self.resolved(video, settings)
+        {
+            self.resolve(settings, out);
+        }
     }
 
     /// Opens the video device's sound, or shows why there is none.
@@ -467,6 +611,11 @@ impl AudioController {
             return;
         }
         match self.resolved(video, settings) {
+            // Windows refuses every input while the switch is off: no open (research R6).
+            Resolved::Play(_) if (self.access.0)() == Access::Denied => {
+                self.state = Some(AudioState::Blocked);
+                self.access_was_denied = true;
+            }
             Resolved::Play(input) => self.open_session(input, settings, out),
             Resolved::NoPair => self.state = Some(AudioState::NoPair),
             Resolved::Missing(id) => self.state = Some(AudioState::Disconnected(self.name_of(&id))),
@@ -513,6 +662,10 @@ impl AudioController {
             open.output_id.clone_from(&output);
             open.output = false;
             open.output_failed = false;
+            // An output side that failed on the default opens again.
+            if matches!(self.state, Some(AudioState::Held(_) | AudioState::Failed(_))) {
+                self.state = Some(AudioState::Opening);
+            }
             out.push(Command::ReopenOutput {
                 output,
                 exclusive: false,
@@ -535,10 +688,10 @@ impl AudioController {
             self.names.insert(endpoint.id.clone(), endpoint.name.clone());
         }
         match flow {
-            // An input that pairs, or the chosen one, may have come.
+            // An input that pairs, or the missing one, may have come.
             Flow::Input => {
                 if self.open.is_none() && matches!(self.state, Some(AudioState::NoPair | AudioState::Disconnected(_))) {
-                    self.resolve(settings, out);
+                    self.play_if_present(settings, out);
                 }
             }
             // The chosen output returned: the sound moves back to it.
@@ -625,18 +778,55 @@ impl AudioController {
             } => {
                 log::warn!("audio session {number}: output side: {error}");
                 match open.output_id.take() {
-                    // The chosen output is gone or failed: the default plays, and says so.
+                    // The chosen output is gone, failed or held: the default plays, and says so.
                     Some(id) => {
                         self.fallback = Some(id);
                         self.reopen_output(None, out);
                     }
-                    // Waits for the default output to return (or Try again, T041).
-                    None => open.output_failed = true,
+                    // The default: it reopens when `DefaultOutput` names an output (research R7),
+                    // or on Try again. A default that left waits without a state (Windows names
+                    // the next default at once).
+                    None => {
+                        open.output = false;
+                        open.output_failed = true;
+                        let name = self
+                            .default_output
+                            .as_deref()
+                            .map(|id| self.name_of(id))
+                            .unwrap_or_default();
+                        self.state = Some(match error {
+                            AudioError::Gone => AudioState::Opening,
+                            AudioError::InUse => AudioState::Held(name),
+                            AudioError::Blocked | AudioError::Format | AudioError::Failed(_) => {
+                                AudioState::Failed(name)
+                            }
+                        });
+                    }
                 }
             }
-            SessionEvent::Error { side, error, .. } => {
-                // The input's error states come with T040.
-                log::warn!("audio session {number}: {side:?} side: {error}");
+            SessionEvent::Error {
+                side: Side::Input,
+                error,
+                ..
+            } => {
+                log::warn!("audio session {number}: input side: {error}");
+                let id = open.input_id.clone();
+                let name = self.name_of(&id);
+                if error == AudioError::Gone {
+                    // Listed until the monitor's `Removed`: not opened again before it returns.
+                    self.inputs.retain(|e| e.id != id);
+                    platform::audio::numbered(&mut self.inputs);
+                }
+                self.close(out);
+                self.state = Some(match error {
+                    AudioError::Gone => AudioState::Disconnected(name),
+                    AudioError::Blocked => {
+                        self.access_was_denied = (self.access.0)() == Access::Denied;
+                        AudioState::Blocked
+                    }
+                    AudioError::InUse => AudioState::Held(name),
+                    AudioError::Format | AudioError::Failed(_) => AudioState::Failed(name),
+                });
             }
             SessionEvent::Closed { .. } => {}
         }
@@ -645,6 +835,8 @@ impl AudioController {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use platform::audio::{AudioError, Flow, Format, SampleFormat, StreamMode};
 
     use super::*;
@@ -727,14 +919,28 @@ mod tests {
     struct Run {
         audio: AudioController,
         settings: Settings,
+        /// What the microphone privacy switch reads.
+        access: Arc<Mutex<Access>>,
     }
 
     impl Run {
         fn new() -> Self {
+            Self::on(platform::IS_WINDOWS)
+        }
+
+        /// `windows`: an output on the default reopens when the default changes.
+        fn on(windows: bool) -> Self {
+            let access = Arc::new(Mutex::new(Access::Unknown));
+            let reader = Arc::clone(&access);
             Self {
-                audio: AudioController::new(),
+                audio: AudioController::with(windows, move || *reader.lock().unwrap()),
                 settings: Settings::default(),
+                access,
             }
+        }
+
+        fn set_access(&self, access: Access) {
+            *self.access.lock().unwrap() = access;
         }
 
         fn send(&mut self, event: Event) -> Vec<Command> {
@@ -985,13 +1191,6 @@ mod tests {
     }
 
     impl Run {
-        fn on(windows: bool) -> Self {
-            Self {
-                audio: AudioController::with_default_reopen(windows),
-                settings: Settings::default(),
-            }
-        }
-
         /// The card's video playing with both sides open, as session 1; the headset is listed.
         fn playing(&mut self) {
             self.send(listed());
@@ -1401,7 +1600,9 @@ mod tests {
             Flow::Input,
             None,
         ))));
-        let names: Vec<Label> = run.audio.menu(&run.settings)[2..5]
+        // The notice first: no paired input.
+        assert_eq!(run.audio.menu(&run.settings)[0].text, Label::Notice(Notice::NoPair));
+        let names: Vec<Label> = run.audio.menu(&run.settings)[3..6]
             .iter()
             .map(|i| i.text.clone())
             .collect();
@@ -1414,9 +1615,330 @@ mod tests {
             ]
         );
         run.send(Event::Monitor(AudioEvent::Removed(CARD_INPUT.into())));
-        assert_eq!(run.audio.menu(&run.settings).len(), 8);
+        assert_eq!(run.audio.menu(&run.settings).len(), 9);
         // A chosen output that is missing: nothing marked in the output group.
         run.settings.audio.output = HEADSET.into();
         assert!(current(&run.audio.output_items(&run.settings)).is_empty());
+    }
+
+    fn input_error(number: u64, error: AudioError) -> Event {
+        Event::Session(SessionEvent::Error {
+            number,
+            side: Side::Input,
+            error,
+        })
+    }
+
+    /// The menu's first rows: the notice and its action, if any.
+    fn top(run: &Run) -> (Option<Label>, Option<Pick>) {
+        let menu = run.audio.menu(&run.settings);
+        let notice = menu
+            .first()
+            .map(|i| i.text.clone())
+            .filter(|t| matches!(t, Label::Notice(_)));
+        let action = menu.get(1).and_then(|i| match i.pick {
+            Some(Pick::Action(_)) => i.pick.clone(),
+            _ => None,
+        });
+        (notice, action)
+    }
+
+    /// The first list without one input.
+    fn listed_without(id: &str) -> Event {
+        let Event::Monitor(AudioEvent::Listed {
+            mut inputs,
+            outputs,
+            default_output,
+        }) = listed()
+        else {
+            unreachable!()
+        };
+        inputs.retain(|e| e.id != id);
+        Event::Monitor(AudioEvent::Listed {
+            inputs,
+            outputs,
+            default_output,
+        })
+    }
+
+    #[test]
+    fn a_chosen_input_unplugged_is_disconnected_until_it_returns() {
+        let mut run = Run::new();
+        run.playing();
+        run.pick_input(AudioChoice::Input(MIC_INPUT.into()));
+        run.send(opened(2, Side::Input));
+        run.send(opened(2, Side::Output));
+        // Unplugged: the side's error, then (or before) the monitor's remove.
+        assert_eq!(run.send(input_error(2, AudioError::Gone)), [Command::Close]);
+        let name = "Microphone (Realtek(R) Audio)".to_string();
+        assert_eq!(run.audio.state(), AudioState::Disconnected(name.clone()));
+        assert_eq!(run.audio.tag(), Some(StateTag::Disconnected));
+        assert_eq!(top(&run), (Some(Label::Notice(Notice::Disconnected(name))), None));
+        assert_eq!(run.audio.session(), None);
+        assert!(
+            run.send(Event::Monitor(AudioEvent::Removed(MIC_INPUT.into())))
+                .is_empty()
+        );
+        // Another input, or the monitor's list read again: still waiting.
+        assert!(
+            run.send(Event::Monitor(AudioEvent::Added(endpoint(
+                "{0.0.1.00000000}.{other}",
+                "Other",
+                Flow::Input,
+                None,
+            ))))
+            .is_empty()
+        );
+        assert!(run.send(listed_without(MIC_INPUT)).is_empty());
+        assert_eq!(run.audio.tag(), Some(StateTag::Disconnected));
+        // It returns: a new session on it.
+        let commands = run.send(Event::Monitor(AudioEvent::Added(endpoint(
+            MIC_INPUT,
+            "Microphone (Realtek(R) Audio)",
+            Flow::Input,
+            None,
+        ))));
+        assert_eq!(commands, [request(3, MIC_INPUT)]);
+        assert_eq!(run.audio.state(), AudioState::Opening);
+        assert_eq!(run.audio.tag(), None);
+    }
+
+    #[test]
+    fn a_paired_input_that_leaves_is_disconnected_not_unpaired() {
+        let mut run = Run::new();
+        run.playing();
+        assert_eq!(run.send(input_error(1, AudioError::Gone)), [Command::Close]);
+        assert_eq!(
+            run.audio.state(),
+            AudioState::Disconnected("Digital Audio Interface (ezcap)".into())
+        );
+        // The monitor's remove comes after: the state stays (not No paired audio).
+        run.send(Event::Monitor(AudioEvent::Removed(CARD_INPUT.into())));
+        assert!(matches!(run.audio.state(), AudioState::Disconnected(_)));
+        let commands = run.send(Event::Monitor(AudioEvent::Added(endpoint(
+            CARD_INPUT,
+            "Digital Audio Interface (ezcap)",
+            Flow::Input,
+            Some(CARD_LINK),
+        ))));
+        assert_eq!(commands, [request(2, CARD_INPUT)]);
+    }
+
+    #[test]
+    fn a_blocked_input_opens_when_access_is_back() {
+        let mut run = Run::new();
+        run.playing();
+        run.set_access(Access::Denied);
+        assert_eq!(run.send(input_error(1, AudioError::Blocked)), [Command::Close]);
+        assert_eq!(run.audio.state(), AudioState::Blocked);
+        assert_eq!(run.audio.tag(), Some(StateTag::Blocked));
+        assert_eq!(
+            top(&run),
+            (
+                Some(Label::Notice(Notice::Blocked)),
+                Some(Pick::Action(Action::OpenPrivacy))
+            )
+        );
+        assert!(run.audio.watches_access());
+        assert!(run.send(Event::AccessCheck).is_empty(), "still off");
+        // Try again is not its action.
+        assert!(run.send(Event::TryAgain).is_empty());
+        run.set_access(Access::Allowed);
+        assert_eq!(run.send(Event::AccessCheck), [request(2, CARD_INPUT)]);
+        assert!(!run.audio.watches_access());
+        assert!(run.send(Event::AccessCheck).is_empty());
+    }
+
+    #[test]
+    fn access_denied_before_opening_opens_nothing() {
+        let mut run = Run::new();
+        run.set_access(Access::Denied);
+        run.send(listed());
+        assert!(
+            run.send(Event::VideoOpened {
+                session: 1,
+                device: card(),
+            })
+            .is_empty()
+        );
+        assert_eq!(run.audio.state(), AudioState::Blocked);
+        run.send(Event::AccessCheck);
+        run.set_access(Access::Allowed);
+        assert_eq!(run.send(Event::AccessCheck), [request(1, CARD_INPUT)]);
+        // Nothing to play needs no access: No audio stays Off.
+        run.set_access(Access::Denied);
+        run.pick_input(AudioChoice::None);
+        assert_eq!(run.audio.state(), AudioState::Off);
+        assert!(!run.audio.watches_access());
+    }
+
+    #[test]
+    fn a_blocked_input_without_a_switch_read_off_waits() {
+        // Blocked by the session while the switch reads on (the error and the switch disagree):
+        // only a read that goes off and then on again opens it.
+        let mut run = Run::new();
+        run.playing();
+        run.send(input_error(1, AudioError::Blocked));
+        run.set_access(Access::Allowed);
+        assert!(run.send(Event::AccessCheck).is_empty());
+        run.set_access(Access::Denied);
+        run.send(Event::AccessCheck);
+        run.set_access(Access::Unknown);
+        assert_eq!(run.send(Event::AccessCheck), [request(2, CARD_INPUT)]);
+    }
+
+    #[test]
+    fn a_held_input_opens_again_on_try_again() {
+        let mut run = Run::new();
+        run.playing();
+        assert_eq!(run.send(input_error(1, AudioError::InUse)), [Command::Close]);
+        assert_eq!(
+            run.audio.state(),
+            AudioState::Held("Digital Audio Interface (ezcap)".into())
+        );
+        assert_eq!(run.audio.tag(), Some(StateTag::InUse));
+        assert_eq!(
+            top(&run),
+            (Some(Label::Notice(Notice::Held)), Some(Pick::Action(Action::TryAgain)))
+        );
+        // No automatic retry: the monitor's events change nothing.
+        assert!(run.send(listed()).is_empty());
+        assert_eq!(run.send(Event::TryAgain), [request(2, CARD_INPUT)]);
+        assert_eq!(run.audio.state(), AudioState::Opening);
+    }
+
+    #[test]
+    fn a_failed_input_opens_again_on_try_again() {
+        for error in [AudioError::Format, AudioError::Failed("0x88890004".into())] {
+            let mut run = Run::new();
+            run.playing();
+            assert_eq!(run.send(input_error(1, error)), [Command::Close]);
+            let name = "Digital Audio Interface (ezcap)".to_string();
+            assert_eq!(run.audio.state(), AudioState::Failed(name.clone()));
+            assert_eq!(run.audio.tag(), Some(StateTag::Failed));
+            assert_eq!(
+                top(&run),
+                (
+                    Some(Label::Notice(Notice::Failed(name))),
+                    Some(Pick::Action(Action::TryAgain))
+                )
+            );
+            assert_eq!(run.send(Event::TryAgain), [request(2, CARD_INPUT)]);
+            // Try again while it plays does nothing.
+            run.send(opened(2, Side::Input));
+            run.send(opened(2, Side::Output));
+            assert!(run.send(Event::TryAgain).is_empty());
+        }
+    }
+
+    #[test]
+    fn an_input_error_of_an_opening_session_shows_its_state() {
+        let mut run = Run::new();
+        run.send(listed());
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        run.send(opened(1, Side::Output));
+        assert_eq!(run.send(input_error(1, AudioError::InUse)), [Command::Close]);
+        assert!(matches!(run.audio.state(), AudioState::Held(_)));
+        // A late `Opened` of the closed session changes nothing.
+        run.send(opened(1, Side::Input));
+        assert!(matches!(run.audio.state(), AudioState::Held(_)));
+    }
+
+    #[test]
+    fn a_failed_default_output_keeps_the_input_and_reopens_on_a_default() {
+        let mut run = Run::on(false);
+        run.playing();
+        assert!(
+            run.send(output_error(1, AudioError::Failed("stream error".into())))
+                .is_empty(),
+            "the input keeps its side"
+        );
+        let speakers = "Speakers (Realtek(R) Audio)".to_string();
+        assert_eq!(run.audio.state(), AudioState::Failed(speakers.clone()));
+        assert_eq!(
+            top(&run),
+            (
+                Some(Label::Notice(Notice::Failed(speakers))),
+                Some(Pick::Action(Action::TryAgain))
+            )
+        );
+        assert_eq!(run.audio.session(), Some(1));
+        // A default named again reopens it (research R7).
+        assert_eq!(
+            run.send(Event::Monitor(AudioEvent::DefaultOutput(Some(SPEAKERS.into())))),
+            [reopen_output(None)]
+        );
+        assert_eq!(run.audio.state(), AudioState::Opening);
+        run.send(opened(1, Side::Output));
+        assert_eq!(run.audio.state(), AudioState::Playing);
+    }
+
+    #[test]
+    fn a_held_default_output_opens_a_new_session_on_try_again() {
+        let mut run = Run::new();
+        run.playing();
+        assert!(run.send(output_error(1, AudioError::InUse)).is_empty());
+        assert_eq!(
+            run.audio.state(),
+            AudioState::Held("Speakers (Realtek(R) Audio)".into())
+        );
+        assert_eq!(run.audio.tag(), Some(StateTag::InUse));
+        assert_eq!(run.send(Event::TryAgain), [Command::Close, request(2, CARD_INPUT)]);
+    }
+
+    #[test]
+    fn a_default_output_that_leaves_waits_for_the_next_default() {
+        let mut run = Run::on(true);
+        run.playing();
+        assert!(run.send(output_error(1, AudioError::Gone)).is_empty());
+        assert_eq!(run.audio.state(), AudioState::Opening);
+        assert_eq!(run.audio.tag(), None);
+        assert_eq!(
+            run.send(Event::Monitor(AudioEvent::DefaultOutput(Some(HEADSET.into())))),
+            [reopen_output(None)]
+        );
+        run.send(opened(1, Side::Output));
+        assert_eq!(run.audio.state(), AudioState::Playing);
+    }
+
+    #[test]
+    fn a_held_chosen_output_falls_back_and_says_so() {
+        let mut run = Run::new();
+        run.settings.audio.output = HEADSET.into();
+        run.playing();
+        assert_eq!(run.send(output_error(1, AudioError::InUse)), [reopen_output(None)]);
+        run.send(opened(1, Side::Output));
+        assert_eq!(run.audio.state(), AudioState::Playing);
+        assert_eq!(run.audio.tag(), None, "the fallback has no tag");
+        assert_eq!(
+            top(&run),
+            (Some(Label::Notice(Notice::Fallback("Headset (G533)".into()))), None)
+        );
+    }
+
+    #[test]
+    fn video_states_win_over_audio_states() {
+        let mut run = Run::new();
+        run.playing();
+        run.send(input_error(1, AudioError::Failed("x".into())));
+        assert!(run.audio.tag().is_some());
+        // The video session ends (its own state shows): no audio state, no notice.
+        assert!(run.send(Event::VideoClosed { session: 1 }).is_empty());
+        assert_eq!(run.audio.state(), AudioState::Off);
+        assert_eq!(run.audio.tag(), None);
+        assert_eq!(top(&run), (None, None));
+        assert!(run.send(Event::TryAgain).is_empty());
+        // Blocked waits no more once the video is gone.
+        run.set_access(Access::Denied);
+        run.send(Event::VideoOpened {
+            session: 2,
+            device: card(),
+        });
+        assert!(run.audio.watches_access());
+        run.send(Event::VideoClosed { session: 2 });
+        assert!(!run.audio.watches_access());
     }
 }
