@@ -117,11 +117,11 @@ Force each state, in English and Portuguese, and use its action:
 | State | How |
 |---|---|
 | No paired audio | a video device without an audio input: a virtual camera on Windows, `v4l2loopback` on Linux |
-| Disconnected | unplug the ezcap's USB while playing; plug it back: sound within 3 s |
+| Disconnected | pick the C920's microphone as the ezcap's input and unplug the C920 (Linux: `echo 1-1 \| sudo tee /sys/bus/usb/drivers/usb/unbind`, then `bind`); plug it back: sound within 3 s. The ezcap is a PCIe card and cannot be unplugged |
 | Blocked | Windows: Settings → Privacy → Microphone → desktop apps off |
 | In use | Windows: hold the output exclusive in another app (e.g. a second CapturaX build, or an ASIO/exclusive player), mark it exclusive here |
 | Failed | Windows: an input exclusive in another app while ours is shared |
-| Output fallback | pick the G533, then unplug its receiver; plug it back: sound moves back |
+| Output fallback | pick the G533, then unplug its receiver; plug it back: sound moves back. Linux: `pactl load-module module-null-sink sink_name=capx-test`, pick it, then `pactl unload-module <its id>` (never by name: that also removes other null sinks, such as VBAN's) and load it again |
 
 Closing: 100 closes in a row with sound playing on each system (switching the video device back
 and forth, and quitting with `--stats`), none over 1 s in the log (`audio session N closed in X ms`

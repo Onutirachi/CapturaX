@@ -176,7 +176,7 @@ app cannot play on the exclusive output.
 
 - [x] T040 [US5] app/src/audio.rs: `Disconnected(name)` (an input `Gone` or missing; returns on `Added` with the same id), `Blocked` (input `Blocked`, or `platform::access(Capability::Microphone)` = Denied before opening; read again every 3 s while Blocked, as the camera's), `Failed(name)` (any other error, or a shared open refused; **Try again** reopens), output `Gone` or `Failed` → fallback to the default with the flag; video states win: no audio state while the video device is not open (FR-018). Tests for each row of data-model.md "Audio state" and its transitions
 - [x] T041 [US5] app/ui/components/toolbar.slint, menu.slint and app/src/ui.rs: the state's tag before the dropdown's value and its title, detail and action at the top of the menu, as the video device's states; actions `Open privacy settings` → `platform::open_privacy(Capability::Microphone)` and `Try again`; output fallback header `{} disconnected` / `Playing on the system default`; tags `Disconnected`, `Blocked`, `Failed`, `In use` (both `InUse` and `Held`); texts of FR-022 (reusing the `*` entries)
-- [ ] T042 [US5] (maintainer) quickstart "States and closing" on both systems: every state forced in English and Portuguese with its action; 100 closes in a row with sound playing on each system, none over 1 s, no hang of the app or the system's sound (SC-008); results in measurements/acceptance.md
+- [ ] T042 [US5] (maintainer) quickstart "States and closing" on both systems: every state forced in English and Portuguese with its action; 100 closes in a row with sound playing on each system, none over 1 s, no hang of the app or the system's sound (SC-008); results in measurements/acceptance.md (Linux half done 2026-11-18: No paired audio, Disconnected and Output fallback in both languages, 101 closes, max 15 ms)
 
 **Checkpoint**: commit `feat: show the preview audio states`.
 
@@ -185,7 +185,7 @@ app cannot play on the exclusive output.
 ## Phase 8: Polish & Cross-Cutting Concerns
 
 - [ ] T043 [P] README.md (audio requirements: PipeWire on Linux; build needs `libpipewire-0.3-dev` and `clang`), tools/latency/README.md (drift and PipeWire measurement), docs/roadmap.md #4 status, AGENTS.md "Status" (the preview audio built)
-- [ ] T044 (maintainer) SC-006 responsiveness on both systems from the logs (quickstart "Responsiveness"): sound within 1 s of the first frame, input/output/exclusive changes within 1 s, devices in the menu within 3 s, reconnect and default change within 3 s; results in measurements/acceptance.md
+- [ ] T044 (maintainer) SC-006 responsiveness on both systems from the logs (quickstart "Responsiveness"): sound within 1 s of the first frame, input/output/exclusive changes within 1 s, devices in the menu within 3 s, reconnect and default change within 3 s; results in measurements/acceptance.md (Linux partial 2026-11-18: sound vs first frame, picks, reconnect, output fallback; volume, default change and menu timing left)
 - [ ] T045 (maintainer) SC-009 acceptance on Windows 11 and CachyOS KDE Plasma Wayland with the ezcap and the C920 through User Stories 1–5; results in measurements/acceptance.md
 - [ ] T046 Cleanup: remove the debug-only `CAPTURAX_PW_LATENCY` (T029) unless the maintainer keeps it as a documented developer option; `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` on both systems; handoff.md updated
 

@@ -532,6 +532,21 @@ Audio states (2026-11-18, T040 and T041 done, committed in `feat: add the audio 
   camera without one (NVIDIA Broadcast on Windows). The CachyOS clone was moved to this branch's
   head; its old state is in `stash@{0}` and the branch `backup/07b88fe` (nothing new in either).
 
+States and closing on Linux (2026-11-18, T042's Linux half, T044 partly; folded into `feat: add
+the audio states`):
+
+- `audio session N closed in X ms` is now logged when a session's `Closed` comes after a switch
+  (before, only the quit was timed); quickstart names the lines SC-008 reads.
+- Run over SSH on CachyOS (clone wiped and cloned again from a bundle at `43a5eaa`; `ydotool`,
+  screenshots in `~/capx/out`, the run script `~/capx/t042.sh`): No paired audio (v4l2loopback),
+  Disconnected (C920 `unbind`/`bind`) and Output fallback (null sink `capx-test`) in English and
+  Portuguese; 101 closes, max 15 ms, none missed. Results in measurements/acceptance.md.
+- Found: the C920 resets on USB when it resumes from autosuspend (2 s), so it is gone ~3 s at the
+  app's start after being idle; the app recovers (Disconnected, then Playing on Added). Not an app
+  bug. The ezcap is PCIe: quickstart's "unplug the ezcap" row now uses the C920.
+- `pactl unload-module module-null-sink` (by name) removed VBAN's sink too; restored with
+  `systemctl --user restart vban`. Quickstart now says to unload by id.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -570,7 +585,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. T042's Linux half (and T044's) while the ezcap and the C920 are on CachyOS: every state
-   forced in both languages, and the 100 closes.
+1. T044's Linux rest if the ezcap stays on CachyOS: volume and mute within 100 ms, a changed
+   system default output within 3 s, devices in the menu within 3 s (can be driven over SSH).
 2. Windows, when the ezcap moves there: T033's mouse and keyboard recheck, T036's Windows half
-   (with the headset and G533 steps), T028, T039, and the Windows halves of T042 and T044.
+   (with the headset and G533 steps), T028, T039, and the Windows halves of T042 (Blocked, In use,
+   Failed too) and T044.
