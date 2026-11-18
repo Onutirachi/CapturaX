@@ -419,6 +419,33 @@ Volume (2026-11-17, T030–T032 done; committed in `feat: add the preview volume
   `wpctl get-volume` every 200 ms for the default sink, the app's own playback stream and another
   app's stream (kded6): all stayed at 1.00 for the whole test, so the OS volumes are untouched.
 
+Input and output choice (2026-11-17, T034 done, committed in `feat: add the audio input and output choice`; nothing to see until T035 wires the picks):
+
+- T034: `app/src/audio.rs` reads the input choice from `[devices."<id>"] audio` and the output
+  from `[audio] output` at each open; the app writes the settings and then sends the new
+  `Event::Input(AudioChoice)` / `Event::Output(OutputChoice)` (not sent yet: T035 wires the
+  picks). An input pick opens a new session (Close + Open: both sides, the bridge empty) unless
+  the choice resolves to the input already playing; No audio closes it (state Off). An output pick
+  sends `ReopenOutput` only when the output to open changes.
+- New state `AudioState::Disconnected(name)` for a chosen input that is missing; it opens on its
+  `Added`. The name is the last one seen since start (a `names` cache filled by `Listed` and
+  `Added`), else the endpoint id (an input chosen in an earlier run and never seen in this one
+  shows its id; settings keep no name for it).
+- Output fallback: `fallback: Option<id>`, set when the chosen output is missing at open or its
+  side reports any `Error` (the side reopens on the default), cleared by the output side's
+  `Opened` on it or a pick of System default; `AudioController::fallback()` gives the name for
+  T041's header. The chosen output's `Added` moves the sound back.
+- `DefaultOutput`: reopens an output on the default when the default changes on Windows
+  (`reopens_on_default = platform::IS_WINDOWS`; tests build both), and on both systems when that
+  output side had failed (Linux after PipeWire restarts). Removed endpoints do nothing by
+  themselves: the open side's own `Error` acts.
+- Menu model: `audio::Item { text: Label, current, pick: Option<Pick> }`, `menu()` (`Input`
+  group only while a video device is open: Auto with the pair's name or None, every input, No
+  audio; then `Output`: System default with the default's name, every output), `output_items()`
+  for the popover's select, `value()` for the select's value. A missing chosen endpoint is not
+  offered and nothing in its group is marked. Input `Error`s are still only logged (T040).
+- Checked on Windows: fmt, clippy (app, all targets), 191 app tests (19 new in `audio.rs`).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -457,7 +484,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Phase 5 (US3, input and output choice): T034 onwards. The CachyOS clone is at `cd030f1`,
+1. Phase 5 (US3, input and output choice): T035 (the Audio select and the picks' settings
+   writes in `app.rs`, using `AudioController::menu`/`output_items`/`value`). The CachyOS clone is at `cd030f1`,
    release built there.
 2. With the ezcap still on CachyOS: the Linux halves of T036, T042, T044 as their code lands;
    T028 and T039 when the ezcap moves to Windows.
