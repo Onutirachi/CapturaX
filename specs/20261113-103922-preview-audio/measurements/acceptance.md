@@ -42,7 +42,7 @@ idle, such as starting the app, removes it for about 3 s. The app shows its inpu
 plays it again when it returns (Added → Playing in 223–240 ms). This is the camera with the
 kernel's autosuspend, not the app; the earlier "C920 drops by itself" observations are this.
 
-## T042: SC-008 states and closing on Windows (partial)
+## T042: SC-008 states and closing on Windows
 
 ### Windows 11 — 2026-11-19
 
@@ -70,9 +70,20 @@ it failed to start and showed the video state `In use` (spec #3's preview; noted
 at 1920×1080 it played.
 
 Failed: accepted by the unit tests (maintainer, 2026-11-19); no error other than gone, in use or
-blocked could be forced without administrator rights. Left on Windows: the input Disconnected by
-unplugging the C920 (the C920 was held by NVIDIA Broadcast this session) and the English of
-Disconnected and Output fallback.
+blocked could be forced without administrator rights.
+
+Second run, same day (release build of `c434a91`, card notices; English; system default output
+`Speakers (NVIDIA Broadcast)`):
+
+| State | How | Result |
+|---|---|---|
+| Disconnected | the C920's microphone picked as the ezcap's input, then the C920 unplugged by the maintainer and plugged into another USB port | `Disconnected` tag (warn) on the select; yellow card `Device disconnected` / `Microfone (HD Pro Webcam C920)` / `Waiting to reconnect`; the input's row stays in the menu marked `Disconnected`. Back on the other port the endpoint kept its id and played 87 ms after it was announced (`added` → Playing); the open menu dropped the card and the mark in place |
+| Output fallback | the ARZOPA's speakers chosen, unplugged and plugged back by the maintainer (twice; the first return was spoiled by a stray click and Enter that went to the app) | yellow card `Device disconnected` / `1 - ARZOPA (AMD High Definition Audio Device)` / `Using the system default`; on the default 43 and 45 ms after the removal; back on the ARZOPA when it returned |
+| Light theme | Blocked (registry `Deny`, as above) and In use (the ezcap's input held by `audio_session --exclusive-in`) with `theme = "light"` | red and yellow cards readable, the action a neutral button; Try again played 47 ms after the holder quit; with `Allow` again the input opened by itself (3 s check) |
+
+The C920's microphone could not be held exclusive for In use: another app (likely NVIDIA
+Broadcast) had it open, so `audio_session` fell back to `SharedAfterInUse`; the ezcap's input
+works. Every quit of this run logged `closed X ms into the quit` (14–23 ms).
 
 **Closing**: 100 quits in a row with the ezcap's sound playing (start with `--stats`, 4 s of play
 after the window shows, `WM_CLOSE` to the window): every one logged `audio session 1 closed X ms
@@ -125,5 +136,55 @@ System default = `vban_out`, `--lang pt-BR --stats`, driven over SSH with `ydoto
   unloaded; a screenshot finished 864 ms after the load showed `CapturaX-New` in the Output group
   and one finished 761 ms after the unload showed it gone (the open menu updates in place).
 
-Linux SC-006 is met for everything it covers. Left for Windows: the whole T044 Windows half,
-including the exclusive box (Windows only).
+Linux SC-006 is met for everything it covers.
+
+## T044: SC-006 responsiveness on Windows (partial)
+
+### Windows 11 — 2026-11-19
+
+Release build of `c434a91`, ezcap (no HDMI signal: the PS5 was off), driven by a PowerShell script;
+times from `capturax.log` (UTC).
+
+- Sound and first frame: in 66 video starts of the day with sound, the audio reached Playing
+  130–438 ms **before** the first frame (most 425–430 ms). The 14 others waited by design
+  (Blocked, No paired audio, In use).
+- Input picked → Playing: Auto (the ezcap's HDMI) 7–9 ms, the C920's microphone 81–83 ms (6 picks).
+- Output picked → playing on it: 69 ms (ARZOPA).
+- Reconnected input (C920 back, endpoint `added`) → Playing: 87 ms.
+- Chosen output removed → playing on the default: 43 and 45 ms; back on it when it returned.
+- Changed system default output (System default selected): the default switched 12 times by a
+  script (`IPolicyConfig::SetDefaultEndpoint`, console and multimedia roles) between
+  `Voicemeeter In 5` and `Speakers (NVIDIA Broadcast)`, 4 s apart; each reopened the app's output
+  on the new default 28–56 ms after the call (`audio Output: Opened` with the new name).
+- Audio devices in the menu: with the Audio menu open, screenshots every ~200 ms while the ARZOPA
+  (a monitor with speakers) was unplugged and plugged back. The menu updated in place both ways,
+  the return within 2.8 s of its output reopening; Windows was moving the window to the new
+  monitor layout meanwhile, so no closer time. During each monitor change the render log fell
+  0.5–3.4 s behind (the main thread waits on the display change); the audio reopened on time.
+- Not done: volume and mute within 100 ms (needs a steady sound: with T028's PS5 and Voicemeeter
+  set-up) and the exclusive box (with T038/T039).
+
+**The C920's microphone heard late** (maintainer: "a big delay" listening to it). Measured with
+`tools/latency/keylat.py` on one `perf_counter` clock: a global key hook for the space bar (a loud mechanical
+key), the C920 recorded directly (`sounddevice`, WASAPI shared) and a loopback of the app's output
+(`soundcard`); the app played the C920's microphone as the ezcap's input. Cross-correlating the two
+recordings in 4 s windows:
+
+| App output | App output behind the microphone |
+|---|---|
+| `Voicemeeter Input` (VAIO virtual endpoint, the system default then) | 111.4 ms, every window |
+| `27G2G4` (NVIDIA HDMI audio, a real endpoint) | 23.6 ms (34 ms in the first second while the bridge settles) |
+| Reference: Windows' "Listen to this device" on the C920, playing on `Voicemeeter Input` (app closed) | 144.1 ms, every window |
+
+The app adds ~24 ms on a real endpoint (its `wait_ms` 11 ms, the 10 ms capture period, the render
+queue) and is 33 ms faster than Windows' own monitoring on the same virtual endpoint; the
+maintainer heard both late, alike. Anything played through Windows on `Voicemeeter Input` shows
+~87 ms more at the loopback tap than on a real endpoint; whether that is the VAIO driver's buffer,
+its loopback tap or Voicemeeter is not separated here (the maintainer finds Voicemeeter's own
+engine fast: hardware devices in exclusive mode). The C920 itself delivers its sound 60–68 ms after
+the key press (to any client). Not an app fault. For T028: the quickstart's app output is a
+Voicemeeter virtual input; check what of that path the recorded right channel includes before
+comparing with the budget.
+
+A headset plugged as the new default (T036) was not tested: the maintainer has no other headset;
+the default change and a device appearing in the menu cover it (above).

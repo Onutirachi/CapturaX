@@ -608,6 +608,39 @@ Windows session (2026-11-19, ezcap and C920 on the Windows PC):
   window forward while the maintainer types in VS Code: press Alt before `SetForegroundWindow`,
   check `GetForegroundWindow` before any click, and `ShowWindow(SW_MAXIMIZE)` if it was restored.
 
+Windows, second session (2026-11-19 evening, release of `c434a91`; results in
+measurements/acceptance.md):
+
+- T042 done: the C920 unplugged as the ezcap's input (Disconnected card, back 87 ms after its
+  endpoint returned, same id on another USB port), Output fallback in English (ARZOPA, 43–45 ms),
+  the light theme's red and yellow cards. The C920's microphone cannot be held exclusive here
+  (another app, likely NVIDIA Broadcast, has it open); In use is forced on the ezcap's input.
+- T036 done: no other headset to plug (maintainer); covered by the default change and the ARZOPA
+  appearing in and leaving the open menu.
+- T044 Windows partial: sound before the first frame (130–438 ms), input picks 7–83 ms, output pick
+  69 ms, reconnect 87 ms, fallback 43–45 ms, default change 28–56 ms (12 switches by
+  `IPolicyConfig::SetDefaultEndpoint`, maintainer allowed), menu updated in place. Left: volume and
+  mute (≤ 100 ms) with a steady sound (PS5) and the exclusive box (T039).
+- The C920's microphone sounded very late to the maintainer: measured (acceptance.md, T044
+  Windows) the app adds ~24 ms on a real endpoint; on `Voicemeeter Input` 111 ms against 144 ms
+  for Windows' own "Listen to this device" (the maintainer heard both alike); the C920 itself
+  60–68 ms. Not an app fault; where the ~87 ms of the virtual endpoint go is not separated (the
+  maintainer trusts Voicemeeter's engine). Method: `tools/latency/keylat.py` (global key hook + C920
+  via `sounddevice` + loopback of the app's output via `soundcard` (it cannot open the C920),
+  cross-correlation). The G533 cannot be looped back (Voicemeeter holds it exclusive). **Before
+  T028**: the quickstart plays the app on a Voicemeeter virtual input; check what of Voicemeeter's
+  buffering the recording includes.
+- Found: a monitor change (the ARZOPA is a monitor) holds the main thread 0.5–3.4 s (render log
+  behind, Windows moves the window); the audio is not affected. Not this spec's work.
+- Driving notes: the toolbar shows when the pointer is over the top of the video (y ≈ 60), not
+  anywhere; `SetCursorPos` plus a small `mouse_event` move makes Slint see it. **After a script
+  brings the app forward, the maintainer's keys and clicks go to it**: ask them to click VS Code
+  before typing (a stray click and Enter re-picked rows in an open menu). Editing `capturax.toml`
+  by hand: a broken line makes the app keep it as `.damaged-*` and start from defaults.
+- `target/release/capturax.toml` is set to the ezcap, English, output System default, C920's
+  microphone not chosen (Auto); the original is in the scratchpad only (theme dark, language auto,
+  muted, C920 as device).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -646,7 +679,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Windows (ezcap there now): T042's C920 unplug as the ezcap's input and the English of
-   Disconnected and Output fallback (also a look at the light theme's cards); T036's headset that
-   becomes the default and devices in the menu within 3 s; T044's Windows half; T028.
-2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039.
+1. Windows (ezcap there now): T028 with the PS5 on (quickstart "Latency budget": Voicemeeter
+   recording the line input left and the app's output right); in the same set-up, T044's volume
+   and mute (record the app's output, click the volume button and turn the wheel).
+2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039 (and T044's
+   exclusive box).
