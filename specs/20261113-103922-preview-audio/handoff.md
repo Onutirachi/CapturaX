@@ -679,6 +679,28 @@ measurements/latency.md and acceptance.md):
   (original in the scratchpad only). Voicemeeter: B3 = line input L + `In 5` R; VAIO3 and the
   ezcap WDM strip were also routed to B3 during the session (check before recording).
 
+Windows, fourth session (2026-11-19 night; results in measurements/drift.md):
+
+- **T028's drift found a delay that grows after the app**: about 0.8 ms per minute on `In 5` and
+  on VAIO3, linear, no reset of its own, while `wait_ms` stayed steady; reopening only the output
+  (Audio menu) brought it back (85 → 58 ms). The maintainer doubts it is Voicemeeter (never
+  noticed drift in other apps over days); untested lead: the `IAudioClient3` short period, which
+  other apps do not use. **Palliative (maintainer)**: spec FR-003a, research R16, T047
+  (`crates/audio/src/resync.rs`) and T048 (`stream.rs`): a shared Windows output reopens itself
+  at the first quiet moment (−50 dBFS for 300 ms) after 5 minutes. With it: 62 → 41–46 ms and
+  steady, nothing heard at the reopens; the maintainer played on it "working very well". SC-003
+  and SC-005 Windows recorded as passing (drift.md). The cause is investigated after the app is
+  done.
+- **Measurement output changed (maintainer)**: Windows runs use VAIO3 (the everyday output), not
+  `In 5` (spec "Latency budget"; memory). SC-001 shared stays as measured on `In 5`.
+- `crates/platform` now depends on `crates/audio` (Windows only) for `Resync`.
+- Recorder: scratchpad `recstream.py` (not kept): `sounddevice` WASAPI input streamed to a 16-bit
+  WAV, prints peaks every 10 s. Check Voicemeeter's B3 first: `Voicemeeter Input` (the Windows
+  default) was routed to B3 too and spoiled one check.
+- `target/release/capturax.toml`: output VAIO3, ezcap, English.
+- Found: each output open starts at a different delay (62–67 ms fresh, 42–58 ms after a reopen);
+  part of R16's open question. Short input gaps (8–16 ms) appear while a game plays, not heard.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -712,13 +734,16 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Open questions
 
+- Windows: why the delay grows about 0.8 ms per minute after the app's output (research R16);
+  after the app is done. First test: the normal `Initialize` period instead of `IAudioClient3`.
 - Validated during implementation, before the code that depends on them: the Linux engine probe
   and the pairing keys (`--list-devices`) on both systems (quickstart).
 
 ## Next step
 
-1. Windows (ezcap there now), T028's drift: 31 minutes shared on `Voicemeeter In 5` with
-   `--stats` logged, B3 recorded the whole run, PS5 sounds every few seconds, `analyze.py audio
-   --drift`; then 30 minutes on the G533 directly by ear and stats (drift.md).
-2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039 (and T044's
-   exclusive box), measured as T028 with the spike alongside.
+1. Commit (after the maintainer validates): `feat: resync the Windows output at quiet moments`
+   (T047, T048, spec/research/tasks) and `docs: record the Windows drift runs` (drift.md, CSVs).
+2. T028's last item: 30 minutes on the G533 directly, by ear and stats (Voicemeeter must release
+   it). Then T028 is done and US1's checkpoint commit `feat: play the preview audio` applies.
+3. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039 (and T044's
+   exclusive box); its outputs: decide with the maintainer, since VAIO3 cannot be exclusive.
