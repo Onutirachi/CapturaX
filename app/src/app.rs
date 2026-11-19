@@ -616,7 +616,7 @@ impl App {
         let app = &self.ui.app;
         let texts = Texts::get(app);
         let model = |items: &[crate::audio::Item]| {
-            let rows: Vec<MenuItem> = items.iter().map(|i| crate::ui::audio_item(i, &texts)).collect();
+            let rows: Vec<MenuItem> = crate::ui::audio_items(items, &texts);
             slint::ModelRc::new(slint::VecModel::from(rows))
         };
         let current = menus
@@ -657,13 +657,34 @@ impl App {
                     return;
                 };
                 log::info!("audio input {choice} chosen for {}", video.id);
-                self.store
-                    .update(|s| s.touch_device(&video.id, &video.base_name).audio = choice.to_string());
+                let name = match &choice {
+                    ::audio::choice::AudioChoice::Input(id) => {
+                        sound.controller().known_name(id).map(|n| (id.clone(), n.to_string()))
+                    }
+                    _ => None,
+                };
+                self.store.update(|s| {
+                    s.touch_device(&video.id, &video.base_name).audio = choice.to_string();
+                    if let Some((id, name)) = &name {
+                        s.touch_audio_device(id, name);
+                    }
+                });
                 crate::audio::Event::Input(choice)
             }
             Some(crate::audio::Pick::Output(choice)) => {
                 log::info!("audio output {choice} chosen");
-                self.store.update(|s| s.audio.output = choice.to_string());
+                let name = match &choice {
+                    ::audio::choice::OutputChoice::Device(id) => {
+                        sound.controller().known_name(id).map(|n| (id.clone(), n.to_string()))
+                    }
+                    _ => None,
+                };
+                self.store.update(|s| {
+                    s.audio.output = choice.to_string();
+                    if let Some((id, name)) = &name {
+                        s.touch_audio_device(id, name);
+                    }
+                });
                 crate::audio::Event::Output(choice)
             }
             Some(crate::audio::Pick::Action(crate::audio::Action::TryAgain)) => crate::audio::Event::TryAgain,

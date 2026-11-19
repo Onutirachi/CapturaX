@@ -126,7 +126,9 @@ device and another output, restart, and check every choice is kept and plays.
    the sound moves to the new default output within the time of SC-006.
 4. **Given** the user picks a specific output, **When** the app starts again, **Then** it plays on
    that output; while that output is missing, the sound plays on the system default and says so,
-   and moves back when it returns.
+   and moves back when it returns. Meanwhile the menu keeps the missing output, marked, with
+   **Disconnected**, as it does for a missing chosen or paired input, until it returns or the user
+   picks another (maintainer, 2026-11-19).
 
 ---
 
@@ -310,8 +312,10 @@ The wording of every state is in FR-022.
 **States**
 
 - **FR-017**: The audio choice MUST show when the sound does not play as expected and why: a tag
-  before the value in the dropdown and, at the top of its menu, the state's title, detail and
-  action (FR-022): no paired input, input disconnected (it returns by itself), access blocked
+  before the value in the dropdown and, at the top of its menu, a card with the state's title, the
+  device's name when one device is at fault, the detail, and the action inside it (FR-022), tinted
+  in the tag's tone (warn: yellow, bad: red; No paired audio neutral) with a neutral button
+  (maintainer, 2026-11-19): no paired input, input disconnected (it returns by itself), access blocked
   (with an action that opens the system's microphone privacy page on Windows), exclusive device
   in use (it plays shared), device held by another app (with **Try again**), failed (with **Try
   again**). The output's fallback to the system
@@ -359,12 +363,16 @@ The wording of every state is in FR-022.
   | State | Tag | English | Portuguese (Brazil) |
   |---|---|---|---|
   | No paired input | — | No paired audio / Choose an input | Sem áudio pareado / Escolha uma entrada |
-  | Input disconnected | Disconnected · Desconectado | {} disconnected* / Waiting to reconnect* | {} desconectado* / Aguardando reconexão* |
-  | Exclusive device in use | In use · Em uso | Audio device in use / Exclusive mode unavailable | Dispositivo de áudio em uso / Modo exclusivo indisponível |
-  | Device held by another app (Windows) | In use · Em uso | Audio device in use / Try again* | Dispositivo de áudio em uso / Tentar novamente* |
+  | Input disconnected | Disconnected · Desconectado | Device disconnected / {} / Waiting to reconnect* | Dispositivo desconectado / {} / Aguardando reconexão* |
+  | Exclusive device in use | In use · Em uso | Device in use / {} / Exclusive mode unavailable | Dispositivo em uso / {} / Modo exclusivo indisponível |
+  | Device held by another app (Windows) | In use · Em uso | Device in use / {} / Try again* | Dispositivo em uso / {} / Tentar novamente* |
   | Access blocked (Windows) | Blocked · Bloqueado | Access blocked* / Desktop app permission is off* / Open privacy settings* | Acesso bloqueado* / Permissão para aplicativos da área de trabalho desativada* / Abrir configurações de privacidade* |
-  | Failed | Failed · Falhou | Cannot open {}* / Try again* | Não foi possível abrir {}* / Tentar novamente* |
-  | Chosen output missing | — | {} disconnected* / Playing on the system default | {} desconectado* / Tocando na saída padrão |
+  | Failed | Failed · Falhou | Cannot open / {} / Try again* | Não foi possível abrir / {} / Tentar novamente* |
+  | Chosen output missing | — | Device disconnected / {} / Using the system default | Dispositivo desconectado / {} / Usando a saída padrão |
+
+  The `{}` line is the device's name (cut with "…" when long; the menu lists it in full, marked).
+  Until 2026-11-19 the title held the name (`{} disconnected`, `Cannot open {}`), which a long
+  name cut before its last word.
 
 **Platforms**
 

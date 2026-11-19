@@ -51,15 +51,16 @@ pub enum StateTag {
 pub enum Notice {
     /// `No paired audio` / `Choose an input`.
     NoPair,
-    /// `{} disconnected` / `Waiting to reconnect`.
+    /// `Device disconnected` / `{}` / `Waiting to reconnect`.
     Disconnected(String),
     /// `Access blocked` / `Desktop app permission is off`.
     Blocked,
-    /// `Audio device in use` / `Try again`.
-    Held,
-    /// `Cannot open {}`; the name is empty for a system default output without a name.
+    /// `Device in use` / `{}`, with `Try again`.
+    Held(String),
+    /// `Cannot open` / `{}`, with `Try again`; the name is empty for a system default output
+    /// without a name.
     Failed(String),
-    /// `{} disconnected` / `Playing on the system default`: the chosen output.
+    /// `Device disconnected` / `{}` / `Using the system default`: the chosen output.
     Fallback(String),
 }
 
@@ -159,6 +160,8 @@ pub struct Item {
     pub current: bool,
     /// What picking the row does; None for headers.
     pub pick: Option<Pick>,
+    /// A chosen (or Auto's paired) endpoint that is missing: shown with `Disconnected`.
+    pub missing: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -357,12 +360,17 @@ impl AudioController {
     }
 
     /// The name of an endpoint seen since start, else its id.
+    /// The name of an endpoint seen in this run or stored with a choice; None when unknown.
+    pub fn known_name(&self, id: &str) -> Option<&str> {
+        self.names.get(id).map(String::as_str)
+    }
+
     fn name_of(&self, id: &str) -> String {
         self.names.get(id).cloned().unwrap_or_else(|| id.to_string())
     }
 
     /// The chosen output's name while the sound plays on the system default instead
-    /// (`{} disconnected` / `Playing on the system default`); None otherwise.
+    /// (`Device disconnected` / `{}` / `Using the system default`); None otherwise.
     pub fn fallback(&self) -> Option<String> {
         self.open.as_ref()?;
         self.fallback.as_deref().map(|id| self.name_of(id))
@@ -385,7 +393,7 @@ impl AudioController {
             AudioState::NoPair => (Notice::NoPair, None),
             AudioState::Disconnected(name) => (Notice::Disconnected(name), None),
             AudioState::Blocked => (Notice::Blocked, Some(Action::OpenPrivacy)),
-            AudioState::Held(_) => (Notice::Held, Some(Action::TryAgain)),
+            AudioState::Held(name) => (Notice::Held(name), Some(Action::TryAgain)),
             AudioState::Failed(name) => (Notice::Failed(name), Some(Action::TryAgain)),
             AudioState::Playing => (Notice::Fallback(self.fallback()?), None),
             AudioState::Off | AudioState::Opening => return None,
@@ -439,21 +447,32 @@ impl AudioController {
     pub fn value(&self, settings: &Settings) -> Option<Label> {
         let (_, video) = self.video.as_ref()?;
         Some(match input_choice(settings, video) {
-            AudioChoice::Auto => Label::Auto(self.pair(video).map(|id| self.name_of(&id))),
+            AudioChoice::Auto => Label::Auto(self.auto_name(video)),
             AudioChoice::None => Label::NoAudio,
             AudioChoice::Input(id) => Label::Plain(self.name_of(&id)),
         })
     }
 
+    /// The name Auto shows: the paired input, or the one that left while it is Disconnected.
+    fn auto_name(&self, video: &VideoDevice) -> Option<String> {
+        match (self.pair(video), self.state()) {
+            (Some(id), _) => Some(self.name_of(&id)),
+            (None, AudioState::Disconnected(name)) => Some(name),
+            (None, _) => None,
+        }
+    }
+
     /// The Audio dropdown's menu: the state's notice and action when there is one, the `Input`
     /// group (Auto, every input, No audio) while a video
     /// device is open, then the `Output` group; the choices in use marked. A chosen endpoint that
-    /// is missing is not offered and nothing of its group is marked (the state says why).
+    /// is missing stays in its group, marked and `missing`, until it returns or another is picked
+    /// (Auto names its paired input that left the same way).
     pub fn menu(&self, settings: &Settings) -> Vec<Item> {
         let header = |text| Item {
             text,
             current: false,
             pick: None,
+            missing: false,
         };
         let mut items = Vec::new();
         if let Some((notice, action)) = self.notice() {
@@ -463,16 +482,19 @@ impl AudioController {
                     text: Label::Action(action),
                     current: false,
                     pick: Some(Pick::Action(action)),
+                    missing: false,
                 });
             }
         }
         if let Some((_, video)) = &self.video {
             let choice = input_choice(settings, video);
             items.push(header(Label::Inputs));
+            let auto = choice == AudioChoice::Auto;
             items.push(Item {
-                text: Label::Auto(self.pair(video).map(|id| self.name_of(&id))),
-                current: choice == AudioChoice::Auto,
+                text: Label::Auto(self.auto_name(video)),
+                current: auto,
                 pick: Some(Pick::Input(AudioChoice::Auto)),
+                missing: auto && self.pair(video).is_none() && matches!(self.state(), AudioState::Disconnected(_)),
             });
             for input in &self.inputs {
                 let pick = AudioChoice::Input(input.id.clone());
@@ -480,12 +502,24 @@ impl AudioController {
                     text: Label::Plain(input.name.clone()),
                     current: choice == pick,
                     pick: Some(Pick::Input(pick)),
+                    missing: false,
+                });
+            }
+            if let AudioChoice::Input(id) = &choice
+                && !self.inputs.iter().any(|e| &e.id == id)
+            {
+                items.push(Item {
+                    text: Label::Plain(self.name_of(id)),
+                    current: true,
+                    pick: Some(Pick::Input(choice.clone())),
+                    missing: true,
                 });
             }
             items.push(Item {
                 text: Label::NoAudio,
                 current: choice == AudioChoice::None,
                 pick: Some(Pick::Input(AudioChoice::None)),
+                missing: false,
             });
         }
         items.push(header(Label::Outputs));
@@ -498,10 +532,20 @@ impl AudioController {
     fn output_items(&self, settings: &Settings) -> Vec<Item> {
         let choice = output_choice(settings);
         let default_name = self.default_output.as_deref().map(|id| self.name_of(id));
+        let missing = match &choice {
+            OutputChoice::Device(id) if !self.outputs.iter().any(|e| &e.id == id) => Some(Item {
+                text: Label::Plain(self.name_of(id)),
+                current: true,
+                pick: Some(Pick::Output(choice.clone())),
+                missing: true,
+            }),
+            _ => None,
+        };
         std::iter::once(Item {
             text: Label::SystemDefault(default_name),
             current: choice == OutputChoice::Default,
             pick: Some(Pick::Output(OutputChoice::Default)),
+            missing: false,
         })
         .chain(self.outputs.iter().map(|output| {
             let pick = OutputChoice::Device(output.id.clone());
@@ -509,8 +553,10 @@ impl AudioController {
                 text: Label::Plain(output.name.clone()),
                 current: choice == pick,
                 pick: Some(Pick::Output(pick)),
+                missing: false,
             }
         }))
+        .chain(missing)
         .collect()
     }
 
@@ -525,6 +571,12 @@ impl AudioController {
                 self.inputs = inputs;
                 self.outputs = outputs;
                 self.default_output = default_output;
+                // The last known names of chosen endpoints, for those missing now.
+                for (id, device) in &settings.audio_devices {
+                    if !device.name.is_empty() {
+                        self.names.entry(id.clone()).or_insert_with(|| device.name.clone());
+                    }
+                }
                 for endpoint in self.inputs.iter().chain(&self.outputs) {
                     self.names.insert(endpoint.id.clone(), endpoint.name.clone());
                 }
@@ -1457,6 +1509,28 @@ mod tests {
     }
 
     #[test]
+    fn a_chosen_output_missing_at_start_shows_its_stored_name() {
+        let mut run = Run::new();
+        run.settings.audio.output = HEADSET.into();
+        run.settings.touch_audio_device(HEADSET, "Headset (G533)");
+        run.send(listed());
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        assert_eq!(run.audio.fallback().as_deref(), Some("Headset (G533)"));
+        let outputs = run.audio.output_items(&run.settings);
+        let missing = outputs.iter().find(|i| i.missing).unwrap();
+        assert_eq!(missing.text, Label::Plain("Headset (G533)".into()));
+        // Never seen and not stored: its id.
+        let mut run = Run::new();
+        run.settings.audio.output = HEADSET.into();
+        run.send(listed());
+        let outputs = run.audio.output_items(&run.settings);
+        assert_eq!(outputs.last().unwrap().text, Label::Plain(HEADSET.into()));
+    }
+
+    #[test]
     fn windows_reopens_an_output_on_the_default_when_the_default_changes() {
         let mut run = Run::on(true);
         run.playing();
@@ -1616,9 +1690,14 @@ mod tests {
         );
         run.send(Event::Monitor(AudioEvent::Removed(CARD_INPUT.into())));
         assert_eq!(run.audio.menu(&run.settings).len(), 9);
-        // A chosen output that is missing: nothing marked in the output group.
+        // A chosen output that is missing stays last in its group, marked and missing.
         run.settings.audio.output = HEADSET.into();
-        assert!(current(&run.audio.output_items(&run.settings)).is_empty());
+        let outputs = run.audio.output_items(&run.settings);
+        let last = outputs.last().unwrap();
+        assert_eq!(current(&outputs), std::slice::from_ref(&last.text));
+        assert!(last.missing);
+        assert_eq!(last.pick, Some(Pick::Output(OutputChoice::Device(HEADSET.into()))));
+        assert_eq!(outputs.iter().filter(|i| i.missing).count(), 1);
     }
 
     fn input_error(number: u64, error: AudioError) -> Event {
@@ -1673,12 +1752,23 @@ mod tests {
         let name = "Microphone (Realtek(R) Audio)".to_string();
         assert_eq!(run.audio.state(), AudioState::Disconnected(name.clone()));
         assert_eq!(run.audio.tag(), Some(StateTag::Disconnected));
-        assert_eq!(top(&run), (Some(Label::Notice(Notice::Disconnected(name))), None));
+        assert_eq!(
+            top(&run),
+            (Some(Label::Notice(Notice::Disconnected(name.clone()))), None)
+        );
         assert_eq!(run.audio.session(), None);
         assert!(
             run.send(Event::Monitor(AudioEvent::Removed(MIC_INPUT.into())))
                 .is_empty()
         );
+        // Gone from the list, it stays in the menu, marked and missing, and in the value.
+        let menu = run.audio.menu(&run.settings);
+        let missing: Vec<&Item> = menu.iter().filter(|i| i.missing).collect();
+        assert_eq!(missing.len(), 1);
+        assert_eq!(missing[0].text, Label::Plain(name.clone()));
+        assert!(missing[0].current);
+        assert_eq!(current(&menu)[0], Label::Plain(name.clone()));
+        assert_eq!(run.audio.value(&run.settings), Some(Label::Plain(name)));
         // Another input, or the monitor's list read again: still waiting.
         assert!(
             run.send(Event::Monitor(AudioEvent::Added(endpoint(
@@ -1715,6 +1805,12 @@ mod tests {
         // The monitor's remove comes after: the state stays (not No paired audio).
         run.send(Event::Monitor(AudioEvent::Removed(CARD_INPUT.into())));
         assert!(matches!(run.audio.state(), AudioState::Disconnected(_)));
+        // Auto keeps the name of the input that left, marked and missing.
+        let auto = Label::Auto(Some("Digital Audio Interface (ezcap)".into()));
+        assert_eq!(run.audio.value(&run.settings), Some(auto.clone()));
+        let menu = run.audio.menu(&run.settings);
+        let row = menu.iter().find(|i| i.text == auto).unwrap();
+        assert!(row.current && row.missing);
         let commands = run.send(Event::Monitor(AudioEvent::Added(endpoint(
             CARD_INPUT,
             "Digital Audio Interface (ezcap)",
@@ -1799,7 +1895,10 @@ mod tests {
         assert_eq!(run.audio.tag(), Some(StateTag::InUse));
         assert_eq!(
             top(&run),
-            (Some(Label::Notice(Notice::Held)), Some(Pick::Action(Action::TryAgain)))
+            (
+                Some(Label::Notice(Notice::Held("Digital Audio Interface (ezcap)".into()))),
+                Some(Pick::Action(Action::TryAgain))
+            )
         );
         // No automatic retry: the monitor's events change nothing.
         assert!(run.send(listed()).is_empty());

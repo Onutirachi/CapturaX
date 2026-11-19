@@ -119,35 +119,75 @@ pub fn menu_item(item: &crate::preview::Item, texts: &Texts) -> MenuItem {
     }
 }
 
-/// A row of the Audio menu as Slint shows it; the choices in use are checked (the menu marks an
-/// input and an output).
-/// The state's notice is a `state` row (its title, its detail below), its action an `action` row.
-pub fn audio_item(item: &crate::audio::Item, texts: &Texts) -> MenuItem {
+/// The rows of the Audio menu as Slint shows them; the choices in use are checked (the menu marks
+/// an input and an output). The state's notice is a `state` row (its title, the device's name, its
+/// detail), its action an `action` row drawn inside the notice's card; both carry the notice's
+/// tone (FR-017).
+pub fn audio_items(items: &[crate::audio::Item], texts: &Texts) -> Vec<MenuItem> {
     use crate::audio::Label;
-    let (kind, detail) = match &item.text {
-        Label::Notice(notice) => ("state", audio_notice_detail(notice, texts)),
-        Label::Action(_) => ("action", Default::default()),
-        label if label.is_header() => ("header", Default::default()),
-        _ => ("", Default::default()),
-    };
-    MenuItem {
-        text: audio_label(&item.text, texts),
-        kind: kind.into(),
-        detail,
-        checked: item.current,
-        ..Default::default()
+    let mut tone = "";
+    items
+        .iter()
+        .map(|item| {
+            let (kind, name, detail) = match &item.text {
+                Label::Notice(notice) => {
+                    tone = audio_notice_tone(notice);
+                    (
+                        "state",
+                        audio_notice_name(notice, texts),
+                        audio_notice_detail(notice, texts),
+                    )
+                }
+                Label::Action(_) => ("action", Default::default(), Default::default()),
+                label if label.is_header() => ("header", Default::default(), Default::default()),
+                _ if item.missing => ("", Default::default(), texts.get_audio_tag_disconnected()),
+                _ => ("", Default::default(), Default::default()),
+            };
+            MenuItem {
+                text: audio_label(&item.text, texts),
+                kind: kind.into(),
+                name,
+                detail,
+                tone: if kind == "state" || kind == "action" { tone } else { "" }.into(),
+                checked: item.current,
+                ..Default::default()
+            }
+        })
+        .collect()
+}
+
+/// The tone of the Audio menu's notice card: the tag's (`warn`, `bad`), none for No paired audio.
+fn audio_notice_tone(notice: &crate::audio::Notice) -> &'static str {
+    use crate::audio::Notice;
+    match notice {
+        Notice::NoPair => "",
+        Notice::Disconnected(_) | Notice::Held(_) | Notice::Fallback(_) => "warn",
+        Notice::Blocked | Notice::Failed(_) => "bad",
     }
 }
 
-/// The detail line of the Audio menu's notice (FR-022).
+/// The device line of the Audio menu's notice (FR-022): the device at fault, none when no one
+/// device is.
+fn audio_notice_name(notice: &crate::audio::Notice, texts: &Texts) -> slint::SharedString {
+    use crate::audio::Notice;
+    match notice {
+        Notice::NoPair | Notice::Blocked => Default::default(),
+        Notice::Failed(name) if name.is_empty() => texts.get_audio_system_default_unnamed(),
+        Notice::Disconnected(name) | Notice::Held(name) | Notice::Failed(name) | Notice::Fallback(name) => {
+            name.as_str().into()
+        }
+    }
+}
+
+/// The detail line of the Audio menu's notice (FR-022); the actions are rows of their own.
 fn audio_notice_detail(notice: &crate::audio::Notice, texts: &Texts) -> slint::SharedString {
     use crate::audio::Notice;
     match notice {
         Notice::NoPair => texts.get_audio_choose_input(),
         Notice::Disconnected(_) => texts.get_preview_disconnected_detail(),
         Notice::Blocked => texts.get_preview_blocked_detail(),
-        Notice::Held | Notice::Failed(_) => Default::default(),
-        Notice::Fallback(_) => texts.get_audio_playing_on_default(),
+        Notice::Held(_) | Notice::Failed(_) => Default::default(),
+        Notice::Fallback(_) => texts.get_audio_using_default(),
     }
 }
 
@@ -179,15 +219,10 @@ pub fn audio_label(label: &crate::audio::Label, texts: &Texts) -> slint::SharedS
             use crate::audio::Notice;
             match notice {
                 Notice::NoPair => texts.get_audio_no_pair(),
-                Notice::Disconnected(name) | Notice::Fallback(name) => {
-                    texts.invoke_preview_disconnected(name.as_str().into())
-                }
+                Notice::Disconnected(_) | Notice::Fallback(_) => texts.get_audio_device_disconnected(),
                 Notice::Blocked => texts.get_preview_blocked(),
-                Notice::Held => texts.get_audio_in_use(),
-                Notice::Failed(name) if name.is_empty() => {
-                    texts.invoke_preview_cannot_open(texts.get_audio_system_default_unnamed())
-                }
-                Notice::Failed(name) => texts.invoke_preview_cannot_open(name.as_str().into()),
+                Notice::Held(_) => texts.get_audio_device_in_use(),
+                Notice::Failed(_) => texts.get_audio_cannot_open(),
             }
         }
         Label::Action(Action::TryAgain) => texts.get_try_again(),
@@ -212,19 +247,20 @@ pub enum MenuRow {
     Header,
     Item,
     WithDetail,
-    /// A state's notice with its detail line (a notice without one is as tall as an item).
+    /// A state's notice with its name or detail line (a notice with neither is as tall as an item);
+    /// as tall as its lines, measured by Slint (`Menus.notice-height`).
     State,
     Action,
 }
 
 impl MenuRow {
-    fn height(self) -> f32 {
+    fn height(self, notice: f32) -> f32 {
         match self {
             Self::Header => 30.0,
             Self::Item => 36.0,
             Self::WithDetail => 48.0,
-            Self::State => 54.0,
-            Self::Action => 40.0,
+            Self::State => notice,
+            Self::Action => 42.0,
         }
     }
 
@@ -233,6 +269,7 @@ impl MenuRow {
         match (item.kind.as_str(), item.detail.is_empty()) {
             ("header", _) => Self::Header,
             ("action", _) => Self::Action,
+            ("state", true) if !item.name.is_empty() => Self::State,
             (_, true) => Self::Item,
             ("state", false) => Self::State,
             (_, false) => Self::WithDetail,
@@ -244,10 +281,10 @@ impl MenuRow {
 const MENU_SPACING: f32 = 2.0;
 
 /// The top of row `index` in a menu's list, in logical pixels; for `index` = the count, the
-/// list's height plus one spacing. Out of range clamps.
-pub fn item_top(rows: &[MenuRow], index: i32) -> f32 {
+/// list's height plus one spacing. Out of range clamps. `notice`: the height of a state row.
+pub fn item_top(rows: &[MenuRow], index: i32, notice: f32) -> f32 {
     let end = usize::try_from(index.max(0)).unwrap_or(0).min(rows.len());
-    rows[..end].iter().map(|r| r.height() + MENU_SPACING).sum()
+    rows[..end].iter().map(|r| r.height(notice) + MENU_SPACING).sum()
 }
 
 /// The next selectable item of a menu from `from` (excluded) in direction `step` (1 or -1), or
@@ -331,10 +368,10 @@ impl Ui {
         // surfaces, so the cache stays small, and it is dropped when it grows (tooltips vary with
         // their text).
         let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32, u32), slint::Image>::new());
-        app.global::<Menus>().on_item_top(|items, index| {
+        app.global::<Menus>().on_item_top(|items, index, notice| {
             use slint::Model;
             let rows: Vec<MenuRow> = items.iter().map(|i| MenuRow::of(&i)).collect();
-            item_top(&rows, index)
+            item_top(&rows, index, notice)
         });
         app.global::<Menus>().on_next_selectable(|items, from, step| {
             use slint::Model;
@@ -677,14 +714,18 @@ mod tests {
     fn menu_rows_stack_with_their_heights() {
         use MenuRow::*;
         let rows = [Header, Item, WithDetail, Item];
-        assert_eq!(item_top(&rows, 0), 0.0);
-        assert_eq!(item_top(&rows, 1), 32.0);
-        assert_eq!(item_top(&rows, 2), 70.0);
-        assert_eq!(item_top(&rows, 3), 120.0);
+        assert_eq!(item_top(&rows, 0, 0.0), 0.0);
+        assert_eq!(item_top(&rows, 1, 0.0), 32.0);
+        assert_eq!(item_top(&rows, 2, 0.0), 70.0);
+        assert_eq!(item_top(&rows, 3, 0.0), 120.0);
         // The list's height is the end minus one spacing.
-        assert_eq!(item_top(&rows, 4) - MENU_SPACING, 156.0);
-        assert_eq!(item_top(&rows, 9), item_top(&rows, 4));
-        assert_eq!(item_top(&rows, -1), 0.0);
+        assert_eq!(item_top(&rows, 4, 0.0) - MENU_SPACING, 156.0);
+        assert_eq!(item_top(&rows, 9, 0.0), item_top(&rows, 4, 0.0));
+        assert_eq!(item_top(&rows, -1, 0.0), 0.0);
+        // A notice is as tall as Slint measured it.
+        let rows = [State, Action, Header];
+        assert_eq!(item_top(&rows, 1, 58.0), 60.0);
+        assert_eq!(item_top(&rows, 2, 58.0), 104.0);
     }
 
     #[test]
@@ -700,8 +741,15 @@ mod tests {
         assert_eq!(row("", ""), MenuRow::Item);
         assert_eq!(row("", "detail"), MenuRow::WithDetail);
         assert_eq!(row("state", "Waiting to reconnect"), MenuRow::State);
-        // A notice without a detail line (Cannot open {}) is as tall as an item.
+        // A notice with neither a name nor a detail line is as tall as an item; a name alone
+        // (Cannot open / {}) makes it a full notice.
         assert_eq!(row("state", ""), MenuRow::Item);
+        let named = MenuItem {
+            kind: "state".into(),
+            name: "HDMI (ezcap Live GAMER ULTRA)".into(),
+            ..Default::default()
+        };
+        assert_eq!(MenuRow::of(&named), MenuRow::State);
         assert_eq!(row("action", ""), MenuRow::Action);
     }
 

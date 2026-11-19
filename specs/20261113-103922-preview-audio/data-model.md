@@ -36,7 +36,7 @@ container id `{00000000-0000-0000-ffff-ffffffffffff}` (every virtual endpoint ha
 | Value | Settings text | Plays |
 |---|---|---|
 | `Auto` (default) | `"auto"` | the pair; nothing when there is none (state No paired input) |
-| `Input(id)` | the endpoint id | that input; Disconnected while it is missing |
+| `Input(id)` | the endpoint id | that input; Disconnected while it is missing, and the menu keeps it, marked, with `Disconnected` (Auto names the paired input that left the same way) |
 | `None` | `"none"` | nothing, no state |
 
 Stored per video device id in `[devices."<id>"] audio`. An unknown id is kept (the device may
@@ -47,7 +47,7 @@ return) and shown as Disconnected.
 | Value | Settings text | Plays on |
 |---|---|---|
 | `Default` (default) | `"default"` | the current default; follows its changes |
-| `Device(id)` | the endpoint id | that output; while missing, the default, with the fallback shown |
+| `Device(id)` | the endpoint id | that output; while missing, the default, with the fallback shown; the menu keeps the missing output, marked, with `Disconnected` |
 
 One for the app (`[audio] output`).
 
@@ -61,6 +61,10 @@ muted unmutes.
 ## Exclusive flags (FR-014, Windows)
 
 Per endpoint id, `[audio_devices."<id>"] exclusive = true` (default false). Ignored on Linux.
+
+The same entry keeps the endpoint's last known `name` while it is chosen as an input or output
+(maintainer, 2026-11-19): a chosen endpoint that is missing when the app starts is named by it in
+the menu and the notice, not by its id.
 
 ## Audio session
 
@@ -81,7 +85,10 @@ exclusive flag → that side.
 
 ## Audio state (FR-017)
 
-What the Audio dropdown shows. Never shown while the video device is not open (FR-018).
+What the Audio dropdown shows. Never shown while the video device is not open (FR-018). The
+header is a card at the top of the menu: title, the device's name (`{}`), detail, and the action
+inside the card; tinted warn (Disconnected, In use, output fallback) or bad (Blocked, Failed),
+neutral for NoPair.
 
 | State | When | Tag | Header (FR-022) | Action |
 |---|---|---|---|---|
@@ -89,14 +96,14 @@ What the Audio dropdown shows. Never shown while the video device is not open (F
 | `Opening` | open requested, no audio yet | — | — | — |
 | `Playing` | both sides running | `Exclusive` when a side is exclusive | — | — |
 | `NoPair` | Auto and no pair | — | No paired audio / Choose an input | — |
-| `Disconnected(name)` | the chosen or paired input is missing or was removed | Disconnected | {} disconnected / Waiting to reconnect | — (reopens on `Added` with the same id) |
-| `InUse` | playing, an exclusive side was refused (mode `SharedAfterInUse`) | In use | Audio device in use / Exclusive mode unavailable | — (exclusive tried again at the next open) |
-| `Held(name)` | a side reported `InUse`: another app holds the device alone (Windows), at open or taken while playing shared | In use | Audio device in use / Try again | Try again (reopen) |
+| `Disconnected(name)` | the chosen or paired input is missing or was removed | Disconnected | Device disconnected / {} / Waiting to reconnect | — (reopens on `Added` with the same id) |
+| `InUse` | playing, an exclusive side was refused (mode `SharedAfterInUse`) | In use | Device in use / {} / Exclusive mode unavailable | — (exclusive tried again at the next open) |
+| `Held(name)` | a side reported `InUse`: another app holds the device alone (Windows), at open or taken while playing shared | In use | Device in use / {} | Try again (reopen) |
 | `Blocked` | Windows microphone privacy denies the input | Blocked | Access blocked / Desktop app permission is off | Open privacy settings |
-| `Failed(name)` | any other open error, or a shared open refused | Failed | Cannot open {} / Try again | Try again (reopen) |
+| `Failed(name)` | any other open error, or a shared open refused | Failed | Cannot open / {} | Try again (reopen) |
 
 **Output fallback** is a flag beside the state, shown the same way when the state is `Playing` or
-`InUse`: header `{output} disconnected / Playing on the system default`, no tag. It is set when a
+`InUse`: header `Device disconnected / {output} / Using the system default`, no tag. It is set when a
 `Device(id)` output is missing, fails or is held by another app, cleared when the output reopens on it.
 
 Transitions (beyond the table): `Disconnected` → `Opening` on the input's `Added`; any state →

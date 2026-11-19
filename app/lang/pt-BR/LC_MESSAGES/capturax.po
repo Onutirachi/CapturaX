@@ -356,8 +356,14 @@ msgstr "Sem áudio pareado"
 msgid "Choose an input"
 msgstr "Escolha uma entrada"
 
-msgid "Audio device in use"
-msgstr "Dispositivo de áudio em uso"
+msgid "Device disconnected"
+msgstr "Dispositivo desconectado"
 
-msgid "Playing on the system default"
-msgstr "Tocando na saída padrão"
+msgid "Device in use"
+msgstr "Dispositivo em uso"
+
+msgid "Cannot open"
+msgstr "Não foi possível abrir"
+
+msgid "Using the system default"
+msgstr "Usando a saída padrão"

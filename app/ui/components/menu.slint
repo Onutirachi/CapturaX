@@ -24,6 +24,10 @@ export struct MenuItem {
     kind: string,
     // A second line under the text.
     detail: string,
+    // A `state` row's device line, between its title and its detail (preview audio FR-022).
+    name: string,
+    // A `state` or `action` row's card tint: `warn`, `bad` or empty (neutral).
+    tone: string,
     // The frame rate tag ("60 FPS"), after the detail line when there is one, else after the text.
     rate: string,
     // The name tag ("Full HD") and its ratio family (`16:9`, `custom`), then the aspect tag.
@@ -72,7 +76,10 @@ export global Menus {
     pure callback next-selectable(items: [MenuItem], from: int, step: int) -> int;
     // The top of row `index` in the list (`index` = the count: the list's height plus one
     // spacing); set by Rust (`item_top`) with the row heights below and a 2 px spacing.
-    pure callback item-top(items: [MenuItem], index: int) -> length;
+    pure callback item-top(items: [MenuItem], index: int, notice-height: length) -> length;
+    // The height of the open menu's notice row (a `state` row), as tall as its lines; set by that
+    // row, read by `item-top`.
+    in-out property <length> notice-height: 54px;
     // `items` after a group header named `title` (the icon look's menu); set by Rust, since Slint
     // cannot join arrays.
     pure callback with-header(title: string, items: [MenuItem]) -> [MenuItem];
@@ -152,7 +159,7 @@ export component MenuLayer inherits Rectangle {
     property <int> grid-rows: floor((root.count + Menus.columns - 1) / Menus.columns);
     property <length> grid-width: Menus.columns * root.cell-width + (Menus.columns - 1) * root.cell-gap;
     property <length> content-height: root.grid ? max(0px, root.grid-rows * (root.cell-height + root.cell-gap) - root.cell-gap)
-        : max(0px, Menus.item-top(Menus.items, root.count) - root.spacing);
+        : max(0px, Menus.item-top(Menus.items, root.count, Menus.notice-height) - root.spacing);
     property <length> natural-height: root.content-height + 2 * root.pad;
     property <length> ax: Menus.anchor-x;
     property <length> ay: Menus.anchor-y;
@@ -182,8 +189,8 @@ export component MenuLayer inherits Rectangle {
         if (self.grid) {
             return;
         }
-        let top = Menus.item-top(Menus.items, self.highlighted);
-        let bottom = Menus.item-top(Menus.items, self.highlighted + 1) - self.spacing;
+        let top = Menus.item-top(Menus.items, self.highlighted, Menus.notice-height);
+        let bottom = Menus.item-top(Menus.items, self.highlighted + 1, Menus.notice-height) - self.spacing;
         if (top < -scroller.content-y) {
             scroller.content-y = -top;
         } else if (bottom > -scroller.content-y + scroller.height) {
@@ -350,12 +357,33 @@ export component MenuLayer inherits Rectangle {
                         property <bool> state: item.kind == "state";
                         property <bool> action: item.kind == "action";
                         property <bool> selectable: Menus.selectable(item);
-                        // Must match `MenuRow` in app/src/ui.rs.
-                        height: self.header ? 30px : self.state ? (item.detail != "" ? 54px : 36px)
-                            : self.action ? 40px : item.detail != "" ? 48px : 36px;
-                        border-radius: Theme.radius-s;
-                        background: self.state ? Theme.c.top
-                            : !self.selectable || self.action ? transparent
+                        // A notice and its action make one card (preview audio FR-017), tinted in
+                        // the notice's tone.
+                        property <brush> card: item.tone == "warn" ? Theme.c.notice-warn
+                            : item.tone == "bad" ? Theme.c.notice-bad
+                            : Theme.c.top;
+                        property <bool> joined-below: self.state && Menus.items[i + 1].kind == "action";
+                        // Must match `MenuRow` in app/src/ui.rs; a notice is as tall as its lines,
+                        // and tells `Menus.notice-height`.
+                        height: self.header ? 30px
+                            : self.state ? max(36px, notice-box.preferred-height)
+                            : self.action ? 42px : item.detail != "" ? 48px : 36px;
+                        init => {
+                            if (self.state) {
+                                Menus.notice-height = self.height;
+                            }
+                        }
+                        changed height => {
+                            if (self.state) {
+                                Menus.notice-height = self.height;
+                            }
+                        }
+                        border-top-left-radius: self.action ? 0 : Theme.radius-s;
+                        border-top-right-radius: self.action ? 0 : Theme.radius-s;
+                        border-bottom-left-radius: self.joined-below ? 0 : Theme.radius-s;
+                        border-bottom-right-radius: self.joined-below ? 0 : Theme.radius-s;
+                        background: self.state || self.action ? self.card
+                            : !self.selectable ? transparent
                             : i == Menus.current || item.checked ? Theme.c.press
                             : i == Menus.highlighted ? Theme.c.hover
                             : transparent;
@@ -377,50 +405,69 @@ export component MenuLayer inherits Rectangle {
                             }
                         }
 
-                        if row.state: VerticalLayout {
+                        // The card goes on through the space between the notice and its action.
+                        if row.action: Rectangle {
+                            y: -root.spacing;
+                            height: root.spacing;
+                            background: row.card;
+                        }
+
+                        // The same space above the title, between the lines and the action, and
+                        // below the card's last line.
+                        notice-box := VerticalLayout {
                             alignment: center;
                             padding-left: 12px;
                             padding-right: 12px;
+                            padding-top: row.state ? 10px : 0;
+                            padding-bottom: !row.state ? 0 : row.joined-below ? 8px : 10px;
                             spacing: 2px;
-                            Text {
+                            if row.state: Text {
                                 text: item.text;
-                                color: Theme.c.text;
+                                color: item.tone == "warn" ? Theme.c.warn : item.tone == "bad" ? Theme.c.bad : Theme.c.text;
                                 font-size: Theme.text-m;
                                 font-weight: 600;
                                 overflow: elide;
                             }
-                            if item.detail != "": Text {
-                                text: item.detail;
-                                color: Theme.c.text-muted;
+                            if row.state && item.name != "": Text {
+                                text: item.name;
+                                color: Theme.c.text;
                                 font-size: Theme.text-s;
                                 overflow: elide;
                             }
+                            if row.state && item.detail != "": Text {
+                                // Wraps to the menu's width instead of widening it.
+                                preferred-width: 0px;
+                                text: item.detail;
+                                color: Theme.c.text-muted;
+                                font-size: Theme.text-s;
+                                wrap: word-wrap;
+                            }
                         }
 
-                        // The action as the mockup's soft accent button, left in its row.
+                        // The action as a neutral button inside the notice's card, as wide as its text.
                         if row.action: HorizontalLayout {
-                            alignment: start;
-                            padding-left: 6px;
-                            padding-top: 4px;
-                            padding-bottom: 4px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            padding-top: 0;
+                            padding-bottom: 10px;
                             action-chip := Rectangle {
                                 border-radius: Theme.radius-s;
-                                background: Theme.c.accent-soft;
-                                Rectangle {
-                                    border-radius: parent.border-radius;
-                                    background: item-area.pressed ? Theme.c.press
-                                        : i == Menus.highlighted ? Theme.c.hover
-                                        : transparent;
-                                }
+                                background: item-area.pressed || i == Menus.highlighted ? Theme.c.notice-button-hover
+                                    : Theme.c.notice-button;
+                                drop-shadow-offset-y: 1px;
+                                drop-shadow-blur: 2px;
+                                drop-shadow-color: #00000059;
                                 HorizontalLayout {
                                     padding-left: 12px;
                                     padding-right: 12px;
                                     Text {
                                         text: item.text;
-                                        color: Theme.c.accent-text;
+                                        color: Theme.c.notice-button-text;
                                         font-size: Theme.text-m;
                                         font-weight: 600;
+                                        horizontal-alignment: center;
                                         vertical-alignment: center;
+                                        overflow: elide;
                                     }
                                 }
                                 FocusRing {
