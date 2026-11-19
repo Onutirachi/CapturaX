@@ -11,6 +11,7 @@ principle I); these tools are the method the spike used.
 | `make_sync_video.py` | Makes a 1080p60 video with a white flash and a 1 kHz beep once per second, for a media player on the console. |
 | `analyze.py` | Measures the delays in the clips and writes CSV samples and a summary into a spec's measurements folder. |
 | `pipewire-measure.sh` | Linux: records the preview audio's own delay inside the PC with a PipeWire null sink (below). |
+| `keylat.py` | Windows: how late an app plays a microphone, from the keyboard's clicks (below). |
 
 Run from the repository root with [uv](https://docs.astral.sh/uv/), which installs the
 dependencies declared in each script.
@@ -74,6 +75,25 @@ delay is the app's own; add the real output's latency, `out_latency_ms` in the a
 `[audio-source]` stats line (`--stats`) of the same run. `record` records the sink's monitor
 for the given seconds (the whole run for a drift recording) and refuses when the links are gone,
 as after an app restart: run `start` again. `stop` removes the sink and its links.
+
+## A microphone played by the app (Windows)
+
+`keylat.py` needs no capture card or camera: with the app playing a microphone (for example the
+C920's as a video device's input) on some output, it records on one clock the space bar's presses,
+the microphone directly and a loopback of that output:
+
+```sh
+uv run tools/latency/keylat.py --mic C920 --loopback "27G2G4" --seconds 40 --save clips/k-1.npz
+```
+
+Tap the space bar of a loud mechanical keyboard (short taps, any window focused) or speak near the
+microphone. It prints each press's click onset in both streams (key → microphone is the
+microphone's own delay) and, by cross-correlation in 4 s windows, how far the output trails the
+microphone: what the app adds plus the output endpoint up to its loopback tap. A loopback taps
+where Windows mixes the endpoint, not where the sound is heard, and an endpoint held exclusive
+(such as a headset Voicemeeter uses) cannot be looped back; on a virtual endpoint compare with a
+reference on the same one, such as Windows' "Listen to this device". Results of the preview-audio
+spec: its measurements/acceptance.md, T044 on Windows.
 
 Options, file formats and the rules for rejected samples are in the spike's
 [contracts/cli.md](../../specs/20261026-154808-stack-spike/contracts/cli.md),
