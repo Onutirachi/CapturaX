@@ -125,8 +125,8 @@ Force each state, in English and Portuguese, and use its action:
 | No paired audio | a video device without an audio input: a virtual camera on Windows, `v4l2loopback` on Linux |
 | Disconnected | pick the C920's microphone as the ezcap's input and unplug the C920 (Linux: `echo 1-1 \| sudo tee /sys/bus/usb/drivers/usb/unbind`, then `bind`); plug it back: sound within 3 s. The ezcap is a PCIe card and cannot be unplugged |
 | Blocked | Windows: Settings → Privacy → Microphone → desktop apps off |
-| In use | Windows: hold the output exclusive in another app (e.g. a second CapturaX build, or an ASIO/exclusive player), mark it exclusive here |
-| Failed | Windows: an input exclusive in another app while ours is shared |
+| In use | Windows: hold the input exclusive in another app while ours opens shared: `cargo run --release -p capturax-platform --example audio_session -- <input id> --exclusive-in --output <another output> --seconds 60` (Try again plays once it quits) |
+| Failed | Windows: an error other than gone, in use or blocked (for example the Windows Audio service not running); none found that can be forced without administrator rights |
 | Output fallback | pick the G533, then unplug its receiver; plug it back: sound moves back. Linux: `pactl load-module module-null-sink sink_name=capx-test`, pick it, then `pactl unload-module <its id>` (never by name: that also removes other null sinks, such as VBAN's) and load it again |
 
 Closing: 100 closes in a row with sound playing on each system (switching the video device back

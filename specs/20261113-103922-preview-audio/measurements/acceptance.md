@@ -42,6 +42,32 @@ idle, such as starting the app, removes it for about 3 s. The app shows its inpu
 plays it again when it returns (Added → Playing in 223–240 ms). This is the camera with the
 kernel's autosuspend, not the app; the earlier "C920 drops by itself" observations are this.
 
+## T042: SC-008 states and closing on Windows (partial)
+
+### Windows 11 — 2026-11-19
+
+**Environment**: Windows 11 Pro 26300, release build of `f1da398` (states) and `9ebf0fd`
+(closes), ezcap Live GAMER ULTRA (USB) and C920. System default output: Voicemeeter Input.
+Driven by a PowerShell script (window screenshots, `SetCursorPos`/`mouse_event` clicks), both
+languages by `--lang en` and `--lang pt-BR`. Raw logs in `raw/` (not committed).
+
+| State | How | English | Portuguese |
+|---|---|---|---|
+| Blocked | ezcap, `HKCU\…\ConsentStore\microphone\NonPackaged` `Value` = `Deny` (Settings' "Let desktop apps access your microphone" off) | `Blocked` tag (bad), header `Access blocked` / `Desktop app permission is off`, `Open privacy settings` opened the Settings app; with `Allow` again the input opened 1.2 s later (3 s check) | `Bloqueado`, `Acesso bloqueado`, `Abrir configurações de privacidade`; the detail is cut (`Permissão para aplicativos da área de trabalh…`) |
+| In use | ezcap's input held exclusive by `audio_session --exclusive-in` while the app opens it shared (`AUDCLNT_E_DEVICE_IN_USE`) | `In use` tag (warn), header `Audio device in use`, `Try again`; after the holder quit, Try again played | `Em uso`, `Dispositivo de áudio em uso`, `Tentar novamente` |
+
+Not forced yet: No paired audio (the NVIDIA Broadcast camera reported `In use` while the
+Broadcast app was not running), Disconnected (C920 unplug), Output fallback (ARZOPA unplug or a
+disabled Voicemeeter endpoint), Failed (no error other than gone, in use or blocked found that can
+be forced without administrator rights).
+
+**Closing**: 100 quits in a row with the ezcap's sound playing (start with `--stats`, 4 s of play
+after the window shows, `WM_CLOSE` to the window): every one logged `audio session 1 closed X ms
+into the quit`, 3–13 ms (median 8); the process exited 160–445 ms after the close (median 315);
+no `did not close within` line, no hang (the system's sound not checked by ear). A first run of the
+script sent `WM_CLOSE` to winit's hidden `Winit Thread Event Target` window (the process's first
+`MainWindowHandle`), which did nothing; it is not counted.
+
 ## T044: SC-006 responsiveness on Linux (partial)
 
 ### CachyOS — 2026-11-18

@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-18 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-19 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -558,6 +558,33 @@ measurements/acceptance.md, method in quickstart "Responsiveness"):
   not seen by hand.
 - Scripts on the test PC: `~/capx/t044vol.sh`/`.py`, `t044wheel.sh`/`.py`, `t044def.sh`.
 
+Windows session (2026-11-19, ezcap and C920 on the Windows PC):
+
+- Volume law changed to the square (`gain = v²`, commit `feat: use the square law for the preview
+  volume`): the maintainer heard almost no difference from 0 to 20 % with the cubic law (20 % =
+  −42 dB). research R8, data-model.md and T010's text changed first. Not heard yet with the new
+  law.
+- T033 done: the maintainer checked the popover with mouse and keyboard on Windows; the restart
+  (level 64 and muted kept) checked here from the settings and a screenshot.
+- T036 Windows, by the maintainer: changing the system default moves the sound at once with
+  System default selected; a chosen output unplugged plays on the default and returns when plugged
+  back. The select keeps naming the chosen output meanwhile (by design: data-model "Device(id)").
+  Not confirmed yet: that the `Disconnected` tag and `Playing on the system default` header showed.
+  The G533 cannot be unplugged (it is behind Voicemeeter): use the ARZOPA monitor's speakers
+  (easy to unplug) or disable a Voicemeeter virtual endpoint instead. Headset plugged as the new
+  default: not done.
+- T042 Windows partial (measurements/acceptance.md): Blocked and In use in both languages, 100
+  quits (3–13 ms). Found: an input held exclusive by another app gives In use, not Failed;
+  quickstart's table changed (In use is forced with `audio_session --exclusive-in`, no T038
+  needed). Failed has no way found to force it without administrator rights. The NVIDIA Broadcast
+  camera says `In use` unless the Broadcast app runs (starting it from here did not keep it up).
+- Found: the Blocked detail in Portuguese is cut in the menu (`Permissão para aplicativos da área
+  de trabalh…`); the maintainer decides between a shorter text and wrapping.
+- Driving the app on Windows: scratchpad scripts (not kept) used `SetCursorPos`/`mouse_event` and
+  `Graphics.CopyFromScreen`; the window is the process's `MainWindowHandle` only once its title is
+  `CapturaX` (before that it is winit's hidden `Winit Thread Event Target`). The settings and
+  `capturax.log` (UTC times) are next to the exe in `target/release`.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -596,6 +623,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Windows, when the ezcap moves there: T033's mouse and keyboard recheck, T036's Windows half
-   (with the headset and G533 steps), T028, T039, and the Windows halves of T042 (Blocked, In use,
-   Failed too) and T044.
+1. Windows (ezcap there now): T042's No paired audio (NVIDIA Broadcast running), Disconnected
+   (C920 unplug) and Output fallback (ARZOPA); T036's tag/header confirmation and headset step;
+   T044's Windows half; T028.
+2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039.
