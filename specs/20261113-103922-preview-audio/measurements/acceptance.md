@@ -56,10 +56,23 @@ languages by `--lang en` and `--lang pt-BR`. Raw logs in `raw/` (not committed).
 | Blocked | ezcap, `HKCU\…\ConsentStore\microphone\NonPackaged` `Value` = `Deny` (Settings' "Let desktop apps access your microphone" off) | `Blocked` tag (bad), header `Access blocked` / `Desktop app permission is off`, `Open privacy settings` opened the Settings app; with `Allow` again the input opened 1.2 s later (3 s check) | `Bloqueado`, `Acesso bloqueado`, `Abrir configurações de privacidade`; the detail is cut (`Permissão para aplicativos da área de trabalh…`) |
 | In use | ezcap's input held exclusive by `audio_session --exclusive-in` while the app opens it shared (`AUDCLNT_E_DEVICE_IN_USE`) | `In use` tag (warn), header `Audio device in use`, `Try again`; after the holder quit, Try again played | `Em uso`, `Dispositivo de áudio em uso`, `Tentar novamente` |
 
-Not forced yet: No paired audio (the NVIDIA Broadcast camera reported `In use` while the
-Broadcast app was not running), Disconnected (C920 unplug), Output fallback (ARZOPA unplug or a
-disabled Voicemeeter endpoint), Failed (no error other than gone, in use or blocked found that can
-be forced without administrator rights).
+Later the same day (release builds of the working tree, before `c434a91`):
+
+| State | How | Result |
+|---|---|---|
+| No paired audio | the ezcap's `HDMI (ezcap Live GAMER ULTRA)` recording endpoint disabled in `mmsys.cpl` by the maintainer, then the app started | `No paired audio` / `Choose an input` and `Sem áudio pareado` / `Escolha uma entrada`, value `Auto (none)` |
+| Disconnected | the same endpoint disabled while playing (Portuguese) | `Desconectado` tag, the session closed in 18 ms; Auto's input that left is Disconnected, not No paired audio (by design) |
+| Output fallback | the ARZOPA monitor's speakers chosen, unplugged and plugged back three times by the maintainer (Portuguese) | on the default 45–60 ms after the removal, back on the ARZOPA when plugged; found that the menu then marked nothing in the Output group and the notice's title cut `desconectado` off a long name, which led to the card notices of `c434a91` |
+
+The NVIDIA Broadcast camera cannot serve No paired audio: it opens only while the Broadcast app
+runs, and then Auto pairs `Microfone (NVIDIA Broadcast)` by name. At its largest mode (3840×2160)
+it failed to start and showed the video state `In use` (spec #3's preview; noted in handoff.md);
+at 1920×1080 it played.
+
+Failed: accepted by the unit tests (maintainer, 2026-11-19); no error other than gone, in use or
+blocked could be forced without administrator rights. Left on Windows: the input Disconnected by
+unplugging the C920 (the C920 was held by NVIDIA Broadcast this session) and the English of
+Disconnected and Output fallback.
 
 **Closing**: 100 quits in a row with the ezcap's sound playing (start with `--stats`, 4 s of play
 after the window shows, `WM_CLOSE` to the window): every one logged `audio session 1 closed X ms

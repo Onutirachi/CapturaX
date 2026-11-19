@@ -580,10 +580,33 @@ Windows session (2026-11-19, ezcap and C920 on the Windows PC):
   camera says `In use` unless the Broadcast app runs (starting it from here did not keep it up).
 - Found: the Blocked detail in Portuguese is cut in the menu (`Permissão para aplicativos da área
   de trabalh…`); the maintainer decides between a shorter text and wrapping.
+- Afternoon (commits `37a6118`, `c434a91`, maintainer's decisions of 2026-11-19, spec, data-model
+  and settings contract changed first):
+  - A missing chosen input or output stays in the Audio menu, marked, with `Disconnected`, until it
+    returns or another is picked; Auto keeps the name of its paired input that left.
+  - The notice is a card: generic title (`Device disconnected`, `Device in use`, `Cannot open`),
+    the device's name line, the detail (wraps), the action inside the card as a neutral button;
+    tinted warn (yellow) or bad (red), neutral for No paired audio; height follows its lines (Slint
+    measures it, `Menus.notice-height` feeds Rust's `item_top`). The light theme's notice colors
+    and the English texts were not looked at on screen.
+  - `[audio_devices."<id>"] name` is now written for chosen endpoints too, so one missing at start
+    is named (not its id).
+  - Failed accepted by the unit tests (maintainer). No paired audio forced by disabling the ezcap's
+    recording endpoint in `mmsys.cpl` (the NVIDIA Broadcast camera pairs its own microphone by name
+    while Broadcast runs).
+- Found for later (not this spec):
+  - Every dropdown's bottom touches the window's edge: give menus the docks' margin from the
+    window (maintainer, 2026-11-19).
+  - Dropdowns animate when opening but not when closing (maintainer, 2026-11-19).
+  - Device preview (spec #3): the NVIDIA Broadcast camera at its largest mode (3840×2160) fails to
+    start and shows the video state `In use`, though nothing holds it; at 1080p it plays. A mode
+    that fails to start is reported as in use.
 - Driving the app on Windows: scratchpad scripts (not kept) used `SetCursorPos`/`mouse_event` and
   `Graphics.CopyFromScreen`; the window is the process's `MainWindowHandle` only once its title is
   `CapturaX` (before that it is winit's hidden `Winit Thread Event Target`). The settings and
-  `capturax.log` (UTC times) are next to the exe in `target/release`.
+  `capturax.log` (UTC times) are next to the exe in `target/release`. Windows refuses to bring the
+  window forward while the maintainer types in VS Code: press Alt before `SetForegroundWindow`,
+  check `GetForegroundWindow` before any click, and `ShowWindow(SW_MAXIMIZE)` if it was restored.
 
 ## Done in the last sessions
 
@@ -623,7 +646,7 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Windows (ezcap there now): T042's No paired audio (NVIDIA Broadcast running), Disconnected
-   (C920 unplug) and Output fallback (ARZOPA); T036's tag/header confirmation and headset step;
-   T044's Windows half; T028.
+1. Windows (ezcap there now): T042's C920 unplug as the ezcap's input and the English of
+   Disconnected and Output fallback (also a look at the light theme's cards); T036's headset that
+   becomes the default and devices in the menu within 3 s; T044's Windows half; T028.
 2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039.
