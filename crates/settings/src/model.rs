@@ -502,17 +502,18 @@ impl Settings {
         audio.insert("volume".into(), Value::Integer(a.volume.min(100).into()));
         audio.insert("muted".into(), Value::Boolean(a.muted));
 
-        // Only exclusive entries are written, most recently used first, at most the limit (rule 3);
-        // the unknown keys of the kept ones survive.
+        // Only exclusive or chosen entries are written, most recently used first, at most the
+        // limit (rule 3); `exclusive` only when true; the unknown keys of the kept ones survive.
         let mut old = match table.remove("audio_devices") {
             Some(Value::Table(old)) => old,
             _ => Table::new(),
         };
+        let chosen = |id: &str| a.output == id || self.devices.iter().any(|(_, d)| d.audio == id);
         let mut audio_devices = Table::new();
         for (id, device) in self
             .audio_devices
             .iter()
-            .filter(|(_, d)| d.exclusive)
+            .filter(|(id, d)| d.exclusive || chosen(id))
             .take(AUDIO_DEVICES_LIMIT)
         {
             let mut entry = match old.remove(id) {
@@ -520,7 +521,11 @@ impl Settings {
                 _ => Table::new(),
             };
             entry.insert("name".into(), Value::String(device.name.clone()));
-            entry.insert("exclusive".into(), Value::Boolean(true));
+            if device.exclusive {
+                entry.insert("exclusive".into(), Value::Boolean(true));
+            } else {
+                entry.remove("exclusive");
+            }
             audio_devices.insert(id.clone(), Value::Table(entry));
         }
         table.insert("audio_devices".into(), Value::Table(audio_devices));
@@ -1114,6 +1119,26 @@ mod tests {
             .map(String::as_str)
             .collect();
         assert_eq!(ids, ["c"]);
+    }
+
+    #[test]
+    fn chosen_audio_devices_keep_their_name() {
+        let mut s = Settings::default();
+        s.touch_audio_device("out", "1 - ARZOPA");
+        s.touch_audio_device("in", "Microphone (C920)");
+        s.touch_audio_device("other", "Other");
+        s.audio.output = "out".into();
+        s.touch_device("mf:a", "ezcap").audio = "in".into();
+        let mut table = Table::new();
+        s.write_into(&mut table);
+        let written = table["audio_devices"].as_table().unwrap();
+        let ids: Vec<&str> = written.keys().map(String::as_str).collect();
+        assert_eq!(ids, ["in", "out"], "`other` is neither chosen nor exclusive");
+        assert_eq!(written["out"]["name"].as_str(), Some("1 - ARZOPA"));
+        assert!(written["out"].get("exclusive").is_none(), "written only when true");
+        // Read back, the name is there for a chosen output missing at start.
+        let back = read(&toml::to_string(&table).unwrap());
+        assert_eq!(back.audio_device("out").unwrap().name, "1 - ARZOPA");
     }
 
     #[test]
