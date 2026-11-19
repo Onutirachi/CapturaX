@@ -1,4 +1,4 @@
-//! The preview's volume (research R8, data-model.md "Volume"): one app-side gain with the cubic
+//! The preview's volume (research R8, data-model.md "Volume"): one app-side gain with the square
 //! law, the speaker icon, the mouse wheel step and the 10 ms ramp that keeps changes click-free.
 
 /// The slider's step per mouse wheel notch, in percent.
@@ -7,13 +7,13 @@ const WHEEL_STEP: i32 = 5;
 /// The ramp to a new gain lasts this many output frames per second of rate (10 ms).
 const RAMP_PER_SECOND: u32 = 100;
 
-/// The gain for a slider level (0–100 %): `(level/100)³`, 0 when muted. Levels above 100 count
+/// The gain for a slider level (0–100 %): `(level/100)²`, 0 when muted. Levels above 100 count
 /// as 100.
 pub fn gain(level: u8, muted: bool) -> f32 {
     if muted {
         return 0.0;
     }
-    (f32::from(level.min(100)) / 100.0).powi(3)
+    (f32::from(level.min(100)) / 100.0).powi(2)
 }
 
 /// The speaker icon next to the slider.
@@ -111,11 +111,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn gain_is_cubic_and_zero_when_muted() {
+    fn gain_is_square_and_zero_when_muted() {
         assert_eq!(gain(100, false), 1.0);
         assert_eq!(gain(0, false), 0.0);
-        assert!((gain(50, false) - 0.125).abs() < 1e-6);
-        assert!((gain(80, false) - 0.512).abs() < 1e-6);
+        assert!((gain(50, false) - 0.25).abs() < 1e-6);
+        assert!((gain(80, false) - 0.64).abs() < 1e-6);
+        assert!((gain(20, false) - 0.04).abs() < 1e-6);
         assert_eq!(gain(80, true), 0.0);
         assert_eq!(gain(100, true), 0.0);
         assert_eq!(gain(250, false), 1.0);

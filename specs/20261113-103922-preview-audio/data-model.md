@@ -54,7 +54,7 @@ One for the app (`[audio] output`).
 ## Volume (FR-011, FR-012)
 
 `level` 0–100 (integer %, default 80) and `muted` (default false), one for the app. Gain
-`(level/100)³`, 0 when muted (research R8). The icon: muted or 0 → `volume_off`; ≤ 33 →
+`(level/100)²`, 0 when muted (research R8). The icon: muted or 0 → `volume_off`; ≤ 33 →
 `volume_1`; ≤ 66 → `volume_2`; else `volume`. Unmuting restores `level`; moving the slider while
 muted unmutes.
 

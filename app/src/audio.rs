@@ -1009,7 +1009,7 @@ mod tests {
             device: card(),
         });
         // Opening already: the bridge takes it as soon as it is made.
-        assert_eq!(run.send(volume(50, false)), [Command::SetGain(0.125)]);
+        assert_eq!(run.send(volume(50, false)), [Command::SetGain(0.25)]);
         assert_eq!(run.send(volume(50, true)), [Command::SetGain(0.0)]);
         assert_eq!(run.audio.state(), AudioState::Opening, "no reopen");
         run.send(Event::VideoClosed { session: 1 });

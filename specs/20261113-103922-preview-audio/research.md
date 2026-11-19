@@ -250,16 +250,18 @@ the code that relies on it.
 
 ## R8. Volume (FR-011, FR-012)
 
-- **Decision**: one app-side gain in the bridge, `gain = v³` for the slider value `v` in 0–1
-  (the cubic law PipeWire and PulseAudio use for software volume), 0 when muted, ramped over
+- **Decision**: one app-side gain in the bridge, `gain = v²` for the slider value `v` in 0–1
+  (20 % ≈ −28 dB, 50 % ≈ −12 dB, close to the Windows volume slider), 0 when muted, ramped over
   10 ms (R4). The wheel moves 5 % per notch. The OS stream volume (`ISimpleAudioVolume`,
   PipeWire's stream volume) is left at 100 %.
 - **Rationale**: works the same in shared and exclusive mode (exclusive streams have no Windows
-  mixer volume) and on both systems; never touches the system's or other apps' volume. Cubic
-  makes the slider's middle sound like the middle.
+  mixer volume) and on both systems; never touches the system's or other apps' volume. The
+  square law spreads the slider's low end: changed from the cubic law of PipeWire and PulseAudio
+  by the maintainer on 2026-11-19, who heard almost no difference from 0 to 20 % with it (20 % ≈
+  −42 dB, 10 % ≈ −60 dB).
 - **Alternatives**: the OS per-app volume: no effect in exclusive mode, and on Windows it moves the
   app's slider in the system mixer, which the user may set separately. Linear gain: most of the
-  slider's travel sounds loud.
+  slider's travel sounds loud. Cubic (PipeWire, PulseAudio): the bottom fifth is near silence.
 
 ## R9. Closing never hangs (FR-006, SC-008)
 
