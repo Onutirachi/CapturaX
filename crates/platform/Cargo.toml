@@ -12,6 +12,8 @@ log.workspace = true
 dirs.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+# The output's resync decision (preview audio FR-003a, research R16): pure code.
+audio = { package = "capturax-audio", path = "../audio" }
 windows-sys.workspace = true
 windows.workspace = true
 windows-core.workspace = true

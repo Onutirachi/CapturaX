@@ -392,6 +392,30 @@ the code that relies on it.
   kept: nothing extra is installed by the user.
 - No GStreamer element is added. No new dependency in `crates/audio` (std only).
 
+## R16. A delay that grows after the app (FR-003a)
+
+- **Finding** (2026-11-19, measurements/drift.md): on Windows, shared, the delay measured against
+  the line input grew linearly, about 0.8 ms per minute (+24 ms in 30 minutes on `In 5`, +20 ms in
+  24 minutes on VAIO3, +38 ms in 57 minutes), while the app's `wait_ms` stayed at 10–11 ms, the
+  input was drained at every event and the output kept at most 1.5 periods queued. Reopening only
+  the output (the app's Audio menu) brought it back from 85 to 58 ms; restarting the app did the
+  same. So it grows after `GetCurrentPadding`, where the app cannot see it. Not known: whether it
+  is Voicemeeter's VAIO driver, the `IAudioClient3` short period (most apps use the normal 10 ms
+  period, and the maintainer has never noticed drift in other apps), or something else.
+- **Decision** (maintainer, 2026-11-19: a palliative now, the cause after the app is done): the
+  Windows output thread reopens its own stream on the same endpoint at the first quiet moment
+  (peak below −50 dBFS for 300 ms of what it writes, after the volume) once the stream has played
+  for 5 minutes. The decision is a pure `audio::Resync` fed with each block the output writes. The
+  reopen is the same as a user's output change: a new `Opened`, the `[audio-source]` line again,
+  the bridge kept. Shared output only (an exclusive stream has no mixer after it); not on Linux.
+- **Rationale**: 0.8 ms per minute over 5 minutes is 4 ms, below anything heard; a quiet moment
+  hides the reopen's short silence (tens of ms). The muted preview is quiet, so it reopens then,
+  unheard.
+- **Alternatives**: a reopen on a fixed timer (a cut over sound); measuring the hidden delay
+  (`IAudioClock` reports the driver's position, which is the side that does not see the growth);
+  the normal `Initialize` period (untested, about 7 ms more on every output; kept for the
+  investigation).
+
 ## R15. Tests without devices
 
 - **Decision**: `crates/audio` unit tests: follower holding the level with input and output

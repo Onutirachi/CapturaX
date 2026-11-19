@@ -241,6 +241,14 @@ The wording of every state is in FR-022.
   of play, without cutting or repeating audio, by following the difference between the input's
   and the output's clocks (the spike's rate correction), so the delay does not grow (SC-003) and
   the pitch change is not audible (SC-005).
+- **FR-003a**: On Windows, a shared output MUST be reopened by the app at the first quiet moment
+  (the sound below −50 dBFS for 300 ms) once it has played for 5 minutes, and the 5 minutes start
+  again at each reopen, so a delay that grows after the app stays small. Measured on 2026-11-19
+  on Voicemeeter's `In 5` and VAIO3: the delay grew about 0.8 ms per minute while the audio
+  waiting in the app stayed steady, and reopening only the output brought it back. The cause is
+  not known yet; this is a palliative, investigated after the app is done (maintainer,
+  2026-11-19). A moment that is never quiet lets the delay grow until the next one; no reopen is
+  forced over sound. Not on Linux (no drift measured) nor on an exclusive output.
 - **FR-004**: The sound MUST play correctly whatever the input's and the output's formats (sample
   rate, channels, sample format): mono inputs on both channels, extra channels mixed down.
 - **FR-005**: Changing the video mode, the color range, or anything in the interface MUST NOT
@@ -405,7 +413,9 @@ as a hardware input strip next to the line input (maintainer, 2026-11-19). The s
 Voicemeeter virtual input; on 2026-11-19 the virtual inputs added 16 ms (VAIO3) and 47 ms
 (`Voicemeeter Input`) over `In 5` with the app and the spike alike, so a virtual input measures
 Voicemeeter's buffer, not the app. The maintainer's everyday output stays a virtual input; its
-extra delay is recorded next to each result. The spike's engine is measured in the same session
+extra delay is recorded next to each result. From the drift runs on (maintainer, 2026-11-19),
+Windows runs use VAIO3, the everyday output, not `In 5`: SC-001 shared stays as measured on
+`In 5`, and later results give VAIO3's figure. The spike's engine is measured in the same session
 on the same output as a check. The reference itself is about 26–28 ms behind the card (the
 monitor's own audio delay), so these numbers are relative to the passthrough the player hears,
 not to the card. The A/V offset is the audio

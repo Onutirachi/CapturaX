@@ -7,7 +7,8 @@
 //!
 //! - **Shared**: the endpoint's mix format, any rate and channel count. `IAudioClient3` with the
 //!   shortest period the Windows mixer allows; else the normal `Initialize` with a 20 ms buffer.
-//!   The output keeps 1.5 periods queued in Windows.
+//!   The output keeps 1.5 periods queued in Windows, and reopens itself at the first quiet
+//!   moment once it has played 5 minutes (FR-003a, research R16: a delay grows after it).
 //! - **Exclusive**: the first format the device takes (samples × rates × channels, research R2),
 //!   its minimum period, one period per event. In use or no format → the side opens shared
 //!   and reports `SharedAfterInUse`.
@@ -579,6 +580,9 @@ fn taken(error: AudioError, device: &IMMDevice) -> AudioError {
 
 /// A started side. Fields drop in order: the service, the client, then the event it signals.
 struct Stream {
+    /// What it opened, for its own reopen (FR-003a).
+    endpoint: Option<String>,
+    exclusive: bool,
     io: Io,
     client: IAudioClient,
     event: Event,
@@ -626,6 +630,8 @@ impl Stream {
         // SAFETY: as above.
         unsafe { opened.client.Start() }.map_err(failed)?;
         Ok(Self {
+            endpoint: open.device.clone(),
+            exclusive: open.exclusive,
             io,
             client: opened.client,
             event,
@@ -718,6 +724,8 @@ impl Stream {
             (self.period * 3 / 2).min(self.buffer)
         };
         let mut samples = Vec::new();
+        // A shared output reopens itself at a quiet moment every 5 minutes or more (FR-003a).
+        let mut resync = (!exclusive).then(|| audio::resync::Resync::new(self.format.rate));
         loop {
             self.event.wait();
             if let Some(next) = control(requests, shared) {
@@ -755,6 +763,13 @@ impl Stream {
                 if let Err(e) = render.ReleaseBuffer(frames, 0) {
                     return self.failed(&e);
                 }
+            }
+            if resync.as_mut().is_some_and(|r| r.feed(&samples, channels)) {
+                log::info!("audio Output: resync (quiet after 5 minutes)");
+                return Next::Reopen(Open {
+                    device: self.endpoint.clone(),
+                    exclusive: self.exclusive,
+                });
             }
         }
     }
