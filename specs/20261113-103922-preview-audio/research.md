@@ -287,8 +287,13 @@ the code that relies on it.
 - **Decision**:
   - **Windows** (SC-001, SC-003, SC-004): the spike's method unchanged (research R3 "Method used
     in practice"): Voicemeeter records the monitor's audio from the line input (left) and the
-    preview's output on the Voicemeeter virtual input (right); PS5 menu sounds;
-    `analyze.py audio --stereo`. Each setting (shared, input exclusive, both exclusive) gets a
+    preview's output (right); PS5 menu sounds; `analyze.py audio --stereo`. Changed 2026-11-19
+    (maintainer, T028): the preview plays on `Voicemeeter In 5`, read by Voicemeeter as a
+    hardware input strip, not on a virtual input: with the same app and the spike's engine alike,
+    `In 5` gave 52–53 ms, VAIO3 66–68 ms and `Voicemeeter Input` 99 ms, so a virtual input adds
+    its own buffer to the figure. The spike's engine (`audio-preview --engine wasapi`) is
+    measured in the same session on the same output, and the extra delay of the maintainer's
+    everyday virtual input is recorded next to each result. Each setting (shared, input exclusive, both exclusive) gets a
     25 s clip for SC-001 and a 30-minute recording for SC-003.
   - **Linux** (SC-002, SC-003): inside the PC (maintainer, 2026-11-13). A script
     `tools/latency/pipewire-measure.sh` creates a null sink `capturax-measure` and, while the app

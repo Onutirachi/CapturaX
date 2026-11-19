@@ -400,15 +400,21 @@ The delay is measured as in the stack spike (research R3, "Method used in practi
 menu sounds reach the recorder twice, from the passthrough monitor's headphone jack through the
 PC's line input (the reference) and from the preview's output; `analyze.py audio --stereo` finds
 each pair (reference panned left, preview right) and reports the delay. On Windows the recorder
-is Voicemeeter, as in the spike, so the preview's output is the Voicemeeter virtual input; the
-reference itself is about 26 ms behind the card (the monitor's own audio delay), so these numbers
-are relative to the passthrough the player hears, not to the card. The A/V offset is the audio
+is Voicemeeter, as in the spike; the preview plays on `Voicemeeter In 5`, which Voicemeeter reads
+as a hardware input strip next to the line input (maintainer, 2026-11-19). The spike played on a
+Voicemeeter virtual input; on 2026-11-19 the virtual inputs added 16 ms (VAIO3) and 47 ms
+(`Voicemeeter Input`) over `In 5` with the app and the spike alike, so a virtual input measures
+Voicemeeter's buffer, not the app. The maintainer's everyday output stays a virtual input; its
+extra delay is recorded next to each result. The spike's engine is measured in the same session
+on the same output as a check. The reference itself is about 26–28 ms behind the card (the
+monitor's own audio delay), so these numbers are relative to the passthrough the player hears,
+not to the card. The A/V offset is the audio
 delay minus the video delay of spec #3 (glass to glass) measured in the same session.
 
 ### Measurable Outcomes
 
-- **SC-001**: Windows 11 (the maintainer's PC, ezcap at 48 kHz, PS5, output through Voicemeeter
-  as in the spike), against the monitor's audio: median at most **62 ms** shared, at most **50 ms**
+- **SC-001**: Windows 11 (the maintainer's PC, ezcap at 48 kHz, PS5, output `Voicemeeter In 5`
+  recorded by Voicemeeter), against the monitor's audio: median at most **62 ms** shared, at most **50 ms**
   with the input exclusive, at most **22 ms** with both exclusive; p95 at most 5 ms above each
   median (the spike: 59, 46 and 18 ms).
 - **SC-002**: Linux (CachyOS, KDE Plasma Wayland, PipeWire), same card and source: the delay from

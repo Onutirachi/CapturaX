@@ -47,8 +47,13 @@ cargo test -p capturax                # audio state machine, settings, boundary
 
 Method: research R10; reference and limits: spec "Latency budget and how it is measured".
 
-**Windows** (ezcap, PS5 menu sounds, Voicemeeter recording the line input left and the preview's
-output right, the app's output = the Voicemeeter virtual input):
+**Windows** (ezcap, PS5 menu sounds, Voicemeeter's bus B3 carrying the line input panned left and
+the app's output panned right, the app's output = `Voicemeeter In 5`, a hardware input strip in
+Voicemeeter, not a virtual input; research R10). Record B3 (`Voicemeeter Out B3`) 25 s, stereo,
+48 kHz, for example with `sounddevice`. In the same session, also record the spike's engine on
+the same output (`audio-preview --engine wasapi --input ezcap --output "In 5"`, built from the
+tag `spike/stack-20261026`) and one clip on the everyday virtual input (VAIO3) for its extra
+delay:
 
 | Run | Settings (Audio category) | Clip | Budget |
 |---|---|---|---|
