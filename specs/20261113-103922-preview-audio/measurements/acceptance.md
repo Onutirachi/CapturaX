@@ -57,5 +57,34 @@ From the same logs (106 video sessions):
   audio one).
 - Chosen output removed → playing on the default: 76 and 160 ms.
 
-Not measured yet on Linux: volume and mute heard within 100 ms, a changed system default output,
-audio devices in the menu within 3 s with timestamps.
+Second run, same day (release `43a5eaa`, ezcap with the C920's microphone as input, output
+System default = `vban_out`, `--lang pt-BR --stats`, driven over SSH with `ydotool`):
+
+- Volume and mute: `pw-record` linked to the app's own playback node (`capturax`, by its
+  `object.serial`) while `ydotool` clicked the volume button (mute) or turned the wheel over it
+  (10 notches = 50 points, 80 % ↔ 30 %, about ±26 dB). The click/wheel time is `date` just before
+  `ydotool`; the recording's start is its stop time minus its length, which places a change no
+  earlier than it happened (the measured delay can only be too long).
+
+  | Change | Count | Measured | Budget |
+  |---|---|---|---|
+  | Mute (click): last sample of sound → 20 ms of digital zero | 5 | 40–41 ms (includes the 10 ms ramp) | 100 ms |
+  | Unmute (click): first non-zero sample | 5 | 29–30 ms | 100 ms |
+  | Volume down (wheel): 10 ms RMS below 60 % of before | 5 | window starting 1–7 ms after | 100 ms |
+  | Volume up (wheel): 10 ms RMS above before / 0.6 | 5 | window starting 0 ms after | 100 ms |
+
+  The first attempt's ten clicks changed nothing (the level stayed and the recording never hit
+  zero); a screenshot then showed the next click muting, and the repeated run above toggled every
+  time. Likely the first click went to a window that had not taken the pointer yet; not seen by
+  hand.
+- Changed system default output: a null sink `capx-test` loaded, then `wpctl set-default`
+  alternating it with `vban_out`, polling `pw-link -l` every 10 ms until `capturax:output_FL`
+  linked to the new default: 104–120 ms (6 changes). WirePlumber moves the stream (no
+  `target.object` on System default); the audio session does not reopen. The menu named the new
+  default at once (`Padrão do sistema (CapturaX-Test)`).
+- Audio devices in the menu: with the Audio menu open, a null sink `capx-new` loaded and then
+  unloaded; a screenshot finished 864 ms after the load showed `CapturaX-New` in the Output group
+  and one finished 761 ms after the unload showed it gone (the open menu updates in place).
+
+Linux SC-006 is met for everything it covers. Left for Windows: the whole T044 Windows half,
+including the exclusive box (Windows only).

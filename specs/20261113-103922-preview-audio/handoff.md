@@ -547,6 +547,17 @@ the audio states`):
 - `pactl unload-module module-null-sink` (by name) removed VBAN's sink too; restored with
   `systemctl --user restart vban`. Quickstart now says to unload by id.
 
+Responsiveness on Linux (2026-11-18, T044's Linux half done; results in
+measurements/acceptance.md, method in quickstart "Responsiveness"):
+
+- Over SSH on CachyOS (release `43a5eaa`): mute 40–41 ms to digital zero, unmute 29–30 ms, wheel
+  volume steps 0–7 ms (recorded from the app's own playback node with `pw-record`); a changed
+  system default followed in 104–120 ms (WirePlumber moves the stream, no reopen; the menu names
+  the new default); a null sink appears in and leaves the open Audio menu in under 0.9 s.
+- The first run of ten mute clicks changed nothing; the repeat toggled every time. Recorded as is;
+  not seen by hand.
+- Scripts on the test PC: `~/capx/t044vol.sh`/`.py`, `t044wheel.sh`/`.py`, `t044def.sh`.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -585,8 +596,6 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. T044's Linux rest if the ezcap stays on CachyOS: volume and mute within 100 ms, a changed
-   system default output within 3 s, devices in the menu within 3 s (can be driven over SSH).
-2. Windows, when the ezcap moves there: T033's mouse and keyboard recheck, T036's Windows half
+1. Windows, when the ezcap moves there: T033's mouse and keyboard recheck, T036's Windows half
    (with the headset and G533 steps), T028, T039, and the Windows halves of T042 (Blocked, In use,
    Failed too) and T044.

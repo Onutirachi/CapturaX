@@ -104,6 +104,12 @@ output or exclusive box plays within 1 s; volume and mute heard within 100 ms; a
 plugged or removed in the menu within 3 s; a reconnected input and a changed default output play
 within 3 s.
 
+The log has no line for a volume change, a changed default or the menu's rows. On Linux:
+volume and mute from `pw-record --target <object.serial of the capturax playback node>` while
+`ydotool` clicks the volume button or turns the wheel over it (time the recording from its stop
+minus its length); the default change by polling `pw-link -l` after `wpctl set-default`; the menu
+with screenshots of the open Audio menu after loading or unloading a null sink (by id).
+
 ## Video unchanged (SC-007)
 
 With the sound playing (shared and both exclusive on Windows; Linux): spec #3's glass to glass
