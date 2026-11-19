@@ -641,6 +641,44 @@ measurements/acceptance.md):
   microphone not chosen (Auto); the original is in the scratchpad only (theme dark, language auto,
   muted, C920 as device).
 
+Windows, third session (2026-11-19 evening, release of `c434a91`, PS5 on the ezcap; results in
+measurements/latency.md and acceptance.md):
+
+- **Measurement method changed (maintainer)**: the app plays on `Voicemeeter In 5`, which
+  Voicemeeter reads as a hardware input strip; bus B3 carries the line input (left) and the app
+  (right) and is recorded with `sounddevice` from `Voicemeeter Out B3` (scratchpad `rec.py`, not
+  kept: `sd.rec` on the WASAPI device, 25 s, 48 kHz stereo). Why: on the same session the app and
+  the spike gave 52/53 ms on `In 5`, 68/66 ms on VAIO3 and 99 ms (app) on `Voicemeeter Input`; the
+  reference (Voicemeeter reading the ezcap by WDM) is −28 ms (spike −26). So a virtual input adds
+  its own buffer, and the spike's 59 ms of October was on a virtual input. spec ("Latency budget
+  and how it is measured", SC-001), research R10 and quickstart changed first; limits unchanged.
+  The maintainer's everyday output stays a virtual input (VAIO3): its extra delay is recorded next
+  to each result. The spike's engine is measured in the same session: built from
+  `backup/before-linux-fixups` (46b66bb) in a scratchpad worktree, `spike/` workspace,
+  `cargo build --release -p audio-preview`, then `audio-preview --engine wasapi --input ezcap
+  --output "In 5" --stats` (the worktree is still registered: `git worktree remove` it when done).
+- T028 shared done except the drift runs: SC-001 52 ms (p95 54); glass to glass with sound 29.0
+  ms and `--no-audio` 28.9 ms (SC-007 passes); A/V computed 23 ms behind (VAIO3 39 ms) and in sync
+  by ear (SC-004 shared passes).
+- T044 Windows: volume and mute done (loopback of `In 5` calibrated with beeps: the loopback tap
+  itself is ~100–110 ms late on VAIO endpoints; the app's change is about 0–20 ms). Wheel fine
+  with real spacing; 10 notches in the same instant lose two (script only, not worth a change).
+  Left: the exclusive box (T039).
+- The C920's late sound (previous session) explained: camera 60–68 ms, app ~24 ms,
+  `Voicemeeter Input` ~47 ms more than `In 5`, plus Voicemeeter to the G533.
+- Found for later (not this spec): **fullscreen entered from a maximized window leaves the
+  taskbar on top** (maintainer, Windows): in fullscreen the window still had `WS_MAXIMIZE` and
+  `WS_CAPTION` (style 0x17CF0000, rect covering the monitor), so Windows does not treat it as
+  fullscreen. From a restored window F11 is fine. Likely winit's borderless fullscreen keeping the
+  maximized state; `app.rs` `apply_fullscreen`.
+- Driving: scratchpad scripts (not kept) `shot.py` (restore with `SW_RESTORE` if minimized, Alt +
+  `SetForegroundWindow`, hover y=60, screenshot), volume button at window (52, 535) with the window
+  maximized on DISPLAY1 (screen −1876, 527). Minimize the app at the end of a script so the
+  maintainer sees the chat again (they cannot tell when a script is done otherwise).
+- `target/release/capturax.toml`: ezcap, audio Auto, output `Voicemeeter In 5`, volume 80, English
+  (original in the scratchpad only). Voicemeeter: B3 = line input L + `In 5` R; VAIO3 and the
+  ezcap WDM strip were also routed to B3 during the session (check before recording).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -679,8 +717,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Windows (ezcap there now): T028 with the PS5 on (quickstart "Latency budget": Voicemeeter
-   recording the line input left and the app's output right); in the same set-up, T044's volume
-   and mute (record the app's output, click the volume button and turn the wheel).
+1. Windows (ezcap there now), T028's drift: 31 minutes shared on `Voicemeeter In 5` with
+   `--stats` logged, B3 recorded the whole run, PS5 sounds every few seconds, `analyze.py audio
+   --drift`; then 30 minutes on the G533 directly by ear and stats (drift.md).
 2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039 (and T044's
-   exclusive box).
+   exclusive box), measured as T028 with the spike alongside.

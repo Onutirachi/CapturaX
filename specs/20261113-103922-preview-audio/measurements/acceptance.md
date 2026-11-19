@@ -161,8 +161,29 @@ times from `capturax.log` (UTC).
   the return within 2.8 s of its output reopening; Windows was moving the window to the new
   monitor layout meanwhile, so no closer time. During each monitor change the render log fell
   0.5–3.4 s behind (the main thread waits on the display change); the audio reopened on time.
-- Not done: volume and mute within 100 ms (needs a steady sound: with T028's PS5 and Voicemeeter
-  set-up) and the exclusive box (with T038/T039).
+- Volume and mute (later the same day, release of `c434a91`, PS5 game music, output
+  `Voicemeeter In 5`, volume 80–100): a script recorded a loopback of `Voicemeeter In 5` (only the
+  app plays there; `soundcard`, 5 ms reads, each read's samples timed at its return so a delay can
+  only be too long) and, on the same `perf_counter` clock, clicked the volume button or sent 10
+  wheel notches over it (`mouse_event`). Clip `clips/t044-w-volmute-lb.wav`.
+
+  | Change | Count | At the loopback |
+  |---|---|---|
+  | Mute (click): start of 20 ms of digital zero | 5 | 112–123 ms (includes the 10 ms ramp) |
+  | Unmute (click): first non-zero sample | 5 | 103–111 ms |
+  | Volume down (10 notches): 10 ms RMS below 60 % of before | 5 | 100–110 ms (one at 0: the music) |
+  | Volume up (10 notches): 10 ms RMS above before / 0.6 | 5 | 100–110 ms (one at 30) |
+
+  The loopback tap itself is late on these VAIO endpoints: beeps written by a Python stream
+  (`sounddevice`, WASAPI shared, 22 ms output latency) reached the same loopback 121–142 ms after
+  each write (10 beeps, the app muted). The app's change shows earlier than such a fresh sound, so
+  click → app output is about 0–20 ms plus the mute's 10 ms ramp, within the 100 ms budget, as on
+  Linux (29–41 ms). Recording `Voicemeeter Out B3` instead gave about 150 ms for every change:
+  Voicemeeter's mixer and its B3 virtual output add their buffers too.
+- Wheel: 10 notches 150, 16 or 5 ms apart moved the level 50 points each way, as designed; 10
+  notches sent in the same instant by a script moved it 40 (two lost each way), which a physical
+  wheel does not do. Not an app fault worth a change.
+- Not done: the exclusive box (with T038/T039).
 
 **The C920's microphone heard late** (maintainer: "a big delay" listening to it). Measured with
 `tools/latency/keylat.py` on one `perf_counter` clock: a global key hook for the space bar (a loud mechanical
@@ -182,9 +203,9 @@ maintainer heard both late, alike. Anything played through Windows on `Voicemeet
 ~87 ms more at the loopback tap than on a real endpoint; whether that is the VAIO driver's buffer,
 its loopback tap or Voicemeeter is not separated here (the maintainer finds Voicemeeter's own
 engine fast: hardware devices in exclusive mode). The C920 itself delivers its sound 60–68 ms after
-the key press (to any client). Not an app fault. For T028: the quickstart's app output is a
-Voicemeeter virtual input; check what of that path the recorded right channel includes before
-comparing with the budget.
+the key press (to any client). Not an app fault. Answered at T028 (latency.md, 2026-11-19): the
+virtual inputs add their own buffer to the recorded figure (`Voicemeeter Input` 47 ms over the
+hardware strip `Voicemeeter In 5`), so the Windows measurements now play on `In 5`.
 
 A headset plugged as the new default (T036) was not tested: the maintainer has no other headset;
 the default change and a device appearing in the menu cover it (above).
