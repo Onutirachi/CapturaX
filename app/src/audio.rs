@@ -669,9 +669,14 @@ impl AudioController {
             Event::Monitor(AudioEvent::DefaultOutput(id)) => self.default_changed(id, settings, &mut out),
             Event::Session(event) => self.session_event(event, settings, &mut out),
             Event::VideoOpened { session, device } => {
-                self.close(&mut out);
-                self.video = Some((session, device));
-                self.resolve(settings, &mut out);
+                if self.keeps(&device, settings) {
+                    log::info!("audio: video session {session} on the same device keeps the audio session");
+                    self.video = Some((session, device));
+                } else {
+                    self.close(&mut out);
+                    self.video = Some((session, device));
+                    self.resolve(settings, &mut out);
+                }
             }
             Event::VideoClosed { session } => {
                 if self.video.as_ref().is_some_and(|(open, _)| *open == session) {
@@ -707,6 +712,22 @@ impl AudioController {
             }
         }
         out
+    }
+
+    /// A new video session on the device already open (a new mode) keeps the audio session when it
+    /// is playing or opening on the input and output the choice still resolves to, so the sound
+    /// plays on (User Story 1 scenario 3). An error state opens again, as a new device does.
+    fn keeps(&self, device: &VideoDevice, settings: &Settings) -> bool {
+        let (Some((_, video)), Some(open)) = (&self.video, &self.open) else {
+            return false;
+        };
+        if video.id != device.id || !matches!(self.state(), AudioState::Opening | AudioState::Playing) {
+            return false;
+        }
+        let Resolved::Play(input) = self.resolved(device, settings) else {
+            return false;
+        };
+        input == open.input_id && self.output_to_open(settings).0 == open.output_id
     }
 
     /// Opens the video device's sound when its input is present now; else the state stays (an
@@ -1208,6 +1229,7 @@ mod tests {
     #[test]
     fn a_video_opened_without_a_close_replaces_the_session() {
         let mut run = Run::new();
+        run.settings.touch_device("mf:camera", "NVIDIA Broadcast").audio = MIC_INPUT.into();
         run.send(listed());
         run.send(Event::VideoOpened {
             session: 1,
@@ -1215,12 +1237,86 @@ mod tests {
         });
         let commands = run.send(Event::VideoOpened {
             session: 2,
-            device: card(),
+            device: lonely_camera(),
         });
-        assert_eq!(commands, [Command::Close, request(2, CARD_INPUT)]);
+        assert_eq!(commands, [Command::Close, request(2, MIC_INPUT)]);
         // The old video session's close comes late: the new one stays.
         assert!(run.send(Event::VideoClosed { session: 1 }).is_empty());
         assert_eq!(run.audio.session(), Some(2));
+    }
+
+    #[test]
+    fn a_new_mode_of_the_same_device_keeps_the_sound() {
+        let mut run = Run::new();
+        run.playing();
+        // The app sends no close for a reopen of the same device.
+        assert!(
+            run.send(Event::VideoOpened {
+                session: 2,
+                device: card(),
+            })
+            .is_empty()
+        );
+        assert_eq!(run.audio.state(), AudioState::Playing);
+        assert_eq!(run.audio.session(), Some(1));
+        // The audio session now belongs to video session 2.
+        assert!(run.send(Event::VideoClosed { session: 1 }).is_empty());
+        assert_eq!(run.send(Event::VideoClosed { session: 2 }), [Command::Close]);
+    }
+
+    #[test]
+    fn a_new_mode_while_opening_keeps_the_session_too() {
+        let mut run = Run::new();
+        run.send(listed());
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        assert!(
+            run.send(Event::VideoOpened {
+                session: 2,
+                device: card(),
+            })
+            .is_empty()
+        );
+        assert_eq!(run.audio.state(), AudioState::Opening);
+        assert_eq!(run.audio.session(), Some(1));
+    }
+
+    #[test]
+    fn a_new_mode_opens_again_when_the_input_resolves_elsewhere() {
+        let mut run = Run::new();
+        run.playing();
+        run.settings.touch_device(CARD_VIDEO, "ezcap Game Link").audio = MIC_INPUT.into();
+        let commands = run.send(Event::VideoOpened {
+            session: 2,
+            device: card(),
+        });
+        assert_eq!(commands, [Command::Close, request(2, MIC_INPUT)]);
+    }
+
+    #[test]
+    fn a_new_mode_opens_again_after_an_input_refused_exclusive() {
+        let mut run = Run::new();
+        run.playing();
+        run.send(Event::Session(SessionEvent::Opened {
+            number: 1,
+            side: Side::Input,
+            mode: StreamMode::SharedAfterInUse,
+            format: Format {
+                rate: 48000,
+                channels: 2,
+                sample: SampleFormat::F32,
+            },
+            period_ms: 10.0,
+            reported_latency_ms: None,
+        }));
+        assert!(matches!(run.audio.state(), AudioState::InUse(_)));
+        let commands = run.send(Event::VideoOpened {
+            session: 2,
+            device: card(),
+        });
+        assert_eq!(commands, [Command::Close, request(2, CARD_INPUT)]);
     }
 
     #[test]

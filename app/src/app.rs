@@ -746,7 +746,9 @@ impl App {
                 range,
                 session,
             } => {
-                self.close_session();
+                // A new mode of the same device: the sound plays on (User Story 1 scenario 3).
+                let same = self.source.as_ref().is_some_and(|source| source.id == device.id);
+                self.close_video(!same);
                 self.inbox.set_session(Some(crate::render::Feed {
                     session,
                     fps: mode.fps_f64(),
@@ -952,6 +954,12 @@ impl App {
     }
 
     fn close_session(&mut self) {
+        self.close_video(true);
+    }
+
+    /// Closes the video session; `audio`: its sound closes with it (not when the same device
+    /// opens again at once, where the next open hands the sound on).
+    fn close_video(&mut self, audio: bool) {
         self.inbox.set_session(None);
         self.inbox.clear_video();
         self.source = None;
@@ -961,7 +969,7 @@ impl App {
             let number = session.id();
             session.close();
             // The audio follows the video session (FR-018).
-            if let Some(sound) = &mut self.sound {
+            if audio && let Some(sound) = &mut self.sound {
                 sound.video_closed(number, &self.store.get());
             }
         }
@@ -2086,7 +2094,11 @@ impl ApplicationHandler<UserEvent> for App {
         wake = Some(wake.map_or(self.tick_at, |w| w.min(self.tick_at)));
         if let Some(sound) = &mut self.sound {
             sound.print_stats(now);
+            sound.open_queued(now);
             if let Some(at) = sound.next_stats() {
+                wake = Some(wake.map_or(at, |w| w.min(at)));
+            }
+            if let Some(at) = sound.next_open() {
                 wake = Some(wake.map_or(at, |w| w.min(at)));
             }
         }

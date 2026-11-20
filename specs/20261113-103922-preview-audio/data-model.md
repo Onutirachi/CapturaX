@@ -74,13 +74,17 @@ One at a time, owned by the platform layer; the app holds its number.
 | Field | Meaning |
 |---|---|
 | `number` | Increases per open; events of older numbers are ignored (research R9) |
-| `video_session` | The video session it belongs to; when that closes, this closes |
+| `video_session` | The video session it belongs to; when that closes, this closes, unless the same device opens again at once (below) |
 | `input`, `output` | Endpoint ids actually opened (output may be the default after a fallback) |
 | `input_mode`, `output_mode` | `Shared`, `Exclusive`, `SharedAfterInUse` (exclusive asked, refused) |
 
 Opens when the video session starts (preview states Opening, Playing, No signal) and the choice
 resolves to an input; closes when the video session closes, the choice becomes None, or the app
-quits. A change of input, output or exclusive flag reopens **only the side it touches**
+quits. When the same video device opens again at once (a new mode), the open session moves to the
+new video session and plays on, if it is playing or opening on the input and output the choice
+still resolves to (User Story 1 scenario 3); in an error state it opens again as before. A new
+session waits for the previous one's `Closed` (at most 1 s) before it opens, so an exclusive
+device the previous one held is free (T051). A change of input, output or exclusive flag reopens **only the side it touches**
 (FR-005): output change → output side; input change → both sides (the bridge restarts empty);
 exclusive flag → that side.
 

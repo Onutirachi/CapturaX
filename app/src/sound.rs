@@ -1,7 +1,9 @@
 //! Runs the preview audio's commands (plan "Startup and quit", research R9): the platform's audio
 //! monitor and session, and the bridge between the session's two sides. The decisions are
 //! [`AudioController`]'s; this module only carries them out, and nothing here waits for an audio
-//! thread except the quit, at most [`CLOSE_WAIT`].
+//! thread except the quit, at most [`CLOSE_WAIT`]. A session asked to open while an older one is
+//! still closing is queued until that one's `Closed` (at most [`CLOSE_WAIT`]), so a device the
+//! older one held exclusive is free (data-model.md "Audio session").
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
@@ -9,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use ::audio::bridge::Bridge;
 use ::audio::resample;
-use platform::audio::{Format, Monitor, Samples, Session, SessionEvent};
+use platform::audio::{Format, Monitor, Samples, Session, SessionEvent, SessionRequest};
 use winit::event_loop::EventLoopProxy;
 
 use crate::app::UserEvent;
@@ -155,6 +157,37 @@ struct Open {
     output: Option<AudioSide>,
 }
 
+/// A session waiting for the older ones to close, with what was asked of it meanwhile.
+#[derive(Debug, Clone, PartialEq)]
+struct Queued {
+    request: SessionRequest,
+    gain: f32,
+}
+
+impl Queued {
+    /// Applies a reopen or a gain asked while queued (an open or a close replaces or drops it).
+    fn apply(&mut self, command: &Command) {
+        match command {
+            Command::ReopenInput { input, exclusive } => {
+                self.request.input.clone_from(input);
+                self.request.input_exclusive = *exclusive;
+            }
+            Command::ReopenOutput { output, exclusive } => {
+                self.request.output.clone_from(output);
+                self.request.output_exclusive = *exclusive;
+            }
+            Command::SetGain(gain) => self.gain = *gain,
+            Command::Open(_) | Command::Close => {}
+        }
+    }
+}
+
+/// When the sessions asked to close at `asked` stop holding a new one back: each one's `Closed`,
+/// or [`CLOSE_WAIT`] after it was asked. None: nothing holds it back.
+fn held_until(asked: impl Iterator<Item = Instant>) -> Option<Instant> {
+    asked.map(|at| at + CLOSE_WAIT).max()
+}
+
 /// The `--stats` lines' clock (contracts/stats.md).
 struct StatsClock {
     /// Where `t` counts from: the video thread's start, so `[audio] t` matches `[loop] t`.
@@ -170,6 +203,8 @@ pub struct Sound {
     open: Option<Open>,
     /// The sessions asked to close whose `Closed` has not come: number, flag, when asked.
     closing: Vec<(u64, Arc<Closed>, Instant)>,
+    /// The session that opens once `closing` is empty or has waited [`CLOSE_WAIT`].
+    queued: Option<Queued>,
     /// Some with `--stats`.
     stats: Option<StatsClock>,
     proxy: EventLoopProxy<UserEvent>,
@@ -183,6 +218,7 @@ impl Sound {
             monitor: None,
             open: None,
             closing: Vec::new(),
+            queued: None,
             stats: stats.then(|| StatsClock {
                 origin: Instant::now(),
                 next: None,
@@ -330,40 +366,56 @@ impl Sound {
         for command in commands {
             self.run(command, settings);
         }
+        self.open_queued(Instant::now());
+    }
+
+    /// When the queued session opens even if the older ones have not closed; None: nothing queued.
+    pub fn next_open(&self) -> Option<Instant> {
+        self.queued.as_ref()?;
+        held_until(self.closing.iter().map(|(.., asked)| *asked))
+    }
+
+    /// Opens the queued session once no older one is closing, or once they had [`CLOSE_WAIT`].
+    pub fn open_queued(&mut self, now: Instant) {
+        if self.queued.is_none() {
+            return;
+        }
+        if self.closing.is_empty() {
+            let queued = self.queued.take().expect("checked");
+            self.open_now(queued);
+        } else if held_until(self.closing.iter().map(|(.., asked)| *asked)).is_some_and(|at| now >= at) {
+            let queued = self.queued.take().expect("checked");
+            log::warn!(
+                "audio session {}: an older session did not close within {CLOSE_WAIT:?}; opening anyway",
+                queued.request.number
+            );
+            self.open_now(queued);
+        }
     }
 
     fn run(&mut self, command: Command, settings: &settings::Settings) {
         match command {
             Command::Open(request) => {
                 self.close();
-                let number = request.number;
                 let gain = ::audio::volume::gain(settings.audio.volume, settings.audio.muted);
-                let feed = Arc::new(Feed::new(gain));
-                let closed = Arc::new(Closed::default());
-                let proxy = self.proxy.clone();
-                log::info!("audio session {number}: open {} -> {:?}", request.input, request.output);
-                let on_closed = Arc::clone(&closed);
-                let (input_id, output_id) = (request.input.clone(), request.output.clone());
-                let session = Session::open(request, Arc::clone(&feed) as Arc<dyn Samples>, move |event| {
-                    // Set here, not on the main thread: the quit waits for it there.
-                    if matches!(event, SessionEvent::Closed { .. }) {
-                        on_closed.set();
-                    }
-                    let _ = proxy.send_event(UserEvent::Audio(Event::Session(event)));
-                });
-                self.open = Some(Open {
-                    number,
-                    session,
-                    feed,
-                    closed,
-                    input_id,
-                    output_id,
-                    input: None,
-                    output: None,
-                });
-                if let Some(clock) = &mut self.stats {
-                    clock.next = Some(Instant::now() + Duration::from_secs(1));
+                let queued = Queued { request, gain };
+                // A close that never came holds nothing back after CLOSE_WAIT.
+                let held = held_until(self.closing.iter().map(|(.., asked)| *asked));
+                if held.is_none_or(|at| Instant::now() >= at) {
+                    self.open_now(queued);
+                } else {
+                    log::info!(
+                        "audio session {}: waits for session(s) {:?} to close",
+                        queued.request.number,
+                        self.closing.iter().map(|(number, ..)| *number).collect::<Vec<_>>()
+                    );
+                    self.queued = Some(queued);
                 }
+            }
+            command @ (Command::ReopenInput { .. } | Command::ReopenOutput { .. } | Command::SetGain(_))
+                if self.queued.is_some() =>
+            {
+                self.queued.as_mut().expect("checked").apply(&command);
             }
             Command::ReopenInput { input, exclusive } => {
                 if let Some(open) = &mut self.open {
@@ -387,8 +439,42 @@ impl Sound {
         }
     }
 
-    /// Asks the open session to close; returns at once (its `Closed` comes later).
+    /// Opens the session now (no older one holds its devices).
+    fn open_now(&mut self, queued: Queued) {
+        let Queued { request, gain } = queued;
+        let number = request.number;
+        let feed = Arc::new(Feed::new(gain));
+        let closed = Arc::new(Closed::default());
+        let proxy = self.proxy.clone();
+        log::info!("audio session {number}: open {} -> {:?}", request.input, request.output);
+        let on_closed = Arc::clone(&closed);
+        let (input_id, output_id) = (request.input.clone(), request.output.clone());
+        let session = Session::open(request, Arc::clone(&feed) as Arc<dyn Samples>, move |event| {
+            // Set here, not on the main thread: the quit waits for it there.
+            if matches!(event, SessionEvent::Closed { .. }) {
+                on_closed.set();
+            }
+            let _ = proxy.send_event(UserEvent::Audio(Event::Session(event)));
+        });
+        self.open = Some(Open {
+            number,
+            session,
+            feed,
+            closed,
+            input_id,
+            output_id,
+            input: None,
+            output: None,
+        });
+        if let Some(clock) = &mut self.stats {
+            clock.next = Some(Instant::now() + Duration::from_secs(1));
+        }
+    }
+
+    /// Asks the open session to close and drops a queued one; returns at once (its `Closed` comes
+    /// later).
     fn close(&mut self) {
+        self.queued = None;
         if let Some(mut open) = self.open.take() {
             open.session.close();
             self.closing.push((open.number, open.closed, Instant::now()));
@@ -485,6 +571,50 @@ mod tests {
                 channels: 1
             }
         );
+    }
+
+    #[test]
+    fn a_queued_session_takes_the_reopens_and_the_gain_asked_meanwhile() {
+        let mut queued = Queued {
+            request: SessionRequest {
+                number: 2,
+                input: "card".into(),
+                output: None,
+                input_exclusive: true,
+                output_exclusive: false,
+            },
+            gain: 1.0,
+        };
+        queued.apply(&Command::ReopenInput {
+            input: "mic".into(),
+            exclusive: false,
+        });
+        queued.apply(&Command::ReopenOutput {
+            output: Some("headset".into()),
+            exclusive: true,
+        });
+        queued.apply(&Command::SetGain(0.25));
+        assert_eq!(
+            queued,
+            Queued {
+                request: SessionRequest {
+                    number: 2,
+                    input: "mic".into(),
+                    output: Some("headset".into()),
+                    input_exclusive: false,
+                    output_exclusive: true,
+                },
+                gain: 0.25,
+            }
+        );
+    }
+
+    #[test]
+    fn older_sessions_hold_a_new_one_back_at_most_the_close_wait() {
+        assert_eq!(held_until(std::iter::empty()), None);
+        let start = Instant::now();
+        let later = start + Duration::from_millis(300);
+        assert_eq!(held_until([start, later].into_iter()), Some(later + CLOSE_WAIT));
     }
 
     #[test]

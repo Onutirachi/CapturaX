@@ -95,7 +95,9 @@ Windows                                        Linux
 - The main thread only sends requests (open, reopen a side, close, gain) and receives events;
   it never waits for an audio thread (research R9).
 - The audio session opens when the video session opens (preview states Opening, Playing, No
-  signal) and closes with it; its number ties its events to it.
+  signal) and closes with it; its number ties its events to it. A new mode of the same device
+  keeps the playing session (User Story 1 scenario 3), and a new session opens only once the
+  previous one has closed (at most 1 s; the main thread does not wait, the open is queued).
 - Gain changes go straight to the bridge (an atomic target), so volume is heard within one output
   period plus the 10 ms ramp.
 
