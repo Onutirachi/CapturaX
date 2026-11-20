@@ -409,7 +409,17 @@ the code that relies on it.
   (peak below −50 dBFS for 300 ms of what it writes, after the volume) once the stream has played
   for 5 minutes. The decision is a pure `audio::Resync` fed with each block the output writes. The
   reopen is the same as a user's output change: a new `Opened`, the `[audio-source]` line again,
-  the bridge kept. Shared output only (an exclusive stream has no mixer after it); not on Linux.
+  the bridge kept. Not on Linux. First shared output only (an exclusive stream has no mixer after
+  it); see the exclusive finding below.
+- **Finding, exclusive** (2026-11-20, T039, measurements/drift.md): with the ezcap's input and
+  VAIO3 both exclusive (no resync, no `IAudioClient3`), the delay grew linearly, 0.51 ms per
+  minute (29.5 → 45 ms in 30 minutes, ~60 pairs a minute, no jump), while `wait_ms` stayed at
+  ~6 ms with no gap, drop or event. With the input exclusive and VAIO3 shared (resync on), it grew
+  ~0.9 ms per minute between jumps of −27 and +55 ms that had no event in the app, and each resync
+  moved it to a different place (up once). So the growth does not need the short period nor
+  Windows' mixer; Voicemeeter's VAIO buffer is now the likely place (not proven: another app
+  playing the ezcap on VAIO3 for 30 minutes would tell).
+- **Decision** (maintainer, 2026-11-20): the exclusive output resyncs too, with the same rule.
 - **Rationale**: 0.8 ms per minute over 5 minutes is 4 ms, below anything heard; a quiet moment
   hides the reopen's short silence (tens of ms). The muted preview is quiet, so it reopens then,
   unheard.

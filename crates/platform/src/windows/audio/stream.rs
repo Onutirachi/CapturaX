@@ -8,12 +8,13 @@
 //! - **Shared**: the endpoint's mix format, any rate and channel count. `IAudioClient3` with the
 //!   shortest period the Windows mixer allows; else the normal `Initialize` with a 20 ms buffer.
 //!   The output keeps 1.5 periods queued in Windows, or its whole buffer on a period of 10 ms or
-//!   more, where a device can take two periods at once (FR-003b, research R17); it reopens itself
-//!   at the first quiet moment once it has played 5 minutes (FR-003a, research R16: a delay grows
-//!   after it).
+//!   more, where a device can take two periods at once (FR-003b, research R17).
 //! - **Exclusive**: the first format the device takes (samples × rates × channels, research R2),
 //!   its minimum period, one period per event. In use or no format → the side opens shared
 //!   and reports `SharedAfterInUse`.
+//!
+//! The output, shared or exclusive, reopens itself at the first quiet moment once it has played
+//! 5 minutes (FR-003a, research R16: a delay grows after it).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
@@ -727,8 +728,8 @@ impl Stream {
             (self.period * 3 / 2).min(self.buffer)
         };
         let mut samples = Vec::new();
-        // A shared output reopens itself at a quiet moment every 5 minutes or more (FR-003a).
-        let mut resync = (!exclusive).then(|| audio::resync::Resync::new(self.format.rate));
+        // The output reopens itself at a quiet moment every 5 minutes or more (FR-003a).
+        let mut resync = audio::resync::Resync::new(self.format.rate);
         loop {
             self.event.wait();
             if let Some(next) = control(requests, shared) {
@@ -767,7 +768,7 @@ impl Stream {
                     return self.failed(&e);
                 }
             }
-            if resync.as_mut().is_some_and(|r| r.feed(&samples, channels)) {
+            if resync.feed(&samples, channels) {
                 log::info!("audio Output: resync (quiet after 5 minutes)");
                 return Next::Reopen(Open {
                     device: self.endpoint.clone(),

@@ -241,14 +241,16 @@ The wording of every state is in FR-022.
   of play, without cutting or repeating audio, by following the difference between the input's
   and the output's clocks (the spike's rate correction), so the delay does not grow (SC-003) and
   the pitch change is not audible (SC-005).
-- **FR-003a**: On Windows, a shared output MUST be reopened by the app at the first quiet moment
+- **FR-003a**: On Windows, an output (shared or exclusive) MUST be reopened by the app at the first quiet moment
   (the sound below −50 dBFS for 300 ms) once it has played for 5 minutes, and the 5 minutes start
   again at each reopen, so a delay that grows after the app stays small. Measured on 2026-11-19
   on Voicemeeter's `In 5` and VAIO3: the delay grew about 0.8 ms per minute while the audio
   waiting in the app stayed steady, and reopening only the output brought it back. The cause is
   not known yet; this is a palliative, investigated after the app is done (maintainer,
   2026-11-19). A moment that is never quiet lets the delay grow until the next one; no reopen is
-  forced over sound. Not on Linux (no drift measured) nor on an exclusive output.
+  forced over sound. Not on Linux (no drift measured). The exclusive output too (maintainer,
+  2026-11-20): with the ezcap and VAIO3 exclusive the delay grew 0.5 ms per minute (+15.5 ms in
+  30 minutes) while the app's waiting stayed steady.
 - **FR-003b**: On Windows, a shared output that Windows runs on its normal 10 ms period (or
   longer) MUST keep its whole buffer queued, so a device that takes two periods at once plays no
   silence. Measured on 2026-11-19 on the G533 (research R17): with 15 ms queued it popped for
