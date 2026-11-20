@@ -60,7 +60,8 @@ playing a preview with sound:
 tools/latency/pipewire-measure.sh start                       # needs jq and the PipeWire tools
 tools/latency/pipewire-measure.sh record clips/linux-1.wav 25
 tools/latency/pipewire-measure.sh stop
-uv run tools/latency/analyze.py --measurements specs/<spec>/measurements audio clips/linux-1.wav     --stereo --platform linux --output pipewire-128 --minute 0
+uv run tools/latency/analyze.py --measurements specs/<spec>/measurements audio clips/linux-1.wav \
+    --stereo --platform linux --output pipewire-128 --minute 0
 ```
 
 `start` creates a null sink `capturax-measure` and links into it:

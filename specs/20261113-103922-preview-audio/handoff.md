@@ -867,8 +867,9 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Commit after the maintainer validates: `feat: resync the exclusive output too` (stream.rs,
-   spec, research, tasks T050) and `docs: record the exclusive runs` (measurements, tasks T039 and
-   T044, handoff).
-2. Left: T043 (docs), T045 (acceptance through User Stories 1–5 on both systems), T046 (cleanup),
-   T005's Linux build (the probe, not compiled yet).
+1. Commit after the maintainer validates: `chore: remove the PipeWire latency variable`
+   (pipewire.rs, T046) and `docs: describe the preview audio` (README, tools/latency/README,
+   roadmap #4 done with its carried items, AGENTS status, tasks T043/T046, handoff).
+2. Left: T045 (acceptance through User Stories 1–5 on both systems). Then the PR.
+   T046's checks passed on both systems on 2026-11-20 (CachyOS over SSH: fmt, clippy, every
+   test, and T005's `pipewire_probe` example builds).

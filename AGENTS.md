@@ -10,7 +10,9 @@ defines the principles, scope and workflow, and it overrides this guide.
 Early rewrite. The application shell (spec `20261104-112852-app-shell`) is built: window,
 settings, tray, autostart, single instance and a test video. The device preview (spec
 `20261106-170507-device-preview`) is built: capture cards and webcams in their
-native mode, video only, with device notices and the Linux NVIDIA performance request. Build and
+native mode, with device notices and the Linux NVIDIA performance request. The preview audio
+(spec `20261113-103922-preview-audio`) is built: the paired input on a chosen output with
+volume and mute, WASAPI on Windows (with exclusive mode) and PipeWire on Linux. Build and
 run instructions are in the [README](README.md). The previous version lives in the
 [CapturaX-old](https://github.com/Onutirachi/CapturaX-old) repository and is reference only.
 
