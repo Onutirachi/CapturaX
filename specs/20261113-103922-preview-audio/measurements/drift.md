@@ -82,4 +82,41 @@ menu-only runs.
 18.5 ms *below* minute 0, outside the 10 ms band, but the rule is there to stop growth and the
 delay stays at or below its start. Without the resync it fails (+24 ms on `In 5`, +14.5 to +20
 ms on VAIO3). **SC-005 on Windows**: passes (the short gaps while playing were not heard). The
-30-minute run on the G533 directly (by ear and stats) is still to do.
+30-minute run on the G533 directly: below.
+
+## T028: the G533 directly
+
+### Windows 11 — 2026-11-19
+
+**Environment**: as the drift runs above; output `Alto-falantes (2- Logitech G533 Gaming
+Headset)` (wireless, through its dongle, no surround), shared 48000/8/f32, 10 ms period
+(`IAudioClient3` grants no shorter one on it), 1056-frame (22 ms) buffer; Voicemeeter released
+it. No recording is possible on this output: by ear and `--stats`. The maintainer played on the
+PS5.
+
+**First run** (release of `4575a8b`, 1.5 periods = 15 ms queued; 22 minutes, stopped early): the
+maintainer heard pops for 30–60 s at a time. The `[audio]` lines show three stretches (t=299–332,
+939–995, 1035–1062, and single drops up to t=1290): `wait_ms` rose from 12 to 52 ms with the rate
+at +1000 ppm and 30–180 ms of input dropped every second; the resync's reopen (t=332) or nothing
+in particular (t=996) ended them. Between them, none.
+
+**Diagnosis** (branch `exp/20261113-103922-g533-underrun`, not merged: a per-second line of the
+output thread's wakes): the thread woke every ~11.5 ms all along (largest interval 12.3 ms), but
+in those stretches Windows took nothing at some wakes (720 frames still queued, nothing written)
+and 20 ms at the next, more than the 15 ms queued: 13–24 empty queues a second and 6–11 % fewer
+frames written than played. Each empty queue is a short silence (the pop), and the time it lost
+piled up in the bridge until it dropped input. Research R17.
+
+**With the whole buffer queued** (the same build with the queue at 22 ms; 19 minutes): the
+double takes came again (stretches of up to 22 wakes a second with nothing written) with no empty
+queue and no shortfall; the maintainer heard no pop. Left in the stats, none heard: gaps of 10–20
+ms when Windows took 22 ms at once (three in 19 minutes) and short input hiccups (gap 10 ms and
+drop 8 ms, as on VAIO3); one stop of the whole system at t=1086 (no output wake for 98 ms, a video
+frame late), which no queue covers. Adopted as spec FR-003b (T049).
+
+**Run with T049** (release of T049 on `13be24c`; 30 minutes, 1801 `[audio]` lines): the
+maintainer played and heard no pop. `wait_ms` median 12.1 ms, highest 32.1 ms, no stretch like
+the first run's; three resync reopens (t=314, 648, 1525: 48–58 ms dropped at each, the reopen's
+alignment in a quiet moment); eight short gaps of 10–20 ms (four within t=1091–1135, the rest
+input hiccups with drops of 6–8 ms), none heard. **T028's G533 run passes** (SC-005 by ear and
+stats).

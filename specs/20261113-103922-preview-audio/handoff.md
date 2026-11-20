@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-19 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-19 (night) | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -701,6 +701,25 @@ Windows, fourth session (2026-11-19 night; results in measurements/drift.md):
 - Found: each output open starts at a different delay (62–67 ms fresh, 42–58 ms after a reopen);
   part of R16's open question. Short input gaps (8–16 ms) appear while a game plays, not heard.
 
+Windows, fifth session (2026-11-19 night; results in measurements/drift.md "T028: the G533
+directly"):
+
+- **The G533 popped** for 30–60 s at a time with the shared queue at 1.5 periods: it runs on a
+  10 ms period (no short period), and in stretches Windows takes nothing at one wake and 20 ms at
+  the next, more than the 15 ms queued. Found with a diagnostic build (per-second wakes, empty
+  queues, frames written, padding range, largest wake interval). **Decision (maintainer)**: spec
+  FR-003b, research R17, T049: a shared output on a 10 ms period or longer keeps its whole buffer
+  queued (22 ms on the G533, about 7 ms more); short periods unchanged. Run with T049: 30 minutes,
+  no pop heard. T028 done.
+- The diagnostic code (per-second output wakes, `CAPTURAX_EXP_MARGIN_MS`) was dropped with its
+  branch (maintainer); a copy may remain in the session scratchpad as `exp-g533-diag.patch`.
+- Left as seen (research R17): short bridge gaps of 10–20 ms when Windows takes 22 ms at once, and
+  a ~100 ms stop of the whole system once; none heard.
+- Driving: an earlier app instance (PID from a previous run) kept running, so a new start only
+  showed it (single instance) and exited at once: check `tasklist` before starting a run.
+  `taskkill` without `/F` closes the app cleanly.
+- `target/release/capturax.toml`: output back to VAIO3, ezcap, English.
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -734,6 +753,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Open questions
 
+- Windows: why Windows sometimes takes two periods at once on the G533 (research R17); not
+  needed for the fix.
 - Windows: why the delay grows about 0.8 ms per minute after the app's output (research R16);
   after the app is done. First test: the normal `Initialize` period instead of `IAudioClient3`.
 - Validated during implementation, before the code that depends on them: the Linux engine probe
@@ -741,9 +762,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Commit (after the maintainer validates): `feat: resync the Windows output at quiet moments`
-   (T047, T048, spec/research/tasks) and `docs: record the Windows drift runs` (drift.md, CSVs).
-2. T028's last item: 30 minutes on the G533 directly, by ear and stats (Voicemeeter must release
-   it). Then T028 is done and US1's checkpoint commit `feat: play the preview audio` applies.
-3. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039 (and T044's
+1. Commit (after the maintainer validates): `fix: keep the whole buffer queued on 10 ms shared
+   outputs` (T049, spec FR-003b, research R17, tasks) and `docs: record the G533 runs`
+   (drift.md, T028). US1 is then complete on both systems.
+2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039 (and T044's
    exclusive box); its outputs: decide with the maintainer, since VAIO3 cannot be exclusive.
