@@ -796,6 +796,34 @@ Exclusive switches (2026-11-20, T037 and T038 done, not committed yet):
   the 960 × 511 window, (52, 589) maximized; `wheel x y n` scrolls); `grab.ps1` captures with
   `-ExecutionPolicy Bypass` (no PIL here).
 
+T039 and T050 (2026-11-20; results in measurements/latency.md, drift.md, acceptance.md):
+
+- T037/T038 committed (`5813666`) before this session.
+- **Output (maintainer)**: "both exclusive" means the ezcap's HDMI input and the output; measured
+  on VAIO3 only (real use), no `In 5`. Release of `5813666`, then of T050.
+- Input exclusive, VAIO3 shared: 20 ms at the start (SC-001 ≤ 50 passes). Its 31-minute run had
+  jumps of −27 and +55 ms with no event in the app and the preview *ahead* of the line input for
+  minutes (no pairs there; found with a per-window cross-correlation, scratchpad `xcorr.py`, not
+  kept). Both exclusive: 26–34 ms at each open (over 22 ms) and +0.51 ms/min linear over 30
+  minutes, no jump, `wait_ms` steady at ~6 ms. So the growth is after the app with or without the
+  mixer and the short period; likely Voicemeeter's VAIO buffer (research R16, not proven).
+- **Decision (maintainer)**: no more 30-minute runs; the exclusive output resyncs too (spec
+  FR-003a, research R16, T050: `stream.rs` feeds `Resync` on both modes). Checked: three resyncs
+  reopened the exclusive output in 8 ms each, nothing heard; picture and sound in sync by ear
+  (SC-004 exclusive). SC-001 both exclusive (≤ 22 ms) recorded as not met, cause after the app.
+- Another app playing on VAIO3 (scratchpad `play.py`, not kept: `sounddevice` WASAPI shared, 1 s
+  tone) was refused (`Invalid device`) while the preview held it exclusive and played at once after
+  the app quit. T044's exclusive box recorded from the T037/T038 checks (12–19 ms); T044 done.
+- Recorder: scratchpad `recstream.py` (not kept), as the fourth session's. Raw logs
+  `raw/win-2026-11-20-t039-*.log` and `t050-resync-excl.log`.
+- `target/release/capturax.toml`: output VAIO3, ezcap's input and VAIO3 exclusive, pt-BR (the
+  morning's copy in the scratchpad only: output `Voicemeeter Input`).
+- Found for later (maintainer, 2026-11-20; not this spec, likely the device preview's or the
+  shell's): **Windows turns the screens off for inactivity while the preview is showing**. The app
+  should keep the display awake while a preview is visible (Windows
+  `SetThreadExecutionState(ES_DISPLAY_REQUIRED | ES_CONTINUOUS)`, Linux an idle inhibit), and let it
+  sleep when the window is minimized or in the tray, or the preview is off (future).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -831,15 +859,16 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 - Windows: why Windows sometimes takes two periods at once on the G533 (research R17); not
   needed for the fix.
-- Windows: why the delay grows about 0.8 ms per minute after the app's output (research R16);
-  after the app is done. First test: the normal `Initialize` period instead of `IAudioClient3`.
+- Windows: why the delay grows 0.5–0.9 ms per minute after the app's output (research R16);
+  after the app is done. Exclusive grows too, so the short period is not it. First test: another
+  app (Windows' "Listen to this device") playing the ezcap on VAIO3 for 30 minutes.
 - Validated during implementation, before the code that depends on them: the Linux engine probe
   and the pairing keys (`--list-devices`) on both systems (quickstart).
 
 ## Next step
 
-1. Commit T037/T038 after the maintainer validates: `feat: add the exclusive mode switches`
-   (code, catalog, spec, plan, research, quickstart, tasks, data-model, handoff).
-2. T039 (and T044's exclusive box) with the ezcap on Windows and the old app closed; its outputs:
-   decide with the maintainer (VAIO3 takes exclusive mode; whether it is the right output for
-   "both exclusive" is theirs to say).
+1. Commit after the maintainer validates: `feat: resync the exclusive output too` (stream.rs,
+   spec, research, tasks T050) and `docs: record the exclusive runs` (measurements, tasks T039 and
+   T044, handoff).
+2. Left: T043 (docs), T045 (acceptance through User Stories 1–5 on both systems), T046 (cleanup),
+   T005's Linux build (the probe, not compiled yet).

@@ -120,3 +120,34 @@ the first run's; three resync reopens (t=314, 648, 1525: 48–58 ms dropped at e
 alignment in a quiet moment); eight short gaps of 10–20 ms (four within t=1091–1135, the rest
 input hiccups with drops of 6–8 ms), none heard. **T028's G533 run passes** (SC-005 by ear and
 stats).
+
+## T039: SC-003 and SC-005 on Windows, exclusive
+
+### Windows 11 — 2026-11-20
+
+**Environment and method**: as [latency.md](latency.md) T039; 1860 s recordings of B3 with
+`--stats` logged. Run 1: PS5 menu at the start and the end, a game in between. Run 2: a YouTube
+beep video on the PS5 the whole time (about one pair per second).
+
+| Run | Output | Pairs | First minute | Last minute | Difference | Slope |
+|---|---|---|---|---|---|---|
+| inexcl-vaio3-drift | VAIO3 shared, resync on | 268 | 10: 45.0 ms | 27: 6.0 ms | −39.0 ms | — |
+| bothexcl-vaio3-drift | VAIO3 exclusive, no resync | 1648 | 0: 29.5 ms | 30: 45.0 ms | **+15.5 ms** | +0.51 ms/min |
+
+**Run 1** has no pairs in minutes 0–5 and 28–30 though the menu sounds were made: there the
+preview was *ahead* of the line input, which the pairing does not take. A cross-correlation per
+30 s window gave: +16 ms (0–1.5 min), a jump to −11 ms at 2 min rising to −7 ms by 6.5 min (~0.9
+ms/min), a jump to +47–53 ms at 7.5 min, 30–39 ms after the resync at 16.5 min, 6–14 ms after the
+one at 22 min, 45 ms after the one at 27.5 min. Neither unexplained jump had any event in the
+app's log, and the `[audio]` lines had no gap or drop after second 2 (`wait_ms` ~7.5 ms all along).
+
+**Run 2** grew linearly with no jump; `wait_ms` ~6 ms all along, no gap, drop or event in 37
+minutes. Together: the delay grows after the app with or without Windows' mixer and the short
+period, and Voicemeeter seems to correct it by jumps of its own (research R16).
+
+**Decision (maintainer, 2026-11-20)**: the exclusive output resyncs too (spec FR-003a, T050). Not
+measured again over 30 minutes (maintainer): checked by the log and by ear. With T050 (both
+exclusive, 47 minutes of play): resyncs at app t≈27, 40 and 46 minutes, each reopening the
+output exclusive in 8 ms, nothing heard; once the app quit, another app played on VAIO3 at once. **SC-005 exclusive
+passes** (no gap or drop in either run's stats; nothing heard in run 1, the maintainer was away in run 2). **SC-003 exclusive**: fails without the
+resync (+15.5 ms); passes with it as the shared output does, by the same rule.

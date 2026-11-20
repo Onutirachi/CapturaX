@@ -138,7 +138,7 @@ System default = `vban_out`, `--lang pt-BR --stats`, driven over SSH with `ydoto
 
 Linux SC-006 is met for everything it covers.
 
-## T044: SC-006 responsiveness on Windows (partial)
+## T044: SC-006 responsiveness on Windows
 
 ### Windows 11 — 2026-11-19
 
@@ -183,7 +183,11 @@ times from `capturax.log` (UTC).
 - Wheel: 10 notches 150, 16 or 5 ms apart moved the level 50 points each way, as designed; 10
   notches sent in the same instant by a script moved it 40 (two lost each way), which a physical
   wheel does not do. Not an app fault worth a change.
-- Not done: the exclusive box (with T038/T039).
+- Exclusive box (2026-11-20, release of the T037/T038 work, ezcap, VAIO3): checking the ezcap's
+  input reopened only the input, `Exclusive` (I16, 3 ms period), 19 ms after the click; checking
+  VAIO3 reopened only the output, `Exclusive` (I24, 2 ms), 12 ms after it; unchecking a box of an
+  endpoint not in use reopened nothing. Within 1 s. The exclusive output's resync (T050) reopened
+  it in 8 ms, three times, nothing heard.
 
 **The C920's microphone heard late** (maintainer: "a big delay" listening to it). Measured with
 `tools/latency/keylat.py` on one `perf_counter` clock: a global key hook for the space bar (a loud mechanical

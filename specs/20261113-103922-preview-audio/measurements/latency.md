@@ -151,3 +151,38 @@ about 39 ms behind, also inside.
 noticed while playing. With the passthrough on the left ear and the preview on the right, the two
 beeps can be told apart, a little, but not the sound against the picture. SC-004 passes on Windows
 for the shared setting (both exclusive: T039).
+
+## T039: SC-001 and SC-004 on Windows, exclusive
+
+### Windows 11 — 2026-11-20
+
+**Environment**: as T028; release build of `5813666` (`--stats`). Input `HDMI (ezcap Live GAMER
+ULTRA)` exclusive 48000/2/i16, 3 ms period. Output VAIO3 (`Voicemeeter VAIO3 Input`), the
+everyday output (maintainer: VAIO3 only, no `In 5`): shared 48000/2/f32 2.67 ms for "input
+exclusive", exclusive 48000/2/i24 2 ms for "both exclusive".
+
+**Method**: as T028 (B3: line input left, VAIO3 right; `sounddevice` from `Voicemeeter Out B3`;
+`analyze.py audio --stereo`). Sounds: PS5 menu, then a YouTube beep video on the PS5 for the
+both-exclusive drift run. Clips of 12–15 s right after an app start; the drift runs are in
+[drift.md](drift.md).
+
+| Run | Output | Pairs | Median | p95 | Budget |
+|---|---|---|---|---|---|
+| `inexcl-vaio3` | VAIO3 shared | 9 | **20 ms** | 21 ms | ≤ 50 ms |
+| `bothexcl-vaio3` | VAIO3 exclusive | 6 | 34 ms | 34 ms | ≤ 22 ms |
+| `bothexcl-vaio3-open3` | VAIO3 exclusive, the app restarted | 22 | 26 ms | 27 ms | ≤ 22 ms |
+| `bothexcl-vaio3-drift` minute 0 | VAIO3 exclusive | 60 | 29.5 ms | 30 ms | ≤ 22 ms |
+
+Two more restarts gave no pairs (game sounds, no menu). **Input exclusive passes** (≤ 50 ms at
+every point of its drift run too). **Both exclusive is 26–34 ms at its start**, over 22 ms, and
+each open lands at a different delay: the same open question as the shared output (research
+R16). In the drift runs the app's `wait_ms` stayed steady (~7.5 ms input exclusive, ~6 ms both
+exclusive) while the measured delay moved, so the spread is after the app, most likely in
+Voicemeeter's VAIO buffer (not proven).
+
+**SC-004 (computed)**: both exclusive 26–45 ms over 30 minutes minus video 29.0 ms (T028) = from
+3 ms behind to 16 ms behind, inside 45 ms ahead / 125 ms behind. **By ear (maintainer,
+2026-11-20)**: playing during the input-exclusive drift run with the passthrough on the left ear
+and the preview on the right, no offset between them noticed, no gap or click (the maintainer was
+away during the both-exclusive run). Picture against sound with both exclusive (the T050 build, its resync on): in sync by ear
+("all looks right"). **SC-004 exclusive passes.**
