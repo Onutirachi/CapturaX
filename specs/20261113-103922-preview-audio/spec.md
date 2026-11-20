@@ -249,6 +249,11 @@ The wording of every state is in FR-022.
   not known yet; this is a palliative, investigated after the app is done (maintainer,
   2026-11-19). A moment that is never quiet lets the delay grow until the next one; no reopen is
   forced over sound. Not on Linux (no drift measured) nor on an exclusive output.
+- **FR-003b**: On Windows, a shared output that Windows runs on its normal 10 ms period (or
+  longer) MUST keep its whole buffer queued, so a device that takes two periods at once plays no
+  silence. Measured on 2026-11-19 on the G533 (research R17): with 15 ms queued it popped for
+  30–60 s at a time; with its 22 ms buffer, none in 19 minutes. Outputs with a shorter period keep
+  1.5 periods.
 - **FR-004**: The sound MUST play correctly whatever the input's and the output's formats (sample
   rate, channels, sample format): mono inputs on both channels, extra channels mixed down.
 - **FR-005**: Changing the video mode, the color range, or anything in the interface MUST NOT

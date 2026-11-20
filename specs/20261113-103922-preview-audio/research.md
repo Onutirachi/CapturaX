@@ -49,8 +49,9 @@ the code that relies on it.
     each waiting on its WASAPI event with a 100 ms timeout and checking a stop flag, so a stop
     request is seen within 100 ms. COM is initialized per thread (multithreaded apartment).
   - **Endpoints by id**: `IMMDevice::GetId` (stable endpoint id) instead of the friendly name.
-  - **Output queue**: shared output keeps 1.5 periods queued in Windows (the spike's value);
-    exclusive writes one period per event.
+  - **Output queue**: shared output keeps 1.5 periods queued in Windows (the spike's value) when
+    the period is short, and its whole buffer when the period is Windows' normal 10 ms or more
+    (R17); exclusive writes one period per event.
   - **Errors** (R7) come back as values; nothing panics on a device error.
 - **Rationale**: the spike measured this engine at 59 ms shared, 46 ms with the card exclusive,
   18 ms with both exclusive, holding about 6–8 ms in the app with nothing cut (findings). The
@@ -415,6 +416,32 @@ the code that relies on it.
   (`IAudioClock` reports the driver's position, which is the side that does not see the growth);
   the normal `Initialize` period (untested, about 7 ms more on every output; kept for the
   investigation).
+
+## R17. A shared output on a 10 ms period (FR-003b)
+
+- **Finding** (2026-11-19, measurements/drift.md "T028: the G533 directly"): the G533 (wireless,
+  through its dongle) opens shared with a 10 ms period (`IAudioClient3` grants no shorter one) and
+  a 1056-frame (22 ms) buffer, so 1.5 periods is 15 ms queued. The maintainer heard pops for
+  30–60 s at a time, several times in 22 minutes. A diagnostic build (branch
+  `exp/20261113-103922-g533-underrun`) logged each output wake: the app's thread woke every
+  ~11.5 ms throughout, but in those stretches Windows took nothing at some wakes (720 frames still
+  queued) and two periods (20 ms) at the next, more than the 15 ms queued: ~20 empty queues a
+  second, each a short silence heard as a pop, and the time lost piled up in the bridge until it
+  dropped 60–150 ms of input a second. With the queue at the whole buffer (22 ms, through an
+  environment variable of that build), the same double takes came with no empty queue and no
+  shortfall, and the maintainer heard no pop in 19 minutes. Other apps on the G533 never popped:
+  Windows' usual queues are 20 ms or more.
+- **Decision** (maintainer, 2026-11-19): a shared output whose period is 10 ms or more keeps its
+  whole buffer queued; a shorter period (VAIO3's 2.67 ms) keeps 1.5 periods, as before.
+- **Rationale**: the double take is Windows' or the device's, not the app's, so the queue must
+  hold two periods; the buffer Windows gives is just over that (22 ms for 20 ms). It costs about
+  7 ms on those outputs only; the short-period outputs, where no double take was seen, keep their
+  delay.
+- **Alternatives**: two periods plus a margin for every shared output (about 3 ms more on VAIO3,
+  where nothing failed); a larger buffer than Windows gives (more delay for no measured gain).
+- **Left as seen**: with the larger queue, the bridge had a few gaps of 10–20 ms in 19 minutes when
+  Windows took 22 ms at once (the bridge held about 20 ms), none heard; and one stop of the whole
+  system for ~100 ms (no output wake, a video frame late), which no queue covers.
 
 ## R15. Tests without devices
 

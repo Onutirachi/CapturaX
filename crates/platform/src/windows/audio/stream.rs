@@ -7,8 +7,10 @@
 //!
 //! - **Shared**: the endpoint's mix format, any rate and channel count. `IAudioClient3` with the
 //!   shortest period the Windows mixer allows; else the normal `Initialize` with a 20 ms buffer.
-//!   The output keeps 1.5 periods queued in Windows, and reopens itself at the first quiet
-//!   moment once it has played 5 minutes (FR-003a, research R16: a delay grows after it).
+//!   The output keeps 1.5 periods queued in Windows, or its whole buffer on a period of 10 ms or
+//!   more, where a device can take two periods at once (FR-003b, research R17); it reopens itself
+//!   at the first quiet moment once it has played 5 minutes (FR-003a, research R16: a delay grows
+//!   after it).
 //! - **Exclusive**: the first format the device takes (samples × rates × channels, research R2),
 //!   its minimum period, one period per event. In use or no format → the side opens shared
 //!   and reports `SharedAfterInUse`.
@@ -717,8 +719,9 @@ impl Stream {
         let exclusive = self.mode == StreamMode::Exclusive;
         let sample_bytes = format::bytes(self.format.sample);
         let channels = usize::from(self.format.channels);
-        // Exclusive: every event wants one whole period. Shared: 1.5 periods queued in Windows.
-        let target = if exclusive {
+        // Exclusive: every event wants one whole period. Shared: 1.5 periods queued in Windows,
+        // the whole buffer on a 10 ms period or longer (a device may take two periods at once).
+        let target = if exclusive || self.period >= self.format.rate / 100 {
             self.buffer
         } else {
             (self.period * 3 / 2).min(self.buffer)
