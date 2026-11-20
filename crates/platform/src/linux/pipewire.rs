@@ -58,17 +58,6 @@ const RETRY: Duration = Duration::from_secs(1);
 /// `node.latency` of both streams (research R3): the quantum asked of the graph while they run.
 const LATENCY: &str = "128/48000";
 
-/// [`LATENCY`], or in a debug build the frame count in `CAPTURAX_PW_LATENCY` (as `<frames>/48000`)
-/// for T029's variants. Temporary: T046 removes the variable.
-fn latency() -> String {
-    let frames = cfg!(debug_assertions)
-        .then(|| std::env::var("CAPTURAX_PW_LATENCY").ok())
-        .flatten()
-        .and_then(|value| value.trim().parse::<u32>().ok())
-        .filter(|frames| (16..=8192).contains(frames));
-    frames.map_or_else(|| LATENCY.to_owned(), |frames| format!("{frames}/48000"))
-}
-
 /// `node.group` of both streams: PipeWire schedules a group under one driver.
 const GROUP: &str = "capturax.preview";
 
@@ -832,12 +821,11 @@ impl Sessions {
             (device, channels, pod)
         };
 
-        let latency = latency();
         let mut properties = properties! {
             *pw::keys::MEDIA_TYPE => "Audio",
             *pw::keys::MEDIA_CATEGORY => category,
             *pw::keys::MEDIA_ROLE => "Game",
-            *pw::keys::NODE_LATENCY => latency.as_str(),
+            *pw::keys::NODE_LATENCY => LATENCY,
             *pw::keys::NODE_GROUP => GROUP,
         };
         if let Some(target) = target {
