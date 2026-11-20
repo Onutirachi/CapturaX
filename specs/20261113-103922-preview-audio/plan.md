@@ -126,8 +126,8 @@ exits after saving settings (research R9).
 - `components/dock.slint`: the volume button between ambient light and settings.
 - `components/volume-popover.slint` (new): slider with value (FR-011 as changed 2026-11-18); hover,
   click, right click, wheel, touch and keyboard behavior of FR-011 (research R12).
-- `components/checkbox.slint` (new) and `components/settings-panel.slint`: category `audio`
-  (Windows only) with the Exclusive mode section.
+- `components/settings-panel.slint`: category `audio` (Windows only) with the Exclusive mode
+  section, tabs Inputs · Outputs, headers Device · Exclusive, one `toggle.slint` switch per row.
 - New icons (`volume`, `volume_1`, `volume_2`, `volume_off`, `microphone`, `headphones`), texts in
   `texts.slint` and the pt-BR catalog (FR-022).
 
@@ -189,7 +189,7 @@ app/src/
 ├── audio.rs               # NEW: audio state machine, menus, volume state
 ├── sound.rs               # NEW: runs the audio commands (monitor, session, bridge)
 ├── stats.rs, cli.rs, ui.rs, app.rs, main.rs   # wiring
-app/ui/components/{volume-popover, checkbox}.slint          # NEW
+app/ui/components/volume-popover.slint                      # NEW
 app/ui/components/{toolbar, dock, menu, settings-panel}.slint, texts.slint, main.slint
 app/ui/assets/icons/{volume, volume_1, volume_2, volume_off, microphone, headphones}.svg
 app/lang/pt-BR/LC_MESSAGES/capturax.po

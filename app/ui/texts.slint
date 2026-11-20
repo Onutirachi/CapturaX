@@ -100,6 +100,10 @@ export global Texts {
     out property <string> audio-device-in-use: @tr("Device in use");
     out property <string> audio-cannot-open: @tr("Cannot open");
     out property <string> audio-using-default: @tr("Using the system default");
+    // An exclusive device refused exclusive mode and plays shared (User Story 4), and the tag of
+    // a side playing exclusive.
+    out property <string> audio-exclusive-unavailable: @tr("Exclusive mode unavailable");
+    out property <string> audio-tag-exclusive: @tr("Exclusive");
     out property <string> try-again: @tr("Try again");
     out property <string> open-privacy: @tr("Open privacy settings");
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.

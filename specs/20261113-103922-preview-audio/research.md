@@ -350,9 +350,10 @@ the code that relies on it.
     shows it without giving it the focus, Enter/Space mutes, arrows and Home/End on the button
     move the level.
   - **Settings Audio category** (Windows only): an `Exclusive mode` section with the line of
-    FR-022, groups Inputs and Outputs, one row per device with a checkbox and the `In use by the
-    preview` mark. Slint's checkbox is styled like the shell's toggle (a new small
-    `checkbox.slint`).
+    FR-022, tabs Inputs and Outputs, column headers Device and Exclusive, one row per device
+    with the shell's toggle and a `Preview` tag while the preview uses it (maintainer, 2026-11-20: tabs
+    and the toggle instead of groups and a checkbox); the rows in use first, only the rows
+    scroll.
   - Icons from Tabler as the existing ones (`volume`, `volume_2`, `volume_1`, `volume_off`,
     `microphone`, `headphones`), same license file. Tabler has no low volume icon: `volume_1` is
     its `volume-2` without the wave, and `volume_off` is its `volume-3` (speaker with an X), as
@@ -370,7 +371,7 @@ the code that relies on it.
     `linux/pipewire.rs`; `camera.rs` becomes `privacy.rs` with a capability (camera, microphone).
   - `app/src/audio.rs`: the audio state machine beside `preview.rs` (follows the preview's
     session, choices, fallbacks, menus); `stats.rs`, `ui.rs`, `cli.rs`, `app.rs` wiring.
-  - `app/ui/components/{volume-popover, checkbox}.slint` new; toolbar, dock, menu, settings panel
+  - `app/ui/components/volume-popover.slint` new; toolbar, dock, menu, settings panel
     and texts extended.
   - `tools/latency/`: `analyze.py --drift`, `pipewire-measure.sh`.
 - **Rationale**: same split as the video (capture crate pure of OS calls, state machine in the

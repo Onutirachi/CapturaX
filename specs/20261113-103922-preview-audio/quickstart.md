@@ -105,7 +105,7 @@ stats only.
 ## Responsiveness (SC-006)
 
 With `--stats` and the log's timestamps: sound within 1 s of the first frame; change of input,
-output or exclusive box plays within 1 s; volume and mute heard within 100 ms; an audio device
+output or exclusive switch plays within 1 s; volume and mute heard within 100 ms; an audio device
 plugged or removed in the menu within 3 s; a reconnected input and a changed default output play
 within 3 s.
 

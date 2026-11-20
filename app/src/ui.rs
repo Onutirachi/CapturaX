@@ -150,6 +150,12 @@ pub fn audio_items(items: &[crate::audio::Item], texts: &Texts) -> Vec<MenuItem>
                 detail,
                 tone: if kind == "state" || kind == "action" { tone } else { "" }.into(),
                 checked: item.current,
+                tag: if item.exclusive {
+                    texts.get_audio_tag_exclusive()
+                } else {
+                    Default::default()
+                },
+                tag_kind: if item.exclusive { "accent" } else { "" }.into(),
                 ..Default::default()
             }
         })
@@ -161,7 +167,7 @@ fn audio_notice_tone(notice: &crate::audio::Notice) -> &'static str {
     use crate::audio::Notice;
     match notice {
         Notice::NoPair => "",
-        Notice::Disconnected(_) | Notice::Held(_) | Notice::Fallback(_) => "warn",
+        Notice::Disconnected(_) | Notice::InUse(_) | Notice::Held(_) | Notice::Fallback(_) => "warn",
         Notice::Blocked | Notice::Failed(_) => "bad",
     }
 }
@@ -173,9 +179,11 @@ fn audio_notice_name(notice: &crate::audio::Notice, texts: &Texts) -> slint::Sha
     match notice {
         Notice::NoPair | Notice::Blocked => Default::default(),
         Notice::Failed(name) if name.is_empty() => texts.get_audio_system_default_unnamed(),
-        Notice::Disconnected(name) | Notice::Held(name) | Notice::Failed(name) | Notice::Fallback(name) => {
-            name.as_str().into()
-        }
+        Notice::Disconnected(name)
+        | Notice::InUse(name)
+        | Notice::Held(name)
+        | Notice::Failed(name)
+        | Notice::Fallback(name) => name.as_str().into(),
     }
 }
 
@@ -186,12 +194,14 @@ fn audio_notice_detail(notice: &crate::audio::Notice, texts: &Texts) -> slint::S
         Notice::NoPair => texts.get_audio_choose_input(),
         Notice::Disconnected(_) => texts.get_preview_disconnected_detail(),
         Notice::Blocked => texts.get_preview_blocked_detail(),
+        Notice::InUse(_) => texts.get_audio_exclusive_unavailable(),
         Notice::Held(_) | Notice::Failed(_) => Default::default(),
         Notice::Fallback(_) => texts.get_audio_using_default(),
     }
 }
 
-/// The tag before the Audio select's value and its kind (`warn` or `bad`, tag.slint).
+/// The tag before the Audio select's value and its kind (tag.slint): `warn` or `bad` for a
+/// state, `rate` (outlined) for Exclusive, which is no problem.
 pub fn audio_tag(tag: Option<crate::audio::StateTag>, texts: &Texts) -> (slint::SharedString, &'static str) {
     use crate::audio::StateTag;
     match tag {
@@ -201,6 +211,39 @@ pub fn audio_tag(tag: Option<crate::audio::StateTag>, texts: &Texts) -> (slint::
         Some(StateTag::Blocked) => (texts.get_audio_tag_blocked(), "bad"),
         Some(StateTag::Failed) => (texts.get_audio_tag_failed(), "bad"),
     }
+}
+
+/// The rows of the settings panel's Audio category (preview audio FR-014).
+pub fn endpoint_rows(rows: &[crate::audio::ExclusiveRow]) -> Vec<AudioEndpointRow> {
+    rows.iter()
+        .map(|row| AudioEndpointRow {
+            id: row.id.as_str().into(),
+            name: row.name.as_str().into(),
+            exclusive: row.exclusive,
+            in_use: row.in_use,
+        })
+        .collect()
+}
+
+/// Shows `rows` in `model`: a model of the same length is changed in place, row by row, so the
+/// rows keep their instances (and the keyboard focus on a checkbox); else `set` gets a new one.
+pub fn sync_rows<T: Clone + PartialEq + 'static>(
+    model: &slint::ModelRc<T>,
+    rows: Vec<T>,
+    set: impl FnOnce(slint::ModelRc<T>),
+) {
+    use slint::Model;
+    if let Some(vec) = model.as_any().downcast_ref::<slint::VecModel<T>>()
+        && vec.row_count() == rows.len()
+    {
+        for (index, row) in rows.into_iter().enumerate() {
+            if vec.row_data(index).as_ref() != Some(&row) {
+                vec.set_row_data(index, row);
+            }
+        }
+        return;
+    }
+    set(slint::ModelRc::new(slint::VecModel::from(rows)));
 }
 
 /// The text of an Audio menu label (also the Audio select's value) from the catalog.
@@ -221,7 +264,7 @@ pub fn audio_label(label: &crate::audio::Label, texts: &Texts) -> slint::SharedS
                 Notice::NoPair => texts.get_audio_no_pair(),
                 Notice::Disconnected(_) | Notice::Fallback(_) => texts.get_audio_device_disconnected(),
                 Notice::Blocked => texts.get_preview_blocked(),
-                Notice::Held(_) => texts.get_audio_device_in_use(),
+                Notice::InUse(_) | Notice::Held(_) => texts.get_audio_device_in_use(),
                 Notice::Failed(_) => texts.get_audio_cannot_open(),
             }
         }

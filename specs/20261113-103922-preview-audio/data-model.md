@@ -60,7 +60,8 @@ muted unmutes.
 
 ## Exclusive flags (FR-014, Windows)
 
-Per endpoint id, `[audio_devices."<id>"] exclusive = true` (default false). Ignored on Linux.
+Per endpoint id, `[audio_devices."<id>"] exclusive = true` (default false). Ignored on Linux. The
+system default output is opened exclusive when the endpoint it names is checked.
 
 The same entry keeps the endpoint's last known `name` while it is chosen as an input or output
 (maintainer, 2026-11-19): a chosen endpoint that is missing when the app starts is named by it in
@@ -94,17 +95,18 @@ neutral for NoPair.
 |---|---|---|---|---|
 | `Off` | choice None, or no video device open | — | — | — |
 | `Opening` | open requested, no audio yet | — | — | — |
-| `Playing` | both sides running | `Exclusive` when a side is exclusive | — | — |
+| `Playing` | both sides running | — (an exclusive device's menu row has the `Exclusive` tag) | — | — |
 | `NoPair` | Auto and no pair | — | No paired audio / Choose an input | — |
 | `Disconnected(name)` | the chosen or paired input is missing or was removed | Disconnected | Device disconnected / {} / Waiting to reconnect | — (reopens on `Added` with the same id) |
-| `InUse` | playing, an exclusive side was refused (mode `SharedAfterInUse`) | In use | Device in use / {} / Exclusive mode unavailable | — (exclusive tried again at the next open) |
+| `InUse(name)` | playing, an exclusive side was refused (mode `SharedAfterInUse`); the input named first | In use | Device in use / {} / Exclusive mode unavailable | — (exclusive tried again at the next open) |
 | `Held(name)` | a side reported `InUse`: another app holds the device alone (Windows), at open or taken while playing shared | In use | Device in use / {} | Try again (reopen) |
 | `Blocked` | Windows microphone privacy denies the input | Blocked | Access blocked / Desktop app permission is off | Open privacy settings |
 | `Failed(name)` | any other open error, or a shared open refused | Failed | Cannot open / {} | Try again (reopen) |
 
-**Output fallback** is a flag beside the state, shown the same way when the state is `Playing` or
-`InUse`: header `Device disconnected / {output} / Using the system default`, no tag. It is set when a
-`Device(id)` output is missing, fails or is held by another app, cleared when the output reopens on it.
+**Output fallback** is a flag beside the state, shown the same way while the state is `Playing`:
+header `Device disconnected / {output} / Using the system default`, no tag (in `InUse` the menu has
+one card, `InUse`'s). It is set when a `Device(id)` output is missing, fails or is held by another
+app, cleared when the output reopens on it.
 
 Transitions (beyond the table): `Disconnected` → `Opening` on the input's `Added`; any state →
 `Off` when the video session closes; `Failed` and `Held` → `Opening` on Try again (no automatic

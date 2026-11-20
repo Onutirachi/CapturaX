@@ -57,6 +57,7 @@ export component Select inherits Rectangle {
     // 60 FPS").
     property <string> plain-value: root.shown != "" ? root.shown : root.rate != "" ? root.chosen + " • " + root.rate : root.chosen;
     property <string> value: root.state-tag != "" ? root.state-tag + " • " + root.plain-value : root.plain-value;
+    property <bool> alert: root.state-tag != "" && (root.state-tag-kind == "warn" || root.state-tag-kind == "bad");
     property <bool> icon-look: root.icon-only;
     // The plain icon look shows the chosen item's icon.
     property <bool> plain-icon: root.icon-only && !root.titled;
@@ -254,10 +255,10 @@ export component Select inherits Rectangle {
             alignment: center;
             horizontal-stretch: 0;
             Image {
-                source: root.state-tag != "" ? @image-url("../assets/icons/alert_triangle.svg") : root.icon;
+                source: root.alert ? @image-url("../assets/icons/alert_triangle.svg") : root.icon;
                 width: 20px;
                 height: 20px;
-                colorize: root.state-tag == "" ? Theme.c.text
+                colorize: !root.alert ? Theme.c.text
                     : root.state-tag-kind == "warn" ? Theme.c.warn
                     : Theme.c.bad;
                 accessible-role: none;

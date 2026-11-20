@@ -1,7 +1,9 @@
 // A tag of a mode (F43, data-model.md "Mode"): a filled tag with white text, its fill by `kind`
 // (an aspect ratio family such as `16:9`, `custom`, `aspect`), or with `kind` `rate` the outlined
 // frame rate tag in the text color, or with `kind` `warn` or `bad` a state tag (preview audio
-// FR-017): the state's tone as text on a soft fill of it. Empty `value` draws nothing.
+// FR-017): the state's tone as text on a soft fill of it, or with `kind` `accent` the accent fill
+// with its ink (an exclusive device in the Audio menu, preview audio FR-022). Empty `value` draws
+// nothing.
 import { Theme } from "../theme.slint";
 
 export component Tag inherits Rectangle {
@@ -21,6 +23,7 @@ export component Tag inherits Rectangle {
     border-color: Theme.c.text-muted;
     background: root.outlined ? transparent
         : root.state ? root.tone.transparentize(82%)
+        : root.kind == "accent" ? Theme.c.accent
         : root.kind == "1:1" ? Theme.c.tag-1-1
         : root.kind == "5:4" ? Theme.c.tag-5-4
         : root.kind == "11:9" ? Theme.c.tag-11-9
@@ -40,7 +43,8 @@ export component Tag inherits Rectangle {
 
     label := Text {
         text: root.value;
-        color: root.outlined ? Theme.c.text : root.state ? root.tone : #ffffff;
+        color: root.outlined ? Theme.c.text : root.state ? root.tone
+            : root.kind == "accent" ? Theme.c.accent-ink : #ffffff;
         font-size: Theme.text-s;
         font-weight: 600;
     }

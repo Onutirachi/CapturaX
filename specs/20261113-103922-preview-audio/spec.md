@@ -148,10 +148,10 @@ uses it.
 **Acceptance Scenarios**:
 
 1. **Given** the settings panel is open on Windows, **When** the user opens its **Audio**
-   category, **Then** it lists every audio input and every output of the computer, each with an
-   **Exclusive mode** checkbox (off by default), and says that no other app can use an exclusive
-   device while the preview uses it.
-2. **Given** a device in use by the preview is marked exclusive, **When** the box changes,
+   category, **Then** it lists every audio input and every output of the computer, inputs and
+   outputs on two tabs, each with an **Exclusive** switch (off by default), and says that no other
+   app can use an exclusive device while the preview uses it.
+2. **Given** a device in use by the preview is marked exclusive, **When** the switch changes,
    **Then** the sound reopens that device in the new mode within the time of SC-006.
 3. **Given** a device is marked exclusive but exclusive mode is refused (the system setting
    forbids it, or the device takes no usable format), **When** the preview opens it, **Then** the
@@ -257,7 +257,7 @@ The wording of every state is in FR-022.
 - **FR-004**: The sound MUST play correctly whatever the input's and the output's formats (sample
   rate, channels, sample format): mono inputs on both channels, extra channels mixed down.
 - **FR-005**: Changing the video mode, the color range, or anything in the interface MUST NOT
-  interrupt or delay the sound; changing the audio input, the output or an exclusive box reopens
+  interrupt or delay the sound; changing the audio input, the output or an exclusive switch reopens
   only the audio side, never the video device.
 - **FR-006**: Opening, reopening and closing the audio devices MUST NOT block the interface or
   the video, and closing MUST always finish (the spike's Linux output hang must not be possible:
@@ -310,8 +310,15 @@ The wording of every state is in FR-022.
 **Exclusive mode (Windows)**
 
 - **FR-014**: The settings panel MUST gain an **Audio** category on Windows listing every audio
-  input and output with an **Exclusive mode** checkbox each, off by default, and one short line
-  saying that no other app can use an exclusive device while the preview uses it (product.md F47).
+  input and output with an **Exclusive** switch each (the shell's toggle), off by default, and one
+  short line saying that no other app can use an exclusive device while the preview uses it
+  (product.md F47). Inputs and outputs are on two tabs, each a list with the column headers
+  Device and Exclusive (maintainer, 2026-11-20: tabs confuse less than one long list; no device
+  choice there, so the category stays Windows only). The devices the preview uses come first,
+  then the system's order; the heading, the tabs and the column headers stay in place while the
+  list scrolls (maintainer, 2026-11-20, after a design review), with the menus' position
+  indicator at its right while it scrolls (maintainer, same day: otherwise it does not look like a
+  list that scrolls).
   The settings are remembered per audio device across restarts.
 - **FR-015**: An exclusive device MUST be opened in exclusive mode, skipping the system mixer;
   when exclusive is refused (not allowed, format refused), the app MUST play it shared and show it
@@ -362,14 +369,14 @@ The wording of every state is in FR-022.
   | No paired input | Auto (none) | Auto (nenhum) |
   | No input | No audio | Sem áudio |
   | Default output | System default ({}) | Padrão do sistema ({}) |
-  | Tag on an exclusive device | Exclusive | Exclusivo |
+  | Tag on an exclusive device (its row in the Audio menu, orange, after the name as the other dropdowns' tags, also in the closed dropdown; Auto and System default show it for the device they name; maintainer, 2026-11-20) | Exclusive | Exclusivo |
   | Volume button tooltip | Volume {}% · Muted | Volume {}% · Mudo |
   | Settings category (Windows) | Audio | Áudio |
   | Settings section | Exclusive mode | Modo exclusivo |
   | Settings line | Lowest delay. No other app can use the device while the preview does. | Menor atraso. Nenhum outro app usa o dispositivo enquanto o preview usa. |
-  | Settings groups | Inputs · Outputs | Entradas · Saídas |
-  | Settings checkbox | Exclusive | Exclusivo |
-  | Settings row mark | In use by the preview | Em uso pelo preview |
+  | Settings tabs | Inputs · Outputs | Entradas · Saídas |
+  | Settings column headers | Device · Exclusive | Dispositivo · Exclusivo |
+  | Settings row tag, under the name (who uses the device: Preview now; recording and streaming add theirs) | Preview | Preview |
 
   States (title / detail / action), with the tag shown in the dropdown:
 
@@ -448,7 +455,7 @@ delay minus the video delay of spec #3 (glass to glass) measured in the same ses
   first second in the app's statistics, and the maintainer hears no click, dropout or pitch
   change while playing.
 - **SC-006**: Responsiveness on the maintainer's machines: the sound starts within **1 s** of the
-  video device's first frame; a change of input, output or exclusive box plays within 1 s; a
+  video device's first frame; a change of input, output or exclusive switch plays within 1 s; a
   volume or mute change is heard within 100 ms; an audio device plugged or removed appears in or
   leaves the choices within 3 s; a disconnected input or a changed default output plays again
   within 3 s of the system offering it.

@@ -11,7 +11,7 @@ use ::audio::choice::{self, AudioChoice, OutputChoice, Resolved};
 use ::audio::pairing::{self, VideoKey};
 use ::audio::volume::VolumeIcon;
 use platform::Access;
-use platform::audio::{AudioError, AudioEvent, Endpoint, Flow, SessionEvent, SessionRequest, Side};
+use platform::audio::{AudioError, AudioEvent, Endpoint, Flow, SessionEvent, SessionRequest, Side, StreamMode};
 use settings::Settings;
 
 /// What the Audio dropdown shows (data-model.md "Audio state"); never shown while no video device
@@ -24,6 +24,9 @@ pub enum AudioState {
     Opening,
     /// Both sides run.
     Playing,
+    /// Both sides run, but this endpoint was marked exclusive and refused it, so it plays shared
+    /// (Windows); exclusive is asked again at its next open.
+    InUse(String),
     /// Auto and no input pairs with the video device.
     NoPair,
     /// The chosen or paired input is missing or left, by its last known name; it opens when it
@@ -55,6 +58,8 @@ pub enum Notice {
     Disconnected(String),
     /// `Access blocked` / `Desktop app permission is off`.
     Blocked,
+    /// `Device in use` / `{}` / `Exclusive mode unavailable`: it plays shared.
+    InUse(String),
     /// `Device in use` / `{}`, with `Try again`.
     Held(String),
     /// `Cannot open` / `{}`, with `Try again`; the name is empty for a system default output
@@ -106,6 +111,8 @@ pub enum Event {
     Input(AudioChoice),
     /// The user picked the output (FR-009); the settings already hold it.
     Output(OutputChoice),
+    /// The user changed this endpoint's exclusive box (FR-014); the settings already hold it.
+    Exclusive(String),
     /// The user pressed **Try again** in the Audio menu.
     TryAgain,
     /// Every 3 s while [`AudioController::watches_access`]: microphone access is read, and once
@@ -129,6 +136,7 @@ impl Event {
             Self::Volume { level, muted } => format!("volume {level} muted {muted}"),
             Self::Input(choice) => format!("input {choice} picked"),
             Self::Output(choice) => format!("output {choice} picked"),
+            Self::Exclusive(id) => format!("{id} exclusive changed"),
             Self::TryAgain => "try again".into(),
             Self::AccessCheck => "microphone access read".into(),
         }
@@ -141,7 +149,6 @@ pub enum Command {
     /// Open this session; a session still open is closed first by [`Command::Close`].
     Open(SessionRequest),
     /// Reopen the open session's input on this endpoint (the bridge restarts empty).
-    #[expect(dead_code, reason = "emitted by the exclusive flag (T038)")]
     ReopenInput { input: String, exclusive: bool },
     /// Reopen the open session's output (None: the system default).
     ReopenOutput { output: Option<String>, exclusive: bool },
@@ -162,6 +169,9 @@ pub struct Item {
     pub pick: Option<Pick>,
     /// A chosen (or Auto's paired) endpoint that is missing: shown with `Disconnected`.
     pub missing: bool,
+    /// Its endpoint has the exclusive switch on (Auto: the pair; System default: the default):
+    /// shown with the `Exclusive` tag (FR-022).
+    pub exclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,9 +249,9 @@ struct Open {
     input_id: String,
     /// The output asked for, as the last open or reopen said; None: the system default.
     output_id: Option<String>,
-    /// The sides that reported `Opened` since their last open.
-    input: bool,
-    output: bool,
+    /// The sides that reported `Opened` since their last open, with the mode they run in.
+    input: Option<StreamMode>,
+    output: Option<StreamMode>,
     /// The output side failed while playing on the system default: it reopens when
     /// `DefaultOutput` names an output (Linux after PipeWire restarts, research R7).
     output_failed: bool,
@@ -256,6 +266,21 @@ fn input_choice(settings: &Settings, video: &VideoDevice) -> AudioChoice {
 
 fn output_choice(settings: &Settings) -> OutputChoice {
     OutputChoice::parse(&settings.audio.output)
+}
+
+/// The endpoint's exclusive box (FR-014); the platform ignores it on Linux.
+fn exclusive(settings: &Settings, id: Option<&str>) -> bool {
+    id.and_then(|id| settings.audio_device(id)).is_some_and(|d| d.exclusive)
+}
+
+/// One endpoint in the settings panel's Audio category (FR-014).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExclusiveRow {
+    pub id: String,
+    pub name: String,
+    pub exclusive: bool,
+    /// The preview plays on it now (the `Preview` tag).
+    pub in_use: bool,
 }
 
 /// Reads the microphone privacy switch (`platform::access`; tests set it).
@@ -380,11 +405,39 @@ impl AudioController {
     pub fn tag(&self) -> Option<StateTag> {
         match self.state() {
             AudioState::Disconnected(_) => Some(StateTag::Disconnected),
-            AudioState::Held(_) => Some(StateTag::InUse),
+            AudioState::InUse(_) | AudioState::Held(_) => Some(StateTag::InUse),
             AudioState::Blocked => Some(StateTag::Blocked),
             AudioState::Failed(_) => Some(StateTag::Failed),
             AudioState::Off | AudioState::Opening | AudioState::Playing | AudioState::NoPair => None,
         }
+    }
+
+    /// The settings panel's Audio category (FR-014): every input and every output with its
+    /// exclusive switch, marked when the preview plays on it; those first, then the system's
+    /// order.
+    pub fn exclusive_rows(&self, settings: &Settings) -> (Vec<ExclusiveRow>, Vec<ExclusiveRow>) {
+        let (input, output) = match &self.open {
+            Some(open) => (
+                open.input.is_some().then_some(open.input_id.as_str()),
+                open.output
+                    .and(open.output_id.as_deref().or(self.default_output.as_deref())),
+            ),
+            None => (None, None),
+        };
+        let rows = |list: &[Endpoint], used: Option<&str>| {
+            let mut rows: Vec<ExclusiveRow> = list
+                .iter()
+                .map(|e| ExclusiveRow {
+                    id: e.id.clone(),
+                    name: e.name.clone(),
+                    exclusive: exclusive(settings, Some(&e.id)),
+                    in_use: used == Some(e.id.as_str()),
+                })
+                .collect();
+            rows.sort_by_key(|r| !r.in_use);
+            rows
+        };
+        (rows(&self.inputs, input), rows(&self.outputs, output))
     }
 
     /// The top of the Audio menu: the state's notice and its action, else the output fallback.
@@ -393,6 +446,7 @@ impl AudioController {
             AudioState::NoPair => (Notice::NoPair, None),
             AudioState::Disconnected(name) => (Notice::Disconnected(name), None),
             AudioState::Blocked => (Notice::Blocked, Some(Action::OpenPrivacy)),
+            AudioState::InUse(name) => (Notice::InUse(name), None),
             AudioState::Held(name) => (Notice::Held(name), Some(Action::TryAgain)),
             AudioState::Failed(name) => (Notice::Failed(name), Some(Action::TryAgain)),
             AudioState::Playing => (Notice::Fallback(self.fallback()?), None),
@@ -473,6 +527,7 @@ impl AudioController {
             current: false,
             pick: None,
             missing: false,
+            exclusive: false,
         };
         let mut items = Vec::new();
         if let Some((notice, action)) = self.notice() {
@@ -483,6 +538,7 @@ impl AudioController {
                     current: false,
                     pick: Some(Pick::Action(action)),
                     missing: false,
+                    exclusive: false,
                 });
             }
         }
@@ -495,6 +551,7 @@ impl AudioController {
                 current: auto,
                 pick: Some(Pick::Input(AudioChoice::Auto)),
                 missing: auto && self.pair(video).is_none() && matches!(self.state(), AudioState::Disconnected(_)),
+                exclusive: exclusive(settings, self.pair(video).as_deref()),
             });
             for input in &self.inputs {
                 let pick = AudioChoice::Input(input.id.clone());
@@ -503,6 +560,7 @@ impl AudioController {
                     current: choice == pick,
                     pick: Some(Pick::Input(pick)),
                     missing: false,
+                    exclusive: exclusive(settings, Some(&input.id)),
                 });
             }
             if let AudioChoice::Input(id) = &choice
@@ -513,6 +571,7 @@ impl AudioController {
                     current: true,
                     pick: Some(Pick::Input(choice.clone())),
                     missing: true,
+                    exclusive: exclusive(settings, Some(id)),
                 });
             }
             items.push(Item {
@@ -520,6 +579,7 @@ impl AudioController {
                 current: choice == AudioChoice::None,
                 pick: Some(Pick::Input(AudioChoice::None)),
                 missing: false,
+                exclusive: false,
             });
         }
         items.push(header(Label::Outputs));
@@ -538,6 +598,7 @@ impl AudioController {
                 current: true,
                 pick: Some(Pick::Output(choice.clone())),
                 missing: true,
+                exclusive: exclusive(settings, Some(id)),
             }),
             _ => None,
         };
@@ -546,6 +607,7 @@ impl AudioController {
             current: choice == OutputChoice::Default,
             pick: Some(Pick::Output(OutputChoice::Default)),
             missing: false,
+            exclusive: exclusive(settings, self.default_output.as_deref()),
         })
         .chain(self.outputs.iter().map(|output| {
             let pick = OutputChoice::Device(output.id.clone());
@@ -554,6 +616,7 @@ impl AudioController {
                 current: choice == pick,
                 pick: Some(Pick::Output(pick)),
                 missing: false,
+                exclusive: exclusive(settings, Some(&output.id)),
             }
         }))
         .chain(missing)
@@ -587,7 +650,11 @@ impl AudioController {
                         AudioState::Off | AudioState::Opening => self.resolve(settings, &mut out),
                         AudioState::NoPair | AudioState::Disconnected(_) => self.play_if_present(settings, &mut out),
                         // Errors wait for their action or for access.
-                        AudioState::Playing | AudioState::Blocked | AudioState::Held(_) | AudioState::Failed(_) => {}
+                        AudioState::Playing
+                        | AudioState::InUse(_)
+                        | AudioState::Blocked
+                        | AudioState::Held(_)
+                        | AudioState::Failed(_) => {}
                     }
                 }
             }
@@ -599,8 +666,8 @@ impl AudioController {
                 platform::audio::numbered(&mut self.inputs);
                 platform::audio::numbered(&mut self.outputs);
             }
-            Event::Monitor(AudioEvent::DefaultOutput(id)) => self.default_changed(id, &mut out),
-            Event::Session(event) => self.session_event(event, &mut out),
+            Event::Monitor(AudioEvent::DefaultOutput(id)) => self.default_changed(id, settings, &mut out),
+            Event::Session(event) => self.session_event(event, settings, &mut out),
             Event::VideoOpened { session, device } => {
                 self.close(&mut out);
                 self.video = Some((session, device));
@@ -621,6 +688,7 @@ impl AudioController {
             }
             Event::Input(_) => self.input_picked(settings, &mut out),
             Event::Output(_) => self.output_picked(settings, &mut out),
+            Event::Exclusive(id) => self.exclusive_changed(&id, settings, &mut out),
             Event::TryAgain => {
                 if matches!(self.state(), AudioState::Held(_) | AudioState::Failed(_)) {
                     self.close(&mut out);
@@ -686,17 +754,19 @@ impl AudioController {
             number,
             input_id: input.clone(),
             output_id: output.clone(),
-            input: false,
-            output: false,
+            input: None,
+            output: None,
             output_failed: false,
         });
         self.state = Some(AudioState::Opening);
+        let input_exclusive = exclusive(settings, Some(&input));
+        let output_exclusive = exclusive(settings, output.as_deref().or(self.default_output.as_deref()));
         out.push(Command::Open(SessionRequest {
             number,
             input,
             output,
-            input_exclusive: false,
-            output_exclusive: false,
+            input_exclusive,
+            output_exclusive,
         }));
     }
 
@@ -708,20 +778,35 @@ impl AudioController {
         self.fallback = None;
     }
 
-    /// Reopens the open session's output on `output` (None: the system default).
-    fn reopen_output(&mut self, output: Option<String>, out: &mut Vec<Command>) {
+    /// Reopens the open session's output on `output` (None: the system default), exclusive when
+    /// that endpoint's box is checked.
+    fn reopen_output(&mut self, output: Option<String>, settings: &Settings, out: &mut Vec<Command>) {
+        let exclusive = exclusive(settings, output.as_deref().or(self.default_output.as_deref()));
         if let Some(open) = &mut self.open {
             open.output_id.clone_from(&output);
-            open.output = false;
+            open.output = None;
             open.output_failed = false;
             // An output side that failed on the default opens again.
             if matches!(self.state, Some(AudioState::Held(_) | AudioState::Failed(_))) {
                 self.state = Some(AudioState::Opening);
             }
-            out.push(Command::ReopenOutput {
-                output,
-                exclusive: false,
+            out.push(Command::ReopenOutput { output, exclusive });
+        }
+    }
+
+    /// An exclusive box changed: the side playing on that endpoint reopens in the new mode, the
+    /// other keeps playing (FR-005).
+    fn exclusive_changed(&mut self, id: &str, settings: &Settings, out: &mut Vec<Command>) {
+        let Some(open) = &mut self.open else { return };
+        if open.input_id == id {
+            open.input = None;
+            out.push(Command::ReopenInput {
+                input: id.to_string(),
+                exclusive: exclusive(settings, Some(id)),
             });
+        } else if open.output_id.as_deref().or(self.default_output.as_deref()) == Some(id) {
+            let output = open.output_id.clone();
+            self.reopen_output(output, settings, out);
         }
     }
 
@@ -751,7 +836,7 @@ impl AudioController {
                 if self.fallback.as_deref() == Some(id.as_str())
                     && self.open.as_ref().is_some_and(|o| o.output_id.is_none())
                 {
-                    self.reopen_output(Some(id), out);
+                    self.reopen_output(Some(id), settings, out);
                 }
             }
         }
@@ -759,7 +844,7 @@ impl AudioController {
 
     /// The system default output changed: an output on the default reopens on Windows, and on
     /// both systems when it failed (research R7).
-    fn default_changed(&mut self, id: Option<String>, out: &mut Vec<Command>) {
+    fn default_changed(&mut self, id: Option<String>, settings: &Settings, out: &mut Vec<Command>) {
         let changed = self.default_output != id;
         self.default_output = id;
         let Some(open) = &self.open else { return };
@@ -767,7 +852,7 @@ impl AudioController {
             && self.default_output.is_some()
             && (open.output_failed || (changed && self.reopens_on_default))
         {
-            self.reopen_output(None, out);
+            self.reopen_output(None, settings, out);
         }
     }
 
@@ -793,11 +878,11 @@ impl AudioController {
         let (output, missing) = self.output_to_open(settings);
         self.fallback = missing;
         if self.open.as_ref().is_some_and(|o| o.output_id != output) {
-            self.reopen_output(output, out);
+            self.reopen_output(output, settings, out);
         }
     }
 
-    fn session_event(&mut self, event: SessionEvent, out: &mut Vec<Command>) {
+    fn session_event(&mut self, event: SessionEvent, settings: &Settings, out: &mut Vec<Command>) {
         let number = match &event {
             SessionEvent::Opened { number, .. }
             | SessionEvent::Error { number, .. }
@@ -808,19 +893,31 @@ impl AudioController {
             return;
         };
         match event {
-            SessionEvent::Opened { side, .. } => {
+            SessionEvent::Opened { side, mode, .. } => {
                 match side {
-                    Side::Input => open.input = true,
+                    Side::Input => open.input = Some(mode),
                     Side::Output => {
-                        open.output = true;
+                        open.output = Some(mode);
                         // The chosen output plays again: no fallback.
                         if open.output_id.is_some() {
                             self.fallback = None;
                         }
                     }
                 }
-                if open.input && open.output {
-                    self.state = Some(AudioState::Playing);
+                if let (Some(input), Some(output)) = (open.input, open.output) {
+                    // An exclusive side refused plays shared and says so (User Story 4,
+                    // scenario 3); the input's is named first.
+                    let refused = if input == StreamMode::SharedAfterInUse {
+                        Some(open.input_id.clone())
+                    } else if output == StreamMode::SharedAfterInUse {
+                        open.output_id.clone().or_else(|| self.default_output.clone())
+                    } else {
+                        None
+                    };
+                    self.state = Some(match refused {
+                        Some(id) => AudioState::InUse(self.name_of(&id)),
+                        None => AudioState::Playing,
+                    });
                 }
             }
             SessionEvent::Error {
@@ -833,13 +930,13 @@ impl AudioController {
                     // The chosen output is gone, failed or held: the default plays, and says so.
                     Some(id) => {
                         self.fallback = Some(id);
-                        self.reopen_output(None, out);
+                        self.reopen_output(None, settings, out);
                     }
                     // The default: it reopens when `DefaultOutput` names an output (research R7),
                     // or on Try again. A default that left waits without a state (Windows names
                     // the next default at once).
                     None => {
-                        open.output = false;
+                        open.output = None;
                         open.output_failed = true;
                         let name = self
                             .default_output
@@ -2039,5 +2136,261 @@ mod tests {
         assert!(run.audio.watches_access());
         run.send(Event::VideoClosed { session: 2 });
         assert!(!run.audio.watches_access());
+    }
+
+    fn opened_in(number: u64, side: Side, mode: StreamMode) -> Event {
+        match opened(number, side) {
+            Event::Session(SessionEvent::Opened {
+                number,
+                side,
+                format,
+                period_ms,
+                reported_latency_ms,
+                ..
+            }) => Event::Session(SessionEvent::Opened {
+                number,
+                side,
+                mode,
+                format,
+                period_ms,
+                reported_latency_ms,
+            }),
+            _ => unreachable!(),
+        }
+    }
+
+    impl Run {
+        /// Stores an endpoint's exclusive box and sends the change, as the app does.
+        fn set_exclusive(&mut self, id: &str, on: bool) -> Vec<Command> {
+            self.settings.touch_audio_device(id, "").exclusive = on;
+            self.send(Event::Exclusive(id.into()))
+        }
+    }
+
+    #[test]
+    fn the_session_asks_exclusive_for_the_checked_endpoints() {
+        let mut run = Run::new();
+        run.settings.touch_audio_device(CARD_INPUT, "").exclusive = true;
+        // The system default output is asked exclusive by its endpoint's box.
+        run.settings.touch_audio_device(SPEAKERS, "").exclusive = true;
+        run.send(listed());
+        let commands = run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        assert_eq!(
+            commands,
+            [Command::Open(SessionRequest {
+                number: 1,
+                input: CARD_INPUT.into(),
+                output: None,
+                input_exclusive: true,
+                output_exclusive: true,
+            })]
+        );
+    }
+
+    #[test]
+    fn a_box_change_reopens_only_the_side_on_that_endpoint() {
+        let mut run = Run::new();
+        run.playing();
+        assert_eq!(
+            run.set_exclusive(CARD_INPUT, true),
+            [Command::ReopenInput {
+                input: CARD_INPUT.into(),
+                exclusive: true,
+            }]
+        );
+        run.send(opened_in(1, Side::Input, StreamMode::Exclusive));
+        assert_eq!(run.audio.state(), AudioState::Playing);
+        assert_eq!(
+            run.audio.tag(),
+            None,
+            "exclusive is no problem: the menu row's tag says it"
+        );
+        // The output follows the default: the default's box reopens it.
+        assert_eq!(
+            run.set_exclusive(SPEAKERS, true),
+            [Command::ReopenOutput {
+                output: None,
+                exclusive: true,
+            }]
+        );
+        // An endpoint the preview does not use changes nothing.
+        assert!(run.set_exclusive(MIC_INPUT, true).is_empty());
+        assert!(run.set_exclusive(HEADSET, true).is_empty());
+        // Unchecked: back to shared, the tag goes with it.
+        run.send(opened_in(1, Side::Output, StreamMode::Shared));
+        assert_eq!(
+            run.set_exclusive(CARD_INPUT, false),
+            [Command::ReopenInput {
+                input: CARD_INPUT.into(),
+                exclusive: false,
+            }]
+        );
+        run.send(opened_in(1, Side::Input, StreamMode::Shared));
+        assert_eq!(run.audio.tag(), None);
+        // A chosen output opens with its own box, and its box reopens it.
+        assert_eq!(
+            run.pick_output(OutputChoice::Device(HEADSET.into())),
+            [Command::ReopenOutput {
+                output: Some(HEADSET.into()),
+                exclusive: true,
+            }]
+        );
+        run.send(opened(1, Side::Output));
+        assert_eq!(
+            run.set_exclusive(HEADSET, false),
+            [Command::ReopenOutput {
+                output: Some(HEADSET.into()),
+                exclusive: false,
+            }]
+        );
+    }
+
+    #[test]
+    fn no_box_change_reaches_a_closed_session() {
+        let mut run = Run::new();
+        run.send(listed());
+        assert!(run.set_exclusive(CARD_INPUT, true).is_empty());
+    }
+
+    #[test]
+    fn an_exclusive_side_refused_plays_shared_and_says_so() {
+        let mut run = Run::new();
+        run.settings.touch_audio_device(CARD_INPUT, "").exclusive = true;
+        run.send(listed());
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        run.send(opened_in(1, Side::Input, StreamMode::SharedAfterInUse));
+        assert_eq!(run.audio.state(), AudioState::Opening);
+        run.send(opened(1, Side::Output));
+        assert_eq!(
+            run.audio.state(),
+            AudioState::InUse("Digital Audio Interface (ezcap)".into())
+        );
+        assert_eq!(run.audio.tag(), Some(StateTag::InUse));
+        assert_eq!(
+            top(&run),
+            (
+                Some(Label::Notice(Notice::InUse("Digital Audio Interface (ezcap)".into()))),
+                None
+            ),
+            "no action: exclusive is asked again at the next open"
+        );
+        // The next open asks exclusive again, and it is granted.
+        assert_eq!(
+            run.set_exclusive(CARD_INPUT, true),
+            [Command::ReopenInput {
+                input: CARD_INPUT.into(),
+                exclusive: true,
+            }]
+        );
+        run.send(opened_in(1, Side::Input, StreamMode::Exclusive));
+        assert_eq!(run.audio.state(), AudioState::Playing);
+        assert_eq!(
+            run.audio.tag(),
+            None,
+            "exclusive is no problem: the menu row's tag says it"
+        );
+    }
+
+    #[test]
+    fn a_refused_output_names_the_default_it_plays_on() {
+        let mut run = Run::new();
+        run.settings.touch_audio_device(SPEAKERS, "").exclusive = true;
+        run.send(listed());
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        run.send(opened(1, Side::Input));
+        run.send(opened_in(1, Side::Output, StreamMode::SharedAfterInUse));
+        assert_eq!(
+            run.audio.state(),
+            AudioState::InUse("Speakers (Realtek(R) Audio)".into())
+        );
+    }
+
+    #[test]
+    fn the_menu_tags_the_exclusive_endpoints() {
+        let mut run = Run::new();
+        run.settings.touch_audio_device(CARD_INPUT, "").exclusive = true;
+        run.settings.touch_audio_device(SPEAKERS, "").exclusive = true;
+        run.send(listed());
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        let menu = run.audio.menu(&run.settings);
+        let tagged = |text: &Label| menu.iter().find(|i| &i.text == text).map(|i| i.exclusive);
+        assert_eq!(
+            tagged(&Label::Plain("Digital Audio Interface (ezcap)".into())),
+            Some(true)
+        );
+        assert_eq!(
+            tagged(&Label::Plain("Microphone (Realtek(R) Audio)".into())),
+            Some(false)
+        );
+        assert_eq!(
+            menu.iter()
+                .find(|i| matches!(i.text, Label::Auto(_)))
+                .map(|i| i.exclusive),
+            Some(true),
+            "Auto names the card"
+        );
+        assert_eq!(tagged(&Label::NoAudio), Some(false));
+        assert_eq!(
+            menu.iter()
+                .find(|i| matches!(i.text, Label::SystemDefault(_)))
+                .map(|i| i.exclusive),
+            Some(true),
+            "the default output is the speakers"
+        );
+        assert_eq!(tagged(&Label::Plain("Speakers (Realtek(R) Audio)".into())), Some(true));
+    }
+
+    #[test]
+    fn the_settings_rows_mark_the_endpoints_in_use() {
+        let mut run = Run::new();
+        run.settings.touch_audio_device(MIC_INPUT, "").exclusive = true;
+        run.send(listed());
+        let row = |id: &str, name: &str, exclusive, in_use| ExclusiveRow {
+            id: id.into(),
+            name: name.into(),
+            exclusive,
+            in_use,
+        };
+        let (inputs, outputs) = run.audio.exclusive_rows(&run.settings);
+        assert_eq!(
+            inputs,
+            [
+                row(MIC_INPUT, "Microphone (Realtek(R) Audio)", true, false),
+                row(CARD_INPUT, "Digital Audio Interface (ezcap)", false, false),
+            ]
+        );
+        assert_eq!(outputs, [row(SPEAKERS, "Speakers (Realtek(R) Audio)", false, false)]);
+        run.send(Event::VideoOpened {
+            session: 1,
+            device: card(),
+        });
+        run.send(opened(1, Side::Input));
+        run.send(opened(1, Side::Output));
+        let (inputs, outputs) = run.audio.exclusive_rows(&run.settings);
+        assert_eq!(
+            inputs,
+            [
+                row(CARD_INPUT, "Digital Audio Interface (ezcap)", false, true),
+                row(MIC_INPUT, "Microphone (Realtek(R) Audio)", true, false),
+            ],
+            "the input in use comes first"
+        );
+        assert!(outputs[0].in_use, "the default output the preview plays on");
+        run.send(Event::VideoClosed { session: 1 });
+        let (inputs, outputs) = run.audio.exclusive_rows(&run.settings);
+        assert!(inputs.iter().chain(&outputs).all(|r| !r.in_use));
+        assert_eq!(inputs[0].id, MIC_INPUT, "the system's order again");
     }
 }

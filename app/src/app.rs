@@ -92,6 +92,11 @@ pub enum UserEvent {
     VolumeWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
     AudioPicked(i32),
+    /// An endpoint's Exclusive box in the settings panel (preview audio FR-014).
+    Exclusive {
+        id: String,
+        on: bool,
+    },
 }
 
 /// The Audio select's menu and value last shown, whose rows the picks index.
@@ -101,6 +106,8 @@ struct AudioMenus {
     value: Option<crate::audio::Label>,
     /// The state's tag before the value.
     tag: Option<crate::audio::StateTag>,
+    /// The settings panel's Audio category: the inputs and the outputs.
+    endpoints: (Vec<crate::audio::ExclusiveRow>, Vec<crate::audio::ExclusiveRow>),
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -608,6 +615,7 @@ impl App {
                 menu,
                 value: controller.value(&settings),
                 tag,
+                endpoints: controller.exclusive_rows(&settings),
             }
         };
         if self.audio_menus.as_ref() == Some(&menus) {
@@ -636,6 +644,17 @@ impl App {
         let (tag, tag_kind) = crate::ui::audio_tag(menus.tag, &texts);
         app.set_audio_tag(tag);
         app.set_audio_tag_kind(tag_kind.into());
+        let prefs = app.global::<Prefs>();
+        crate::ui::sync_rows(
+            &prefs.get_audio_inputs(),
+            crate::ui::endpoint_rows(&menus.endpoints.0),
+            |m| prefs.set_audio_inputs(m),
+        );
+        crate::ui::sync_rows(
+            &prefs.get_audio_outputs(),
+            crate::ui::endpoint_rows(&menus.endpoints.1),
+            |m| prefs.set_audio_outputs(m),
+        );
         self.audio_menus = Some(menus);
         self.request_redraw();
     }
@@ -698,6 +717,18 @@ impl App {
             }
         };
         sound.handle(event, &self.store.get());
+    }
+
+    /// Stores an endpoint's Exclusive box (`[audio_devices."<id>"] exclusive`, FR-014) and hands
+    /// it to the sound, which reopens the side playing on it (FR-005).
+    fn exclusive_changed(&mut self, id: String, on: bool) {
+        let Some(sound) = &mut self.sound else {
+            return;
+        };
+        log::info!("audio endpoint {id} exclusive {on}");
+        let name = sound.controller().known_name(&id).unwrap_or(&id).to_string();
+        self.store.update(|s| s.touch_audio_device(&id, &name).exclusive = on);
+        sound.handle(crate::audio::Event::Exclusive(id), &self.store.get());
     }
 
     /// What a pick of row `index` of a menu does, if it does anything.
@@ -1534,6 +1565,12 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
         }
     });
     prefs.set_version(env!("CARGO_PKG_VERSION").into());
+    // Exclusive mode is Windows only (preview audio FR-014, FR-016).
+    prefs.set_exclusive_available(platform::IS_WINDOWS);
+    let on = send.clone();
+    prefs.on_exclusive_changed(move |id, v| {
+        on(UserEvent::Exclusive { id: id.into(), on: v });
+    });
     set_language_items(ui);
     prefs.set_language(i18n::choice_index(&general.language));
     prefs.set_theme(theme::choice_index(general.theme));
@@ -1838,6 +1875,12 @@ impl ApplicationHandler<UserEvent> for App {
             // A select marks the row picked itself: the menus are shown again from the choices.
             UserEvent::AudioPicked(index) => {
                 self.audio_picked(index);
+                self.audio_menus = None;
+                self.show_audio();
+            }
+            // The box shows the saved value (it does not flip itself).
+            UserEvent::Exclusive { id, on } => {
+                self.exclusive_changed(id, on);
                 self.audio_menus = None;
                 self.show_audio();
             }

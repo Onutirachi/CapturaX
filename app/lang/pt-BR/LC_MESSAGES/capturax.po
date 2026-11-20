@@ -367,3 +367,21 @@ msgstr "Não foi possível abrir"
 
 msgid "Using the system default"
 msgstr "Usando a saída padrão"
+
+msgid "Exclusive mode unavailable"
+msgstr "Modo exclusivo indisponível"
+
+msgid "Exclusive"
+msgstr "Exclusivo"
+
+msgid "Exclusive mode"
+msgstr "Modo exclusivo"
+
+msgid "Lowest delay. No other app can use the device while the preview does."
+msgstr "Menor atraso. Nenhum outro app usa o dispositivo enquanto o preview usa."
+
+msgid "Inputs"
+msgstr "Entradas"
+
+msgid "Outputs"
+msgstr "Saídas"

@@ -15,6 +15,16 @@ import { FocusRing, Input } from "focus-ring.slint";
 import { Select } from "select.slint";
 import { MenuItem } from "menu.slint";
 import { Segmented } from "segmented.slint";
+import { Tag } from "tag.slint";
+
+// One audio endpoint in the Audio category (preview audio FR-014), set by Rust.
+export struct AudioEndpointRow {
+    id: string,
+    name: string,
+    exclusive: bool,
+    // The preview plays on it now: the `Preview` tag (later specs add their own users).
+    in-use: bool,
+}
 
 export global Prefs {
     in-out property <bool> start-fullscreen;
@@ -40,6 +50,13 @@ export global Prefs {
     in-out property <int> shadow: 0;
     // Presentation (FR-022): 0 Lowest latency (the default), 1 Follow the monitor.
     in-out property <int> presentation: 0;
+    // The Audio category (preview audio FR-014): exclusive mode, Windows only
+    // (`platform::IS_WINDOWS`); every input and output of the computer with its switch.
+    in property <bool> exclusive-available;
+    in property <[AudioEndpointRow]> audio-inputs;
+    in property <[AudioEndpointRow]> audio-outputs;
+    // An endpoint's switch asked to change (by id); Rust saves it and sets the row.
+    callback exclusive-changed(string, bool);
     callback background-changed(int);
     callback watermark-changed(bool);
     callback shadow-changed(int);
@@ -54,7 +71,7 @@ export global Prefs {
 }
 
 // Later specs add their categories here (F40), with their names in `CategoryItem`.
-enum Category { general, appearance, preview, about }
+enum Category { general, appearance, preview, audio, about }
 
 // No text here: a translated name in the list would make a language switch build the items
 // again, losing the keyboard focus and leaving a shown tooltip in the old language.
@@ -85,6 +102,7 @@ component CategoryItem inherits Rectangle {
     property <string> text: root.id == Category.general ? @tr("General")
         : root.id == Category.appearance ? @tr("Appearance")
         : root.id == Category.preview ? @tr("Preview")
+        : root.id == Category.audio ? @tr("Audio")
         : @tr("About");
 
     // The token of the tooltip shown, 0 when none.
@@ -354,6 +372,206 @@ component SegmentedRow inherits Row {
     }
 }
 
+// The Audio category's heading: its name with the line under it.
+component Heading inherits VerticalLayout {
+    in property <string> text;
+    in property <string> line;
+
+    padding-left: Rows.pad;
+    padding-right: Rows.pad;
+    padding-top: Theme.gap-s;
+    padding-bottom: Theme.gap-s;
+    spacing: 4px;
+
+    Text {
+        text: root.text;
+        color: Theme.c.text;
+        font-size: Rows.text;
+        font-weight: 600;
+        wrap: word-wrap;
+    }
+
+    Text {
+        text: root.line;
+        color: Theme.c.text-muted;
+        font-size: Theme.text-m;
+        wrap: word-wrap;
+    }
+}
+
+// Tabs over a list (the Audio category's Inputs and Outputs): the names in a row, the chosen one
+// in the text tone over an accent bar, a hairline under them all. One Tab stop; Left and Right
+// (Home, End too) switch; a click chooses a tab.
+component Tabs inherits Rectangle {
+    in property <[string]> tabs;
+    in-out property <int> current;
+    // What the tabs choose between, for screen readers.
+    in property <string> label;
+    // False keeps it out of the Tab order (another category shows).
+    in property <bool> focusable: true;
+
+    function choose(index: int) {
+        if (index >= 0 && index < root.tabs.length) {
+            root.current = index;
+        }
+    }
+
+    height: 40px;
+    accessible-role: tab-list;
+    accessible-label: root.label;
+    forward-focus: focus;
+
+    focus := FocusScope {
+        enabled: root.focusable;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.LeftArrow) {
+                root.choose(root.current - 1);
+                return accept;
+            }
+            if (event.text == Key.RightArrow) {
+                root.choose(root.current + 1);
+                return accept;
+            }
+            if (event.text == Key.Home) {
+                root.choose(0);
+                return accept;
+            }
+            if (event.text == Key.End) {
+                root.choose(root.tabs.length - 1);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Rectangle {
+        x: Rows.pad;
+        y: parent.height - 1px;
+        width: parent.width - 2 * Rows.pad;
+        height: 1px;
+        background: Theme.c.hover;
+    }
+
+    HorizontalLayout {
+        x: Rows.pad - 12px;
+        alignment: start;
+
+        for tab[index] in root.tabs: cell := Rectangle {
+            property <bool> chosen: index == root.current;
+
+            accessible-role: AccessibleRole.tab;
+            accessible-label: tab;
+            accessible-item-selected: self.chosen;
+            accessible-item-selectable: true;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+
+                Text {
+                    text: tab;
+                    color: cell.chosen || area.has-hover ? Theme.c.text : Theme.c.text-muted;
+                    font-size: Theme.text-m;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle {
+                y: parent.height - self.height;
+                height: 2px;
+                background: Theme.c.accent;
+                opacity: parent.chosen ? 1 : 0;
+                animate opacity { duration: Theme.quick; }
+            }
+
+            area := TouchArea {
+                clicked => { root.choose(index); }
+            }
+        }
+    }
+
+    FocusRing {
+        focused: focus.has-focus;
+        radius: 8px;
+    }
+}
+
+// The column headers over the endpoint list: the device's name, the Exclusive switch.
+component ColumnHeads inherits HorizontalLayout {
+    padding-left: Rows.pad;
+    padding-right: Rows.pad;
+    padding-top: Theme.gap-m;
+    padding-bottom: 4px;
+
+    Text {
+        text: @tr("Device");
+        color: Theme.c.text-faint;
+        font-size: Theme.text-s;
+        font-weight: 600;
+        horizontal-stretch: 1;
+    }
+
+    Text {
+        text: @tr("Exclusive");
+        color: Theme.c.text-faint;
+        font-size: Theme.text-s;
+        font-weight: 600;
+        horizontal-alignment: right;
+    }
+}
+
+// An audio endpoint with its Exclusive switch (preview audio FR-014), its name whole and, under
+// it, the `Preview` tag while the preview plays on it (a row of tags: recording and streaming add
+// theirs later); a click anywhere on the row flips the switch. The switch only asks: Rust
+// saves the value and sets the row.
+component EndpointRow inherits Row {
+    in property <AudioEndpointRow> endpoint;
+    callback toggled(bool);
+
+    height: max(Rows.height, texts.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
+
+    area := TouchArea {
+        clicked => { switch.flip(); }
+
+        texts := VerticalLayout {
+            x: Rows.pad;
+            width: parent.width - switch.width - 2 * Rows.pad - Theme.gap-m;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: root.endpoint.name;
+                color: Theme.c.text;
+                font-size: Rows.text;
+                wrap: word-wrap;
+            }
+
+            if root.endpoint.in-use: HorizontalLayout {
+                alignment: start;
+                spacing: 6px;
+                Tag {
+                    value: @tr("Preview");
+                    kind: "rate";
+                }
+            }
+        }
+
+        switch := Toggle {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            held: true;
+            label: root.endpoint.name;
+            description: @tr("Exclusive");
+            checked: root.endpoint.exclusive;
+            toggled(on) => { root.toggled(on); }
+        }
+    }
+}
+
 export component SettingsPanel inherits Raised {
     // The compact layout (FR-009): the column keeps only the icons.
     in property <bool> compact;
@@ -363,7 +581,17 @@ export component SettingsPanel inherits Raised {
     init => { Prefs.opened(); }
 
     property <Category> category: Category.general;
-    property <[CategoryEntry]> categories: [
+    // The Audio category's tab: 0 Inputs, 1 Outputs. Another tab's list starts at its top.
+    property <int> audio-tab;
+    changed audio-tab => { rows.content-y = 0; }
+    // Audio only on Windows (preview audio FR-014: its only setting is exclusive mode).
+    property <[CategoryEntry]> categories: Prefs.exclusive-available ? [
+        { id: Category.general, icon: @image-url("../assets/icons/adjustments_horizontal.svg") },
+        { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
+        { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
+        { id: Category.audio, icon: @image-url("../assets/icons/volume.svg") },
+        { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
+    ] : [
         { id: Category.general, icon: @image-url("../assets/icons/adjustments_horizontal.svg") },
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
         { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
@@ -439,12 +667,35 @@ export component SettingsPanel inherits Raised {
         }
     }
 
-    // The rows run the content's full width; their own padding keeps the text off the edges.
-    Flickable {
+    // The Audio category's heading, tabs and column headers stay while its rows scroll.
+    audio-head := VerticalLayout {
         x: root.nav-width;
         y: root.content-y;
         width: root.width - root.nav-width;
-        height: root.height - root.content-y;
+        height: root.category == Category.audio ? self.preferred-height : 0;
+        visible: root.category == Category.audio;
+
+        Heading {
+            text: @tr("Exclusive mode");
+            line: @tr("Lowest delay. No other app can use the device while the preview does.");
+        }
+
+        Tabs {
+            label: @tr("Exclusive mode");
+            tabs: [@tr("Inputs"), @tr("Outputs")];
+            focusable: root.category == Category.audio;
+            current <=> root.audio-tab;
+        }
+
+        ColumnHeads { }
+    }
+
+    // The rows run the content's full width; their own padding keeps the text off the edges.
+    rows := Flickable {
+        x: root.nav-width;
+        y: root.content-y + audio-head.height;
+        width: root.width - root.nav-width;
+        height: root.height - self.y;
         content-height: max(self.height, content.preferred-height);
 
         content := VerticalLayout {
@@ -545,6 +796,14 @@ export component SettingsPanel inherits Raised {
                 selected(index) => { Prefs.presentation-changed(index); }
             }
 
+            if root.category == Category.audio: VerticalLayout {
+                for endpoint[index] in root.audio-tab == 0 ? Prefs.audio-inputs : Prefs.audio-outputs: EndpointRow {
+                    endpoint: endpoint;
+                    last: index == (root.audio-tab == 0 ? Prefs.audio-inputs : Prefs.audio-outputs).length - 1;
+                    toggled(on) => { Prefs.exclusive-changed(endpoint.id, on); }
+                }
+            }
+
             if root.category == Category.about: VerticalLayout {
                 padding-left: Rows.pad;
                 padding-right: Rows.pad;
@@ -568,6 +827,19 @@ export component SettingsPanel inherits Raised {
                 }
             }
         }
+    }
+
+    // Position indicator, as the menus' (menu.slint), only while the rows scroll; it ends a corner
+    // radius above the panel's bottom, clear of the rounded corner.
+    if rows.content-height > rows.height: Rectangle {
+        property <length> track: rows.height - Theme.gap-s - root.radius;
+        x: root.width - self.width - 6px;
+        y: rows.y + Theme.gap-s
+            + (self.track - self.height) * (-rows.content-y / (rows.content-height - rows.height));
+        width: 4px;
+        height: max(24px, self.track * rows.height / rows.content-height);
+        border-radius: self.width / 2;
+        background: Theme.c.text-faint;
     }
 
     // Last, so it is last in the focus order: the close control at the content's top right.

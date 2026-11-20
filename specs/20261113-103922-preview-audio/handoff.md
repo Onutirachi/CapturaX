@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-19 (night) | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-20 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -598,6 +598,16 @@ Windows session (2026-11-19, ezcap and C920 on the Windows PC):
   - Every dropdown's bottom touches the window's edge: give menus the docks' margin from the
     window (maintainer, 2026-11-19).
   - Dropdowns animate when opening but not when closing (maintainer, 2026-11-19).
+  - The Audio menu's `No audio` is the last row of the Input group; it should come first, next
+    to Auto (maintainer, 2026-11-20: fix later; this spec's menu).
+  - Names cut with "…" inside the open menus scroll so they can be read whole: a pause at the
+    start, a slide to the end, a pause there, back to the start, again (maintainer, 2026-11-20:
+    later; only inside menus and lists, not in a closed dropdown; only the row under the pointer
+    scrolls, everywhere; the others keep their "…"). It replaces the wrapped names of the
+    settings' Audio list (one line again).
+  - Smooth scrolling everywhere something scrolls (menus, settings panel): Slint's `Flickable`
+    jumps per wheel notch; a wheel handler that eases `content-y` toward a target would do it
+    (maintainer, 2026-11-20: later, with the other cosmetic fixes).
   - Device preview (spec #3): the NVIDIA Broadcast camera at its largest mode (3840×2160) fails to
     start and shows the video state `In use`, though nothing holds it; at 1080p it plays. A mode
     that fails to start is reported as in use.
@@ -720,6 +730,72 @@ directly"):
   `taskkill` without `/F` closes the app cleanly.
 - `target/release/capturax.toml`: output back to VAIO3, ezcap, English.
 
+Exclusive switches (2026-11-20, T037 and T038 done, not committed yet):
+
+- **Redesign (maintainer, same day, after seeing a first version with checkboxes and groups)**:
+  tabs `Inputs` · `Outputs`, column headers `Device` · `Exclusive`, the shell's toggle instead of a
+  checkbox (spec FR-014/FR-022, plan, research R12 and T037 changed first). A mockup with a radio
+  to choose the devices there too was published (https://claude.ai/artifact/5c5eScpvnQKrUuWiD5LzWV)
+  and **rejected**: no device choice in settings, so the category stays Windows only. The
+  checkbox component and its icon were dropped.
+- `toggle.slint` gained `held`: a held switch only asks (`toggled(!checked)`), Rust saves and sets
+  the row (`ui::sync_rows` changes a same-length model in place, so a switch keeps the keyboard
+  focus). The whole row flips it. Its accessible label is the endpoint's name.
+- Settings panel: category `Audio` (icon `volume`) between Preview and About, only when
+  `Prefs.exclusive-available` (`platform::IS_WINDOWS`); `Heading` (name + line), `Tabs` (new local
+  component: accent bar under the chosen one, one Tab stop, Left/Right/Home/End), `ColumnHeads`,
+  one `EndpointRow` per endpoint of the tab in the system's order, an outlined `Preview` tag under
+  the name (whole, wrapped; maintainer: room for several tags) for the sides opened now (maintainer: a tag per user of the device,
+  recording and streaming add theirs later; not in the Audio menu for now). The tab resets to
+  Inputs each time the panel opens. Texts in the catalog (`Device`, `Preview` already there).
+- Audio menu: an orange `Exclusive` tag (`Tag` kind `accent`) after the name of every row whose
+  device has the switch on (Auto and System default for the device they name), also in the closed
+  dropdown as the other dropdowns' tags; the state tag `Exclusive` was dropped (maintainer).
+- After a design review (`design:design-critique` skill, maintainer asked to apply it): the rows
+  in use come first (`AudioController::exclusive_rows`, stable sort), the heading, tabs and
+  headers sit above the panel's `Flickable` (`audio-head`; the `Flickable` starts under it), the
+  switch is described as `Exclusive` to screen readers (`Toggle.description`), another tab starts
+  at the top, and the menus' position indicator shows at the panel's right whenever its rows scroll
+  (any category; maintainer: the list did not look scrollable). Left out: a count on the tabs and
+  splitting the names.
+- Maintainer, 2026-11-20 (ezcap as a Voicemeeter WDM input): with the switch off the app and
+  Voicemeeter both hear the card (the sound doubles), so Voicemeeter's WDM is shared; with it on the
+  app takes the card from Voicemeeter, as research R2 measured and the settings line says. Whether
+  Voicemeeter gets it back by itself when the app lets go is T039's check.
+- Another app taking the card (scratchpad `steal.py`, not kept: `uv run`, `sounddevice` WASAPI
+  input opened exclusive, int16 48 kHz stereo, held N s): with the app exclusive the script is
+  refused (PortAudio `Invalid device`, -9996); with the app shared the script takes the card and
+  the app goes `Held("HDMI (ezcap Live GAMER ULTRA)")` at once (`Error { side: Input, error:
+  InUse }`), card `Device in use` / name / `Try again`, alert icon and `In use` tag; after the
+  script let go, Try again reopened the session shared and Playing (15:27:57).
+- Checked on screen after the redesign (release, pt-BR, maximized): tabs, headers, switch on and
+  off from a row click with the saved value shown, the log line for each change.
+- `audio.rs`: `Event::Exclusive(id)`; the request carries both flags; a change reopens only the
+  side on that endpoint (`ReopenInput`/`ReopenOutput`), nothing when no session or another
+  endpoint. **Chosen here** (data-model.md changed): the system default output uses the box of the
+  endpoint it names; `AudioState::InUse(name)` (the refused side's name, input first) with notice
+  `Device in use` / {} / `Exclusive mode unavailable`, no action; in `InUse` the menu shows that card,
+  not the output fallback's. No state tag while Playing exclusive (the menu rows' tag says it);
+  `select.slint` shows the alert icon only for `warn`/`bad`.
+- Checked on screen here (release): the category, the row hover, a click saves
+  `exclusive = true` and unchecking drops the entry. Then, with the old app closed (ezcap, PS5 off,
+  VAIO3 output): checking the ezcap's input reopened only the input, `Exclusive` (I16, 3 ms period)
+  19 ms after the click; checking VAIO3 reopened only the output, `Exclusive` (I24, 2 ms) in 12 ms
+  (**VAIO3 does take exclusive mode**, contrary to an earlier note); a restart opens both exclusive
+  at once. `In use by the preview` marks both rows; the `Exclusive` tag shows in the wide toolbar
+  (a 960 px window uses the icon look, which shows the icon alone, as R12 says). The C920's
+  microphone checked and picked: `exclusive refused (no usable format); shared`, state
+  `InUse("Microfone (HD Pro Webcam C920)")`, yellow alert icon and the card `Device in use` / name /
+  `Exclusive mode unavailable`. Unchecking a box of an endpoint not in use reopens nothing. pt-BR
+  texts checked (Áudio, Modo exclusivo and its line, Entradas, Saídas, Exclusivo, Em uso pelo
+  preview). Not heard by ear yet (maintainer).
+- `target/release/capturax.toml` after this run: language `pt-BR`, every endpoint shared (the
+  maintainer turned them off). The S23 camera's stored name was already double-encoded
+  (`CÃ¢mera`) before this session.
+- Driving: scratchpad `shot.py` (Tab reveals the docks; settings button at window (43, 364) with
+  the 960 × 511 window, (52, 589) maximized; `wheel x y n` scrolls); `grab.ps1` captures with
+  `-ExecutionPolicy Bypass` (no PIL here).
+
 ## Done in the last sessions
 
 - PR #9 (device preview) squash-merged into `main` (2f4beea); this branch starts from it.
@@ -762,8 +838,8 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Commit (after the maintainer validates): `fix: keep the whole buffer queued on 10 ms shared
-   outputs` (T049, spec FR-003b, research R17, tasks) and `docs: record the G533 runs`
-   (drift.md, T028). US1 is then complete on both systems.
-2. T037 and T038 (exclusive checkboxes) while the ezcap is on Windows, then T039 (and T044's
-   exclusive box); its outputs: decide with the maintainer, since VAIO3 cannot be exclusive.
+1. Commit T037/T038 after the maintainer validates: `feat: add the exclusive mode switches`
+   (code, catalog, spec, plan, research, quickstart, tasks, data-model, handoff).
+2. T039 (and T044's exclusive box) with the ezcap on Windows and the old app closed; its outputs:
+   decide with the maintainer (VAIO3 takes exclusive mode; whether it is the right output for
+   "both exclusive" is theirs to say).
