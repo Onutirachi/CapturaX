@@ -213,3 +213,35 @@ hardware strip `Voicemeeter In 5`), so the Windows measurements now play on `In 
 
 A headset plugged as the new default (T036) was not tested: the maintainer has no other headset;
 the default change and a device appearing in the menu cover it (above).
+
+## T045: SC-009 acceptance through User Stories 1–5
+
+Most scenarios were already accepted with their measurements: US1 in T028, T029 and T039
+(latency.md, drift.md) and in T042 and T044 (closes, sound before the first frame); US2 in T033
+and T044; US3 in T036, T042 and T044; US4 in T037–T039 and T042; US5 in T042. T045 checks by hand
+what those did not cover.
+
+### Windows 11 — 2026-11-20
+
+Release builds of the working tree, ezcap (PS5) and C920, the ezcap's input and VAIO3 exclusive.
+
+| Scenario | Check | Result |
+|---|---|---|
+| US1.3 | the video mode, the color range, the theme, the language, the menus and the settings panel changed while playing | **Found**: a mode change closed the audio session with the video session and opened a new one 5–10 ms before the old one had released the ezcap's exclusive input, so the input played shared (`exclusive refused (another app is using the device)`, `SharedAfterInUse`) with `Device in use` / `Exclusive mode unavailable`; the sound went on, reopened. Fixed by T051 and T052 (below) |
+| US1.4 | hidden to the tray, shown again, quit | sound stops with the video and returns with it |
+| US2.4 | muted, and the volume at 0 | the button shows the muted speaker |
+| US1 | playing on the PS5 for a few minutes | sound and image feel right (maintainer) |
+| US4.4 | the ezcap's input exclusive, then another input or the video device closed | another app can use the input at once |
+
+After T051 and T052 (release build of the fix): six mode changes in a row (1080p60 ↔ 1080p30)
+each logged `video session N on the same device keeps the audio session`; audio session 1 played
+through all of them, exclusive, with no new open and no notice. Then ezcap → C920 → ezcap: each
+new session logged `waits for session(s) [n] to close` and opened 7 and 16 ms later, when the
+older one's `Closed` came; the ezcap's input came back `Exclusive` (3 ms) with VAIO3 `Exclusive`
+(2 ms), no notice. The maintainer heard no gap.
+
+### CachyOS — 2026-11-20
+
+| Scenario | Check | Result |
+|---|---|---|
+| US4.5 | the settings panel (release of `9f5ecef`, pt-BR) | categories Geral, Aparência, Preview, Sobre: no Audio category and no exclusive mode |

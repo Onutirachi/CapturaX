@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-20 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-20 (T045) | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -867,9 +867,18 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. Commit after the maintainer validates: `chore: remove the PipeWire latency variable`
-   (pipewire.rs, T046) and `docs: describe the preview audio` (README, tools/latency/README,
-   roadmap #4 done with its carried items, AGENTS status, tasks T043/T046, handoff).
-2. Left: T045 (acceptance through User Stories 1–5 on both systems). Then the PR.
-   T046's checks passed on both systems on 2026-11-20 (CachyOS over SSH: fmt, clippy, every
-   test, and T005's `pipewire_probe` example builds).
+1. T045, Windows half done (2026-11-20, measurements/acceptance.md "T045"): the hand checks not
+   covered by earlier tasks (US1.3, US1.4, US2.4, US4.4, playing by ear) passed after a fix.
+   US1.3 found that a mode change reopened the audio session and the new one asked for the
+   ezcap's exclusive input before the old one released it (shared, `Device in use`). Fixed in
+   `d8ff9a4` (T051: `sound.rs` queues an open until the older session's `Closed`, at most 1 s;
+   T052: `audio.rs` keeps the session when the same device reopens with the same input and
+   output, `app.rs` skips the audio close for that reopen). data-model.md "Audio session" and
+   plan.md say so. CachyOS: US4.5 checked over SSH (no Audio category).
+2. Left: the Linux half of T045 with the ezcap and the C920 on CachyOS: US1.3 (mode changes keep
+   the sound: the log line `video session N on the same device keeps the audio session`), US1.4,
+   US2.4, playing by ear. Then mark T045, and the PR.
+3. CachyOS over SSH: `ydotoold` runs with `--socket-path=/tmp/.ydotool_socket`, while
+   `~/capx/lib.sh` exports `/run/user/1000/.ydotool_socket`; export
+   `YDOTOOL_SOCKET=/tmp/.ydotool_socket` after sourcing it. The clone there is at `9f5ecef`
+   (send a new bundle for `d8ff9a4`).
