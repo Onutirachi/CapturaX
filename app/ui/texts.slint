@@ -74,6 +74,38 @@ export global Texts {
         @tr("{} FPS", fps)
     }
     out property <string> custom-resolution: @tr("Custom");
+    // The Audio menu (preview audio FR-008, FR-009, FR-022): its group headers, the Auto row with
+    // the paired input's name, No audio, and the System default row with the default output's
+    // name (without a name when the system has no output).
+    out property <string> audio-inputs: @tr("Input");
+    out property <string> audio-outputs: @tr("Output");
+    public pure function audio-auto(input: string) -> string {
+        @tr("Auto ({})", input)
+    }
+    out property <string> audio-auto-none: @tr("Auto (none)");
+    out property <string> audio-no-audio: @tr("No audio");
+    public pure function audio-system-default(output: string) -> string {
+        @tr("System default ({})", output)
+    }
+    out property <string> audio-system-default-unnamed: @tr("System default");
+    // The Audio states (preview audio FR-017, FR-022): the tags before the select's value ("In
+    // use" is `preview-in-use`), and the titles and details at the top of its menu that the
+    // video states do not already have; the actions are the state message's.
+    out property <string> audio-tag-disconnected: @tr("Disconnected");
+    out property <string> audio-tag-blocked: @tr("Blocked");
+    out property <string> audio-tag-failed: @tr("Failed");
+    out property <string> audio-no-pair: @tr("No paired audio");
+    out property <string> audio-choose-input: @tr("Choose an input");
+    out property <string> audio-device-disconnected: @tr("Device disconnected");
+    out property <string> audio-device-in-use: @tr("Device in use");
+    out property <string> audio-cannot-open: @tr("Cannot open");
+    out property <string> audio-using-default: @tr("Using the system default");
+    // An exclusive device refused exclusive mode and plays shared (User Story 4), and the tag of
+    // a side playing exclusive.
+    out property <string> audio-exclusive-unavailable: @tr("Exclusive mode unavailable");
+    out property <string> audio-tag-exclusive: @tr("Exclusive");
+    out property <string> try-again: @tr("Try again");
+    out property <string> open-privacy: @tr("Open privacy settings");
     // System message `renderer-unavailable` (FR-036): no renderer could start; the app exits.
     out property <string> renderer-unavailable: @tr("CapturaX cannot start because no graphics renderer works on this computer. Update the graphics driver and try again.");
     out property <string> already-open: @tr("CapturaX is already open.");

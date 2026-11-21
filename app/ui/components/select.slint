@@ -25,6 +25,11 @@ export component Select inherits Rectangle {
     in property <string> shown;
     // `shown` in the muted tone: it names something the menu does not offer (a device that left).
     in property <bool> shown-muted;
+    // A state tag before the value (`warn` or `bad` kind, tag.slint; the Audio select's state,
+    // preview audio FR-017): the dropdown look's icon becomes the alert in the state's tone, also
+    // in the icon look, and the tooltip starts with it. Empty for none.
+    in property <string> state-tag;
+    in property <string> state-tag-kind;
     // The small title inside the control (the dropdown look); empty for the plain look.
     in property <string> title;
     // The leading icon of the dropdown look.
@@ -50,7 +55,9 @@ export component Select inherits Rectangle {
     property <string> rate: root.valid && root.items[root.current].detail == "" ? root.items[root.current].rate : "";
     // The value as the button shows it, in one line: the icon look's tooltip ("Mode: 1920 × 1080 •
     // 60 FPS").
-    property <string> value: root.shown != "" ? root.shown : root.rate != "" ? root.chosen + " • " + root.rate : root.chosen;
+    property <string> plain-value: root.shown != "" ? root.shown : root.rate != "" ? root.chosen + " • " + root.rate : root.chosen;
+    property <string> value: root.state-tag != "" ? root.state-tag + " • " + root.plain-value : root.plain-value;
+    property <bool> alert: root.state-tag != "" && (root.state-tag-kind == "warn" || root.state-tag-kind == "bad");
     property <bool> icon-look: root.icon-only;
     // The plain icon look shows the chosen item's icon.
     property <bool> plain-icon: root.icon-only && !root.titled;
@@ -248,10 +255,12 @@ export component Select inherits Rectangle {
             alignment: center;
             horizontal-stretch: 0;
             Image {
-                source: root.icon;
+                source: root.alert ? @image-url("../assets/icons/alert_triangle.svg") : root.icon;
                 width: 20px;
                 height: 20px;
-                colorize: Theme.c.text;
+                colorize: !root.alert ? Theme.c.text
+                    : root.state-tag-kind == "warn" ? Theme.c.warn
+                    : Theme.c.bad;
                 accessible-role: none;
             }
         }
@@ -273,6 +282,12 @@ export component Select inherits Rectangle {
 
             HorizontalLayout {
                 spacing: 8px;
+
+                if root.titled && root.state-tag != "": VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Tag { value: root.state-tag; kind: root.state-tag-kind; }
+                }
 
                 Text {
                     text: root.shown != "" ? root.shown : root.chosen;

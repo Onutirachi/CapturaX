@@ -11,7 +11,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 1 | [Stack spike](#1-stack-spike) ([spec](../specs/20261026-154808-stack-spike/spec.md)) | — | — | done |
 | 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
 | 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
-| 4 | [Preview audio](#4-preview-audio) | F12–F14, F47 | 3 | |
+| 4 | [Preview audio](#4-preview-audio) ([spec](../specs/20261113-103922-preview-audio/spec.md)) | F12–F14, F47 | 3 | done |
 | 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
@@ -94,6 +94,15 @@ investigate the Windows stalls at presentation mode changes the app shell measur
 ```
 
 ### 4. Preview audio
+
+Done: [handoff](../specs/20261113-103922-preview-audio/handoff.md),
+[latency](../specs/20261113-103922-preview-audio/measurements/latency.md),
+[drift](../specs/20261113-103922-preview-audio/measurements/drift.md) and
+[acceptance](../specs/20261113-103922-preview-audio/measurements/acceptance.md). WASAPI directly on
+Windows (shared or exclusive per device) and PipeWire directly on Linux; on Windows the output
+is reopened at the first quiet moment after 5 minutes to keep the delay steady. Carried on: why
+the delay after a Windows output grows 0.5–0.9 ms per minute (the reopen covers it), and keeping
+the display awake while a preview is visible (Windows turns the screens off for inactivity).
 
 ```text
 /speckit-specify Preview audio (see docs/roadmap.md #4): covers F12-F14 from docs/product.md.

@@ -20,12 +20,14 @@ use linux as os;
 
 pub use os::autostart;
 
+pub mod audio;
+
 /// Built for Windows: the latency estimate counts the USB transfer there (device-preview
 /// data-model.md "Latency estimate"), so the app needs no platform condition of its own.
 pub const IS_WINDOWS: bool = cfg!(windows);
 
-mod camera;
-pub use camera::{Access, camera_access, open_camera_privacy};
+mod privacy;
+pub use privacy::{Access, Capability, access, open_privacy};
 
 mod activation;
 pub use activation::raise_window;

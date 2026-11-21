@@ -1,13 +1,17 @@
 // An on/off switch, squarer than a pill (FR-034: 8 px track and 5 px knob corners). A click, Enter
-// or Space flips it (FR-020); `toggled` reports the new state.
+// or Space flips it (FR-020); `toggled` reports the new state. A `held` switch only asks: it keeps
+// `checked` as bound and the owner sets the saved value (the audio endpoint rows).
 import { Theme } from "../theme.slint";
 import { FocusRing } from "focus-ring.slint";
 
 export component Toggle inherits Rectangle {
     in-out property <bool> checked;
     in property <bool> enabled: true;
+    in property <bool> held;
     // The setting's name, for screen readers.
     in property <string> label;
+    // What it turns on, for screen readers, when the name does not say it.
+    in property <string> description;
     out property <bool> has-focus: focus.has-focus;
     callback toggled(bool);
 
@@ -22,6 +26,7 @@ export component Toggle inherits Rectangle {
 
     accessible-role: switch;
     accessible-label: root.label;
+    accessible-description: root.description;
     accessible-checkable: true;
     accessible-checked: root.checked;
     accessible-enabled: root.enabled;
@@ -30,7 +35,9 @@ export component Toggle inherits Rectangle {
     forward-focus: focus;
 
     public function flip() {
-        if (root.enabled) {
+        if (root.enabled && root.held) {
+            root.toggled(!root.checked);
+        } else if (root.enabled) {
             root.checked = !root.checked;
             root.toggled(root.checked);
         }

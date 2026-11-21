@@ -12,14 +12,18 @@ log.workspace = true
 dirs.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+# The output's resync decision (preview audio FR-003a, research R16): pure code.
+audio = { package = "capturax-audio", path = "../audio" }
 windows-sys.workspace = true
 windows.workspace = true
+windows-core.workspace = true
 tray-icon.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus.workspace = true
 ksni.workspace = true
 libloading.workspace = true
+pipewire.workspace = true
 wayland-client.workspace = true
 wayland-backend.workspace = true
 wayland-protocols.workspace = true

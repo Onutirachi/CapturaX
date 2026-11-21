@@ -23,6 +23,7 @@ use crate::placement::{self, Rect};
 use crate::present_log::{self, Event as LogEvent, Stage};
 use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
+use crate::sound::Sound;
 use crate::theme::{self, SystemTheme};
 use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
 use platform::autostart;
@@ -85,6 +86,28 @@ pub enum UserEvent {
         devices: Vec<capture::Device>,
         timer: bool,
     },
+    /// The audio monitor's and audio session's events.
+    Audio(crate::audio::Event),
+    /// The wheel over the volume button, in logical pixels (preview audio FR-011).
+    VolumeWheel(f32),
+    /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
+    AudioPicked(i32),
+    /// An endpoint's Exclusive box in the settings panel (preview audio FR-014).
+    Exclusive {
+        id: String,
+        on: bool,
+    },
+}
+
+/// The Audio select's menu and value last shown, whose rows the picks index.
+#[derive(Debug, PartialEq)]
+struct AudioMenus {
+    menu: Vec<crate::audio::Item>,
+    value: Option<crate::audio::Label>,
+    /// The state's tag before the value.
+    tag: Option<crate::audio::StateTag>,
+    /// The settings panel's Audio category: the inputs and the outputs.
+    endpoints: (Vec<crate::audio::ExclusiveRow>, Vec<crate::audio::ExclusiveRow>),
 }
 
 /// The watermark's opacity over the background (data-model.md "Video backdrop").
@@ -127,6 +150,11 @@ pub enum SettingChange {
     LatencyDisplay(settings::LatencyDisplay),
     FpsDisplay(settings::FpsDisplay),
     ModeDisplay(settings::ModeDisplay),
+    /// The preview's volume (0–100) and mute, from the volume button (preview audio FR-011).
+    Volume {
+        level: u8,
+        muted: bool,
+    },
 }
 
 /// What the UI asks the window to do.
@@ -161,6 +189,7 @@ pub struct App {
     preview: Preview,
     /// The device and mode menus last shown, whose rows the toolbar's picks index.
     menus: Option<(Vec<preview::Item>, Vec<preview::Item>)>,
+    audio_menus: Option<AudioMenus>,
     /// The device monitor, unless the test video plays or GStreamer cannot start.
     monitor_devices: Option<capture::Monitor>,
     /// Camera access when the monitor started or was last checked: a monitor started while
@@ -176,6 +205,8 @@ pub struct App {
     tick_wall: Option<SystemTime>,
     /// The next 3 s re-read while the preview waits for a device.
     relist_at: Instant,
+    /// When microphone access is read next while the audio input is Blocked.
+    audio_access_at: Instant,
     /// The open device's session, and when it was asked for (SC-004).
     session: Option<(capture::Session, Instant)>,
     /// The open device, for the `[source]` line of `--stats` (contracts/stats.md).
@@ -231,6 +262,10 @@ pub struct App {
     /// number that shows each one.
     device_notice: Option<DeviceNotice>,
     device_notice_serial: i32,
+    /// The preview's sound; None with `--no-audio` or the test video.
+    sound: Option<Sound>,
+    /// The wheel's moves over the volume button not yet a whole notch.
+    volume_wheel: crate::audio::Wheel,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -250,6 +285,7 @@ impl App {
         ui.app.global::<Prefs>().set_tray_available(tray_available);
         ui.app.set_privacy_settings(platform::IS_WINDOWS);
         let sender = proxy.clone();
+        let sound = options.audio().then(|| Sound::new(proxy.clone(), options.stats));
         let send = move |event: UserEvent| {
             let _ = proxy.send_event(event);
         };
@@ -303,6 +339,23 @@ impl App {
                 index,
             ))));
         });
+        // The saved volume shows at start; the session's bridge reads it when it opens.
+        let audio = &store.get().audio;
+        ui.app.set_volume(i32::from(audio.volume));
+        ui.app.set_muted(audio.muted);
+        ui.app
+            .set_volume_icon(crate::audio::icon_name(audio.volume, audio.muted).into());
+        let on = send.clone();
+        ui.app.on_volume_changed(move |level, muted| {
+            on(UserEvent::Setting(SettingChange::Volume {
+                level: level.clamp(0, 100) as u8,
+                muted,
+            }));
+        });
+        let on = send.clone();
+        ui.app.on_volume_wheel(move |delta| on(UserEvent::VolumeWheel(delta)));
+        let on = send.clone();
+        ui.app.on_audio_picked(move |index| on(UserEvent::AudioPicked(index)));
         bind_prefs(&ui, &store, send);
         // The Presentation setting reaches the video thread before it starts (FR-022).
         let inbox = Arc::new(Inbox::default());
@@ -325,6 +378,7 @@ impl App {
             test_video: None,
             preview: Preview::with_access(camera_access),
             menus: None,
+            audio_menus: None,
             monitor_devices: None,
             monitor_access: capture::Access::Unknown,
             relisting: None,
@@ -332,6 +386,7 @@ impl App {
             tick_at: Instant::now(),
             tick_wall: None,
             relist_at: Instant::now(),
+            audio_access_at: Instant::now(),
             session: None,
             source: None,
             second: crate::stats::Summary::EMPTY,
@@ -354,6 +409,8 @@ impl App {
             switch: None,
             language_stages: false,
             system_theme: None,
+            sound,
+            volume_wheel: crate::audio::Wheel::default(),
             proxy: sender,
             exit_code: 0,
         }
@@ -445,7 +502,8 @@ impl App {
 
     /// The main loop's tick: a wake from sleep reopens the device (spec edge case), while the
     /// preview waits for a device the list is read again every 3 s (research R1), and while a
-    /// listed device is blocked camera access is read every 3 s (FR-021).
+    /// listed device is blocked camera access is read every 3 s (FR-021), and microphone access
+    /// while the audio input is Blocked.
     fn tick(&mut self, now: Instant) {
         let wall = SystemTime::now();
         let since = self
@@ -478,11 +536,22 @@ impl App {
             self.relist_at = now + RELIST_EVERY;
             self.preview_event(preview::Event::AccessCheck);
         }
+        // The audio input is Blocked: microphone access is read (preview audio data-model.md).
+        if let Some(sound) = &mut self.sound
+            && sound.controller().watches_access()
+            && now >= self.audio_access_at
+        {
+            self.audio_access_at = now + RELIST_EVERY;
+            sound.handle(crate::audio::Event::AccessCheck, &self.store.get());
+            self.show_audio();
+        }
     }
 
     /// Shows the device and mode menus when they changed (a device came or left, another one
     /// opened, a stored choice changed); an open menu follows at once (spec edge case).
     fn show_menus(&mut self) {
+        // The Audio menu follows the open video device.
+        self.show_audio();
         let menus = self.preview.menus(&self.store.get());
         self.ui.app.set_modes_reachable(self.preview.modes_reachable());
         self.ui
@@ -515,7 +584,151 @@ impl App {
     /// preview may not follow.
     fn reset_menus(&mut self) {
         self.menus = None;
+        self.audio_menus = None;
         self.show_menus();
+    }
+
+    /// Shows the Audio select's menu and value when they changed (an
+    /// audio device came or left, the default output changed, a video device opened or closed, a
+    /// choice changed). The select's row is the input in use: none without a video device, so its
+    /// value stays empty then.
+    fn show_audio(&mut self) {
+        let menus = {
+            let Some(sound) = &self.sound else {
+                return;
+            };
+            let settings = self.store.get();
+            let controller = sound.controller();
+            let mut menu = controller.menu(&settings);
+            let mut tag = controller.tag();
+            // A video state shows in the video area: the audio says nothing of it (FR-018), also
+            // when its input left a moment before the video did.
+            if !matches!(
+                self.preview.state(),
+                PreviewState::Opening(_) | PreviewState::Playing | PreviewState::NoSignal(_)
+            ) {
+                use crate::audio::Label;
+                menu.retain(|i| !matches!(i.text, Label::Notice(_) | Label::Action(_)));
+                tag = None;
+            }
+            AudioMenus {
+                menu,
+                value: controller.value(&settings),
+                tag,
+                endpoints: controller.exclusive_rows(&settings),
+            }
+        };
+        if self.audio_menus.as_ref() == Some(&menus) {
+            return;
+        }
+        let app = &self.ui.app;
+        let texts = Texts::get(app);
+        let model = |items: &[crate::audio::Item]| {
+            let rows: Vec<MenuItem> = crate::ui::audio_items(items, &texts);
+            slint::ModelRc::new(slint::VecModel::from(rows))
+        };
+        let current = menus
+            .menu
+            .iter()
+            .position(|i| i.current && matches!(i.pick, Some(crate::audio::Pick::Input(_))))
+            .map_or(-1, |i| i32::try_from(i).unwrap_or(-1));
+        app.set_audio_current(current);
+        app.set_audio_items(model(&menus.menu));
+        app.set_audio_value(
+            menus
+                .value
+                .as_ref()
+                .map_or_else(Default::default, |label| crate::ui::audio_label(label, &texts)),
+        );
+        app.set_audio_off(menus.value == Some(crate::audio::Label::NoAudio));
+        let (tag, tag_kind) = crate::ui::audio_tag(menus.tag, &texts);
+        app.set_audio_tag(tag);
+        app.set_audio_tag_kind(tag_kind.into());
+        let prefs = app.global::<Prefs>();
+        crate::ui::sync_rows(
+            &prefs.get_audio_inputs(),
+            crate::ui::endpoint_rows(&menus.endpoints.0),
+            |m| prefs.set_audio_inputs(m),
+        );
+        crate::ui::sync_rows(
+            &prefs.get_audio_outputs(),
+            crate::ui::endpoint_rows(&menus.endpoints.1),
+            |m| prefs.set_audio_outputs(m),
+        );
+        self.audio_menus = Some(menus);
+        self.request_redraw();
+    }
+
+    /// Stores an Audio menu pick and hands it to the sound (FR-008, FR-009): the input choice per
+    /// video device (`[devices."<id>"] audio`), the output for the app (`[audio] output`).
+    fn audio_picked(&mut self, index: i32) {
+        let pick = self
+            .audio_menus
+            .as_ref()
+            .and_then(|menus| menus.menu.get(usize::try_from(index).ok()?)?.pick.clone());
+        let Some(sound) = &mut self.sound else {
+            return;
+        };
+        let event = match pick {
+            Some(crate::audio::Pick::Input(choice)) => {
+                let Some(video) = sound.controller().video().cloned() else {
+                    log::warn!("audio menu: input {choice} picked without a video device");
+                    return;
+                };
+                log::info!("audio input {choice} chosen for {}", video.id);
+                let name = match &choice {
+                    ::audio::choice::AudioChoice::Input(id) => {
+                        sound.controller().known_name(id).map(|n| (id.clone(), n.to_string()))
+                    }
+                    _ => None,
+                };
+                self.store.update(|s| {
+                    s.touch_device(&video.id, &video.base_name).audio = choice.to_string();
+                    if let Some((id, name)) = &name {
+                        s.touch_audio_device(id, name);
+                    }
+                });
+                crate::audio::Event::Input(choice)
+            }
+            Some(crate::audio::Pick::Output(choice)) => {
+                log::info!("audio output {choice} chosen");
+                let name = match &choice {
+                    ::audio::choice::OutputChoice::Device(id) => {
+                        sound.controller().known_name(id).map(|n| (id.clone(), n.to_string()))
+                    }
+                    _ => None,
+                };
+                self.store.update(|s| {
+                    s.audio.output = choice.to_string();
+                    if let Some((id, name)) = &name {
+                        s.touch_audio_device(id, name);
+                    }
+                });
+                crate::audio::Event::Output(choice)
+            }
+            Some(crate::audio::Pick::Action(crate::audio::Action::TryAgain)) => crate::audio::Event::TryAgain,
+            Some(crate::audio::Pick::Action(crate::audio::Action::OpenPrivacy)) => {
+                platform::open_privacy(platform::Capability::Microphone);
+                return;
+            }
+            None => {
+                log::warn!("audio menu: row {index} picks nothing");
+                return;
+            }
+        };
+        sound.handle(event, &self.store.get());
+    }
+
+    /// Stores an endpoint's Exclusive box (`[audio_devices."<id>"] exclusive`, FR-014) and hands
+    /// it to the sound, which reopens the side playing on it (FR-005).
+    fn exclusive_changed(&mut self, id: String, on: bool) {
+        let Some(sound) = &mut self.sound else {
+            return;
+        };
+        log::info!("audio endpoint {id} exclusive {on}");
+        let name = sound.controller().known_name(&id).unwrap_or(&id).to_string();
+        self.store.update(|s| s.touch_audio_device(&id, &name).exclusive = on);
+        sound.handle(crate::audio::Event::Exclusive(id), &self.store.get());
     }
 
     /// What a pick of row `index` of a menu does, if it does anything.
@@ -533,7 +746,9 @@ impl App {
                 range,
                 session,
             } => {
-                self.close_session();
+                // A new mode of the same device: the sound plays on (User Story 1 scenario 3).
+                let same = self.source.as_ref().is_some_and(|source| source.id == device.id);
+                self.close_video(!same);
                 self.inbox.set_session(Some(crate::render::Feed {
                     session,
                     fps: mode.fps_f64(),
@@ -556,6 +771,9 @@ impl App {
                     },
                 );
                 self.session = Some((opened, Instant::now()));
+                if let Some(sound) = &mut self.sound {
+                    sound.video_opened(session, &device, &self.store.get());
+                }
                 self.source = Some(crate::stats::Source {
                     device: device.name.clone(),
                     id: device.id.clone(),
@@ -671,6 +889,8 @@ impl App {
         app.set_state_title(title.into());
         app.set_state_detail(detail.into());
         self.show_info();
+        // The audio state hides behind a video state (FR-018).
+        self.show_audio();
     }
 
     /// Shows the info bubbles (FR-016) while a device plays: its name and mode, and the frame rate
@@ -734,13 +954,24 @@ impl App {
     }
 
     fn close_session(&mut self) {
+        self.close_video(true);
+    }
+
+    /// Closes the video session; `audio`: its sound closes with it (not when the same device
+    /// opens again at once, where the next open hands the sound on).
+    fn close_video(&mut self, audio: bool) {
         self.inbox.set_session(None);
         self.inbox.clear_video();
         self.source = None;
         // The next device's bubbles wait for its own first second.
         self.second = crate::stats::Summary::EMPTY;
         if let Some((session, _)) = self.session.take() {
+            let number = session.id();
             session.close();
+            // The audio follows the video session (FR-018).
+            if audio && let Some(sound) = &mut self.sound {
+                sound.video_closed(number, &self.store.get());
+            }
         }
     }
 
@@ -1197,6 +1428,21 @@ impl App {
     /// or minimized; while maximized only the flag, so the size to restore to is kept. Called once
     /// the events of a change are handled: on Windows, maximizing sends `Moved` before winit's
     /// `is_maximized` turns true.
+    /// Keeps the preview's volume (FR-012), shows its icon and gives the open bridge its gain at
+    /// once, without reopening anything (FR-011).
+    fn set_volume(&mut self, level: u8, muted: bool) {
+        self.store.update(|s| {
+            s.audio.volume = level;
+            s.audio.muted = muted;
+        });
+        self.ui
+            .app
+            .set_volume_icon(crate::audio::icon_name(level, muted).into());
+        if let Some(sound) = &mut self.sound {
+            sound.handle(crate::audio::Event::Volume { level, muted }, &self.store.get());
+        }
+    }
+
     fn save_placement(&mut self, w: &Window) {
         let size = w.inner_size();
         if w.fullscreen().is_some() || w.is_minimized() == Some(true) || size.width == 0 || size.height == 0 {
@@ -1254,6 +1500,9 @@ impl App {
             present: self.options.present,
         };
         let first = (!self.video_started).then_some(self.process_start);
+        if let Some(sound) = &mut self.sound {
+            sound.stats_origin(Instant::now());
+        }
         let proxy = self.proxy.clone();
         let on_second = Box::new(move |summary| {
             let _ = proxy.send_event(UserEvent::Second(summary));
@@ -1324,6 +1573,12 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
         }
     });
     prefs.set_version(env!("CARGO_PKG_VERSION").into());
+    // Exclusive mode is Windows only (preview audio FR-014, FR-016).
+    prefs.set_exclusive_available(platform::IS_WINDOWS);
+    let on = send.clone();
+    prefs.on_exclusive_changed(move |id, v| {
+        on(UserEvent::Exclusive { id: id.into(), on: v });
+    });
     set_language_items(ui);
     prefs.set_language(i18n::choice_index(&general.language));
     prefs.set_theme(theme::choice_index(general.theme));
@@ -1504,6 +1759,10 @@ impl ApplicationHandler<UserEvent> for App {
             self.test_video = Some((session, platform::precise_timers()));
         } else {
             self.start_monitor();
+            // After the video monitor (plan "Startup and quit").
+            if let Some(sound) = &mut self.sound {
+                sound.start();
+            }
         }
         // The test video plays at once; else the video area waits as when opening until the
         // monitor's first list (main.slint's initial state).
@@ -1596,6 +1855,7 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 // The bubble shows its tags itself; only the setting is stored.
                 SettingChange::ModeDisplay(display) => self.store.update(|s| s.overlay.mode = display),
+                SettingChange::Volume { level, muted } => self.set_volume(level, muted),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);
                     self.sync_tray();
@@ -1614,6 +1874,35 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::SystemTheme(theme) => self.system_theme_changed(theme.map(SystemTheme::from)),
             UserEvent::Monitor(event) => self.preview_event(preview::Event::Monitor(event)),
             UserEvent::Session { session, event } => self.session_event(session, event),
+            UserEvent::Audio(event) => {
+                if let Some(sound) = &mut self.sound {
+                    sound.handle(event, &self.store.get());
+                }
+                self.show_audio();
+            }
+            // A select marks the row picked itself: the menus are shown again from the choices.
+            UserEvent::AudioPicked(index) => {
+                self.audio_picked(index);
+                self.audio_menus = None;
+                self.show_audio();
+            }
+            // The box shows the saved value (it does not flip itself).
+            UserEvent::Exclusive { id, on } => {
+                self.exclusive_changed(id, on);
+                self.audio_menus = None;
+                self.show_audio();
+            }
+            // The level moves and the sound plays again, as with the slider.
+            UserEvent::VolumeWheel(delta) => {
+                let notches = self.volume_wheel.notches(delta);
+                let level = self.store.get().audio.volume;
+                let moved = ::audio::volume::wheel(level, notches);
+                if notches != 0 {
+                    self.ui.app.set_volume(i32::from(moved));
+                    self.ui.app.set_muted(false);
+                    self.set_volume(moved, false);
+                }
+            }
             UserEvent::ColorRange(index) => {
                 let range = match index {
                     1 => capture::RangeChoice::Full,
@@ -1803,15 +2092,29 @@ impl ApplicationHandler<UserEvent> for App {
             self.tick(now);
         }
         wake = Some(wake.map_or(self.tick_at, |w| w.min(self.tick_at)));
+        if let Some(sound) = &mut self.sound {
+            sound.print_stats(now);
+            sound.open_queued(now);
+            if let Some(at) = sound.next_stats() {
+                wake = Some(wake.map_or(at, |w| w.min(at)));
+            }
+            if let Some(at) = sound.next_open() {
+                wake = Some(wake.map_or(at, |w| w.min(at)));
+            }
+        }
         event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // Quit sequence (FR-014): the session and the test video stop first so no frame arrives
-        // during the stop, then the device monitor; the video thread holds the surface, so it
-        // stops while the window still exists; then the settings are flushed and the window
-        // destroyed.
+        // during the stop, then the audio session (at most 1 s, research R9) and the device
+        // monitor; the video thread holds the surface, so it stops while the window still exists;
+        // then the settings are flushed and the window destroyed. An audio thread still alive
+        // ends with the process (`main` exits with `std::process::exit`).
         self.close_session();
+        if let Some(sound) = &mut self.sound {
+            sound.quit();
+        }
         if let Some(mut monitor) = self.monitor_devices.take() {
             monitor.stop();
         }
@@ -1834,7 +2137,7 @@ impl ApplicationHandler<UserEvent> for App {
 
 /// The camera privacy switch, for the session's error mapping (research R6).
 fn camera_access() -> capture::Access {
-    match platform::camera_access() {
+    match platform::access(platform::Capability::Camera) {
         platform::Access::Allowed => capture::Access::Allowed,
         platform::Access::Denied => capture::Access::Denied,
         platform::Access::Unknown => capture::Access::Unknown,

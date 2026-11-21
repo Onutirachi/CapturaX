@@ -12,7 +12,7 @@ use slint::ComponentHandle;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType};
 use slint::platform::{PointerEventButton, WindowAdapter, WindowEvent as SlintEvent};
 use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, Touch, TouchPhase, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
 use crate::shadows;
@@ -119,6 +119,160 @@ pub fn menu_item(item: &crate::preview::Item, texts: &Texts) -> MenuItem {
     }
 }
 
+/// The rows of the Audio menu as Slint shows them; the choices in use are checked (the menu marks
+/// an input and an output). The state's notice is a `state` row (its title, the device's name, its
+/// detail), its action an `action` row drawn inside the notice's card; both carry the notice's
+/// tone (FR-017).
+pub fn audio_items(items: &[crate::audio::Item], texts: &Texts) -> Vec<MenuItem> {
+    use crate::audio::Label;
+    let mut tone = "";
+    items
+        .iter()
+        .map(|item| {
+            let (kind, name, detail) = match &item.text {
+                Label::Notice(notice) => {
+                    tone = audio_notice_tone(notice);
+                    (
+                        "state",
+                        audio_notice_name(notice, texts),
+                        audio_notice_detail(notice, texts),
+                    )
+                }
+                Label::Action(_) => ("action", Default::default(), Default::default()),
+                label if label.is_header() => ("header", Default::default(), Default::default()),
+                _ if item.missing => ("", Default::default(), texts.get_audio_tag_disconnected()),
+                _ => ("", Default::default(), Default::default()),
+            };
+            MenuItem {
+                text: audio_label(&item.text, texts),
+                kind: kind.into(),
+                name,
+                detail,
+                tone: if kind == "state" || kind == "action" { tone } else { "" }.into(),
+                checked: item.current,
+                tag: if item.exclusive {
+                    texts.get_audio_tag_exclusive()
+                } else {
+                    Default::default()
+                },
+                tag_kind: if item.exclusive { "accent" } else { "" }.into(),
+                ..Default::default()
+            }
+        })
+        .collect()
+}
+
+/// The tone of the Audio menu's notice card: the tag's (`warn`, `bad`), none for No paired audio.
+fn audio_notice_tone(notice: &crate::audio::Notice) -> &'static str {
+    use crate::audio::Notice;
+    match notice {
+        Notice::NoPair => "",
+        Notice::Disconnected(_) | Notice::InUse(_) | Notice::Held(_) | Notice::Fallback(_) => "warn",
+        Notice::Blocked | Notice::Failed(_) => "bad",
+    }
+}
+
+/// The device line of the Audio menu's notice (FR-022): the device at fault, none when no one
+/// device is.
+fn audio_notice_name(notice: &crate::audio::Notice, texts: &Texts) -> slint::SharedString {
+    use crate::audio::Notice;
+    match notice {
+        Notice::NoPair | Notice::Blocked => Default::default(),
+        Notice::Failed(name) if name.is_empty() => texts.get_audio_system_default_unnamed(),
+        Notice::Disconnected(name)
+        | Notice::InUse(name)
+        | Notice::Held(name)
+        | Notice::Failed(name)
+        | Notice::Fallback(name) => name.as_str().into(),
+    }
+}
+
+/// The detail line of the Audio menu's notice (FR-022); the actions are rows of their own.
+fn audio_notice_detail(notice: &crate::audio::Notice, texts: &Texts) -> slint::SharedString {
+    use crate::audio::Notice;
+    match notice {
+        Notice::NoPair => texts.get_audio_choose_input(),
+        Notice::Disconnected(_) => texts.get_preview_disconnected_detail(),
+        Notice::Blocked => texts.get_preview_blocked_detail(),
+        Notice::InUse(_) => texts.get_audio_exclusive_unavailable(),
+        Notice::Held(_) | Notice::Failed(_) => Default::default(),
+        Notice::Fallback(_) => texts.get_audio_using_default(),
+    }
+}
+
+/// The tag before the Audio select's value and its kind (tag.slint): `warn` or `bad` for a
+/// state, `rate` (outlined) for Exclusive, which is no problem.
+pub fn audio_tag(tag: Option<crate::audio::StateTag>, texts: &Texts) -> (slint::SharedString, &'static str) {
+    use crate::audio::StateTag;
+    match tag {
+        None => (Default::default(), ""),
+        Some(StateTag::Disconnected) => (texts.get_audio_tag_disconnected(), "warn"),
+        Some(StateTag::InUse) => (texts.get_preview_in_use(), "warn"),
+        Some(StateTag::Blocked) => (texts.get_audio_tag_blocked(), "bad"),
+        Some(StateTag::Failed) => (texts.get_audio_tag_failed(), "bad"),
+    }
+}
+
+/// The rows of the settings panel's Audio category (preview audio FR-014).
+pub fn endpoint_rows(rows: &[crate::audio::ExclusiveRow]) -> Vec<AudioEndpointRow> {
+    rows.iter()
+        .map(|row| AudioEndpointRow {
+            id: row.id.as_str().into(),
+            name: row.name.as_str().into(),
+            exclusive: row.exclusive,
+            in_use: row.in_use,
+        })
+        .collect()
+}
+
+/// Shows `rows` in `model`: a model of the same length is changed in place, row by row, so the
+/// rows keep their instances (and the keyboard focus on a checkbox); else `set` gets a new one.
+pub fn sync_rows<T: Clone + PartialEq + 'static>(
+    model: &slint::ModelRc<T>,
+    rows: Vec<T>,
+    set: impl FnOnce(slint::ModelRc<T>),
+) {
+    use slint::Model;
+    if let Some(vec) = model.as_any().downcast_ref::<slint::VecModel<T>>()
+        && vec.row_count() == rows.len()
+    {
+        for (index, row) in rows.into_iter().enumerate() {
+            if vec.row_data(index).as_ref() != Some(&row) {
+                vec.set_row_data(index, row);
+            }
+        }
+        return;
+    }
+    set(slint::ModelRc::new(slint::VecModel::from(rows)));
+}
+
+/// The text of an Audio menu label (also the Audio select's value) from the catalog.
+pub fn audio_label(label: &crate::audio::Label, texts: &Texts) -> slint::SharedString {
+    use crate::audio::{Action, Label};
+    match label {
+        Label::Inputs => texts.get_audio_inputs(),
+        Label::Outputs => texts.get_audio_outputs(),
+        Label::Auto(Some(name)) => texts.invoke_audio_auto(name.as_str().into()),
+        Label::Auto(None) => texts.get_audio_auto_none(),
+        Label::NoAudio => texts.get_audio_no_audio(),
+        Label::SystemDefault(Some(name)) => texts.invoke_audio_system_default(name.as_str().into()),
+        Label::SystemDefault(None) => texts.get_audio_system_default_unnamed(),
+        Label::Plain(text) => text.as_str().into(),
+        Label::Notice(notice) => {
+            use crate::audio::Notice;
+            match notice {
+                Notice::NoPair => texts.get_audio_no_pair(),
+                Notice::Disconnected(_) | Notice::Fallback(_) => texts.get_audio_device_disconnected(),
+                Notice::Blocked => texts.get_preview_blocked(),
+                Notice::InUse(_) | Notice::Held(_) => texts.get_audio_device_in_use(),
+                Notice::Failed(_) => texts.get_audio_cannot_open(),
+            }
+        }
+        Label::Action(Action::TryAgain) => texts.get_try_again(),
+        Label::Action(Action::OpenPrivacy) => texts.get_open_privacy(),
+    }
+}
+
 /// The name of an automatic mode choice; a manual one has none.
 fn auto_name(choice: &capture::mode::ModeChoice, texts: &Texts) -> slint::SharedString {
     use capture::mode::ModeChoice as C;
@@ -136,14 +290,32 @@ pub enum MenuRow {
     Header,
     Item,
     WithDetail,
+    /// A state's notice with its name or detail line (a notice with neither is as tall as an item);
+    /// as tall as its lines, measured by Slint (`Menus.notice-height`).
+    State,
+    Action,
 }
 
 impl MenuRow {
-    fn height(self) -> f32 {
+    fn height(self, notice: f32) -> f32 {
         match self {
             Self::Header => 30.0,
             Self::Item => 36.0,
             Self::WithDetail => 48.0,
+            Self::State => notice,
+            Self::Action => 42.0,
+        }
+    }
+
+    /// The row of a menu item (menu.slint's `row` heights).
+    fn of(item: &MenuItem) -> Self {
+        match (item.kind.as_str(), item.detail.is_empty()) {
+            ("header", _) => Self::Header,
+            ("action", _) => Self::Action,
+            ("state", true) if !item.name.is_empty() => Self::State,
+            (_, true) => Self::Item,
+            ("state", false) => Self::State,
+            (_, false) => Self::WithDetail,
         }
     }
 }
@@ -152,10 +324,10 @@ impl MenuRow {
 const MENU_SPACING: f32 = 2.0;
 
 /// The top of row `index` in a menu's list, in logical pixels; for `index` = the count, the
-/// list's height plus one spacing. Out of range clamps.
-pub fn item_top(rows: &[MenuRow], index: i32) -> f32 {
+/// list's height plus one spacing. Out of range clamps. `notice`: the height of a state row.
+pub fn item_top(rows: &[MenuRow], index: i32, notice: f32) -> f32 {
     let end = usize::try_from(index.max(0)).unwrap_or(0).min(rows.len());
-    rows[..end].iter().map(|r| r.height() + MENU_SPACING).sum()
+    rows[..end].iter().map(|r| r.height(notice) + MENU_SPACING).sum()
 }
 
 /// The next selectable item of a menu from `from` (excluded) in direction `step` (1 or -1), or
@@ -210,6 +382,10 @@ pub struct Ui {
     size: PhysicalSize<u32>,
     scale: f32,
     cursor: slint::LogicalPosition,
+    /// The finger forwarded as the pointer, until it lifts; other fingers are ignored.
+    finger: Option<u64>,
+    /// `Input.touch` as last set.
+    touch: bool,
     /// The next draw repaints the whole buffer: Slint repaints only what changed in logical
     /// pixels, but after a resize the buffer is new and after a scale change every physical pixel
     /// moved (moving between monitors changes both, the logical size staying the same).
@@ -235,25 +411,17 @@ impl Ui {
         // surfaces, so the cache stays small, and it is dropped when it grows (tooltips vary with
         // their text).
         let cache = RefCell::new(HashMap::<(u32, u32, u32, u32, u32, u32), slint::Image>::new());
-        app.global::<Menus>().on_item_top(|items, index| {
+        app.global::<Menus>().on_item_top(|items, index, notice| {
             use slint::Model;
-            let rows: Vec<MenuRow> = items
-                .iter()
-                .map(|i| {
-                    if i.kind == "header" {
-                        MenuRow::Header
-                    } else if i.detail.is_empty() {
-                        MenuRow::Item
-                    } else {
-                        MenuRow::WithDetail
-                    }
-                })
-                .collect();
-            item_top(&rows, index)
+            let rows: Vec<MenuRow> = items.iter().map(|i| MenuRow::of(&i)).collect();
+            item_top(&rows, index, notice)
         });
         app.global::<Menus>().on_next_selectable(|items, from, step| {
             use slint::Model;
-            let selectable: Vec<bool> = items.iter().map(|i| i.kind != "header" && !i.disabled).collect();
+            let selectable: Vec<bool> = items
+                .iter()
+                .map(|i| i.kind != "header" && i.kind != "state" && !i.disabled)
+                .collect();
             next_selectable(&selectable, from, step)
         });
         app.global::<Menus>().on_with_header(|title, items| {
@@ -304,7 +472,7 @@ impl Ui {
                 }
             }
             // Blocked on Windows (research R6).
-            "open-privacy" => platform::open_camera_privacy(),
+            "open-privacy" => platform::open_privacy(platform::Capability::Camera),
             _ => log::warn!("state message: unknown action {id:?}"),
         });
         app.show()?;
@@ -315,6 +483,8 @@ impl Ui {
             size: PhysicalSize::new(0, 0),
             scale: 1.0,
             cursor: slint::LogicalPosition::new(0.0, 0.0),
+            finger: None,
+            touch: false,
             full_repaint: true,
         })
     }
@@ -345,6 +515,7 @@ impl Ui {
     pub fn window_event(&mut self, event: &WindowEvent) -> bool {
         let slint_event = match event {
             WindowEvent::CursorMoved { position, .. } => {
+                self.set_touch(false);
                 self.cursor =
                     slint::LogicalPosition::new(position.x as f32 / self.scale, position.y as f32 / self.scale);
                 SlintEvent::PointerMoved { position: self.cursor }
@@ -361,6 +532,7 @@ impl Ui {
                 // The focus ring shows only while the last input was the keyboard (FR-020).
                 if *state == ElementState::Pressed {
                     self.app.global::<Input>().set_keyboard(false);
+                    self.set_touch(false);
                 }
                 match state {
                     ElementState::Pressed => SlintEvent::PointerPressed { position, button },
@@ -398,6 +570,7 @@ impl Ui {
                     ElementState::Released => SlintEvent::KeyReleased { text },
                 }
             }
+            WindowEvent::Touch(touch) => return self.touch_event(touch),
             WindowEvent::Focused(active) => {
                 self.app.global::<WindowState>().set_active(*active);
                 SlintEvent::WindowActiveChanged(*active)
@@ -408,9 +581,59 @@ impl Ui {
         true
     }
 
+    /// A finger as the pointer with the left button (preview audio FR-011): Slint's public pointer
+    /// events carry no finger, so `Input.touch` tells the UI the pointer is a finger. Neither
+    /// system turns the app's touches into mouse events (winit handles Windows' pointer messages
+    /// itself), so without this no touch reaches the UI. Only the first finger down acts.
+    fn touch_event(&mut self, touch: &Touch) -> bool {
+        let position = slint::LogicalPosition::new(
+            touch.location.x as f32 / self.scale,
+            touch.location.y as f32 / self.scale,
+        );
+        let button = PointerEventButton::Left;
+        let events: &[SlintEvent] = match (self.finger, touch.phase) {
+            (None, TouchPhase::Started) => {
+                self.finger = Some(touch.id);
+                self.app.global::<Input>().set_keyboard(false);
+                self.set_touch(true);
+                &[
+                    SlintEvent::PointerMoved { position },
+                    SlintEvent::PointerPressed { position, button },
+                ]
+            }
+            (Some(id), TouchPhase::Moved) if id == touch.id => &[SlintEvent::PointerMoved { position }],
+            (Some(id), TouchPhase::Ended) if id == touch.id => {
+                self.finger = None;
+                // No hover stays behind a lifted finger.
+                &[
+                    SlintEvent::PointerReleased { position, button },
+                    SlintEvent::PointerExited,
+                ]
+            }
+            (Some(id), TouchPhase::Cancelled) if id == touch.id => {
+                self.finger = None;
+                &[SlintEvent::PointerExited]
+            }
+            _ => return false,
+        };
+        self.cursor = position;
+        for event in events {
+            self.window.window().dispatch_event(event.clone());
+        }
+        true
+    }
+
+    fn set_touch(&mut self, touch: bool) {
+        if touch != self.touch {
+            self.touch = touch;
+            self.app.global::<Input>().set_touch(touch);
+        }
+    }
+
     /// The window was destroyed (hidden in the tray on Wayland): no pointer, no focus, and the
     /// next image is drawn whole for the new window's video thread.
     pub fn window_gone(&mut self) {
+        self.finger = None;
         let window = self.window.window();
         window.dispatch_event(SlintEvent::PointerExited);
         self.app.global::<WindowState>().set_active(false);
@@ -534,14 +757,43 @@ mod tests {
     fn menu_rows_stack_with_their_heights() {
         use MenuRow::*;
         let rows = [Header, Item, WithDetail, Item];
-        assert_eq!(item_top(&rows, 0), 0.0);
-        assert_eq!(item_top(&rows, 1), 32.0);
-        assert_eq!(item_top(&rows, 2), 70.0);
-        assert_eq!(item_top(&rows, 3), 120.0);
+        assert_eq!(item_top(&rows, 0, 0.0), 0.0);
+        assert_eq!(item_top(&rows, 1, 0.0), 32.0);
+        assert_eq!(item_top(&rows, 2, 0.0), 70.0);
+        assert_eq!(item_top(&rows, 3, 0.0), 120.0);
         // The list's height is the end minus one spacing.
-        assert_eq!(item_top(&rows, 4) - MENU_SPACING, 156.0);
-        assert_eq!(item_top(&rows, 9), item_top(&rows, 4));
-        assert_eq!(item_top(&rows, -1), 0.0);
+        assert_eq!(item_top(&rows, 4, 0.0) - MENU_SPACING, 156.0);
+        assert_eq!(item_top(&rows, 9, 0.0), item_top(&rows, 4, 0.0));
+        assert_eq!(item_top(&rows, -1, 0.0), 0.0);
+        // A notice is as tall as Slint measured it.
+        let rows = [State, Action, Header];
+        assert_eq!(item_top(&rows, 1, 58.0), 60.0);
+        assert_eq!(item_top(&rows, 2, 58.0), 104.0);
+    }
+
+    #[test]
+    fn menu_rows_follow_their_kind_and_detail() {
+        let row = |kind: &str, detail: &str| {
+            MenuRow::of(&MenuItem {
+                kind: kind.into(),
+                detail: detail.into(),
+                ..Default::default()
+            })
+        };
+        assert_eq!(row("header", ""), MenuRow::Header);
+        assert_eq!(row("", ""), MenuRow::Item);
+        assert_eq!(row("", "detail"), MenuRow::WithDetail);
+        assert_eq!(row("state", "Waiting to reconnect"), MenuRow::State);
+        // A notice with neither a name nor a detail line is as tall as an item; a name alone
+        // (Cannot open / {}) makes it a full notice.
+        assert_eq!(row("state", ""), MenuRow::Item);
+        let named = MenuItem {
+            kind: "state".into(),
+            name: "HDMI (ezcap Live GAMER ULTRA)".into(),
+            ..Default::default()
+        };
+        assert_eq!(MenuRow::of(&named), MenuRow::State);
+        assert_eq!(row("action", ""), MenuRow::Action);
     }
 
     #[test]

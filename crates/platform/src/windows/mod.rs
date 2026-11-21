@@ -19,11 +19,12 @@ use winit::platform::windows::{MonitorHandleExtWindows, WindowAttributesExtWindo
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowAttributes};
 
+pub mod audio;
 pub mod autostart;
-pub mod camera;
 mod dpi_rect;
 pub mod instance;
 pub mod notify;
+pub mod privacy;
 mod registry;
 pub mod snap;
 pub use snap::{arranged_rect, set_outer_rect};

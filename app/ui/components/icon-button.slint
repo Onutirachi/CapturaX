@@ -1,7 +1,10 @@
 // Square icon control, ported from the stack spike's `basics.slint`. `active` marks a toggled
 // state; with `primary` it fills with the accent (recording, live). The tooltip shows after 500 ms
 // of hover, or at once on keyboard focus, in the top layer. Disabled, it fades, ignores clicks and
-// leaves the focus order. Enter or Space activates it (FR-020).
+// leaves the focus order. Enter or Space activates it (FR-020). An empty tooltip hides the one
+// shown. With `takes-wheel` the mouse wheel over it calls `wheel`; a right press calls
+// `right-pressed`. With `takes-hold` a press held 500 ms calls `held` instead of `clicked`. Keys
+// other than Enter and Space go to `key`.
 import { Theme } from "../theme.slint";
 import { FocusRing } from "focus-ring.slint";
 import { Tooltips, Side } from "tooltip.slint";
@@ -9,6 +12,8 @@ import { Tooltips, Side } from "tooltip.slint";
 export component IconButton inherits Rectangle {
     in property <image> icon;
     in property <string> tooltip;
+    // The name screen readers say; the tooltip by default.
+    in property <string> label: root.tooltip;
     in property <bool> active;
     in property <bool> primary;
     in property <length> size: 44px;
@@ -22,12 +27,23 @@ export component IconButton inherits Rectangle {
     in property <Side> tooltip-side: Side.top;
     out property <bool> hovered: area.has-hover;
     out property <bool> has-focus: focus.has-focus;
+    in property <bool> takes-wheel;
+    in property <bool> takes-hold;
     callback clicked();
+    // A press held 500 ms (with `takes-hold`); the release then clicks nothing.
+    callback held();
+    // A key the button does not use itself; `reject` passes it on.
+    callback key(KeyEvent) -> EventResult;
+    callback right-pressed();
+    // The wheel's vertical move in logical pixels, positive away from the user (60 per notch).
+    callback wheel(length);
 
     // The token of the tooltip this button shows, 0 when none.
     property <int> tip;
     // Its tooltip still shows: a size change or another control's tooltip hides it without telling.
     property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
+    // The press in progress was held: its release clicks nothing.
+    property <bool> was-held;
     property <bool> wants-tip: (area.has-hover || focus.has-focus) && root.enabled && root.visible;
 
     width: root.size;
@@ -42,7 +58,7 @@ export component IconButton inherits Rectangle {
     opacity: root.enabled ? 1 : 0.35;
 
     accessible-role: button;
-    accessible-label: root.tooltip;
+    accessible-label: root.label;
     accessible-enabled: root.enabled;
     accessible-action-default => { root.activate(); }
 
@@ -61,6 +77,8 @@ export component IconButton inherits Rectangle {
         if (root.tooltip != "") {
             root.tip = Tooltips.show(root.tooltip, root.tooltip-side,
                 root.absolute-position.x, root.absolute-position.y, root.width, root.height);
+        } else {
+            root.hide-tip();
         }
     }
 
@@ -113,7 +131,26 @@ export component IconButton inherits Rectangle {
 
     area := TouchArea {
         enabled: root.enabled;
-        clicked => { root.activate(); }
+        clicked => {
+            if (!root.was-held) {
+                root.activate();
+            }
+        }
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                root.was-held = false;
+            }
+            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
+                root.right-pressed();
+            }
+        }
+        scroll-event(event) => {
+            if (!root.takes-wheel || event.delta-y == 0) {
+                return reject;
+            }
+            root.wheel(event.delta-y);
+            accept
+        }
     }
 
     focus := FocusScope {
@@ -125,13 +162,22 @@ export component IconButton inherits Rectangle {
                 root.activate();
                 return accept;
             }
-            reject
+            root.key(event)
         }
     }
 
     Timer {
         interval: 500ms;
-        running: area.has-hover && root.tip != -1 && !root.tip-shown && root.wants-tip;
+        running: root.takes-hold && root.enabled && area.pressed && !root.was-held;
+        triggered => {
+            root.was-held = true;
+            root.held();
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: area.has-hover && root.tip != -1 && !root.tip-shown && root.wants-tip && root.tooltip != "";
         triggered => { root.show-tip(); }
     }
 

@@ -11,11 +11,13 @@ use winit::window::{Window, WindowAttributes};
 
 mod activation;
 pub use activation::activate;
+pub mod audio;
 pub mod autostart;
-pub mod camera;
 pub mod instance;
 pub mod notify;
 mod nvml;
+mod pipewire;
+pub mod privacy;
 pub mod snap;
 pub mod theme;
 pub mod tray;

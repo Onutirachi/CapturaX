@@ -1,11 +1,14 @@
 //! Presentation statistics (spec FR-005, contracts/stats.md): counted by the video thread, printed
 //! once per second with `--stats`. The second's summary (presented frames, measured latency) is
-//! kept always, for the bubbles (FR-016).
+//! kept always, for the bubbles (FR-016). The preview audio's lines are written here too; their
+//! numbers come from the bridge (`sound.rs`).
 
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
+use ::audio::bridge::BridgeStats;
 use capture::{Matrix, Mode, PixelFormat, Range};
+use platform::audio::StreamMode;
 
 /// The `[present]` header: printed when the video thread starts and when the presentation changes.
 pub fn header(backend: &str, mode: &str, adapter: &str, surface: (u32, u32)) -> String {
@@ -218,6 +221,48 @@ impl Stats {
     }
 }
 
+/// One side of the open audio session as its last `Opened` said, for the `[audio-source]` line.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AudioSide {
+    /// The endpoint's name as the app shows it.
+    pub name: String,
+    pub mode: StreamMode,
+    pub format: platform::audio::Format,
+    pub period_ms: f64,
+    /// What the stream reports; None when it does not say.
+    pub latency_ms: Option<f64>,
+}
+
+/// The `[audio-source]` line (preview audio contracts/stats.md): printed once both sides opened
+/// and again when a side reopens.
+pub fn audio_source(session: u64, input: &AudioSide, output: &AudioSide) -> String {
+    format!(
+        "[audio-source] session={session} input=\"{}\" in_mode={} in_format={} in_period_ms={:.2} \
+         output=\"{}\" out_mode={} out_format={} out_period_ms={:.2} out_latency_ms={}",
+        input.name,
+        input.mode,
+        input.format,
+        input.period_ms,
+        output.name,
+        output.mode,
+        output.format,
+        output.period_ms,
+        output.latency_ms.map_or("-".to_string(), |l| format!("{l:.1}")),
+    )
+}
+
+/// The `[audio]` line of second `t`; `stats` is None while no bridge plays (no `wait_ms`).
+pub fn audio_line(t: u64, stats: Option<BridgeStats>) -> String {
+    let stats_or_zero = stats.unwrap_or_default();
+    format!(
+        "[audio] t={t} wait_ms={} rate_ppm={:+.0} gap_ms={:.1} drop_ms={:.1}",
+        median_max_text(stats.map(|s| (s.wait_ms_median, s.wait_ms_max))),
+        stats_or_zero.rate_ppm,
+        stats_or_zero.gap_ms,
+        stats_or_zero.drop_ms,
+    )
+}
+
 fn ms(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1e3
 }
@@ -373,6 +418,68 @@ mod tests {
         assert_eq!(
             line(stats.report(at(start, 2000))),
             "[loop] t=2 recv=0 pres=1 repl=0 ready_ms=0.0/0.0 gap_ms=50.0 ui=0 ui_ms=-/- moves=0 lat_ms=3.0/3.0 rep=0"
+        );
+    }
+
+    #[test]
+    fn audio_source_line() {
+        use platform::audio::{Format, SampleFormat};
+        let input = AudioSide {
+            name: "Digital Audio Interface (ezcap Live Gamer Ultra)".into(),
+            mode: StreamMode::Exclusive,
+            format: Format {
+                rate: 48000,
+                channels: 2,
+                sample: SampleFormat::I32,
+            },
+            period_ms: 3.0,
+            latency_ms: Some(4.0),
+        };
+        let mut output = AudioSide {
+            name: "Speakers (Logitech G533)".into(),
+            mode: StreamMode::Shared,
+            format: Format {
+                rate: 48000,
+                channels: 2,
+                sample: SampleFormat::F32,
+            },
+            period_ms: 2.6667,
+            latency_ms: Some(8.12),
+        };
+        assert_eq!(
+            audio_source(3, &input, &output),
+            "[audio-source] session=3 input=\"Digital Audio Interface (ezcap Live Gamer Ultra)\" \
+             in_mode=exclusive in_format=48000/2/i32 in_period_ms=3.00 output=\"Speakers (Logitech G533)\" \
+             out_mode=shared out_format=48000/2/f32 out_period_ms=2.67 out_latency_ms=8.1"
+        );
+        output.mode = StreamMode::SharedAfterInUse;
+        output.latency_ms = None;
+        let line = audio_source(3, &input, &output);
+        assert!(line.contains(" out_mode=shared-in-use "), "{line}");
+        assert!(line.ends_with(" out_latency_ms=-"), "{line}");
+    }
+
+    #[test]
+    fn audio_line_with_and_without_a_bridge() {
+        let stats = BridgeStats {
+            wait_ms_median: 6.25,
+            wait_ms_max: 7.94,
+            rate_ppm: 41.6,
+            gap_ms: 0.0,
+            drop_ms: 2.5,
+        };
+        assert_eq!(
+            audio_line(12, Some(stats)),
+            "[audio] t=12 wait_ms=6.2/7.9 rate_ppm=+42 gap_ms=0.0 drop_ms=2.5"
+        );
+        let slow = BridgeStats {
+            rate_ppm: -18.4,
+            ..stats
+        };
+        assert!(audio_line(13, Some(slow)).contains(" rate_ppm=-18 "));
+        assert_eq!(
+            audio_line(14, None),
+            "[audio] t=14 wait_ms=-/- rate_ppm=+0 gap_ms=0.0 drop_ms=0.0"
         );
     }
 

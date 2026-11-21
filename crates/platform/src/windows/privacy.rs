@@ -1,18 +1,32 @@
-//! Camera privacy on Windows (research R6): the `Value` of the webcam consent store, for all apps
-//! and for desktop (non-packaged) apps, under the user's and the machine's keys. Settings writes
-//! `Allow` or `Deny` there; a `Deny` in any of them hides the cameras from this app.
+//! Camera and microphone privacy on Windows (device preview research R6, preview audio R7): the
+//! `Value` of the capability's consent store (`webcam` or `microphone`), for all apps and for
+//! desktop (non-packaged) apps, under the user's and the machine's keys. Settings writes `Allow`
+//! or `Deny` there; a `Deny` in any of them hides the cameras from this app or makes WASAPI refuse
+//! the microphone.
 
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 use windows_sys::Win32::System::Registry::{HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
 use windows_sys::Win32::UI::Shell::ShellExecuteW;
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-use crate::camera::Access;
+use crate::privacy::{Access, Capability};
 
-const WEBCAM: &str = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam";
-const DESKTOP_APPS: &str =
-    r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam\NonPackaged";
-const PRIVACY_PAGE: &str = "ms-settings:privacy-webcam";
+const CONSENT_STORE: &str = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore";
+
+/// The consent store's subkey and the Settings page of a capability.
+fn names(capability: Capability) -> (&'static str, &'static str) {
+    match capability {
+        Capability::Camera => ("webcam", "ms-settings:privacy-webcam"),
+        Capability::Microphone => ("microphone", "ms-settings:privacy-microphone"),
+    }
+}
+
+/// The capability's keys for all apps and for desktop apps.
+fn keys(capability: Capability) -> [String; 2] {
+    let store = format!(r"{CONSENT_STORE}\{}", names(capability).0);
+    let desktop_apps = format!(r"{store}\NonPackaged");
+    [store, desktop_apps]
+}
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -68,20 +82,22 @@ fn decide(values: &[Option<String>]) -> Access {
     }
 }
 
-pub fn access() -> Access {
+pub fn access(capability: Capability) -> Access {
+    let [store, desktop_apps] = keys(capability);
     let values = [
-        read_value(HKEY_CURRENT_USER, WEBCAM),
-        read_value(HKEY_CURRENT_USER, DESKTOP_APPS),
-        read_value(HKEY_LOCAL_MACHINE, WEBCAM),
-        read_value(HKEY_LOCAL_MACHINE, DESKTOP_APPS),
+        read_value(HKEY_CURRENT_USER, &store),
+        read_value(HKEY_CURRENT_USER, &desktop_apps),
+        read_value(HKEY_LOCAL_MACHINE, &store),
+        read_value(HKEY_LOCAL_MACHINE, &desktop_apps),
     ];
     let access = decide(&values);
-    log::debug!("camera access {access:?} from {values:?}");
+    log::debug!("{capability:?} access {access:?} from {values:?}");
     access
 }
 
-pub fn open_privacy() {
-    let (verb, page) = (wide("open"), wide(PRIVACY_PAGE));
+pub fn open_privacy(capability: Capability) {
+    let page_name = names(capability).1;
+    let (verb, page) = (wide("open"), wide(page_name));
     // SAFETY: NUL-terminated strings that outlive the call; no owner window, no parameters.
     let result = unsafe {
         ShellExecuteW(
@@ -95,7 +111,7 @@ pub fn open_privacy() {
     };
     // Values above 32 mean success; the rest are error codes.
     if result as isize <= 32 {
-        log::warn!("cannot open {PRIVACY_PAGE}: ShellExecuteW returned {}", result as isize);
+        log::warn!("cannot open {page_name}: ShellExecuteW returned {}", result as isize);
     }
 }
 
@@ -141,12 +157,33 @@ mod tests {
     }
 
     #[test]
+    fn keys_and_pages_per_capability() {
+        let base = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore";
+        assert_eq!(
+            keys(Capability::Camera),
+            [format!(r"{base}\webcam"), format!(r"{base}\webcam\NonPackaged")]
+        );
+        assert_eq!(
+            keys(Capability::Microphone),
+            [format!(r"{base}\microphone"), format!(r"{base}\microphone\NonPackaged")]
+        );
+        assert_eq!(names(Capability::Camera).1, "ms-settings:privacy-webcam");
+        assert_eq!(names(Capability::Microphone).1, "ms-settings:privacy-microphone");
+    }
+
+    #[test]
     fn reads_this_pc() {
-        // Whatever the switches say here, the registry calls must work and the user's key exists
-        // on any Windows 11 that has opened the camera settings.
-        let user = read_value(HKEY_CURRENT_USER, WEBCAM);
-        println!("HKCU webcam Value = {user:?}, access = {:?}", access());
-        assert!(user.is_none_or(|v| v == "Allow" || v == "Deny"));
+        // Whatever the switches say here, the registry calls must work and the user's keys exist
+        // on any Windows 11 that has opened the privacy settings.
+        for capability in [Capability::Camera, Capability::Microphone] {
+            let [store, _] = keys(capability);
+            let user = read_value(HKEY_CURRENT_USER, &store);
+            println!(
+                "HKCU {capability:?} Value = {user:?}, access = {:?}",
+                access(capability)
+            );
+            assert!(user.is_none_or(|v| v == "Allow" || v == "Deny"));
+        }
     }
 
     #[test]

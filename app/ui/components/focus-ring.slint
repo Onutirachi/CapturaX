@@ -5,6 +5,9 @@ import { Theme } from "../theme.slint";
 
 export global Input {
     in property <bool> keyboard;
+    // The last pointer was a finger (Rust forwards touches as pointer events and sets this; the
+    // mouse clears it), for controls that behave differently on touch (preview audio FR-011).
+    in property <bool> touch;
 }
 
 // Drawn around its parent, `offset` outside its edges (negative draws inside, for a clipped list).

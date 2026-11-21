@@ -1,6 +1,7 @@
 //! CapturaX: watch and hear capture cards with the lowest possible latency.
 
 mod app;
+mod audio;
 mod cli;
 mod frame;
 mod i18n;
@@ -13,6 +14,7 @@ mod present_log;
 mod preview;
 mod render;
 mod shadows;
+mod sound;
 mod stats;
 mod theme;
 mod ui;
@@ -254,6 +256,9 @@ fn start(
         app.notify(notice);
     }
     ::log::debug!("options: {:?}", app.options());
+    if !app.options().audio() {
+        ::log::info!("preview audio off for this start");
+    }
     event_loop.run_app(&mut app)?;
     if app.exit_code == app::EXIT_NO_RENDERER {
         let (title, text) = app.renderer_unavailable();
@@ -263,7 +268,8 @@ fn start(
 }
 
 /// `--list-devices` (contracts/cli.md): every device with its id, the automatic modes it shows and
-/// what they open, and its modes; exit 69 when GStreamer cannot start.
+/// what they open, and its modes; exit 69 when GStreamer cannot start. Then the audio devices and
+/// each device's audio input (preview audio contracts/cli.md).
 fn list_devices() -> i32 {
     let (sender, receiver) = std::sync::mpsc::channel();
     let sender = std::sync::Mutex::new(sender);
@@ -306,7 +312,98 @@ fn list_devices() -> i32 {
             println!("    {}", mode_line(mode, width));
         }
     }
+    list_audio(&devices);
     0
+}
+
+/// The audio part of `--list-devices` (preview audio contracts/cli.md): the audio inputs and
+/// outputs with id, link and format, the system default output marked, then each video device's
+/// link and the input pairing gives it (research R5). Audio that cannot be listed is said on
+/// stderr and does not change the exit code.
+fn list_audio(devices: &[capture::Device]) {
+    use platform::audio::{AudioEvent, Monitor};
+
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let sender = std::sync::Mutex::new(sender);
+    let monitor = Monitor::start(move |event| {
+        if let AudioEvent::Listed {
+            inputs,
+            outputs,
+            default_output,
+        } = event
+            && let Ok(sender) = sender.lock()
+        {
+            let _ = sender.send((inputs, outputs, default_output));
+        }
+    });
+    let monitor = match monitor {
+        Ok(monitor) => monitor,
+        Err(err) => {
+            eprintln!("audio devices unavailable: {err}");
+            return;
+        }
+    };
+    let listed = receiver.recv_timeout(std::time::Duration::from_secs(10));
+    drop(monitor);
+    let Ok((inputs, outputs, default_output)) = listed else {
+        eprintln!("audio devices unavailable: the system did not answer");
+        return;
+    };
+
+    println!();
+    println!("Audio inputs:");
+    print_endpoints(&inputs, None);
+    println!("Audio outputs:");
+    print_endpoints(&outputs, default_output.as_deref());
+
+    if devices.is_empty() {
+        return;
+    }
+    // Pairing reads the system's names: a numbered name's " (2)" would be taken for a device part.
+    let candidates: Vec<_> = inputs
+        .iter()
+        .map(|input| ::audio::pairing::Endpoint {
+            id: input.id.clone(),
+            name: input.base_name.clone(),
+            link: input.link.clone(),
+        })
+        .collect();
+    println!("Pairing:");
+    for device in devices {
+        let video = ::audio::pairing::VideoKey {
+            link: platform::audio::video_link(&device.id),
+            name: device.base_name.clone(),
+        };
+        let paired =
+            ::audio::pairing::pair(&video, &candidates).and_then(|id| inputs.iter().find(|input| input.id == id));
+        println!("  {}", device.name);
+        println!("    link: {}", video.link.as_deref().unwrap_or("none"));
+        match paired {
+            Some(input) => println!("    audio: {} ({})", input.name, input.id),
+            None => println!("    audio: none"),
+        }
+    }
+}
+
+/// One audio flow's endpoints, the one with the id `default` marked.
+fn print_endpoints(endpoints: &[platform::audio::Endpoint], default: Option<&str>) {
+    if endpoints.is_empty() {
+        println!("  none");
+    }
+    for endpoint in endpoints {
+        let mark = if default == Some(endpoint.id.as_str()) {
+            " [default]"
+        } else {
+            ""
+        };
+        println!("  {}{mark}", endpoint.name);
+        println!("    id: {}", endpoint.id);
+        println!("    link: {}", endpoint.link.as_deref().unwrap_or("none"));
+        match endpoint.format {
+            Some(format) => println!("    format: {format}"),
+            None => println!("    format: unknown"),
+        }
+    }
 }
 
 /// `1920x1080@60   NV12  [Full HD] [16:9]`, the settings text padded to `width`.

@@ -26,3 +26,5 @@ __pycache__/
 
 # Measurement clips stay local (results are committed as CSV)
 /clips/
+# Raw measurement material (logs, screenshots) stays local; results are in the notes and CSV
+/specs/*/measurements/raw/

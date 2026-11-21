@@ -28,6 +28,13 @@ export struct Palette {
     ok: color,
     warn: color,
     bad: color,
+    // The Audio menu's notice card tinted in its tag's tone (preview audio FR-017), and the
+    // neutral button inside it.
+    notice-warn: color,
+    notice-bad: color,
+    notice-button: color,
+    notice-button-hover: color,
+    notice-button-text: color,
     // Semi-transparent panels over the video (title bar, dock, overlay); only panels are
     // transparent.
     panel: color,
@@ -81,6 +88,11 @@ export global Palettes {
         ok: #3fcf7c,
         warn: #f2c14e,
         bad: #f46a62,
+        notice-warn: #f2c14e21,
+        notice-bad: #f46a6221,
+        notice-button: #ffffff33,
+        notice-button-hover: #ffffff47,
+        notice-button-text: #ffffff,
         panel: #0e0f13b8,
         scrim: #00000080,
         shadow: 1,
@@ -122,6 +134,11 @@ export global Palettes {
         ok: #0f7038,
         warn: #7d5a00,
         bad: #b42a23,
+        notice-warn: #c9930024,
+        notice-bad: #b42a231c,
+        notice-button: #ffffffc7,
+        notice-button-hover: #ffffff,
+        notice-button-text: #1c1e25,
         panel: #f7f8fac4,
         scrim: #00000052,
         shadow: 0.35,

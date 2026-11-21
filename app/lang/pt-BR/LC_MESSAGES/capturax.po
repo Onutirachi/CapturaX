@@ -304,3 +304,84 @@ msgstr "{}: placa de captura e monitor (estimado)"
 
 msgid "{} in total"
 msgstr "{} no total"
+
+msgid "Volume {}%"
+msgstr "Volume {}%"
+
+msgid "Muted"
+msgstr "Mudo"
+
+msgid "Preview volume"
+msgstr "Volume do preview"
+
+msgid "{}%"
+msgstr "{}%"
+
+msgid "Audio"
+msgstr "Áudio"
+
+msgid "Input"
+msgstr "Entrada"
+
+msgid "Output"
+msgstr "Saída"
+
+msgid "Auto ({})"
+msgstr "Auto ({})"
+
+msgid "Auto (none)"
+msgstr "Auto (nenhum)"
+
+msgid "No audio"
+msgstr "Sem áudio"
+
+msgid "System default ({})"
+msgstr "Padrão do sistema ({})"
+
+msgid "System default"
+msgstr "Padrão do sistema"
+
+msgid "Disconnected"
+msgstr "Desconectado"
+
+msgid "Blocked"
+msgstr "Bloqueado"
+
+msgid "Failed"
+msgstr "Falhou"
+
+msgid "No paired audio"
+msgstr "Sem áudio pareado"
+
+msgid "Choose an input"
+msgstr "Escolha uma entrada"
+
+msgid "Device disconnected"
+msgstr "Dispositivo desconectado"
+
+msgid "Device in use"
+msgstr "Dispositivo em uso"
+
+msgid "Cannot open"
+msgstr "Não foi possível abrir"
+
+msgid "Using the system default"
+msgstr "Usando a saída padrão"
+
+msgid "Exclusive mode unavailable"
+msgstr "Modo exclusivo indisponível"
+
+msgid "Exclusive"
+msgstr "Exclusivo"
+
+msgid "Exclusive mode"
+msgstr "Modo exclusivo"
+
+msgid "Lowest delay. No other app can use the device while the preview does."
+msgstr "Menor atraso. Nenhum outro app usa o dispositivo enquanto o preview usa."
+
+msgid "Inputs"
+msgstr "Entradas"
+
+msgid "Outputs"
+msgstr "Saídas"
