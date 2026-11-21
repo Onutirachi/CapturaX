@@ -242,6 +242,24 @@ older one's `Closed` came; the ezcap's input came back `Exclusive` (3 ms) with V
 
 ### CachyOS — 2026-11-20
 
+Release build of `76a2c35` (with T051 and T052), `--lang pt-BR --stats`, driven over SSH with
+`ydotool` and `spectacle` screenshots. The ezcap was in the Windows PC, so (maintainer) the C920
+stood in for it with its own microphone (mode changes) and a `v4l2loopback` camera ("Virtual
+Cam", `videotestsrc` 1080p60) with the C920's microphone as its input took the second device's
+place. System default output: `Áudio interno Estéreo digital (IEC958)`, shared.
+
 | Scenario | Check | Result |
 |---|---|---|
 | US4.5 | the settings panel (release of `9f5ecef`, pt-BR) | categories Geral, Aparência, Preview, Sobre: no Audio category and no exclusive mode |
+| US1.3 | six mode changes in a row on the C920 (1080p24 ↔ 1600×896 30), the color range (Limitada, then Auto), the theme (Claro, then Automático), the language (English, then Automático), the Mode, Color range and Device menus and the settings panel opened, all while playing | each mode change logged `video session N on the same device keeps the audio session`; audio session 1 played through everything for 158 s with no new open, no notice and `gap_ms=0.0` every second (one 8 ms gap at its start) |
+| US1.3 | device changes C920 ↔ Virtual Cam (same input), six in a row | each new session logged `waits for session(s) [n] to close`, the older one closed in 1–8 ms and the new one played 20–125 ms after the new video session opened; no notice |
+| US2.4 | muted, and the volume at 0 by the wheel | the button shows the muted speaker both times (`Mudo`, then `0%`); volume and mute saved and restored |
+| US1.4 | hidden to the tray (keep in tray on, close button), shown again (a second start), quit from the tray menu | hidden: the audio session closed with the video (49 ms); shown: audio Playing 195 ms before the first frame; quit: `closed 1 ms into the quit` |
+
+By ear (maintainer): the C920's microphone played on `vban_out` (the VBAN service, heard through
+Voicemeeter on the Windows PC); the sound was right and no delay was noticed: the playback came
+with the maintainer's own voice in the room.
+
+The second start showed the window but could not bring it to the front (Wayland), so it showed
+`O CapturaX já está aberto.` (kdialog, then zenity); that is the app shell's single instance, not
+this spec.

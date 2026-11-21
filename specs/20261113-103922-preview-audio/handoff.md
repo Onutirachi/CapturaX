@@ -1,6 +1,6 @@
 # Handoff: Preview Audio
 
-**Updated**: 2026-11-20 (T045) | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
+**Updated**: 2026-11-20 (T045 done) | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261113-103922-preview-audio`
 
 ## State
 
@@ -867,18 +867,16 @@ engines (WASAPI on Windows, PipeWire directly on Linux) and the constitution ame
 
 ## Next step
 
-1. T045, Windows half done (2026-11-20, measurements/acceptance.md "T045"): the hand checks not
-   covered by earlier tasks (US1.3, US1.4, US2.4, US4.4, playing by ear) passed after a fix.
-   US1.3 found that a mode change reopened the audio session and the new one asked for the
-   ezcap's exclusive input before the old one released it (shared, `Device in use`). Fixed in
-   `d8ff9a4` (T051: `sound.rs` queues an open until the older session's `Closed`, at most 1 s;
-   T052: `audio.rs` keeps the session when the same device reopens with the same input and
-   output, `app.rs` skips the audio close for that reopen). data-model.md "Audio session" and
-   plan.md say so. CachyOS: US4.5 checked over SSH (no Audio category).
-2. Left: the Linux half of T045 with the ezcap and the C920 on CachyOS: US1.3 (mode changes keep
-   the sound: the log line `video session N on the same device keeps the audio session`), US1.4,
-   US2.4, playing by ear. Then mark T045, and the PR.
+1. T045 done (2026-11-20, measurements/acceptance.md "T045"); every task in tasks.md is checked
+   (T005 was left unchecked by mistake: the probe was built and run in T006). Windows: the hand
+   checks passed after the T051/T052 fix (`d8ff9a4`). CachyOS (release of `76a2c35`): the ezcap
+   was in the Windows PC, so the C920 and a `v4l2loopback` camera stood in for it; US1.3 (six
+   mode changes kept audio session 1, device changes waited for the older session), US1.4,
+   US2.4, US4.5 and playing by ear on `vban_out` passed.
+2. Next: open the PR for this branch into `main` (58 commits ahead, not pushed), after the
+   maintainer validates the T045 commit; then docs/roadmap.md #4 done on merge.
 3. CachyOS over SSH: `ydotoold` runs with `--socket-path=/tmp/.ydotool_socket`, while
    `~/capx/lib.sh` exports `/run/user/1000/.ydotool_socket`; export
-   `YDOTOOL_SOCKET=/tmp/.ydotool_socket` after sourcing it. The clone there is at `9f5ecef`
-   (send a new bundle for `d8ff9a4`).
+   `YDOTOOL_SOCKET=/tmp/.ydotool_socket` after sourcing it. The clone there is at `76a2c35`. The
+   `vban` user service was started for the by-ear check and is still running (it is disabled at
+   boot); the app's config there is back to its state before the test, except `device`.
