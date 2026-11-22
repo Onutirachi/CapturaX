@@ -784,7 +784,7 @@ impl AudioController {
         let output_exclusive = exclusive(settings, output.as_deref().or(self.default_output.as_deref()));
         out.push(Command::Open(SessionRequest {
             number,
-            input,
+            input: Some(input),
             output,
             input_exclusive,
             output_exclusive,
@@ -1079,7 +1079,7 @@ mod tests {
     fn request(number: u64, input: &str) -> Command {
         Command::Open(SessionRequest {
             number,
-            input: input.into(),
+            input: Some(input.into()),
             output: None,
             input_exclusive: false,
             output_exclusive: false,
@@ -1413,7 +1413,7 @@ mod tests {
     fn open_request(number: u64, input: &str, output: Option<&str>) -> Command {
         Command::Open(SessionRequest {
             number,
-            input: input.into(),
+            input: Some(input.into()),
             output: output.map(Into::into),
             input_exclusive: false,
             output_exclusive: false,
@@ -2278,7 +2278,7 @@ mod tests {
             commands,
             [Command::Open(SessionRequest {
                 number: 1,
-                input: CARD_INPUT.into(),
+                input: Some(CARD_INPUT.into()),
                 output: None,
                 input_exclusive: true,
                 output_exclusive: true,

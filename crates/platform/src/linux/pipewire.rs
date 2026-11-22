@@ -606,6 +606,8 @@ struct Sessions {
 struct Session {
     samples: Arc<dyn Samples>,
     on_event: OnSessionEvent,
+    /// An output-only session (screenshot research R10): its input is never opened.
+    output_only: bool,
     input: Wanted,
     output: Wanted,
 }
@@ -710,10 +712,12 @@ impl Sessions {
 
     fn open(self: &Rc<Self>, request: SessionRequest, samples: Arc<dyn Samples>, on_event: OnSessionEvent) {
         let number = request.number;
+        let output_only = request.input.is_none();
         let session = Session {
             samples,
             on_event,
-            input: Wanted::new(Some(request.input)),
+            output_only,
+            input: Wanted::new(request.input),
             output: Wanted::new(request.output),
         };
         let replaced = self.list.borrow_mut().insert(number, session);
@@ -726,7 +730,9 @@ impl Sessions {
             }
         }
         // The capture first, as the probe: it runs first in the cycle.
-        self.open_side(number, Side::Input);
+        if !output_only {
+            self.open_side(number, Side::Input);
+        }
         self.open_side(number, Side::Output);
     }
 
@@ -736,6 +742,9 @@ impl Sessions {
             let Some(session) = list.get_mut(&number) else {
                 return;
             };
+            if side == Side::Input && session.output_only {
+                return;
+            }
             let wanted = session.side(side);
             wanted.target = target;
             wanted.stream.take()

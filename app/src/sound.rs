@@ -169,7 +169,7 @@ impl Queued {
     fn apply(&mut self, command: &Command) {
         match command {
             Command::ReopenInput { input, exclusive } => {
-                self.request.input.clone_from(input);
+                self.request.input = Some(input.clone());
                 self.request.input_exclusive = *exclusive;
             }
             Command::ReopenOutput { output, exclusive } => {
@@ -446,9 +446,13 @@ impl Sound {
         let feed = Arc::new(Feed::new(gain));
         let closed = Arc::new(Closed::default());
         let proxy = self.proxy.clone();
-        log::info!("audio session {number}: open {} -> {:?}", request.input, request.output);
+        log::info!(
+            "audio session {number}: open {:?} -> {:?}",
+            request.input,
+            request.output
+        );
         let on_closed = Arc::clone(&closed);
-        let (input_id, output_id) = (request.input.clone(), request.output.clone());
+        let (input_id, output_id) = (request.input.clone().unwrap_or_default(), request.output.clone());
         let session = Session::open(request, Arc::clone(&feed) as Arc<dyn Samples>, move |event| {
             // Set here, not on the main thread: the quit waits for it there.
             if matches!(event, SessionEvent::Closed { .. }) {
@@ -578,7 +582,7 @@ mod tests {
         let mut queued = Queued {
             request: SessionRequest {
                 number: 2,
-                input: "card".into(),
+                input: Some("card".into()),
                 output: None,
                 input_exclusive: true,
                 output_exclusive: false,
@@ -599,7 +603,7 @@ mod tests {
             Queued {
                 request: SessionRequest {
                     number: 2,
-                    input: "mic".into(),
+                    input: Some("mic".into()),
                     output: Some("headset".into()),
                     input_exclusive: false,
                     output_exclusive: true,
