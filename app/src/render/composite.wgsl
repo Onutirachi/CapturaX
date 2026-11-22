@@ -2,7 +2,8 @@
 // rounded) then the UI. The UI texture holds premultiplied RGBA, blended with (One,
 // OneMinusSrcAlpha). The video arrives in the device's own format and is converted to RGB here
 // (device preview research R4): `to_r`, `to_g`, `to_b` hold the matrix and the range, so
-// `rgb = rows · (y, u, v, 1)`; `yuv_to_rgb` in gpu.rs mirrors it for the tests.
+// `rgb = rows · (y, u, v, 1)`; `conversion` in crates/capture/src/still.rs makes the rows and
+// mirrors this for still images.
 
 struct Rect {
     // Left, top, right, bottom in clip space.
