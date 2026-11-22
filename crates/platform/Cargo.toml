@@ -10,6 +10,7 @@ publish.workspace = true
 winit.workspace = true
 log.workspace = true
 dirs.workspace = true
+arboard.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 # The output's resync decision (preview audio FR-003a, research R16): pure code.
@@ -27,6 +28,7 @@ pipewire.workspace = true
 wayland-client.workspace = true
 wayland-backend.workspace = true
 wayland-protocols.workspace = true
+x11rb.workspace = true
 
 [dev-dependencies]
 # The notify example shows the app icon (brand/X.svg).

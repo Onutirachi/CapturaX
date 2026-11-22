@@ -11,3 +11,4 @@ gst.workspace = true
 gst-app.workspace = true
 gst-video.workspace = true
 log.workspace = true
+png.workspace = true

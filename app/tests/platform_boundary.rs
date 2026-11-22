@@ -20,6 +20,8 @@ const OS_CRATES: &[&str] = &[
     "libloading",
     "pipewire",
     "libspa",
+    "arboard",
+    "x11rb",
 ];
 
 /// Words that make a `cfg` condition platform-specific.
