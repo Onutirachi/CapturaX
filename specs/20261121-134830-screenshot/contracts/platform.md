@@ -80,6 +80,15 @@ pub fn show_file(file: &Path);
 pub fn open_folder(folder: &Path);
 ```
 
+## Local time (`lib.rs`)
+
+```rust
+/// The local time's offset from UTC at `time`, in seconds east (FR-005); 0 when unknown.
+/// Windows `FileTimeToLocalFileTime`, Linux `localtime_r` (`tm_gmtoff`), declared like
+/// `clock_gettime`: no new dependency.
+pub fn utc_offset(time: SystemTime) -> i32;
+```
+
 ## Output-only session (`audio.rs` change)
 
 `SessionRequest.input` becomes `Option<String>`: `None` opens only the output side, which calls

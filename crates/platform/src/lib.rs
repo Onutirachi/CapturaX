@@ -25,6 +25,9 @@ pub mod audio;
 pub mod hotkeys;
 pub use hotkeys::{Hotkey, Key, Modifier, Modifiers};
 
+mod files;
+pub use files::{default_screenshots_folder, open_folder, show_file};
+
 /// Built for Windows: the latency estimate counts the USB transfer there (device-preview
 /// data-model.md "Latency estimate"), so the app needs no platform condition of its own.
 pub const IS_WINDOWS: bool = cfg!(windows);
@@ -146,6 +149,12 @@ pub fn work_area(monitor: &MonitorHandle) -> Option<(PhysicalPosition<i32>, Phys
 
 /// A window's outer rectangle in physical pixels, desktop coordinates.
 pub type Rect = (PhysicalPosition<i32>, PhysicalSize<u32>);
+
+/// The local time's offset from UTC at `time`, in seconds east of UTC (screenshot FR-005: file
+/// names in local time); 0 when the system cannot tell.
+pub fn utc_offset(time: std::time::SystemTime) -> i32 {
+    os::utc_offset(time)
+}
 
 /// A raw timestamp for the present log (FR-023, research R8): `QueryPerformanceCounter` on
 /// Windows, so the lines match PresentMon's `--qpc_time` columns; `CLOCK_MONOTONIC` in

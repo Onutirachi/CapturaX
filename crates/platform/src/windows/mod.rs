@@ -22,6 +22,7 @@ use winit::window::{Window, WindowAttributes};
 pub mod audio;
 pub mod autostart;
 mod dpi_rect;
+pub mod files;
 pub mod instance;
 pub mod notify;
 pub mod privacy;
@@ -45,6 +46,33 @@ fn hwnd(window: &Window) -> Option<HWND> {
         return None;
     };
     Some(handle.hwnd.get() as HWND)
+}
+
+/// `FileTimeToLocalFileTime`: the offset in force now, which is what a screenshot's time (taken
+/// a moment ago) needs.
+pub fn utc_offset(time: std::time::SystemTime) -> i32 {
+    use windows_sys::Win32::Foundation::FILETIME;
+    use windows_sys::Win32::Storage::FileSystem::FileTimeToLocalFileTime;
+    // 100 ns intervals from 1601-01-01 to 1970-01-01.
+    const UNIX_TO_FILETIME: u64 = 116_444_736_000_000_000;
+    let Ok(since) = time.duration_since(std::time::UNIX_EPOCH) else {
+        return 0;
+    };
+    let ticks = UNIX_TO_FILETIME + (since.as_secs() * 10_000_000);
+    let utc = FILETIME {
+        dwLowDateTime: ticks as u32,
+        dwHighDateTime: (ticks >> 32) as u32,
+    };
+    let mut local = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    // SAFETY: both structures are valid for the call, which only reads `utc` and writes `local`.
+    if unsafe { FileTimeToLocalFileTime(&utc, &mut local) } == 0 {
+        return 0;
+    }
+    let local = (u64::from(local.dwHighDateTime) << 32) | u64::from(local.dwLowDateTime);
+    ((local as i64 - ticks as i64) / 10_000_000) as i32
 }
 
 pub fn app_folder() -> Option<PathBuf> {
