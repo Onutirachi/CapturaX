@@ -84,7 +84,22 @@ struct State {
     received: u32,
     replaced: u32,
     moves: u32,
+    /// Screenshots waiting for a frame, oldest first (research R1).
+    stills: VecDeque<Still>,
+    /// When the latest screenshot flash started (FR-010a).
+    flash_at: Option<Instant>,
 }
+
+/// A screenshot waiting for a frame (see [`Inbox::request_still`]).
+#[derive(Debug)]
+struct Still {
+    serial: u64,
+    asked: Instant,
+    reply: Sender<Option<Frame>>,
+}
+
+/// How long a screenshot waits for a frame before it is answered with none (research R1).
+const STILL_LIMIT: Duration = Duration::from_millis(500);
 
 /// The source's frame period: the median of the recent arrival intervals, the open mode's rate
 /// before there are any (research R16).
@@ -157,7 +172,17 @@ impl Inbox {
             return;
         }
         state.received += 1;
-        state.pace.arrived(Instant::now());
+        let now = Instant::now();
+        state.pace.arrived(now);
+        // Not on screen: no frame is presented, so the arriving one answers a waiting screenshot.
+        let frame = if state.on_screen() {
+            Some(frame)
+        } else {
+            state.answer_still(frame, now)
+        };
+        let Some(frame) = frame else {
+            return;
+        };
         if state.frame.replace(frame).is_some() {
             state.replaced += 1;
         }
@@ -172,6 +197,9 @@ impl Inbox {
         state.pace = feed.map(|feed| Pace::new(feed.fps)).unwrap_or_default();
         state.gpu_performance = feed.is_some_and(|feed| feed.gpu_performance);
         let session = feed.map(|feed| feed.session);
+        if state.session != session {
+            state.drop_stills();
+        }
         state.session = session;
         if state.frame.as_ref().is_some_and(|f| Some(f.session) != session) {
             state.frame = None;
@@ -188,7 +216,27 @@ impl Inbox {
         state.frame = None;
         state.clear_video = true;
         state.changed = true;
+        state.drop_stills();
         drop(state);
+        self.wake.notify_one();
+    }
+
+    /// From the main thread: screenshot `serial` wants the next frame presented, or the next one
+    /// that arrives while the window is not on screen (research R1). `reply` gets it, or `None`
+    /// when no frame comes within [`STILL_LIMIT`] or the source closes first. One frame answers one
+    /// screenshot, in the order asked.
+    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring calls it (T019)"))]
+    pub fn request_still(&self, serial: u64, reply: Sender<Option<Frame>>) {
+        let mut state = self.lock();
+        let now = Instant::now();
+        state.expire_stills(now);
+        state.stills.push_back(Still {
+            serial,
+            asked: now,
+            reply,
+        });
+        drop(state);
+        // The video thread wakes for the request's limit.
         self.wake.notify_one();
     }
 
@@ -243,8 +291,10 @@ impl Inbox {
         let mut state = self.lock();
         let frame = state.frame.take();
         let pace = std::mem::take(&mut state.pace);
+        let stills = std::mem::take(&mut state.stills);
         *state = State {
             frame,
+            stills,
             session: state.session,
             gpu_performance: state.gpu_performance,
             pace,
@@ -451,6 +501,60 @@ impl State {
     fn follows(&self) -> bool {
         self.follow && self.shown && !self.stalled
     }
+
+    /// Frames are presented and seen: the window is neither hidden in the tray nor minimized.
+    fn on_screen(&self) -> bool {
+        self.shown && !self.hidden
+    }
+
+    /// Hands `frame` to the oldest screenshot still waiting, flashing when the window is on screen;
+    /// gives it back when none waits.
+    fn answer_still(&mut self, frame: Frame, now: Instant) -> Option<Frame> {
+        self.expire_stills(now);
+        let mut frame = frame;
+        while let Some(still) = self.stills.pop_front() {
+            match still.reply.send(Some(frame)) {
+                Ok(()) => {
+                    if self.on_screen() {
+                        self.flash_at = Some(now);
+                    }
+                    return None;
+                }
+                // The asker is gone: the next one gets it.
+                Err(mpsc::SendError(back)) => frame = back.expect("sent a frame"),
+            }
+        }
+        Some(frame)
+    }
+
+    /// Answers with none the screenshots that waited [`STILL_LIMIT`].
+    fn expire_stills(&mut self, now: Instant) {
+        while self
+            .stills
+            .front()
+            .is_some_and(|still| now.saturating_duration_since(still.asked) >= STILL_LIMIT)
+        {
+            let still = self.stills.pop_front().expect("checked");
+            log::warn!(
+                "screenshot {}: no frame within {} ms",
+                still.serial,
+                STILL_LIMIT.as_millis()
+            );
+            let _ = still.reply.send(None);
+        }
+    }
+
+    /// Answers every waiting screenshot with none: the source closed or changed.
+    fn drop_stills(&mut self) {
+        for still in self.stills.drain(..) {
+            let _ = still.reply.send(None);
+        }
+    }
+
+    /// When the oldest waiting screenshot runs out of time.
+    fn still_deadline(&self) -> Option<Instant> {
+        self.stills.front().map(|still| still.asked + STILL_LIMIT)
+    }
 }
 
 /// A Follow the monitor acquire longer than this means the compositor is not taking the window's
@@ -552,6 +656,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                 } else {
                     None
                 };
+                state.expire_stills(now);
                 if state.hold.is_some_and(|hold| now >= hold.until) {
                     log::warn!("no new size within {} ms of a window change", HOLD_LIMIT.as_millis());
                     state.hold = None;
@@ -579,6 +684,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                     deadline.filter(|_| !held),
                     state.hold.map(|hold| hold.until),
                     next_step.filter(|_| !fade_due && !held),
+                    state.still_deadline(),
                 ]
                 .into_iter()
                 .flatten()
@@ -656,7 +762,12 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         }
         let times = frame.map(|frame| {
             gpu.set_video(&frame);
-            (frame.captured, frame.ready)
+            let times = (frame.captured, frame.ready);
+            // Uploaded: a waiting screenshot takes the frame instead of it going back to the pool
+            // (outside the lock when none waits).
+            let unused = inbox.lock().answer_still(frame, now);
+            drop(unused);
+            times
         });
         let opacity = fade.map_or(1.0, |f| f.opacity(now));
         if let Some(done) = fade.filter(|f| f.done(now)) {
@@ -976,6 +1087,127 @@ mod tests {
         inbox.set_session(Some(feed(2, 60.0)));
         inbox.set_session(None);
         assert!(!inbox.lock().wants_performance());
+    }
+
+    /// An inbox with session 1 open and the window on screen.
+    fn shown_inbox() -> Inbox {
+        let inbox = Inbox::default();
+        inbox.set_session(Some(feed(1, 30.0)));
+        inbox.set_shown(true);
+        inbox
+    }
+
+    /// A frame of session 1 told apart by its capture time.
+    fn frame_at(captured: Instant) -> Frame {
+        let mut frame = frame(1);
+        frame.captured = captured;
+        frame
+    }
+
+    #[test]
+    fn screenshots_take_presented_frames_in_order_one_each() {
+        let inbox = shown_inbox();
+        let (first, first_got) = mpsc::channel();
+        let (second, second_got) = mpsc::channel();
+        inbox.request_still(1, first);
+        inbox.request_still(2, second);
+        let now = Instant::now();
+        let (a, b) = (now, now + Duration::from_millis(1));
+        // The video thread hands over each frame after its upload.
+        assert!(inbox.lock().answer_still(frame_at(a), now).is_none());
+        assert_eq!(inbox.lock().flash_at, Some(now));
+        assert!(inbox.lock().answer_still(frame_at(b), now).is_none());
+        assert_eq!(first_got.try_recv().unwrap().unwrap().captured, a);
+        assert_eq!(second_got.try_recv().unwrap().unwrap().captured, b);
+        assert!(first_got.try_recv().is_err() && second_got.try_recv().is_err());
+        // None waits: the frame goes back to the pool as before.
+        assert!(inbox.lock().answer_still(frame_at(a), now).is_some());
+        // While on screen, arriving frames wait for the video thread.
+        let (third, third_got) = mpsc::channel();
+        inbox.request_still(3, third);
+        inbox.send_frame(frame(1));
+        assert!(inbox.lock().frame.is_some() && third_got.try_recv().is_err());
+    }
+
+    #[test]
+    fn an_asker_gone_passes_the_frame_to_the_next() {
+        let inbox = shown_inbox();
+        let (gone, _) = mpsc::channel();
+        let (next, next_got) = mpsc::channel();
+        inbox.request_still(1, gone);
+        inbox.request_still(2, next);
+        assert!(inbox.lock().answer_still(frame(1), Instant::now()).is_none());
+        assert!(next_got.try_recv().unwrap().is_some());
+    }
+
+    #[test]
+    fn off_screen_the_arriving_frame_answers_without_a_flash() {
+        let inbox = Inbox::default();
+        inbox.set_session(Some(feed(1, 30.0)));
+        // Minimized (never told shown), then hidden in the tray.
+        for hide in [false, true] {
+            if hide {
+                inbox.set_shown(true);
+                inbox.lock().hidden = true;
+            }
+            let (reply, got) = mpsc::channel();
+            inbox.request_still(1, reply);
+            inbox.send_frame(frame(1));
+            assert!(got.try_recv().unwrap().is_some());
+            assert!(inbox.lock().frame.is_none(), "taken, not kept for a present");
+            assert_eq!(inbox.lock().flash_at, None);
+        }
+        // With none waiting the frame is kept as before.
+        inbox.send_frame(frame(1));
+        assert!(inbox.lock().frame.is_some());
+    }
+
+    #[test]
+    fn a_screenshot_with_no_frame_in_500_ms_gets_none() {
+        let inbox = shown_inbox();
+        let (old, old_got) = mpsc::channel();
+        let (new, new_got) = mpsc::channel();
+        inbox.request_still(1, old);
+        let asked = inbox.lock().stills[0].asked;
+        assert_eq!(inbox.lock().still_deadline(), Some(asked + STILL_LIMIT));
+        inbox.request_still(2, new);
+        inbox.lock().stills[1].asked = asked + Duration::from_millis(100);
+        inbox
+            .lock()
+            .expire_stills(asked + STILL_LIMIT - Duration::from_millis(1));
+        assert!(old_got.try_recv().is_err());
+        // The first runs out; a frame then goes to the second.
+        let at = asked + STILL_LIMIT;
+        assert!(inbox.lock().answer_still(frame(1), at).is_none());
+        assert!(old_got.try_recv().unwrap().is_none());
+        assert!(new_got.try_recv().unwrap().is_some());
+        assert_eq!(inbox.lock().still_deadline(), None);
+    }
+
+    #[test]
+    fn a_closed_or_changed_source_answers_every_screenshot_with_none() {
+        let inbox = shown_inbox();
+        let ask = |serial| {
+            let (reply, got) = mpsc::channel();
+            inbox.request_still(serial, reply);
+            got
+        };
+        let got = [ask(1), ask(2)];
+        inbox.clear_video();
+        for got in &got {
+            assert!(got.try_recv().unwrap().is_none());
+        }
+        let got = ask(3);
+        // The same session told again keeps it; another one answers it.
+        inbox.set_session(Some(feed(1, 30.0)));
+        assert!(got.try_recv().is_err());
+        inbox.set_session(Some(feed(2, 30.0)));
+        assert!(got.try_recv().unwrap().is_none());
+        // A new video thread keeps the waiting ones.
+        let got = ask(4);
+        inbox.begin();
+        assert_eq!(inbox.lock().stills.len(), 1);
+        drop(got);
     }
 
     #[test]
