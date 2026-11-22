@@ -1,8 +1,131 @@
-//! Global hotkeys (spec 20261121-134830-screenshot, contracts/platform.md "Hotkeys"). This part
-//! is pure: the key value, its text form and its codes on each system (data-model.md "Hotkey",
-//! research R14).
+//! Global hotkeys (spec 20261121-134830-screenshot, contracts/platform.md "Hotkeys"): the key
+//! value, its text form and its codes on each system (data-model.md "Hotkey", research R14), all
+//! pure, and [`Hotkeys`], the `hotkeys` thread that takes the keys from the system (Windows
+//! `RegisterHotKey`, research R6; Linux X11 `GrabKey`, R9).
 
 use std::fmt;
+use std::sync::Arc;
+
+use crate::os;
+
+/// What the `hotkeys` thread reports.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HotkeyEvent {
+    /// The action's key was pressed; once per press, however long it is held.
+    Pressed(String),
+    /// The key the system uses for the action, as text to show (`Ctrl+F8`; on Wayland the
+    /// desktop's own description). None: the system bound no key for it (none set, or refused).
+    Bound { action: String, shown: Option<String> },
+    /// Global keys cannot work here (Wayland without the portal): the app matches key events in
+    /// its window (research R8).
+    WindowOnly,
+}
+
+/// One action's binding: its name (`screenshot`), its key (None: no key) and its description for
+/// the desktop's shortcut list (`Screenshot`).
+pub type Binding = (String, Option<Hotkey>, String);
+
+/// The event callback the `hotkeys` thread calls.
+pub(crate) type OnHotkeyEvent = Arc<dyn Fn(HotkeyEvent) + Send + Sync>;
+
+/// The running `hotkeys` thread; every key is released and the thread ends when it drops.
+pub struct Hotkeys {
+    os: os::hotkeys::Hotkeys,
+}
+
+impl Hotkeys {
+    /// Starts the thread with no key; events come through `on_event` from that thread (on Linux
+    /// without global keys, [`HotkeyEvent::WindowOnly`] comes from this call).
+    pub fn start(on_event: impl Fn(HotkeyEvent) + Send + Sync + 'static) -> Hotkeys {
+        Hotkeys {
+            os: os::hotkeys::Hotkeys::start(Arc::new(on_event)),
+        }
+    }
+
+    /// The keys wanted now, per action. Replaces the previous set and returns at once; each
+    /// action is reported as [`HotkeyEvent::Bound`]. A key the system refuses is logged once.
+    pub fn set(&self, bindings: Vec<Binding>) {
+        self.os.set(bindings);
+    }
+
+    /// Releases every key while the user records a new one (FR-017); `false` takes them again.
+    pub fn suspend(&self, suspended: bool) {
+        self.os.suspend(suspended);
+    }
+
+    /// Opens the desktop's shortcut dialog where the system offers one (Wayland portal); false
+    /// otherwise.
+    pub fn configure(&self) -> bool {
+        self.os.configure()
+    }
+
+    /// True when keys are changed in the desktop, not in the app (Wayland portal).
+    pub fn changed_by_desktop(&self) -> bool {
+        self.os.changed_by_desktop()
+    }
+}
+
+/// What the `hotkeys` thread is asked to do.
+#[derive(Debug)]
+pub(crate) enum Command {
+    Set(Vec<Binding>),
+    Suspend(bool),
+}
+
+/// The bindings and the suspend flag the `hotkeys` thread keeps, with the keys already refused
+/// (logged once each). Shared by the Windows and X11 threads.
+#[derive(Default)]
+pub(crate) struct Wanted {
+    pub bindings: Vec<Binding>,
+    pub suspended: bool,
+    refused: std::collections::HashSet<Hotkey>,
+}
+
+impl Wanted {
+    /// Applies a command; true when the keys held must change.
+    pub fn apply(&mut self, command: Command) -> bool {
+        match command {
+            Command::Set(bindings) => {
+                self.bindings = bindings;
+                true
+            }
+            Command::Suspend(suspended) => std::mem::replace(&mut self.suspended, suspended) != suspended,
+        }
+    }
+
+    /// The keys to take now: the bindings that have one, unless suspended.
+    pub fn active(&self) -> impl Iterator<Item = (usize, &str, Hotkey)> {
+        self.bindings
+            .iter()
+            .enumerate()
+            .filter(|_| !self.suspended)
+            .filter_map(|(index, (action, key, _))| key.map(|key| (index, action.as_str(), key)))
+    }
+
+    /// Logs a refused key the first time it is refused (FR-019).
+    pub fn refused(&mut self, key: Hotkey, why: &str) {
+        if self.refused.insert(key) {
+            log::warn!("hotkeys: {key} refused by the system: {why}");
+        }
+    }
+
+    /// Reports every action's key as bound now (`taken[index]`), shown with the platform's
+    /// names. Nothing is reported while suspended: the keys come back after the recording.
+    pub fn report(&self, taken: &[bool], on_event: &OnHotkeyEvent) {
+        if self.suspended {
+            return;
+        }
+        for (index, (action, key, _)) in self.bindings.iter().enumerate() {
+            let shown = key
+                .filter(|_| taken.get(index).copied().unwrap_or(false))
+                .map(|key| key.shown(cfg!(windows)));
+            on_event(HotkeyEvent::Bound {
+                action: action.clone(),
+                shown,
+            });
+        }
+    }
+}
 
 /// A modifier key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -444,6 +567,74 @@ mod tests {
         assert_eq!(key("Ctrl+F8").modifiers.x11_mask(), 0x4);
         assert_eq!(key("Shift+Alt+Super+F8").modifiers.x11_mask(), 0x1 | 0x8 | 0x40);
         assert!(all_keys().iter().all(|k| k.x11_keysym() != 0));
+    }
+
+    fn binding(action: &str, text: Option<&str>) -> Binding {
+        (action.into(), text.map(key), action.into())
+    }
+
+    fn collect() -> (OnHotkeyEvent, Arc<std::sync::Mutex<Vec<HotkeyEvent>>>) {
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        (Arc::new(move |e| sink.lock().unwrap().push(e)), events)
+    }
+
+    #[test]
+    fn wanted_takes_the_set_keys_unless_suspended() {
+        let mut wanted = Wanted::default();
+        assert!(wanted.apply(Command::Set(vec![
+            binding("screenshot", Some("Ctrl+F8")),
+            binding("record", None),
+            binding("live", Some("Ctrl+F9")),
+        ])));
+        let active: Vec<_> = wanted.active().map(|(i, a, k)| (i, a.to_owned(), k)).collect();
+        assert_eq!(
+            active,
+            [
+                (0, "screenshot".into(), key("Ctrl+F8")),
+                (2, "live".into(), key("Ctrl+F9"))
+            ]
+        );
+        assert!(wanted.apply(Command::Suspend(true)));
+        assert!(!wanted.apply(Command::Suspend(true)), "no change");
+        assert_eq!(wanted.active().count(), 0);
+        assert!(wanted.apply(Command::Suspend(false)));
+        assert_eq!(wanted.active().count(), 2);
+    }
+
+    #[test]
+    fn wanted_reports_each_action_and_nothing_while_suspended() {
+        let mut wanted = Wanted::default();
+        wanted.apply(Command::Set(vec![
+            binding("screenshot", Some("Ctrl+Super+F8")),
+            binding("record", None),
+            binding("live", Some("Ctrl+F9")),
+        ]));
+        let (on_event, events) = collect();
+        // The third key was refused.
+        wanted.report(&[true, false, false], &on_event);
+        let shown = key("Ctrl+Super+F8").shown(cfg!(windows));
+        assert_eq!(
+            *events.lock().unwrap(),
+            [
+                HotkeyEvent::Bound {
+                    action: "screenshot".into(),
+                    shown: Some(shown)
+                },
+                HotkeyEvent::Bound {
+                    action: "record".into(),
+                    shown: None
+                },
+                HotkeyEvent::Bound {
+                    action: "live".into(),
+                    shown: None
+                },
+            ]
+        );
+        events.lock().unwrap().clear();
+        wanted.apply(Command::Suspend(true));
+        wanted.report(&[], &on_event);
+        assert!(events.lock().unwrap().is_empty());
     }
 
     #[test]

@@ -23,6 +23,7 @@ pub mod audio;
 pub mod autostart;
 mod dpi_rect;
 pub mod files;
+pub mod hotkeys;
 pub mod instance;
 pub mod notify;
 pub mod privacy;

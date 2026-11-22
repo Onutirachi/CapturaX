@@ -14,6 +14,7 @@ pub use activation::activate;
 pub mod audio;
 pub mod autostart;
 pub mod files;
+pub mod hotkeys;
 pub mod instance;
 pub mod notify;
 mod nvml;

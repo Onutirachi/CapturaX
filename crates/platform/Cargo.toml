@@ -28,7 +28,8 @@ pipewire.workspace = true
 wayland-client.workspace = true
 wayland-backend.workspace = true
 wayland-protocols.workspace = true
-x11rb.workspace = true
+# XKB for detectable auto-repeat (screenshot research R9); already on through winit
+x11rb = { workspace = true, features = ["xkb"] }
 
 [dev-dependencies]
 # The notify example shows the app icon (brand/X.svg).

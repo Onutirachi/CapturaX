@@ -23,7 +23,7 @@ pub use os::autostart;
 pub mod audio;
 
 pub mod hotkeys;
-pub use hotkeys::{Hotkey, Key, Modifier, Modifiers};
+pub use hotkeys::{Binding, Hotkey, HotkeyEvent, Hotkeys, Key, Modifier, Modifiers};
 
 mod files;
 pub use files::{default_screenshots_folder, open_folder, show_file};
