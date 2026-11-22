@@ -162,14 +162,12 @@ step).
    OK, hand-off OK, outline flash approved. Left for CachyOS: the `files` example (show/open:
    Dolphin or the portal), `utc_offset` (a file name in local time once T014 writes files) and
    **Open** on a C920 notice (never exercised: needs a device that does not open by itself).
-3. Maintainer, Windows, one foreground batch (global key and sound):
-   - `cargo run -p capturax-platform --example hotkeys -- Ctrl+F8 Ctrl+Alt+F9 --suspend-after 15`:
-     press Ctrl+F8 with another app focused and in a fullscreen game (one `Pressed` per press,
-     also when held); between 15 s and 20 s it must print nothing; Ctrl+F8 again afterwards.
-     A second copy started meanwhile must print `Bound { shown: None }` and the refusal once.
-   - `cargo run -p capturax-platform --example audio_session -- --output-only --output <VAIO3 id>`
-     (ids from `--example audio_endpoints`): the tone for 2 s, no event after the input reopen,
-     `Closed`. Also once with no `--output` (default output).
+3. Done on Windows (2026-11-22): `hotkeys` example: both keys bound, nothing during the
+   suspend, one `Pressed` per press with another app focused. `audio_session --output-only` on
+   `Voicemeeter VAIO3 Input` and on the default output: `Opened` (output only, shared, 48 kHz
+   stereo) in 18–19 ms, no event after the input reopen, ~48000 frames/s, `Closed` 3–4 ms after
+   the close; the tone heard on both (maintainer). Not yet seen: a held key giving one `Pressed`,
+   and a second copy getting `Bound { shown: None }` (check with T018 in the app).
    CachyOS: `cargo build` first (the PipeWire change was not compiled on Windows), then the same
    `audio_session --output-only`, and `hotkeys` in an X11 session if one is installed (on Wayland
    it prints `WindowOnly` until T017).
