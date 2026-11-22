@@ -15,6 +15,10 @@ pub const DEVICES_LIMIT: usize = 32;
 pub const AUDIO_DEVICES_LIMIT: usize = 32;
 /// The preview's volume when none is stored or it is not a number (preview audio FR-012).
 pub const DEFAULT_VOLUME: u8 = 80;
+/// `[screenshot] folder` for the system's Pictures folder plus `CapturaX` (screenshot FR-020).
+pub const DEFAULT_FOLDER: &str = "default";
+/// The screenshot key when none is stored (screenshot FR-012).
+pub const DEFAULT_SCREENSHOT_KEY: &str = "Ctrl+Shift+F8";
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Settings {
@@ -27,6 +31,39 @@ pub struct Settings {
     pub audio: Audio,
     /// Audio endpoint flags per endpoint id, most recently used first.
     pub audio_devices: Vec<(String, AudioDevice)>,
+    pub screenshot: Screenshot,
+    pub hotkeys: Hotkeys,
+}
+
+/// The `[screenshot]` table (screenshot contracts/settings-file.md).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Screenshot {
+    /// [`DEFAULT_FOLDER`] or an absolute path; anything else reads as the default (rule 1).
+    pub folder: String,
+}
+
+impl Default for Screenshot {
+    fn default() -> Self {
+        Self {
+            folder: DEFAULT_FOLDER.into(),
+        }
+    }
+}
+
+/// The `[hotkeys]` table (screenshot contracts/settings-file.md): each action's key as text, read
+/// by the app (`Hotkey::parse`), which also checks that it is valid and allowed and that no two
+/// actions share a key (rules 2 and 3). `""` is no key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Hotkeys {
+    pub screenshot: String,
+}
+
+impl Default for Hotkeys {
+    fn default() -> Self {
+        Self {
+            screenshot: DEFAULT_SCREENSHOT_KEY.into(),
+        }
+    }
 }
 
 /// The `[audio]` table (preview audio data-model.md "Output choice", "Volume").
@@ -341,6 +378,8 @@ impl Settings {
         let preview = table.get("preview").and_then(Value::as_table);
         let overlay = table.get("overlay").and_then(Value::as_table);
         let audio = table.get("audio").and_then(Value::as_table);
+        let screenshot = table.get("screenshot").and_then(Value::as_table);
+        let hotkeys = table.get("hotkeys").and_then(Value::as_table);
         fn get<'a>(t: Option<&'a Table>, key: &str) -> Option<&'a Value> {
             t.and_then(|t| t.get(key))
         }
@@ -419,6 +458,14 @@ impl Settings {
                 muted: flag(audio, "muted", defaults.audio.muted),
             },
             audio_devices: read_audio_devices(table.get("audio_devices").and_then(Value::as_table)),
+            screenshot: Screenshot {
+                folder: read_folder(get(screenshot, "folder")),
+            },
+            hotkeys: Hotkeys {
+                screenshot: get(hotkeys, "screenshot")
+                    .and_then(Value::as_str)
+                    .map_or(defaults.hotkeys.screenshot, str::to_string),
+            },
         }
     }
 
@@ -529,6 +576,25 @@ impl Settings {
             audio_devices.insert(id.clone(), Value::Table(entry));
         }
         table.insert("audio_devices".into(), Value::Table(audio_devices));
+
+        let screenshot = category(table, "screenshot");
+        screenshot.insert("folder".into(), Value::String(self.screenshot.folder.clone()));
+        let hotkeys = category(table, "hotkeys");
+        hotkeys.insert("screenshot".into(), Value::String(self.hotkeys.screenshot.clone()));
+    }
+}
+
+/// `[screenshot] folder`: [`DEFAULT_FOLDER`] or an absolute path; a missing, empty, relative or
+/// non-text value reads as the default (rule 1, logged when present).
+fn read_folder(value: Option<&Value>) -> String {
+    match value {
+        None => DEFAULT_FOLDER.into(),
+        Some(Value::String(text)) if text == DEFAULT_FOLDER => DEFAULT_FOLDER.into(),
+        Some(Value::String(text)) if std::path::Path::new(text).is_absolute() => text.clone(),
+        Some(other) => {
+            log::warn!("screenshot folder {other} is not an absolute path; using the default");
+            DEFAULT_FOLDER.into()
+        }
     }
 }
 
@@ -1188,6 +1254,64 @@ mod tests {
         let written: Table = text.parse().unwrap();
         assert_eq!(written["audio"]["later"].as_integer(), Some(1));
         assert_eq!(written["audio_devices"][EZCAP_INPUT]["future"].as_str(), Some("kept"));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+    }
+
+    #[test]
+    fn screenshot_and_hotkeys_defaults() {
+        let s = read("");
+        assert_eq!(s.screenshot.folder, "default");
+        assert_eq!(s.hotkeys.screenshot, "Ctrl+Shift+F8");
+        let mut table = Table::new();
+        s.write_into(&mut table);
+        assert_eq!(table["screenshot"]["folder"].as_str(), Some("default"));
+        assert_eq!(table["hotkeys"]["screenshot"].as_str(), Some("Ctrl+Shift+F8"));
+    }
+
+    #[test]
+    fn screenshot_folder_rule() {
+        let folder = |value: &str| read(&format!("[screenshot]\nfolder = {value}")).screenshot.folder;
+        // Absolute on every system.
+        let absolute = std::env::temp_dir().join("Shots").display().to_string();
+        assert_eq!(folder(&format!("'{absolute}'")), absolute);
+        assert_eq!(folder("\"default\""), "default");
+        // Empty, relative or not text: the default (rule 1).
+        assert_eq!(folder("\"\""), "default");
+        assert_eq!(folder("\"Shots\""), "default");
+        assert_eq!(folder("\"./Shots\""), "default");
+        assert_eq!(folder("42"), "default");
+        assert_eq!(folder("[\"/a\"]"), "default");
+        // Not a table: the default.
+        assert_eq!(read("screenshot = 3").screenshot.folder, "default");
+    }
+
+    #[test]
+    fn hotkey_text_is_kept_for_the_app() {
+        let key = |value: &str| read(&format!("[hotkeys]\nscreenshot = {value}")).hotkeys.screenshot;
+        assert_eq!(key("\"Ctrl+Shift+F9\""), "Ctrl+Shift+F9");
+        // Cleared: kept as no key (rule 2).
+        assert_eq!(key("\"\""), "");
+        // Invalid text is kept; the app checks it and uses the default.
+        assert_eq!(key("\"Ctrl+Nope\""), "Ctrl+Nope");
+        // Not text: the default.
+        assert_eq!(key("8"), "Ctrl+Shift+F8");
+        assert_eq!(
+            read("[hotkeys]\nrecord = \"Ctrl+F10\"").hotkeys.screenshot,
+            "Ctrl+Shift+F8"
+        );
+    }
+
+    #[test]
+    fn screenshot_and_hotkeys_round_trip_with_unknown_keys() {
+        let mut s = Settings::default();
+        s.screenshot.folder = std::env::temp_dir().join("Games").display().to_string();
+        s.hotkeys.screenshot = String::new();
+        let mut table = parse("[hotkeys]\nrecord = \"Ctrl+F10\"\n[screenshot]\nformat = \"png\"");
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        assert_eq!(written["hotkeys"]["record"].as_str(), Some("Ctrl+F10"));
+        assert_eq!(written["hotkeys"]["screenshot"].as_str(), Some(""));
+        assert_eq!(written["screenshot"]["format"].as_str(), Some("png"));
         assert_eq!(Settings::read(&written, LANGUAGES), s);
     }
 }
