@@ -95,6 +95,8 @@ pub enum UserEvent {
         asked: Instant,
         frame: Option<Arc<crate::render::Frame>>,
     },
+    /// The `hotkeys` thread's events (screenshot FR-012).
+    Hotkey(platform::HotkeyEvent),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
@@ -214,6 +216,8 @@ pub struct App {
     screenshots: crate::screenshot::Screenshots,
     /// The next `--screenshot-every` screenshot.
     screenshot_at: Option<Instant>,
+    /// The hotkeys, started once the window exists (screenshot T018).
+    hotkeys: Option<crate::hotkeys::AppHotkeys>,
     /// The next 3 s re-read while the preview waits for a device.
     relist_at: Instant,
     /// When microphone access is read next while the audio input is Blocked.
@@ -398,6 +402,7 @@ impl App {
             tick_at: Instant::now(),
             screenshots: Default::default(),
             screenshot_at,
+            hotkeys: None,
             tick_wall: None,
             relist_at: Instant::now(),
             audio_access_at: Instant::now(),
@@ -884,13 +889,38 @@ impl App {
         }
     }
 
-    /// A screenshot is asked for (screenshot FR-001; for now only by `--screenshot-every`): the
+    /// Starts the hotkeys with the settings' keys (screenshot T018): after the window exists, and
+    /// also when the app starts hidden in the tray (FR-015).
+    fn start_hotkeys(&mut self) {
+        let proxy = self.proxy.clone();
+        let texts = Texts::get(&self.ui.app);
+        self.hotkeys = Some(crate::hotkeys::AppHotkeys::start(
+            &self.store.get().hotkeys,
+            |action| hotkey_description(&texts, action),
+            move |event| {
+                let _ = proxy.send_event(UserEvent::Hotkey(event));
+            },
+        ));
+    }
+
+    /// Runs a hotkey's action.
+    fn hotkey_action(&mut self, action: &str) {
+        log::info!("hotkeys: {action} pressed");
+        if action == crate::hotkeys::SCREENSHOT {
+            self.request_screenshot();
+        }
+    }
+
+    /// A screenshot is asked for (screenshot FR-001; by the hotkey and `--screenshot-every`): the
     /// video thread hands over the next frame it presents, which a short-lived thread passes back
     /// to the event loop.
     fn request_screenshot(&mut self) {
-        let shows_image = self.test_video.is_some() || self.preview.state() == PreviewState::Playing;
+        // Hidden to the tray the device is closed, though the state still reads Playing.
+        let shows_image =
+            !self.preview.hidden() && (self.test_video.is_some() || self.preview.state() == PreviewState::Playing);
         match self.screenshots.request(shows_image) {
-            Err(notice) => self.event_notice(notice),
+            // No sound and no notice: the missing click tells it (FR-008).
+            Err(refused) => log::info!("screenshot: not taken ({refused:?})"),
             Ok(crate::screenshot::Command::Take(serial)) => {
                 let (reply, answer) = std::sync::mpsc::channel();
                 let asked = Instant::now();
@@ -904,8 +934,7 @@ impl App {
                     });
                 if let Err(err) = spawned {
                     log::warn!("screenshot {serial}: cannot wait for its frame: {err}");
-                    let notice = self.screenshots.not_taken(serial);
-                    self.event_notice(notice);
+                    self.screenshots.not_taken(serial);
                 }
             }
             Ok(command) => log::warn!("screenshot: unexpected {command:?}"),
@@ -916,8 +945,7 @@ impl App {
     fn still(&mut self, serial: u64, asked: Instant, frame: Option<Arc<crate::render::Frame>>) {
         let Some(frame) = frame else {
             log::info!("screenshot {serial}: no frame");
-            let notice = self.screenshots.not_taken(serial);
-            self.event_notice(notice);
+            self.screenshots.not_taken(serial);
             return;
         };
         log::info!(
@@ -931,7 +959,7 @@ impl App {
         // The worker that writes and copies it comes next (screenshot T014, T019); until then the
         // frame goes back to the pool and the screenshot ends here, with no notice.
         drop(frame);
-        let _ = self.screenshots.not_taken(serial);
+        self.screenshots.not_taken(serial);
     }
 
     /// Shows the preview's state in the video area, in the current language.
@@ -1190,6 +1218,10 @@ impl App {
             window.set_title(Texts::get(&self.ui.app).get_app_name().as_str());
         }
         set_language_items(&self.ui);
+        if let Some(hotkeys) = &self.hotkeys {
+            let texts = Texts::get(&self.ui.app);
+            hotkeys.register(|action| hotkey_description(&texts, action));
+        }
         // The menus' named texts are read again from the new catalog.
         self.reset_menus();
         self.show_notice();
@@ -1758,6 +1790,14 @@ fn set_notification_position(ui: &Ui, position: settings::NotificationPosition) 
 
 /// The settings panel's Language entries (FR-024): Automatic in the interface's language, then
 /// each language's name in itself. Set again after a language switch.
+/// A hotkey action's name in the current language, for the desktop's shortcut list.
+fn hotkey_description(texts: &Texts<'_>, action: &str) -> String {
+    match action {
+        crate::hotkeys::SCREENSHOT => texts.get_hotkey_screenshot().into(),
+        other => other.to_string(),
+    }
+}
+
 fn set_language_items(ui: &Ui) {
     let automatic = Texts::get(&ui.app).get_automatic();
     let items: Vec<MenuItem> = std::iter::once(automatic)
@@ -1845,6 +1885,7 @@ impl ApplicationHandler<UserEvent> for App {
             self.ui.app.set_preview_state("playing".into());
         }
         self.window = Some(window.clone());
+        self.start_hotkeys();
         self.sync_tray();
         // Started by the system with Keep in tray on: only the tray icon, whatever Start in
         // fullscreen says (FR-014b). Without a tray the window opens as usual.
@@ -1977,6 +2018,11 @@ impl ApplicationHandler<UserEvent> for App {
                 self.audio_menus = None;
                 self.show_audio();
             }
+            UserEvent::Hotkey(event) => {
+                if let Some(action) = self.hotkeys.as_mut().and_then(|h| h.event(event)) {
+                    self.hotkey_action(action);
+                }
+            }
             // The level moves and the sound plays again, as with the slider.
             UserEvent::VolumeWheel(delta) => {
                 let notches = self.volume_wheel.notches(delta);
@@ -2097,6 +2143,20 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::RedrawRequested => {
                 if Instant::now() >= self.last_ui + self.refresh {
                     self.update_ui();
+                }
+            }
+            // Only where global keys do not work (research R8); the key does not reach Slint.
+            WindowEvent::KeyboardInput { ref event, .. }
+                if let Some(action) = self.hotkeys.as_ref().and_then(|h| h.window_key(event)) =>
+            {
+                self.hotkey_action(action);
+            }
+            WindowEvent::ModifiersChanged(ref modifiers) => {
+                if let Some(hotkeys) = &mut self.hotkeys {
+                    hotkeys.set_modifiers(modifiers.state());
+                }
+                if self.ui.window_event(&event) {
+                    self.request_redraw();
                 }
             }
             WindowEvent::KeyboardInput { ref event, .. }

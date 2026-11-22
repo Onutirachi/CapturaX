@@ -398,11 +398,8 @@ msgstr "Não foi possível salvar a captura de tela: {}. Copiada para a área de
 msgid "Couldn't take the screenshot: {}"
 msgstr "Não foi possível fazer a captura de tela: {}"
 
-msgid "Nothing to capture"
-msgstr "Nada para capturar"
-
-msgid "Too many screenshots at once"
-msgstr "Muitas capturas de tela ao mesmo tempo"
+msgid "Screenshot"
+msgstr "Captura de tela"
 
 msgid "folder not found"
 msgstr "pasta não encontrada"

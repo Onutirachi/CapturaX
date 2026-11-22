@@ -122,10 +122,6 @@ pub enum EventNotice {
     CopiedNotSaved(Reason),
     #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     Failed(Reason),
-    /// No image to capture.
-    Nothing,
-    /// Too many screenshots waiting.
-    Busy,
 }
 
 /// Why a screenshot was not saved or not taken, in a few words (data-model.md "Outcome").
@@ -153,8 +149,6 @@ impl EventNotice {
             Self::SavedNotCopied(_) => "saved-not-copied",
             Self::CopiedNotSaved(_) => "copied-not-saved",
             Self::Failed(_) => "failed",
-            Self::Nothing => "nothing",
-            Self::Busy => "busy",
         }
     }
 
@@ -174,8 +168,6 @@ impl EventNotice {
             Self::SavedNotCopied(_) => texts.get_notice_screenshot_saved_not_copied(),
             Self::CopiedNotSaved(reason) => texts.invoke_notice_screenshot_copied_not_saved(reason.text(texts)),
             Self::Failed(reason) => texts.invoke_notice_screenshot_failed(reason.text(texts)),
-            Self::Nothing => texts.get_notice_screenshot_nothing(),
-            Self::Busy => texts.get_notice_screenshot_busy(),
         }
     }
 
@@ -185,7 +177,7 @@ impl EventNotice {
             Self::Device { device, open, .. } => open.then(|| NoticeAction::Open(device.clone())),
             Self::Saved(path) | Self::SavedNotCopied(path) => Some(NoticeAction::Show(path.clone())),
             Self::CopiedNotSaved(_) => Some(NoticeAction::Settings),
-            Self::Failed(_) | Self::Nothing | Self::Busy => None,
+            Self::Failed(_) => None,
         }
     }
 }
@@ -277,8 +269,6 @@ mod tests {
                 Some(NoticeAction::Settings),
             ),
             (EventNotice::Failed(Reason::ImageError), "failed", None),
-            (EventNotice::Nothing, "nothing", None),
-            (EventNotice::Busy, "busy", None),
         ];
         for (notice, kind, action) in cases {
             assert_eq!(notice.kind(), kind);

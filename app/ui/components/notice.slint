@@ -138,7 +138,7 @@ export component SettingsNotice inherits Rectangle {
 // The owner places it (main.slint) and gives it the room it may take.
 export component EventNotice inherits Rectangle {
     // Devices: `connected`, `reconnected`, `disconnected`. Screenshots: `saved`,
-    // `saved-not-copied`, `copied-not-saved`, `failed`, `nothing`, `busy`.
+    // `saved-not-copied`, `copied-not-saved`, `failed`.
     in property <string> kind;
     in property <string> text;
     // The action button's label; empty for none.

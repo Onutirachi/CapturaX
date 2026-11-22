@@ -273,6 +273,11 @@ impl Preview {
         self.state.clone().unwrap_or(PreviewState::NoSource)
     }
 
+    /// The window is hidden to the tray: no device is open, whatever the state says.
+    pub fn hidden(&self) -> bool {
+        self.hidden
+    }
+
     /// The current session number, if a device is open or opening; frames of other sessions are
     /// dropped.
     #[cfg(test)]

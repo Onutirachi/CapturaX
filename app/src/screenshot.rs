@@ -32,6 +32,15 @@ pub enum Command {
     Write(u64),
 }
 
+/// Why a request takes no frame. Only logged: the missing capture sound tells the user (FR-008).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refused {
+    /// The video area shows a state, or the window is hidden to the tray.
+    NoImage,
+    /// [`MAX_WAITING`] screenshots are already under way.
+    Busy,
+}
+
 /// What the worker did with a screenshot's image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Written {
@@ -42,14 +51,13 @@ pub struct Written {
 
 impl Screenshots {
     /// The key, the button or the debug flag asks for a screenshot; `shows_image` tells whether
-    /// the video area shows an image (not a state). Refused with its notice, or the command to
-    /// take it.
-    pub fn request(&mut self, shows_image: bool) -> Result<Command, EventNotice> {
+    /// the video area shows an image (not a state). The command to take it, or why not.
+    pub fn request(&mut self, shows_image: bool) -> Result<Command, Refused> {
         if !shows_image {
-            return Err(EventNotice::Nothing);
+            return Err(Refused::NoImage);
         }
         if self.waiting >= MAX_WAITING {
-            return Err(EventNotice::Busy);
+            return Err(Refused::Busy);
         }
         self.waiting += 1;
         self.serial += 1;
@@ -62,10 +70,9 @@ impl Screenshots {
         [Command::PlaySound, Command::Write(serial)]
     }
 
-    /// No frame came for screenshot `serial` (500 ms, or the source closed).
-    pub fn not_taken(&mut self, _serial: u64) -> EventNotice {
+    /// No frame came for screenshot `serial` (500 ms, or the source closed); no notice (FR-008).
+    pub fn not_taken(&mut self, _serial: u64) {
         self.waiting = self.waiting.saturating_sub(1);
-        EventNotice::Nothing
     }
 
     /// The worker is done with screenshot `serial`: its notice (FR-008).
@@ -368,7 +375,7 @@ mod tests {
     #[test]
     fn requests_follow_the_rules() {
         let mut shots = Screenshots::default();
-        assert_eq!(shots.request(false), Err(EventNotice::Nothing));
+        assert_eq!(shots.request(false), Err(Refused::NoImage));
         assert_eq!(shots.request(true), Ok(Command::Take(1)));
         assert_eq!(shots.taken(1), [Command::PlaySound, Command::Write(1)]);
         let file = PathBuf::from("a.png");
@@ -378,7 +385,7 @@ mod tests {
             EventNotice::Saved(file.clone())
         );
         assert_eq!(shots.request(true), Ok(Command::Take(2)));
-        assert_eq!(shots.not_taken(2), EventNotice::Nothing);
+        shots.not_taken(2);
         assert_eq!(shots.waiting, 0);
         // Every outcome.
         for (saved, copied, notice) in [
@@ -409,13 +416,13 @@ mod tests {
                 Ok(Command::Take(2)),
                 Ok(Command::Take(3)),
                 Ok(Command::Take(4)),
-                Err(EventNotice::Busy),
-                Err(EventNotice::Busy),
+                Err(Refused::Busy),
+                Err(Refused::Busy),
             ]
         );
         // One done makes room for one more, with the next number.
         shots.not_taken(1);
         assert_eq!(shots.request(true), Ok(Command::Take(5)));
-        assert_eq!(shots.request(true), Err(EventNotice::Busy));
+        assert_eq!(shots.request(true), Err(Refused::Busy));
     }
 }

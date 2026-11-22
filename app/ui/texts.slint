@@ -69,8 +69,6 @@ export global Texts {
     public pure function notice-screenshot-failed(reason: string) -> string {
         @tr("Couldn't take the screenshot: {}", reason)
     }
-    out property <string> notice-screenshot-nothing: @tr("Nothing to capture");
-    out property <string> notice-screenshot-busy: @tr("Too many screenshots at once");
     // Why a screenshot failed, a few words inside the two texts above.
     out property <string> screenshot-folder-not-found: @tr("folder not found");
     out property <string> screenshot-no-permission: @tr("no permission");
@@ -78,6 +76,8 @@ export global Texts {
     out property <string> screenshot-write-error: @tr("write error");
     out property <string> screenshot-image-error: @tr("image error");
     out property <string> notice-show: @tr("Show");
+    // The hotkey actions' names (screenshot FR-013), also given to the desktop's shortcut list.
+    out property <string> hotkey-screenshot: @tr("Screenshot");
     out property <string> notice-settings: @tr("Settings");
     // The mode menu (FR-007): its group headers, the automatic modes' names, and the detail line of
     // an automatic choice, its name then the mode it opens ("Auto max FPS · 1920 × 1080 · 120").

@@ -4,6 +4,7 @@ mod app;
 mod audio;
 mod cli;
 mod frame;
+mod hotkeys;
 mod i18n;
 mod icon;
 mod latency;
