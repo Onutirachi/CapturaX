@@ -114,3 +114,17 @@ that has two equal keys keeps the first action's and clears the other's (logged)
 The output is resolved as the preview audio's (`OutputChoice` with the missing-output rule); the
 exclusive flag is not used for the output-only session (shared). A play asked while the
 output-only session opens waits for its `Opened` (at most 300 ms, FR-010, then dropped and logged).
+
+Refinements made with T023 (2026-11-22):
+
+- While the preview's session or its output side is opening (open, queued, or an output reopen),
+  a play waits for that output's `Opened` (at most 300 ms) instead of opening an output-only
+  session, so two streams never compete for a device the preview may ask exclusive. An output
+  side error with no reopen sends the next plays to an output-only session.
+- The preview opening closes the output-only session, and the new preview session waits for its
+  `Closed` as it waits for an older preview session (at most 1 s), so an exclusive output is free.
+- The voice is prepared for the format of the output's last `fill` (on Linux it can differ from
+  `Opened`'s device format), else `Opened`'s; prepared on the main thread at the play, kept for
+  the next one. An output-only session that fails drops the play waiting for it.
+- Output-only session events reach the app as `UserEvent::SoundSession`, numbered on their own;
+  the output choice changed since that session opened closes it and opens one on the new output.

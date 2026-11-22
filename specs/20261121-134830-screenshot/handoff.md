@@ -112,6 +112,19 @@ step).
   a reopen of the input that must give no event, close at 3 s. The Linux part is reviewed, not
   compiled (pipewire-sys needs the library): build it on CachyOS first.
 
+- 2026-11-22: T023 (**uncommitted**: it embeds the placeholder sound, see Decisions):
+  app/src/sounds.rs: `Router` (pure; `PreviewOutput` Closed/Opening/Open, `Action`s; 11 tests)
+  and `Sounds` (decodes the embedded WAV, prepares and caches the voice for the output's real
+  format: the feed's last `fill`, else `Opened`'s; opens the output-only session, shared, events
+  as `UserEvent::SoundSession`). app/src/sound.rs: `Feed` holds the `Voice` in `Formats` (same
+  lock as the bridge) and mixes it after `pull`; `closing` became `Vec<Closing>` (`own` marks
+  the sound player's sessions, logged "sound session N"), so a new preview session waits for the
+  output-only one to close; `Sound::play`, `sound_session`, `tick_sounds`, `next_sounds`; the
+  preview state comes from `Open`/`ReopenOutput`/`Close` commands, `Opened`/`Error` of the output
+  side. `AudioController::sound_output`. Refinements written in data-model.md "Sound player".
+  **Temporary wiring**: `still()` in app.rs plays the sound when a frame is taken (T019 keeps it
+  there). fmt, clippy (workspace) and 247 app tests pass; not yet heard.
+
 ## Decisions
 
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
@@ -171,9 +184,16 @@ step).
    CachyOS: `cargo build` first (the PipeWire change was not compiled on Windows), then the same
    `audio_session --output-only`, and `hotkeys` in an X11 session if one is installed (on Wayland
    it prints `WindowOnly` until T017).
-4. Agent: T023 (sound player) is next and can be written now; it embeds the placeholder, so it
-   stays uncommitted until the final sound (Decisions). T013 waits for T003, T017 for T004,
-   T018 for T017 (or start it with X11/Windows and WindowOnly and add the portal later).
+4. Done on Windows (2026-11-22, maintainer heard all four): T023 with `--screenshot-every 2000`
+   and the ezcap: (a) click over the preview audio, no sound session; (b) No audio: sound session
+   opened in 13–14 ms, 48000/2/f32; (c) back to the card: "audio session N: waits for [\"sound
+   session N\"]", closed in 16–37 ms, then the preview opened; (d) exclusive output (I24, 2 ms):
+   click heard. No drop or warning in the log. Not seen in the app: the close 3 s after the last
+   sound (a screenshot every 2 s never left it idle; covered by the router tests); check it with
+   the key after T019. Linux later with the CachyOS build.
+5. Agent: T023 stays uncommitted until the final sound (Decisions). T013 waits for T003, T017
+   for T004, T018 for T017 (or start it with X11/Windows and WindowOnly and add the portal
+   later); T014 (worker) can start after T013, or its write/copy split can be planned now.
 
 The placeholder sound stays untracked and the code that embeds it waits for the final sound
 before its commit (tasks.md "Commits"; maintainer, 2026-11-22).
