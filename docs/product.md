@@ -79,7 +79,7 @@ picker, the same one the toolbar opens, not a picker of its own (maintainer, 202
 
 | ID | Feature | Spec |
 |---|---|---|
-| F19 | **Ctrl+F8** (F50) saves a PNG at the native resolution to the Pictures/CapturaX folder and copies it to the clipboard. | |
+| F19 | **Ctrl+F8** (F50) saves a PNG at the native resolution to a configurable folder (default Pictures/CapturaX) and copies it to the clipboard. | |
 
 ### F. Recording
 

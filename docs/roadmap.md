@@ -12,11 +12,11 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
 | 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
 | 4 | [Preview audio](#4-preview-audio) ([spec](../specs/20261113-103922-preview-audio/spec.md)) | F12–F14, F47 | 3 | done |
-| 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
+| 5 | [Screenshot](#5-screenshot) ([spec](../specs/20261121-134830-screenshot/spec.md)) | F19, F50 (framework, screenshot) | 3 | in progress |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
 | 8 | [Output audio](#8-output-audio) | F15–F17 | 4 | |
-| 9 | [Recording](#9-recording) | F20–F27, F48 (Record in the tray), F50 (framework, record, screenshot), F51 (recording) | 7, 8 | |
+| 9 | [Recording](#9-recording) | F20–F27, F48 (Record in the tray), F50 (record), F51 (recording) | 7, 8 | |
 | 10 | [Direct link](#10-direct-link) | F28–F33, F38, F48 (Live in the tray), F50 (stream), F51 (streaming), F53 | 9 | |
 | 11 | [Server](#11-server) | F34–F37, F53 (server side) | 10 | |
 | 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37, F53 (app side) | 11 | |
@@ -118,6 +118,12 @@ and the Linux path. Must state a latency budget and how it is measured.
 /speckit-specify Screenshot (see docs/roadmap.md #5): covers F19 from docs/product.md.
 ```
 
+The global hotkey framework of F50 and the screenshot key come here, not in spec 9 (maintainer,
+2026-11-21): a screenshot needs its key while playing.
+
+Its capture sound plays on the output chosen for the preview audio; later specs may add sounds
+for their events the same way (maintainer idea, 2026-11-22).
+
 ### 6. Preview extras
 
 ```text
@@ -146,8 +152,9 @@ loopback, Linux PipeWire), mix on track 1 and optional separate tracks.
 
 ```text
 /speckit-specify Recording (see docs/roadmap.md #9): covers F20-F27 from docs/product.md,
-including the Record panel (the Stream panel is added by spec 10), the global
-hotkeys of F50 for recording and screenshot (the streaming hotkey is added by spec 10), and the
+including the Record panel (the Stream panel is added by spec 10), the F50 global hotkey for
+recording (the framework and the screenshot key come from spec 5, the streaming hotkey from
+spec 10), and the
 recording status of F51 on the tray icon and the taskbar button. The tray's Record entry and
 Ctrl+F10 open the Record panel in the main window (the compact window comes in spec 14).
 ```
