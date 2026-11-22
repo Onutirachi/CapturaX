@@ -1,14 +1,16 @@
 //! Screenshots (spec 20261121-134830-screenshot): the requests' state (data-model.md "Screenshot
-//! request") and the file writing (research R3, data-model.md "File name").
+//! request"), the file writing (research R3, data-model.md "File name") and the worker (research R5).
 
-#![cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring uses it (T014, T019)"))]
+#![cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring uses it (T019)"))]
 
 use std::fs::{self, File};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, mpsc};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::notices::{EventNotice, Reason};
+use crate::render::Frame;
 
 /// At most this many screenshots wait for a frame or for their file (FR-007).
 pub const MAX_WAITING: u32 = 4;
@@ -249,9 +251,285 @@ fn remove_stale_parts(folder: &Path) {
     }
 }
 
+/// The folder for `[screenshot] folder` (data-model.md "Screenshots folder"): the path, or the
+/// system's Pictures folder plus `CapturaX`.
+pub fn folder(setting: &str) -> PathBuf {
+    if setting == settings::DEFAULT_FOLDER {
+        platform::default_screenshots_folder()
+    } else {
+        PathBuf::from(setting)
+    }
+}
+
+/// A taken frame for the worker (research R5).
+pub struct Job {
+    pub serial: u64,
+    pub frame: Arc<Frame>,
+    /// From the request to the frame's hand-off.
+    pub taken: Duration,
+    /// Resolved from the settings when the frame was taken ([`folder`]).
+    pub folder: PathBuf,
+    /// When the frame was taken, for the file name.
+    pub time: LocalTime,
+}
+
+/// Puts an RGBA image of `width × height` on the clipboard, at most 2 s (platform
+/// `Clipboard::set_image`, T013); Err: a short reason for the log.
+pub type CopyImage = Box<dyn Fn(u32, u32, Arc<[u8]>, Duration) -> Result<(), String> + Send>;
+
+/// How long the clipboard may take (research R5).
+pub const COPY_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// How long the quit waits for the screenshots under way (research R5).
+pub const QUIT_WAIT: Duration = Duration::from_secs(3);
+
+/// The `screenshot` thread: converts, encodes, writes and copies the screenshots one at a time,
+/// in the order they were taken (FR-005, research R5).
+pub struct Worker {
+    jobs: Option<mpsc::Sender<Job>>,
+    /// Disconnected when the thread ends.
+    ended: mpsc::Receiver<()>,
+}
+
+impl Worker {
+    /// Starts the thread; `done` gets each screenshot's outcome (the app posts it to the event
+    /// loop).
+    pub fn start(copy: CopyImage, done: impl Fn(u64, Written) + Send + 'static) -> io::Result<Self> {
+        let (jobs, queue) = mpsc::channel::<Job>();
+        let (alive, ended) = mpsc::channel::<()>();
+        std::thread::Builder::new().name("screenshot".into()).spawn(move || {
+            let _alive = alive;
+            for job in queue {
+                let serial = job.serial;
+                done(serial, process(job, &copy));
+            }
+        })?;
+        Ok(Self {
+            jobs: Some(jobs),
+            ended,
+        })
+    }
+
+    /// Queues a taken frame; Err gives it back when the thread is gone.
+    pub fn write(&self, job: Job) -> Result<(), Job> {
+        match &self.jobs {
+            Some(jobs) => jobs.send(job).map_err(|err| err.0),
+            None => Err(job),
+        }
+    }
+
+    /// Lets the queued screenshots finish, waiting at most `limit`; true when they did.
+    pub fn stop(&mut self, limit: Duration) -> bool {
+        self.jobs = None;
+        match self.ended.recv_timeout(limit) {
+            Err(mpsc::RecvTimeoutError::Disconnected) | Ok(()) => true,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                log::warn!("screenshot: still writing after {} s; quitting", limit.as_secs());
+                false
+            }
+        }
+    }
+}
+
+/// One screenshot from frame to outcome: the frame converted (R2), encoded, written (R3), then
+/// its RGBA copied (R4). A PNG that cannot be made is still copied. Logs one line as
+/// contracts/cli.md shows.
+fn process(job: Job, copy: &dyn Fn(u32, u32, Arc<[u8]>, Duration) -> Result<(), String>) -> Written {
+    let Job {
+        serial,
+        frame,
+        taken,
+        folder,
+        time,
+    } = job;
+    let ms = |d: Duration| d.as_millis();
+    let mut line = format!(
+        "screenshot {serial}: {}x{} taken +{} ms",
+        frame.width,
+        frame.height,
+        ms(taken)
+    );
+    let at = Instant::now();
+    let still = capture::still(&frame);
+    // The frame's buffers go back to the pool now.
+    drop(frame);
+    line += &format!(", rgb {} ms", ms(at.elapsed()));
+
+    let at = Instant::now();
+    let png = still.png();
+    line += &format!(", png {} ms", ms(at.elapsed()));
+    let saved = match png {
+        Ok(bytes) => {
+            let at = Instant::now();
+            let file = write_png(&folder, &time, &bytes).map_err(Reason::from);
+            line += &format!(", written {} ms", ms(at.elapsed()));
+            file
+        }
+        Err(err) => {
+            log::warn!("screenshot {serial}: cannot encode the PNG: {err}");
+            Err(Reason::ImageError)
+        }
+    };
+
+    let at = Instant::now();
+    let (width, height) = (still.width, still.height);
+    let rgba: Arc<[u8]> = still.rgba().into();
+    drop(still);
+    let copied = copy(width, height, rgba, COPY_TIMEOUT);
+    line += &format!(", copied {} ms", ms(at.elapsed()));
+
+    line += &match (&saved, &copied) {
+        (Ok(_), Ok(())) => ", saved and copied".to_string(),
+        (Ok(_), Err(err)) => format!(", saved, not copied ({err})"),
+        (Err(reason), Ok(())) => format!(", not saved ({reason:?}), copied"),
+        (Err(reason), Err(err)) => format!(", not saved ({reason:?}), not copied ({err})"),
+    };
+    log::info!("{line}");
+    Written {
+        saved,
+        copied: copied.is_ok(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// A 2 × 2 RGBA frame: red, green, blue, white.
+    fn frame() -> Arc<Frame> {
+        let pixels = vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255];
+        Arc::new(Frame::new(
+            2,
+            2,
+            capture::PixelFormat::Rgba,
+            vec![capture::Plane {
+                bytes: pixels.into(),
+                stride: 8,
+            }],
+            capture::Matrix::Bt709,
+            capture::Range::Full,
+            Instant::now(),
+            Instant::now(),
+            1,
+        ))
+    }
+
+    fn job(serial: u64, folder: &Path) -> Job {
+        Job {
+            serial,
+            frame: frame(),
+            taken: Duration::from_millis(14),
+            folder: folder.to_path_buf(),
+            time: time(),
+        }
+    }
+
+    type Copies = Arc<Mutex<Vec<(u32, u32, Vec<u8>)>>>;
+
+    /// A clipboard that keeps what it gets, or refuses.
+    fn clipboard(works: bool) -> (Copies, CopyImage) {
+        let copies = Copies::default();
+        let kept = copies.clone();
+        let copy: CopyImage = Box::new(move |w, h, rgba: Arc<[u8]>, timeout| {
+            assert_eq!(timeout, COPY_TIMEOUT);
+            kept.lock().unwrap().push((w, h, rgba.to_vec()));
+            if works { Ok(()) } else { Err("no clipboard".into()) }
+        });
+        (copies, copy)
+    }
+
+    #[test]
+    fn a_screenshot_is_written_as_png_and_copied_as_rgba() {
+        let dir = tempfile::tempdir().unwrap();
+        let (copies, copy) = clipboard(true);
+        let written = process(job(1, dir.path()), &copy);
+        let file = dir.path().join("CapturaX 2026-11-22 09-05-07.png");
+        assert_eq!(
+            written,
+            Written {
+                saved: Ok(file.clone()),
+                copied: true
+            }
+        );
+        let decoder = png::Decoder::new(io::BufReader::new(File::open(&file).unwrap()));
+        let mut reader = decoder.read_info().unwrap();
+        let mut rgb = vec![0; reader.output_buffer_size().unwrap()];
+        reader.next_frame(&mut rgb).unwrap();
+        assert_eq!(rgb, [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255]);
+        let copies = copies.lock().unwrap();
+        assert_eq!(copies.len(), 1);
+        let (w, h, rgba) = &copies[0];
+        assert_eq!((*w, *h), (2, 2));
+        assert_eq!(rgba[..8], [255, 0, 0, 255, 0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn a_missing_folder_still_copies_and_a_refused_copy_still_saves() {
+        let dir = tempfile::tempdir().unwrap();
+        let gone = dir.path().join("gone").join("CapturaX");
+        let (_, copy) = clipboard(true);
+        assert_eq!(
+            process(job(1, &gone), &copy),
+            Written {
+                saved: Err(Reason::FolderNotFound),
+                copied: true
+            }
+        );
+        let (_, refuse) = clipboard(false);
+        let written = process(job(2, dir.path()), &refuse);
+        assert!(written.saved.is_ok() && !written.copied, "{written:?}");
+        assert_eq!(
+            process(job(3, &gone), &refuse),
+            Written {
+                saved: Err(Reason::FolderNotFound),
+                copied: false
+            }
+        );
+    }
+
+    #[test]
+    fn the_worker_writes_in_order_and_finishes_the_queue_at_stop() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_, copy) = clipboard(true);
+        let outcomes = Arc::new(Mutex::new(Vec::new()));
+        let kept = outcomes.clone();
+        let mut worker = Worker::start(copy, move |serial, written| {
+            kept.lock().unwrap().push((serial, written.saved.unwrap()));
+        })
+        .unwrap();
+        for serial in 1..=4 {
+            assert!(worker.write(job(serial, dir.path())).is_ok());
+        }
+        assert!(worker.stop(QUIT_WAIT));
+        let name = |n| dir.path().join(file_name(&time(), n));
+        assert_eq!(
+            *outcomes.lock().unwrap(),
+            [(1, name(1)), (2, name(2)), (3, name(3)), (4, name(4))]
+        );
+        assert!(worker.write(job(5, dir.path())).is_err(), "stopped");
+    }
+
+    #[test]
+    fn the_quit_waits_no_longer_than_its_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let copy: CopyImage = Box::new(|_, _, _, _| {
+            std::thread::sleep(Duration::from_millis(500));
+            Ok(())
+        });
+        let mut worker = Worker::start(copy, |_, _| {}).unwrap();
+        assert!(worker.write(job(1, dir.path())).is_ok());
+        let at = Instant::now();
+        assert!(!worker.stop(Duration::from_millis(50)));
+        assert!(at.elapsed() < Duration::from_millis(400));
+    }
+
+    #[test]
+    fn the_default_folder_is_the_systems() {
+        assert_eq!(folder("default"), platform::default_screenshots_folder());
+        let own = std::env::temp_dir().join("shots");
+        assert_eq!(folder(&own.to_string_lossy()), own);
+    }
 
     fn time() -> LocalTime {
         LocalTime {

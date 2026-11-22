@@ -15,7 +15,8 @@ hand-off) committed. T009–T012, T020 and T024 tested on Windows by the maintai
 screenshot state/writing, then the debug flag with its temporary wiring). T015, T016, T021 and
 T022 done and committed as unwired code (fmt, clippy, tests); their manual checks wait (Next
 step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and committed
-(`f3c5505`); T023 (sound player) committed with the maintainer's final sound (T040).
+(`f3c5505`); T023 (sound player) committed with the maintainer's final sound (T040). T014
+(worker) committed as unwired code, with the clipboard injected until T013.
 
 ## Done in the last sessions
 
@@ -163,6 +164,18 @@ step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and comm
   menu buttons' orange → the settings categories' light semi-transparent orange; F59 (new in
   product.md) a **Log** category showing the log, scrollable (maintainer).
 
+- 2026-11-22: T014: app/src/screenshot.rs `Worker` (`screenshot` thread; `write(Job)` queues,
+  `stop(limit)` lets the queue finish and waits at most `limit`, `QUIT_WAIT` 3 s, through a
+  channel that disconnects when the thread ends), `Job { serial, frame: Arc<Frame>, taken,
+  folder, time }` (the folder and the local time are the main thread's, at the frame's
+  arrival), `folder(setting)` ("default" → `default_screenshots_folder()`; `settings::
+  DEFAULT_FOLDER` now re-exported), `process`: `still` → frame dropped (back to the pool) →
+  `png` → `write_png` → `rgba` as `Arc<[u8]>` → copy, one log line (contracts/cli.md now lists
+  the failure endings). A PNG that cannot be made gives `ImageError` and is still copied. The
+  clipboard is a `CopyImage` closure `(w, h, rgba, timeout)` called with `COPY_TIMEOUT` 2 s:
+  T019 passes `Clipboard::set_image` (T013). `png` is a dev-dependency of the app (the test
+  decodes the file). 5 new tests (260 app tests), clippy clean.
+
 ## Decisions
 
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
@@ -220,5 +233,7 @@ step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and comm
    refused key, the sound session's 3 s close). Left for CachyOS: `cargo build` first (the
    PipeWire change was never compiled), `audio_session --output-only`, the sound in the app,
    `hotkeys` in an X11 session if installed, and window-only matching on Wayland (until T017).
-4. Agent: T013 waits for T003, T017 for T004; T014 (worker) after T013, or plan its write/copy
-   split now; T019 (wiring: written → notice, Show) after T014.
+4. Agent: T013 waits for T003 (the Windows pastes are enough to start it; the Linux rows can
+   change the spec later), T017 for T004; then T019 (wiring: the worker started at the first
+   screenshot with `Clipboard::set_image`, `written` → notice, **Show**, `stop(QUIT_WAIT)` in
+   `exiting`, the main thread's "taken" log line removed since the worker logs it).

@@ -13,3 +13,7 @@ screenshot 3: 3840x2160 taken +14 ms, rgb 38 ms, png 312 ms, written 9 ms, copie
 ```
 
 `taken` is from the request to the frame's hand-off; the others are each step's own time.
+The end is `saved and copied`, `saved, not copied (<clipboard error>)`, `not saved (<reason>),
+copied` or `not saved (<reason>), not copied (<clipboard error>)`; `written` is missing when the
+PNG could not be made (reason `ImageError`). A request that takes no frame logs
+`screenshot: not taken (…)` or `screenshot N: no frame` instead (FR-008).

@@ -126,7 +126,7 @@ pub enum EventNotice {
 
 /// Why a screenshot was not saved or not taken, in a few words (data-model.md "Outcome").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(not(test), expect(dead_code, reason = "the screenshot worker makes them (T014)"))]
+#[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes them (T019)"))]
 pub enum Reason {
     FolderNotFound,
     NoPermission,

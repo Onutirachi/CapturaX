@@ -764,6 +764,7 @@ dependencies = [
  "capturax-settings",
  "clap",
  "log",
+ "png",
  "pollster",
  "resvg 0.49.0",
  "slint",
