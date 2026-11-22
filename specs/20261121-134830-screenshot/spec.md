@@ -53,7 +53,7 @@ an image editor and a chat app, and check the preview's frame counters show no d
 1. **Given** the preview shows a device's image, **When** the user presses Ctrl+F8, **Then** a
    PNG of the frame shown at that moment is saved in the screenshots folder at the mode's native
    resolution, copied to the clipboard, the capture sound plays on the preview's output (FR-010),
-   the video's edges flash (FR-010a) and a notice says so, within the time of SC-001.
+   the video's outline flashes (FR-010a) and a notice says so, within the time of SC-001.
 2. **Given** the preview shows a device's image and another app has the focus (CapturaX's window
    visible, behind or beside it), **When** the user presses Ctrl+F8, **Then** the same happens,
    the focus stays where it was, and the confirmation is a system notification.
@@ -239,12 +239,12 @@ full, clipboard taken) and check the notice and its action.
   - too many: "Too many screenshots at once".
 - **FR-009**: **Show** MUST open the system's file manager on the folder with the file selected
   where the platform allows it, else on the folder.
-- **FR-010a**: When a screenshot's frame is taken, the video area MUST show an edge flash
-  (maintainer, 2026-11-22): a white glow on all four edges of the video area, opaque white at
-  each edge and fading to transparent toward the center, about 20 % of the video area's width
-  deep on the left and right edges and 20 % of its height on the top and bottom; the center
-  stays clear. It fades in fast (about 60 ms) and out (about 250 ms), then is gone. It is drawn
-  over the video in the window only: never in the saved image, never delaying a frame (FR-002).
+- **FR-010a**: When a screenshot's frame is taken, the video area MUST show an outline flash
+  (maintainer, 2026-11-22; changed from an edge glow after seeing it in the app and comparing
+  options, same day): a thin white line (about 3 px) along the video's rounded edge with a soft
+  glow just inside it (about 18 px, faint), the rest of the picture untouched. It lights up fast
+  (about 40 ms) and fades out (about 400 ms), then is gone. It is drawn over the video in the
+  window only: never in the saved image, never delaying a frame (FR-002).
   It covers the video area, not the toolbar or the docks; a new screenshot during the flash
   restarts it. It is not shown for "Nothing to capture" or "Too many screenshots at once", nor
   while the window is minimized or hidden. It starts with the frame being taken, not when the

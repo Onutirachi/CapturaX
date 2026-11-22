@@ -426,6 +426,23 @@ impl Fade {
     }
 }
 
+/// The screenshot flash (FR-010a, research R11): a quick ease-out rise, then an ease-in fall.
+const FLASH_RISE: Duration = Duration::from_millis(40);
+const FLASH_FALL: Duration = Duration::from_millis(400);
+
+/// The flash's opacity `elapsed` after it started: 0 to 1 and back to 0.
+fn flash_opacity(elapsed: Duration) -> f32 {
+    let (rise, fall) = (FLASH_RISE.as_secs_f32(), FLASH_FALL.as_secs_f32());
+    let t = elapsed.as_secs_f32();
+    if t < rise {
+        let x = 1.0 - t / rise;
+        1.0 - x * x
+    } else {
+        let x = ((t - rise) / fall).min(1.0);
+        1.0 - x * x
+    }
+}
+
 /// Between two presents of a fade with no video frame: the monitor's refresh, 60 Hz until known.
 fn fade_step(refresh: Duration) -> Duration {
     if refresh.is_zero() {
@@ -646,10 +663,12 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                         second = Some(report.summary);
                     }
                 }
-                // A fade step is due like a UI change: on the next video frame when one is near.
+                // A fade or flash step is due like a UI change: on the next video frame when one
+                // is near. A flash runs until a present after its end has cleared it.
+                let animating = fade.is_some() || state.flash_at.is_some();
                 let step = fade_step(state.refresh);
-                let next_step = fade.and(last_present.map(|at| at + step));
-                let fade_due = fade.is_some() && next_step.is_none_or(|at| now >= at);
+                let next_step = last_present.map(|at| at + step).filter(|_| animating);
+                let fade_due = animating && next_step.is_none_or(|at| now >= at);
                 let pending = state.changed || fade_due || state.clear_video;
                 let deadline = if pending {
                     ui_deadline(last_frame, state.pace.period(), state.refresh, now)
@@ -713,6 +732,11 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
             } else {
                 None
             };
+            // The flash this present draws; an ended one goes, so this present clears it.
+            let ended = |at: Instant| Instant::now() >= at + FLASH_RISE + FLASH_FALL;
+            if present && state.flash_at.is_some_and(ended) {
+                state.flash_at = None;
+            }
             if frame.is_some() {
                 last_frame = Some(Instant::now());
             }
@@ -778,7 +802,10 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         }
         // Also when the surface was not ready: the next fade step waits one refresh either way.
         last_present = Some(now);
-        if gpu.render(acquired, &scene, opacity) {
+        // Read after the frame's hand-off above, so a flash starts on this very present.
+        let flash_at = inbox.lock().flash_at;
+        let flash = flash_at.map_or(0.0, |at| flash_opacity(now.saturating_duration_since(at)));
+        if gpu.render(acquired, &scene, opacity, flash) {
             if repeat {
                 stats.repeated();
             }
@@ -881,6 +908,19 @@ mod tests {
         assert!((out.opacity(start + FADE / 2) - 0.2).abs() < 1e-3);
         assert_eq!(fade_step(Duration::ZERO), Duration::from_millis(16));
         assert_eq!(fade_step(Duration::from_millis(7)), Duration::from_millis(7));
+    }
+
+    #[test]
+    fn the_flash_rises_in_40_ms_and_falls_in_400() {
+        let at = |ms| flash_opacity(Duration::from_millis(ms));
+        assert_eq!(at(0), 0.0);
+        // Ease-out: past half at half the rise.
+        assert!((at(20) - 0.75).abs() < 1e-3);
+        assert_eq!(at(40), 1.0);
+        // Ease-in: still high at half the fall.
+        assert!((at(40 + 200) - 0.75).abs() < 1e-3);
+        assert_eq!(at(440), 0.0);
+        assert_eq!(at(1000), 0.0);
     }
 
     #[test]

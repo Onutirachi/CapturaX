@@ -24,7 +24,7 @@ cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && ca
 
 | # | Steps | Expected |
 |---|---|---|
-| 1 | Preview the ezcap at 1080p60, press Ctrl+F8 with the window focused | Sound on the preview's output, edge flash, "Screenshot saved"; file 1920×1080 in Pictures/CapturaX; pastes in Paint (Windows), GIMP or Krita, and Discord or WhatsApp Web in the browser (SC-006) |
+| 1 | Preview the ezcap at 1080p60, press Ctrl+F8 with the window focused | Sound on the preview's output, outline flash, "Screenshot saved"; file 1920×1080 in Pictures/CapturaX; pastes in Paint (Windows), GIMP or Krita, and Discord or WhatsApp Web in the browser (SC-006) |
 | 2 | Same with a browser focused over the window; with the window minimized | Same file; system notification; focus unchanged; no flash while minimized |
 | 3 | Fullscreen game focused (Windows) | Key works, focus stays in the game |
 | 4 | Hold Ctrl+F8 for 2 s | One screenshot |

@@ -214,7 +214,16 @@ WASAPI client adds the mixer's delay); a GStreamer one-shot pipeline (the spike'
 elements hang on stop, constitution 1.2.0); a general event-sound engine now (code and tests for
 sounds no spec has).
 
-## R11. The edge flash
+## R11. The outline flash
+
+**Changed (maintainer, 2026-11-22)**: the edge glow below was built and seen in the app, judged
+ugly, and replaced after comparing eight options in a mockup (edge glow, soft glow, camera flash,
+outline, press, shutter blink, viewfinder corners, none) by the **outline**: a white line 3
+logical px wide on the video's rounded edge plus an inner glow (Gaussian, deviation 9 logical px,
+35 % at its peak), opacity rising in 40 ms (ease-out) and falling in 400 ms (ease-in). The shader
+gets the opacity, the line width and the glow's deviation in physical pixels (the scene's display
+scale); the rest of this section (who starts it, presents, cost) holds. The edge glow's original
+decision follows for the record.
 
 **Decision**: drawn by the composite shader over the video and under the UI layer. `Inbox`
 starts it (`flash_at = now`) when the video thread hands a frame to a screenshot (R1); the

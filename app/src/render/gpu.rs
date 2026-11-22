@@ -612,9 +612,15 @@ impl Gpu {
     }
 
     /// Composites the video (letterboxed in the scene's video area, corners rounded, at
-    /// `video_opacity` over the backdrop) and the UI layer, then presents at once. False when the
-    /// surface was not ready.
-    pub fn render(&mut self, acquired: Option<wgpu::SurfaceTexture>, scene: &Scene, video_opacity: f32) -> bool {
+    /// `video_opacity` over the backdrop, with the screenshot flash at `flash`) and the UI layer,
+    /// then presents at once. False when the surface was not ready.
+    pub fn render(
+        &mut self,
+        acquired: Option<wgpu::SurfaceTexture>,
+        scene: &Scene,
+        video_opacity: f32,
+        flash: f32,
+    ) -> bool {
         // An image acquired at the old size goes unpresented, before the surface is configured.
         let size = (scene.size.0.max(1), scene.size.1.max(1));
         let acquired = acquired.filter(|_| size == (self.config.width, self.config.height));
@@ -645,6 +651,10 @@ impl Gpu {
             let rect = letterbox(scene.video, (video.width, video.height));
             let mut values = uniform(rect, scene.video[4], (w, h), video);
             values[OPACITY] = video_opacity;
+            if flash > 0.0 {
+                let scale = if scene.shadow[0] > 0.0 { scene.shadow[0] } else { 1.0 };
+                values[FLASH..FLASH + 3].copy_from_slice(&[flash, FLASH_LINE * scale, FLASH_GLOW * scale]);
+            }
             self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&values));
             if let Some(layer) = shadow {
                 let [scale, strength] = scene.shadow;
@@ -785,10 +795,17 @@ fn plane_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
 }
 
 /// Floats in the shader's `Rect` uniform.
-const UNIFORM_LEN: usize = 24;
+const UNIFORM_LEN: usize = 28;
 
 /// Where the layer's opacity is in the uniform.
 const OPACITY: usize = 7;
+
+/// Where the screenshot flash is in the uniform (`flash`: opacity, line width, glow deviation).
+const FLASH: usize = 24;
+
+/// The flash's line width and inner glow deviation in logical pixels (FR-010a, research R11).
+const FLASH_LINE: f32 = 3.0;
+const FLASH_GLOW: f32 = 9.0;
 
 /// A layer's rectangle as the shader's uniform: bounds in clip space, size, corner radius,
 /// opacity, then the kind and picture size, then the YUV to RGB rows.

@@ -10,7 +10,7 @@ A screenshot takes the next frame the preview presents, straight from the video 
 upload (no copy, no GPU read-back), and hands it to one worker thread that converts it to RGB
 with the shader's own conversion, encodes a PNG, writes it under a temporary name and links it to
 `CapturaX <time>.png`, and puts the image on the clipboard through `arboard`. The moment the
-frame is taken, the composite shader draws the white edge flash under the UI and the capture
+frame is taken, the composite shader draws the white outline flash under the UI and the capture
 sound plays on the output chosen for the preview audio: mixed into the preview's own output
 stream when it runs, else through an output-only session on that output. The outcome becomes one notice in the existing device-notice balloon, or a system
 notification when the window has no focus. The F50 framework arrives here: a `hotkeys` thread in
