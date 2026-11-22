@@ -155,6 +155,7 @@ do not change (maintainer, 2026-11-06).
 | part of F14 | Manual audio delay for lip-sync | Not needed in practice: recordings and streams keep audio and video on one clock, and the stack spike measured the preview's audio within the lip-sync limits of the video (12 ms ahead to 29 ms behind). Reconsider only if measurements show a need. |
 | F18 | Manual audio/video sync offset | Same reason as above. |
 | — | Peer-to-peer without a relay | Viewers behind restrictive NAT could not connect; replaced by F34 with a TURN fallback. |
+| F59 | **Log** category in the settings panel: shows the app's log (`capturax.log`), scrollable, so a problem can be read or copied without opening the file (maintainer, 2026-11-22). | |
 
 ## To reconsider
 

@@ -24,9 +24,11 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
 | 15 | [Accelerate GPU](#15-accelerate-gpu) | F55 | 10 | |
 | 16 | [Getting started guide](#16-getting-started-guide) | F54 | 15 | |
+| 17 | [UI review](#17-ui-review) | F59 and the small fixes listed there | 5 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
-spec 13 can start any time after spec 2.
+spec 13 can start any time after spec 2; spec 17 any time after spec 5, when its list is worth
+a spec.
 
 ## Specs
 
@@ -233,4 +235,20 @@ black image from a console with HDCP on, and how to turn it off). Reopened from 
 Decide when it is first shown. Also tooltips on the more complex settings (Accelerate GPU, color
 range, presentation), a few words of detail each. Texts in both languages; screenshots per
 language and theme if needed.
+```
+
+### 17. UI review
+
+Small layout and look problems collected while the other specs are built, fixed together. Add an
+item here when it is found (with the date), instead of fixing it inside an unrelated spec.
+
+- The orange of the menu buttons becomes the settings categories' orange: the light,
+  semi-transparent one (maintainer, 2026-11-22).
+- F59: a **Log** category in the settings panel showing the log, scrollable (maintainer,
+  2026-11-22).
+
+```text
+/speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the
+small layout and look fixes listed in the roadmap's #17 section. Both themes, both languages,
+all window layouts down to 640 × 360.
 ```
