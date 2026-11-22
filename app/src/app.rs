@@ -89,6 +89,8 @@ pub enum UserEvent {
     },
     /// The audio monitor's and audio session's events.
     Audio(crate::audio::Event),
+    /// An event of the sound player's output-only session (screenshot research R10).
+    SoundSession(platform::audio::SessionEvent),
     /// The video thread's answer to screenshot `serial`, asked at `asked`: its frame, or none.
     Still {
         serial: u64,
@@ -956,6 +958,10 @@ impl App {
             asked.elapsed().as_millis()
         );
         let _ = self.screenshots.taken(serial);
+        // FR-010: the sound starts when the frame is taken.
+        if let Some(sound) = &mut self.sound {
+            sound.play(::audio::sound::Sound::Screenshot, &self.store.get());
+        }
         // The worker that writes and copies it comes next (screenshot T014, T019); until then the
         // frame goes back to the pool and the screenshot ends here, with no notice.
         drop(frame);
@@ -2006,6 +2012,11 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.show_audio();
             }
+            UserEvent::SoundSession(event) => {
+                if let Some(sound) = &mut self.sound {
+                    sound.sound_session(event);
+                }
+            }
             // A select marks the row picked itself: the menus are shown again from the choices.
             UserEvent::AudioPicked(index) => {
                 self.audio_picked(index);
@@ -2250,10 +2261,11 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(sound) = &mut self.sound {
             sound.print_stats(now);
             sound.open_queued(now);
-            if let Some(at) = sound.next_stats() {
-                wake = Some(wake.map_or(at, |w| w.min(at)));
-            }
-            if let Some(at) = sound.next_open() {
+            sound.tick_sounds(now);
+            for at in [sound.next_stats(), sound.next_open(), sound.next_sounds()]
+                .into_iter()
+                .flatten()
+            {
                 wake = Some(wake.map_or(at, |w| w.min(at)));
             }
         }

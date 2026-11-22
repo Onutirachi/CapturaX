@@ -484,6 +484,12 @@ impl AudioController {
         choice::resolve(&input_choice(settings, video), pair.as_deref(), &ids)
     }
 
+    /// The output the app's event sounds play on when the preview plays none (screenshot research
+    /// R10): the preview's, with the missing-output rule (None: the system default).
+    pub fn sound_output(&self, settings: &Settings) -> Option<String> {
+        self.output_to_open(settings).0
+    }
+
     /// The output to open for the output choice and the chosen output when it is missing.
     fn output_to_open(&self, settings: &Settings) -> (Option<String>, Option<String>) {
         let choice = output_choice(settings);

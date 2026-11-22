@@ -11,11 +11,13 @@ use std::time::{Duration, Instant};
 
 use ::audio::bridge::Bridge;
 use ::audio::resample;
-use platform::audio::{Format, Monitor, Samples, Session, SessionEvent, SessionRequest};
+use ::audio::sound::Voice;
+use platform::audio::{Format, Monitor, Samples, Session, SessionEvent, SessionRequest, Side};
 use winit::event_loop::EventLoopProxy;
 
 use crate::app::UserEvent;
 use crate::audio::{AudioController, Command, Event, VideoDevice};
+use crate::sounds::{PreviewFeed, PreviewOutput, Sounds};
 use crate::stats::AudioSide;
 
 /// The longest the quit waits for the audio session's `Closed` (research R9).
@@ -31,31 +33,54 @@ struct Formats {
     input: Option<resample::Format>,
     output: Option<resample::Format>,
     bridge: Option<Arc<Bridge>>,
+    /// The app's sound mixed over the output (screenshot research R10), set by the sound player.
+    voice: Option<Arc<Voice>>,
 }
 
-/// One session's [`Samples`]: the input's samples go into the bridge, the output's come out of it.
+/// One session's [`Samples`]: the input's samples go into the bridge, the output's come out of it,
+/// with the sound player's voice mixed over them.
 ///
 /// The bridge is made from the formats of the calls themselves, not from `Opened` (on Linux that
 /// is the device node's format, research R3), once both sides have called; it is made again when
 /// a side's format changes or the input reopens ([`Feed::restart_input`]). Until then the input's
 /// samples are dropped and the output plays silence. Making it allocates on the audio thread,
-/// once per bridge.
-struct Feed {
+/// once per bridge. An output-only session's feed never has a bridge: silence and the voice.
+pub(crate) struct Feed {
     formats: Mutex<Formats>,
     /// The gain (`f32` bits), given to each new bridge.
     gain: AtomicU32,
 }
 
 impl Feed {
-    fn new(gain: f32) -> Self {
+    pub(crate) fn new(gain: f32) -> Self {
         Self {
             formats: Mutex::default(),
             gain: AtomicU32::new(gain.to_bits()),
         }
     }
 
+    /// The format the output's last `fill` ran in; None before the first.
+    pub(crate) fn output_format(&self) -> Option<resample::Format> {
+        lock(&self.formats).output
+    }
+
+    /// The voice mixed over the output.
+    pub(crate) fn voice(&self) -> Option<Arc<Voice>> {
+        lock(&self.formats).voice.clone()
+    }
+
+    /// Mixes `voice` over the output from the next `fill`, in place of the one before.
+    pub(crate) fn set_voice(&self, voice: Arc<Voice>) {
+        lock(&self.formats).voice = Some(voice);
+    }
+
     /// The bridge for a call of `side` in `format`, made when both formats are known.
     fn bridge(&self, format: Format, input: bool) -> Option<Arc<Bridge>> {
+        self.side(format, input).0
+    }
+
+    /// [`Feed::bridge`], and the voice, under one lock.
+    fn side(&self, format: Format, input: bool) -> (Option<Arc<Bridge>>, Option<Arc<Voice>>) {
         let format = resample::Format {
             rate: format.rate,
             channels: format.channels,
@@ -73,7 +98,7 @@ impl Feed {
             bridge.set_gain(f32::from_bits(self.gain.load(Ordering::Relaxed)));
             formats.bridge = Some(Arc::new(bridge));
         }
-        formats.bridge.clone()
+        (formats.bridge.clone(), formats.voice.clone())
     }
 
     /// The bridge playing now, if both sides have called.
@@ -106,22 +131,32 @@ impl Samples for Feed {
     }
 
     fn fill(&self, out: &mut [f32], format: Format) {
-        match self.bridge(format, false) {
+        let (bridge, voice) = self.side(format, false);
+        match bridge {
             Some(bridge) => bridge.pull(out),
             None => out.fill(0.0),
+        }
+        if let Some(voice) = voice {
+            voice.mix(
+                out,
+                resample::Format {
+                    rate: format.rate,
+                    channels: format.channels,
+                },
+            );
         }
     }
 }
 
 /// Set once a session reported `Closed`.
 #[derive(Default)]
-struct Closed {
+pub(crate) struct Closed {
     done: Mutex<bool>,
     signal: Condvar,
 }
 
 impl Closed {
-    fn set(&self) {
+    pub(crate) fn set(&self) {
         *lock(&self.done) = true;
         self.signal.notify_all();
     }
@@ -140,6 +175,23 @@ impl Closed {
                 .0;
         }
         true
+    }
+}
+
+/// A session asked to close whose `Closed` has not come: a preview session, or the sound
+/// player's (`own`), each numbered on its own.
+pub(crate) struct Closing {
+    pub number: u64,
+    pub own: bool,
+    pub closed: Arc<Closed>,
+    /// When it was asked.
+    pub asked: Instant,
+}
+
+impl Closing {
+    fn name(&self) -> String {
+        let kind = if self.own { "sound" } else { "audio" };
+        format!("{kind} session {}", self.number)
     }
 }
 
@@ -201,8 +253,11 @@ pub struct Sound {
     controller: AudioController,
     monitor: Option<Monitor>,
     open: Option<Open>,
-    /// The sessions asked to close whose `Closed` has not come: number, flag, when asked.
-    closing: Vec<(u64, Arc<Closed>, Instant)>,
+    /// The sessions asked to close whose `Closed` has not come, the sound player's too: a new
+    /// preview session waits for them.
+    closing: Vec<Closing>,
+    /// The app's event sounds, played on the preview's output.
+    sounds: Sounds,
     /// The session that opens once `closing` is empty or has waited [`CLOSE_WAIT`].
     queued: Option<Queued>,
     /// Some with `--stats`.
@@ -218,6 +273,7 @@ impl Sound {
             monitor: None,
             open: None,
             closing: Vec::new(),
+            sounds: Sounds::new(proxy.clone()),
             queued: None,
             stats: stats.then(|| StatsClock {
                 origin: Instant::now(),
@@ -340,20 +396,20 @@ impl Sound {
     /// event that caused it.
     pub fn handle(&mut self, event: Event, settings: &settings::Settings) {
         match &event {
-            Event::Session(SessionEvent::Closed { number }) => {
-                if let Some(at) = self.closing.iter().position(|(closing, ..)| closing == number) {
-                    let (_, _, asked) = self.closing.swap_remove(at);
-                    // SC-008: every close under 1 s, read from this line (quickstart).
-                    log::info!(
-                        "audio session {number} closed in {:.0} ms",
-                        asked.elapsed().as_secs_f64() * 1e3
-                    );
-                }
-            }
-            Event::Session(event @ SessionEvent::Opened { .. }) => {
+            Event::Session(SessionEvent::Closed { number }) => self.session_closed(*number, false),
+            Event::Session(event @ SessionEvent::Opened { number, side, .. }) => {
                 log::info!("audio: {event:?}");
                 self.side_opened(event);
+                if *side == Side::Output && self.controller.session() == Some(*number) {
+                    self.preview_output(PreviewOutput::Open);
+                }
             }
+            // The preview's output stopped: sounds go elsewhere unless a reopen follows.
+            Event::Session(SessionEvent::Error {
+                number,
+                side: Side::Output,
+                ..
+            }) if self.controller.session() == Some(*number) => self.preview_output(PreviewOutput::Closed),
             _ => {}
         }
         let reason = event.reason();
@@ -369,10 +425,70 @@ impl Sound {
         self.open_queued(Instant::now());
     }
 
+    /// A session reported `Closed`: no longer holds a new one back.
+    fn session_closed(&mut self, number: u64, own: bool) {
+        if let Some(at) = self.closing.iter().position(|c| c.number == number && c.own == own) {
+            let closing = self.closing.swap_remove(at);
+            // SC-008: every close under 1 s, read from this line (quickstart).
+            log::info!(
+                "{} closed in {:.0} ms",
+                closing.name(),
+                closing.asked.elapsed().as_secs_f64() * 1e3
+            );
+        }
+    }
+
+    /// The preview session's output as the sound player plays on it.
+    fn preview_feed(open: Option<&Open>) -> PreviewFeed<'_> {
+        open.filter(|open| open.output.is_some()).map(|open| {
+            let opened = open.output.as_ref().map(|side| resample::Format {
+                rate: side.format.rate,
+                channels: side.format.channels,
+            });
+            (&*open.feed, opened)
+        })
+    }
+
+    /// The preview's output changed state: the sound player follows it.
+    fn preview_output(&mut self, state: PreviewOutput) {
+        let closing = self.sounds.preview(state, Self::preview_feed(self.open.as_ref()));
+        self.closing.extend(closing);
+    }
+
+    /// Plays an event sound on the output chosen for the preview audio (screenshot FR-010).
+    pub fn play(&mut self, effect: ::audio::sound::Sound, settings: &settings::Settings) {
+        let output = self.controller.sound_output(settings);
+        let closing = self.sounds.play(effect, output, Self::preview_feed(self.open.as_ref()));
+        self.closing.extend(closing);
+    }
+
+    /// An event of the sound player's output-only session.
+    pub fn sound_session(&mut self, event: SessionEvent) {
+        if let SessionEvent::Closed { number } = event {
+            self.session_closed(number, true);
+        }
+        let closing = self.sounds.event(event, Self::preview_feed(self.open.as_ref()));
+        self.closing.extend(closing);
+        self.open_queued(Instant::now());
+    }
+
+    /// The sound player's timers: a play that waited too long, a session to close.
+    pub fn tick_sounds(&mut self, now: Instant) {
+        if self.sounds.next_wake().is_some_and(|at| now >= at) {
+            let closing = self.sounds.tick(now, Self::preview_feed(self.open.as_ref()));
+            self.closing.extend(closing);
+        }
+    }
+
+    /// When [`Sound::tick_sounds`] has something to do.
+    pub fn next_sounds(&self) -> Option<Instant> {
+        self.sounds.next_wake()
+    }
+
     /// When the queued session opens even if the older ones have not closed; None: nothing queued.
     pub fn next_open(&self) -> Option<Instant> {
         self.queued.as_ref()?;
-        held_until(self.closing.iter().map(|(.., asked)| *asked))
+        held_until(self.closing.iter().map(|c| c.asked))
     }
 
     /// Opens the queued session once no older one is closing, or once they had [`CLOSE_WAIT`].
@@ -383,7 +499,7 @@ impl Sound {
         if self.closing.is_empty() {
             let queued = self.queued.take().expect("checked");
             self.open_now(queued);
-        } else if held_until(self.closing.iter().map(|(.., asked)| *asked)).is_some_and(|at| now >= at) {
+        } else if held_until(self.closing.iter().map(|c| c.asked)).is_some_and(|at| now >= at) {
             let queued = self.queued.take().expect("checked");
             log::warn!(
                 "audio session {}: an older session did not close within {CLOSE_WAIT:?}; opening anyway",
@@ -397,17 +513,19 @@ impl Sound {
         match command {
             Command::Open(request) => {
                 self.close();
+                // The sound player's session closes, and is waited for as an older one.
+                self.preview_output(PreviewOutput::Opening);
                 let gain = ::audio::volume::gain(settings.audio.volume, settings.audio.muted);
                 let queued = Queued { request, gain };
                 // A close that never came holds nothing back after CLOSE_WAIT.
-                let held = held_until(self.closing.iter().map(|(.., asked)| *asked));
+                let held = held_until(self.closing.iter().map(|c| c.asked));
                 if held.is_none_or(|at| Instant::now() >= at) {
                     self.open_now(queued);
                 } else {
                     log::info!(
-                        "audio session {}: waits for session(s) {:?} to close",
+                        "audio session {}: waits for {:?} to close",
                         queued.request.number,
-                        self.closing.iter().map(|(number, ..)| *number).collect::<Vec<_>>()
+                        self.closing.iter().map(Closing::name).collect::<Vec<_>>()
                     );
                     self.queued = Some(queued);
                 }
@@ -415,6 +533,9 @@ impl Sound {
             command @ (Command::ReopenInput { .. } | Command::ReopenOutput { .. } | Command::SetGain(_))
                 if self.queued.is_some() =>
             {
+                if matches!(command, Command::ReopenOutput { .. }) {
+                    self.preview_output(PreviewOutput::Opening);
+                }
                 self.queued.as_mut().expect("checked").apply(&command);
             }
             Command::ReopenInput { input, exclusive } => {
@@ -428,9 +549,13 @@ impl Sound {
                 if let Some(open) = &mut self.open {
                     open.output_id.clone_from(&output);
                     open.session.reopen_output(output, exclusive);
+                    self.preview_output(PreviewOutput::Opening);
                 }
             }
-            Command::Close => self.close(),
+            Command::Close => {
+                self.close();
+                self.preview_output(PreviewOutput::Closed);
+            }
             Command::SetGain(gain) => {
                 if let Some(open) = &self.open {
                     open.feed.set_gain(gain);
@@ -481,7 +606,12 @@ impl Sound {
         self.queued = None;
         if let Some(mut open) = self.open.take() {
             open.session.close();
-            self.closing.push((open.number, open.closed, Instant::now()));
+            self.closing.push(Closing {
+                number: open.number,
+                own: false,
+                closed: open.closed,
+                asked: Instant::now(),
+            });
         }
         if let Some(clock) = &mut self.stats {
             clock.next = None;
@@ -493,16 +623,19 @@ impl Sound {
     /// is logged and the quit goes on (the process exits after the settings are saved).
     pub fn quit(&mut self) {
         self.close();
+        let closing = self.sounds.quit();
+        self.closing.extend(closing);
         let deadline = Instant::now() + CLOSE_WAIT;
         let started = Instant::now();
-        for (number, closed, _) in self.closing.drain(..) {
-            if closed.wait_until(deadline) {
+        for closing in self.closing.drain(..) {
+            let name = closing.name();
+            if closing.closed.wait_until(deadline) {
                 log::info!(
-                    "audio session {number} closed {:.0} ms into the quit",
+                    "{name} closed {:.0} ms into the quit",
                     started.elapsed().as_secs_f64() * 1e3
                 );
             } else {
-                log::warn!("audio session {number} did not close within {CLOSE_WAIT:?}; quitting anyway");
+                log::warn!("{name} did not close within {CLOSE_WAIT:?}; quitting anyway");
             }
         }
         self.monitor = None;
@@ -575,6 +708,36 @@ mod tests {
                 channels: 1
             }
         );
+    }
+
+    #[test]
+    fn the_voice_plays_over_the_output_with_or_without_a_bridge() {
+        use ::audio::sound::{Decoded, GAIN, prepare};
+        let mono = resample::Format {
+            rate: 48000,
+            channels: 1,
+        };
+        let feed = Feed::new(1.0);
+        assert_eq!(feed.output_format(), None);
+        let mut out = [1.0; 4];
+        feed.fill(&mut out, format(48000, 1));
+        assert_eq!(feed.output_format(), Some(mono));
+        let voice = Arc::new(Voice::new(prepare(
+            &Decoded {
+                format: mono,
+                samples: vec![1.0, -1.0],
+            },
+            mono,
+        )));
+        feed.set_voice(Arc::clone(&voice));
+        voice.play();
+        // An output-only feed: no input, so silence and the voice.
+        feed.fill(&mut out, format(48000, 1));
+        assert_eq!(out, [GAIN, -GAIN, 0.0, 0.0]);
+        // A voice of another format adds nothing.
+        voice.play();
+        feed.fill(&mut out, format(44100, 1));
+        assert_eq!(out, [0.0; 4]);
     }
 
     #[test]

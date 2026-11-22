@@ -17,6 +17,7 @@ mod render;
 mod screenshot;
 mod shadows;
 mod sound;
+mod sounds;
 mod stats;
 mod theme;
 mod ui;
