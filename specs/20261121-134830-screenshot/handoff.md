@@ -7,13 +7,22 @@
 Spec approved (maintainer, 2026-11-22). Plan, tasks (T001–T041) and `/speckit-analyze` done: no
 critical issue; fixed FR-001 (next frame presented), FR-010 (300 ms when the output opens
 first), FR-015 (window-only exception) and small wording. Docs committed on this branch, not
-pushed. No code yet.
+pushed. Implementation started: T001 (dependencies) and T002 (placeholder sound generator)
+done and committed; the probes' code (T003, T004) is committed and waits for the maintainer's
+runs.
 
 ## Done in the last sessions
 
 - 2026-11-21: branch and spec created; roadmap #5 and #9 and product.md F19 updated.
 - 2026-11-22: flash added to the spec (FR-010a); plan written; sound simplified to one sound on
   the chosen output; tasks written.
+- 2026-11-22: T001 (`ae01e6d`): `arboard`, `png`, `x11rb` and the Windows features; `cargo tree
+  -d` shows `image` twice but both are 0.25.10 (a host/target feature split, not a second
+  version). T002 (`d7a7705`): `tools/make_screenshot_sound.py`; `app/sounds/screenshot.wav` is
+  generated locally and listed in `.git/info/exclude` (not .gitignore), so it stays untracked
+  until T040. T003/T004 code (`c466794`): `clipboard_probe` and `shortcuts_probe` (the latter
+  type-checked for Linux in a scratch crate with only `zbus`); clipboard set time on Windows
+  recorded in measurements/probes.md (release 22 ms at 4K, debug 945 ms).
 
 ## Decisions
 
@@ -54,5 +63,13 @@ pushed. No code yet.
 
 ## Next step
 
-`/speckit-implement` from T001. The placeholder sound stays untracked and the code that embeds it
-waits for the final sound before its commit (tasks.md "Commits"; maintainer, 2026-11-22).
+1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
+   clipboard pastes on Windows (GIMP/Krita, Paint, Discord) and on CachyOS (Wayland, X11 if
+   installed); `shortcuts_probe` on CachyOS. On a new Linux checkout run
+   `python tools/make_screenshot_sound.py` and add `app/sounds/screenshot.wav` to
+   `.git/info/exclude` there too.
+2. Agent: T005 (still conversion), T006 (settings), T007 (hotkey parsing), which do not depend on
+   the probes. T013 waits for T003, T017 for T004.
+
+The placeholder sound stays untracked and the code that embeds it waits for the final sound
+before its commit (tasks.md "Commits"; maintainer, 2026-11-22).
