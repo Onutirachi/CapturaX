@@ -12,7 +12,9 @@ done and committed; the probes' code (T003, T004) is committed and waits for the
 runs. T005–T007 (still conversion, settings, hotkey value) done and committed. T008 (frame
 hand-off) committed. T009–T012, T020 and T024 tested on Windows by the maintainer and committed
 (`c5cd7e1` platform files and local time, `21cd3ae` outline flash, `fb9c21a` event notice and
-screenshot state/writing, then the debug flag with its temporary wiring).
+screenshot state/writing, then the debug flag with its temporary wiring). T015, T016, T021 and
+T022 done and committed as unwired code (fmt, clippy, tests); their manual checks wait (Next
+step).
 
 ## Done in the last sessions
 
@@ -81,6 +83,35 @@ screenshot state/writing, then the debug flag with its temporary wiring).
   frame is logged ("screenshot N: WxH taken +X ms", time until the event loop got it) and
   dropped, the slot freed with no notice. T014/T019 replace the end of `still()`.
 
+- 2026-11-22: T015/T016: `Hotkeys`, `HotkeyEvent`, `Binding` in crates/platform/src/hotkeys.rs
+  with a shared `Wanted` (bindings, suspend, refused keys logged once, `report` → one `Bound` per
+  action, none while suspended). Windows (windows/hotkeys.rs): `hotkeys` thread, queue created
+  with `PeekMessageW` before its id is handed back, commands through a channel + `WM_APP`,
+  `RegisterHotKey(NULL, index + 1, mods | MOD_NOREPEAT, vk)`, `WM_QUIT` on drop. X11
+  (linux/hotkeys/x11.rs): own `RustConnection` shared with an `Arc`, an InputOnly window woken by
+  a `ClientMessage` sent to itself; `GrabKey` ×4 locks per keycode whose first group types the
+  keysym (two levels: digits on AZERTY), each checked (BadAccess → refused, partial grab undone);
+  detectable auto-repeat through XKB, else a press with the last release's keycode and time is a
+  repeat; `MappingNotify` regrabs. linux/hotkeys.rs picks X11 (`XDG_SESSION_TYPE`, else `DISPLAY`
+  without `WAYLAND_DISPLAY`) or reports `WindowOnly` (until T017). `x11rb` now names its `xkb`
+  feature in crates/platform/Cargo.toml (was on through winit). Linux type-checked with clippy in a
+  scratch crate (`x11rb` + `log`). Example `cargo run -p capturax-platform --example hotkeys --
+  [<key>…] [--suspend-after <s>]`. The agent did not run it: registering global keys is a
+  foreground test (maintainer's rule).
+- 2026-11-22: T021: crates/audio/src/sound.rs: `decode` (RIFF/WAVE, PCM 16/24/32, float 32,
+  extensible with the PCM/float subformat GUID, odd chunks padded, a `data` size past the file
+  read to its end in whole frames), `prepare` (same rate: channel map only; else one silent frame
+  before and two after so `interpolate` has its neighbours, length `ceil(frames·out/in)`),
+  `Voice` (`play`, `playing`, `mix(out, format)`: adds nothing when the format is not the prepared
+  one), `GAIN` 0.5. 9 tests.
+- 2026-11-22: T022: `SessionRequest.input: Option<String>`. Windows: no input thread, `running`
+  starts at 1, `reopen_input` ignored. Linux: `Session.output_only` in the `pipewire` thread (the
+  input `Wanted` is never opened, so never `waiting`; `reopen` of the input returns) and in
+  linux/audio.rs (`reopen_input` ignored; only the output's error when PipeWire is down). App
+  callers pass `Some(..)` (behavior unchanged). `audio_session --output-only`: 440 Hz tone 2 s,
+  a reopen of the input that must give no event, close at 3 s. The Linux part is reviewed, not
+  compiled (pipewire-sys needs the library): build it on CachyOS first.
+
 ## Decisions
 
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
@@ -131,7 +162,20 @@ screenshot state/writing, then the debug flag with its temporary wiring).
    OK, hand-off OK, outline flash approved. Left for CachyOS: the `files` example (show/open:
    Dolphin or the portal), `utc_offset` (a file name in local time once T014 writes files) and
    **Open** on a C920 notice (never exercised: needs a device that does not open by itself).
-3. Agent: T015, T016, T021, T022. T013 waits for T003, T017 for T004.
+3. Maintainer, Windows, one foreground batch (global key and sound):
+   - `cargo run -p capturax-platform --example hotkeys -- Ctrl+F8 Ctrl+Alt+F9 --suspend-after 15`:
+     press Ctrl+F8 with another app focused and in a fullscreen game (one `Pressed` per press,
+     also when held); between 15 s and 20 s it must print nothing; Ctrl+F8 again afterwards.
+     A second copy started meanwhile must print `Bound { shown: None }` and the refusal once.
+   - `cargo run -p capturax-platform --example audio_session -- --output-only --output <VAIO3 id>`
+     (ids from `--example audio_endpoints`): the tone for 2 s, no event after the input reopen,
+     `Closed`. Also once with no `--output` (default output).
+   CachyOS: `cargo build` first (the PipeWire change was not compiled on Windows), then the same
+   `audio_session --output-only`, and `hotkeys` in an X11 session if one is installed (on Wayland
+   it prints `WindowOnly` until T017).
+4. Agent: T023 (sound player) is next and can be written now; it embeds the placeholder, so it
+   stays uncommitted until the final sound (Decisions). T013 waits for T003, T017 for T004,
+   T018 for T017 (or start it with X11/Windows and WindowOnly and add the portal later).
 
 The placeholder sound stays untracked and the code that embeds it waits for the final sound
 before its commit (tasks.md "Commits"; maintainer, 2026-11-22).
