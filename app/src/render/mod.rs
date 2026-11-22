@@ -225,7 +225,6 @@ impl Inbox {
     /// that arrives while the window is not on screen (research R1). `reply` gets it, or `None`
     /// when no frame comes within [`STILL_LIMIT`] or the source closes first. One frame answers one
     /// screenshot, in the order asked.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring calls it (T019)"))]
     pub fn request_still(&self, serial: u64, reply: Sender<Option<Frame>>) {
         let mut state = self.lock();
         let now = Instant::now();

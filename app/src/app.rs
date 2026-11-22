@@ -89,6 +89,12 @@ pub enum UserEvent {
     },
     /// The audio monitor's and audio session's events.
     Audio(crate::audio::Event),
+    /// The video thread's answer to screenshot `serial`, asked at `asked`: its frame, or none.
+    Still {
+        serial: u64,
+        asked: Instant,
+        frame: Option<Arc<crate::render::Frame>>,
+    },
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
@@ -204,6 +210,10 @@ pub struct App {
     /// first, so a slow start is not taken for a sleep.
     tick_at: Instant,
     tick_wall: Option<SystemTime>,
+    /// The screenshots under way (data-model.md "Screenshot request").
+    screenshots: crate::screenshot::Screenshots,
+    /// The next `--screenshot-every` screenshot.
+    screenshot_at: Option<Instant>,
     /// The next 3 s re-read while the preview waits for a device.
     relist_at: Instant,
     /// When microphone access is read next while the audio input is Blocked.
@@ -281,6 +291,7 @@ impl App {
         instance: Option<platform::Serving>,
     ) -> Self {
         let state = ui.app.global::<WindowState>();
+        let screenshot_at = options.screenshot_every.map(|every| Instant::now() + every);
         let tray_available = tray::available();
         let backdrop = Backdrop::from(&store.get().preview);
         ui.app.global::<Prefs>().set_tray_available(tray_available);
@@ -385,6 +396,8 @@ impl App {
             relisting: None,
             relist_queued: None,
             tick_at: Instant::now(),
+            screenshots: Default::default(),
+            screenshot_at,
             tick_wall: None,
             relist_at: Instant::now(),
             audio_access_at: Instant::now(),
@@ -869,6 +882,56 @@ impl App {
             };
             log::info!("notice: {summary} -> {to}");
         }
+    }
+
+    /// A screenshot is asked for (screenshot FR-001; for now only by `--screenshot-every`): the
+    /// video thread hands over the next frame it presents, which a short-lived thread passes back
+    /// to the event loop.
+    fn request_screenshot(&mut self) {
+        let shows_image = self.test_video.is_some() || self.preview.state() == PreviewState::Playing;
+        match self.screenshots.request(shows_image) {
+            Err(notice) => self.event_notice(notice),
+            Ok(crate::screenshot::Command::Take(serial)) => {
+                let (reply, answer) = std::sync::mpsc::channel();
+                let asked = Instant::now();
+                self.inbox.request_still(serial, reply);
+                let proxy = self.proxy.clone();
+                let spawned = std::thread::Builder::new()
+                    .name("screenshot wait".into())
+                    .spawn(move || {
+                        let frame = answer.recv().ok().flatten().map(Arc::new);
+                        let _ = proxy.send_event(UserEvent::Still { serial, asked, frame });
+                    });
+                if let Err(err) = spawned {
+                    log::warn!("screenshot {serial}: cannot wait for its frame: {err}");
+                    let notice = self.screenshots.not_taken(serial);
+                    self.event_notice(notice);
+                }
+            }
+            Ok(command) => log::warn!("screenshot: unexpected {command:?}"),
+        }
+    }
+
+    /// The video thread answered screenshot `serial`.
+    fn still(&mut self, serial: u64, asked: Instant, frame: Option<Arc<crate::render::Frame>>) {
+        let Some(frame) = frame else {
+            log::info!("screenshot {serial}: no frame");
+            let notice = self.screenshots.not_taken(serial);
+            self.event_notice(notice);
+            return;
+        };
+        log::info!(
+            "screenshot {serial}: {}x{} taken +{} ms",
+            frame.width,
+            frame.height,
+            // Until the answer reached the event loop.
+            asked.elapsed().as_millis()
+        );
+        let _ = self.screenshots.taken(serial);
+        // The worker that writes and copies it comes next (screenshot T014, T019); until then the
+        // frame goes back to the pool and the screenshot ends here, with no notice.
+        drop(frame);
+        let _ = self.screenshots.not_taken(serial);
     }
 
     /// Shows the preview's state in the video area, in the current language.
@@ -1953,6 +2016,7 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.reset_menus();
             }
+            UserEvent::Still { serial, asked, frame } => self.still(serial, asked, frame),
             UserEvent::Second(summary) => {
                 self.second = summary;
                 // On Wayland the window has no monitor yet when it is created and no `Moved`
@@ -2112,6 +2176,15 @@ impl ApplicationHandler<UserEvent> for App {
         let now = Instant::now();
         if now >= self.tick_at {
             self.tick(now);
+        }
+        if let (Some(at), Some(every)) = (self.screenshot_at, self.options.screenshot_every)
+            && now >= at
+        {
+            self.request_screenshot();
+            self.screenshot_at = Some(now + every);
+        }
+        if let Some(at) = self.screenshot_at {
+            wake = Some(wake.map_or(at, |w| w.min(at)));
         }
         wake = Some(wake.map_or(self.tick_at, |w| w.min(self.tick_at)));
         if let Some(sound) = &mut self.sound {

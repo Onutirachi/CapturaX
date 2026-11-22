@@ -9,7 +9,10 @@ critical issue; fixed FR-001 (next frame presented), FR-010 (300 ms when the out
 first), FR-015 (window-only exception) and small wording. Docs committed on this branch, not
 pushed. Implementation started: T001 (dependencies) and T002 (placeholder sound generator)
 done and committed; the probes' code (T003, T004) is committed and waits for the maintainer's
-runs. T005–T007 (still conversion, settings, hotkey value) done and committed.
+runs. T005–T007 (still conversion, settings, hotkey value) done and committed. T008 (frame
+hand-off) committed. T009–T012, T020 and T024 tested on Windows by the maintainer and committed
+(`c5cd7e1` platform files and local time, `21cd3ae` outline flash, `fb9c21a` event notice and
+screenshot state/writing, then the debug flag with its temporary wiring).
 
 ## Done in the last sessions
 
@@ -34,6 +37,49 @@ runs. T005–T007 (still conversion, settings, hotkey value) done and committed.
   `parse` also reads `Win` as Super; `Modifiers::windows_mod()` and `x11_mask()` added for
   T015/T016; portal key names are XKB keysym names (`a`, `Page_Up`, `Print`), to check with the
   T004 probe.
+- 2026-11-22: T008 (`19762e8`): `State.stills` (serial, asked, reply) and `flash_at` in
+  app/src/render/mod.rs; the video thread hands a frame over right after `set_video` (lock taken
+  once per frame, the frame dropped outside it); off screen (`!shown || hidden`) `send_frame`
+  answers with the arriving frame instead of keeping it, no flash; an asker gone passes the frame
+  to the next; 500 ms limit checked in the video loop (its wake includes the oldest deadline) and
+  on each request; `clear_video` and a session change answer `None`; a new video thread keeps
+  the waiting ones. `request_still` carries `expect(dead_code)` until T019.
+- 2026-11-22: T009 (uncommitted): `EventNotice`, `Reason` and `NoticeAction` in
+  app/src/notices.rs (kind, text, action; tag `show:<path>`, `settings:screenshot`, else the
+  device id, so device tags are unchanged); `UserEvent::NoticeOpen` became `NoticeAction { tag,
+  system }`; **Show** only logs until T012, **Settings** opens the panel (category with T034).
+  Slint `DeviceNotice` → `EventNotice` with `action-label`/`action()`; main.slint
+  `event-notice-*`. Icons `camera.svg`, `camera_off.svg` (Tabler 3.35.0). Colors (agent's choice,
+  for review): saved green camera; saved-not-copied and copied-not-saved yellow camera; failed
+  yellow camera-off; nothing and busy grey camera-off. Texts and pt-BR translations added
+  ("Muitas capturas de tela ao mesmo tempo" for busy). Preview:
+  `slint-viewer app/ui/previews/event-notice-preview.slint`.
+- 2026-11-22: T010/T011: app/src/screenshot.rs (`Screenshots`, `Command`, `Written`,
+  `LocalTime`, `file_name`, `write_png`, `WriteError` → `Reason`). Local time: new
+  `platform::utc_offset` (Windows `FileTimeToLocalFileTime`, Linux `localtime_r` declared like
+  `clock_gettime`, no new crate; contracts/platform.md and data-model.md updated); the date via
+  `log::civil_from_days` (now `pub`). Hard link refused for any reason other than
+  `AlreadyExists` → check-then-rename (Linux vfat gives EPERM, not "unsupported"). Disk full is
+  std's `StorageFull`/`QuotaExceeded` (checked: Windows 112 and 39 map to it), no `cfg` in the
+  app (the boundary test forbids it).
+- 2026-11-22: T012: crates/platform/src/files.rs + windows/files.rs (`ILCreateFromPathW` +
+  `SHOpenFolderAndSelectItems` on a COM STA thread, `ShellExecuteW`) + linux/files.rs
+  (`FileManager1.ShowItems`/`ShowFolders`, else portal `OpenDirectory` with an fd, else
+  `OpenURI`); type-checked for Linux in a scratch crate. Example
+  `cargo run -p capturax-platform --example files [-- show <file> | open <folder>]`. **Show** on
+  the notice now calls `show_file`.
+- 2026-11-22: T020: the edge glow was built, seen in the app (works; judged ugly), and replaced
+  by the **outline** (mockup option D; spec FR-010a, research R11, tasks T020 updated): the
+  uniform grew to 28 floats with a `flash` vec4 (opacity, line 3 × scale px, glow deviation
+  9 × scale px; scale = `scene.shadow[0]`); white line on the rounded edge + inner Gaussian glow
+  35 %; curve `flash_opacity` 40 ms ease-out / 400 ms ease-in. The loop keeps presenting while
+  `flash_at` is set and clears it on the first present after the end. Outline seen in the app
+  and approved (maintainer, 2026-11-22). Hand-off measured: 91 screenshots, frame +0–14 ms after the request.
+- 2026-11-22: T024: `--screenshot-every <ms>` (debug builds, 0 = off). **Temporary wiring** for
+  the test: App `request_screenshot` → `Screenshots::request` → `Inbox::request_still`, a
+  "screenshot wait" thread posts `UserEvent::Still { serial, asked, frame: Arc<Frame> }`; the
+  frame is logged ("screenshot N: WxH taken +X ms", time until the event loop got it) and
+  dropped, the slot freed with no notice. T014/T019 replace the end of `still()`.
 
 ## Decisions
 
@@ -45,9 +91,10 @@ runs. T005–T007 (still conversion, settings, hotkey value) done and committed.
   `tools/make_screenshot_sound.py`); after the implementation is validated and before it is committed,
   the maintainer sends the final sound file and it replaces the placeholder.** Do not commit the
   implementation without it.
-- FR-010a: an edge flash: white at the video area's edges fading to transparent about 20 %
-  inward, fast fade in and out (maintainer, 2026-11-22). Curve and timings tuned with the
-  maintainer in the app (research R11).
+- FR-010a: an **outline flash** (maintainer, 2026-11-22): a thin white line on the video's
+  rounded edge with a faint inner glow, 40 ms in, 400 ms out. Chosen from the mockup
+  https://claude.ai/artifact/XknXi4EvntqmHHZU4axncC (option D) after the first edge glow was
+  built and seen in the app and judged ugly (research R11).
 - FR-020: the folder row goes in a new Screenshot category, Hotkeys after it (agent's choice;
   the maintainer reviews it in the app).
 - Plan (2026-11-22), spec updated: the sound and the flash start when the frame is taken, not
@@ -79,9 +126,12 @@ runs. T005–T007 (still conversion, settings, hotkey value) done and committed.
    installed); `shortcuts_probe` on CachyOS. On a new Linux checkout run
    `python tools/make_screenshot_sound.py` and add `app/sounds/screenshot.wav` to
    `.git/info/exclude` there too.
-2. Agent: T008 (frame hand-off) and T009 (event notice), then the US1 tasks that do not wait
-   for the probes: T010, T011, T012, T015, T016, T020, T021, T022, T024. T013 waits for T003,
-   T017 for T004. T009 needs the maintainer to unplug the C920 to check device notices.
+2. Done on Windows (2026-11-22): device notices (ezcap disabled/enabled in Device Manager:
+   balloon and system notification, both logged), notice preview approved, `files` show/open
+   OK, hand-off OK, outline flash approved. Left for CachyOS: the `files` example (show/open:
+   Dolphin or the portal), `utc_offset` (a file name in local time once T014 writes files) and
+   **Open** on a C920 notice (never exercised: needs a device that does not open by itself).
+3. Agent: T015, T016, T021, T022. T013 waits for T003, T017 for T004.
 
 The placeholder sound stays untracked and the code that embeds it waits for the final sound
 before its commit (tasks.md "Commits"; maintainer, 2026-11-22).

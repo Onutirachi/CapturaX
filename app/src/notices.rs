@@ -123,10 +123,8 @@ pub enum EventNotice {
     #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     Failed(Reason),
     /// No image to capture.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     Nothing,
     /// Too many screenshots waiting.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     Busy,
 }
 
