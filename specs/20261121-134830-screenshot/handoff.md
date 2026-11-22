@@ -9,7 +9,7 @@ critical issue; fixed FR-001 (next frame presented), FR-010 (300 ms when the out
 first), FR-015 (window-only exception) and small wording. Docs committed on this branch, not
 pushed. Implementation started: T001 (dependencies) and T002 (placeholder sound generator)
 done and committed; the probes' code (T003, T004) is committed and waits for the maintainer's
-runs.
+runs. T005–T007 (still conversion, settings, hotkey value) done and committed.
 
 ## Done in the last sessions
 
@@ -23,6 +23,17 @@ runs.
   until T040. T003/T004 code (`c466794`): `clipboard_probe` and `shortcuts_probe` (the latter
   type-checked for Linux in a scratch crate with only `zbus`); clipboard set time on Windows
   recorded in measurements/probes.md (release 22 ms at 4K, debug 945 ms).
+- 2026-11-22: T005 (`7dd54fd`): `crates/capture/src/still.rs` with `conversion` moved from
+  gpu.rs (the shader's comment points there now), `still`, `Still::rgba`, `Still::png`; NV12/I420
+  chroma taps at `(x + 0.5)·half/full − 0.5`, clamped (the sampler's positions). T006
+  (`181f575`): `[screenshot] folder` and `[hotkeys] screenshot` in the settings crate; the folder
+  rule uses `Path::is_absolute` (so it is the running system's notion of absolute); the hotkey
+  text is kept raw (missing or non-text → `Ctrl+F8`), validity and duplicates are the app's
+  (T018). T007 (`9b09bff`): `crates/platform/src/hotkeys.rs` pure part; `Key` is
+  `Letter(u8)`/`Digit(u8)`/`F(u8)` plus named keys (contracts/platform.md updated to match);
+  `parse` also reads `Win` as Super; `Modifiers::windows_mod()` and `x11_mask()` added for
+  T015/T016; portal key names are XKB keysym names (`a`, `Page_Up`, `Print`), to check with the
+  T004 probe.
 
 ## Decisions
 
@@ -68,8 +79,9 @@ runs.
    installed); `shortcuts_probe` on CachyOS. On a new Linux checkout run
    `python tools/make_screenshot_sound.py` and add `app/sounds/screenshot.wav` to
    `.git/info/exclude` there too.
-2. Agent: T005 (still conversion), T006 (settings), T007 (hotkey parsing), which do not depend on
-   the probes. T013 waits for T003, T017 for T004.
+2. Agent: T008 (frame hand-off) and T009 (event notice), then the US1 tasks that do not wait
+   for the probes: T010, T011, T012, T015, T016, T020, T021, T022, T024. T013 waits for T003,
+   T017 for T004. T009 needs the maintainer to unplug the C920 to check device notices.
 
 The placeholder sound stays untracked and the code that embeds it waits for the final sound
 before its commit (tasks.md "Commits"; maintainer, 2026-11-22).
