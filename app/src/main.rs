@@ -13,6 +13,7 @@ mod placement;
 mod present_log;
 mod preview;
 mod render;
+mod screenshot;
 mod shadows;
 mod sound;
 mod stats;
@@ -227,7 +228,7 @@ fn start(
     let ui = ui::Ui::new(language)?;
     let event_loop = EventLoop::<app::UserEvent>::with_user_event().build()?;
     // Before any window: on Windows it sets the app id the toasts are shown under (research R15).
-    // **Open** on a system notification reaches the main loop with the device id.
+    // A system notification's button reaches the main loop with the notice's tag.
     let icon = icon::at_least(64);
     let proxy = event_loop.create_proxy();
     platform::init_notifications(
@@ -235,8 +236,8 @@ fn start(
             size: icon.size,
             rgba: icon.rgba,
         },
-        move |device| {
-            let _ = proxy.send_event(app::UserEvent::NoticeOpen { device, system: true });
+        move |tag| {
+            let _ = proxy.send_event(app::UserEvent::NoticeAction { tag, system: true });
         },
     );
     // The listener thread hands `show` to the main loop and answers whether the platform lets the

@@ -18,7 +18,7 @@ use crate::frame::{self, Escape};
 use crate::i18n;
 use crate::icon;
 use crate::latency;
-use crate::notices::{Kind, Notices};
+use crate::notices::{EventNotice, Kind, NoticeAction, Notices};
 use crate::placement::{self, Rect};
 use crate::present_log::{self, Event as LogEvent, Stage};
 use crate::preview::{self, Command, Preview, PreviewState};
@@ -73,10 +73,11 @@ pub enum UserEvent {
     ModePicked(i32),
     /// The state message's **Try again** (FR-019).
     TryAgain,
-    /// **Open** on a device notice (FR-027), in the app's balloon or on a system notification
-    /// (`system`), which also brings the window back.
-    NoticeOpen {
-        device: String,
+    /// An event notice's button (device FR-027, screenshot FR-008), in the app's balloon or on a
+    /// system notification (`system`), which also brings the window back: the action's tag
+    /// ([`NoticeAction`]).
+    NoticeAction {
+        tag: String,
         system: bool,
     },
     /// The video thread's summary of the last second (FR-016).
@@ -255,13 +256,13 @@ pub struct App {
     language_stages: bool,
     /// The system's theme, for the Automatic setting (FR-017).
     system_theme: Option<SystemTheme>,
-    /// The window has the keyboard focus: device notices show in the app, else as system
+    /// The window has the keyboard focus: event notices show in the app, else as system
     /// notifications (FR-027).
     focused: bool,
-    /// The last device notice shown in the app, its text redone on a language switch, and the
+    /// The last event notice shown in the app, its text redone on a language switch, and the
     /// number that shows each one.
-    device_notice: Option<DeviceNotice>,
-    device_notice_serial: i32,
+    event_notice: Option<EventNotice>,
+    event_notice_serial: i32,
     /// The preview's sound; None with `--no-audio` or the test video.
     sound: Option<Sound>,
     /// The wheel's moves over the volume button not yet a whole notch.
@@ -311,9 +312,9 @@ impl App {
         let on = send.clone();
         ui.app.on_try_again(move || on(UserEvent::TryAgain));
         let on = send.clone();
-        ui.app.on_device_notice_open(move |device| {
-            on(UserEvent::NoticeOpen {
-                device: device.into(),
+        ui.app.on_event_notice_action(move |tag| {
+            on(UserEvent::NoticeAction {
+                tag: tag.into(),
                 system: false,
             })
         });
@@ -367,8 +368,8 @@ impl App {
             ui,
             notices: Notices::default(),
             focused: false,
-            device_notice: None,
-            device_notice_serial: 0,
+            event_notice: None,
+            event_notice_serial: 0,
             window: None,
             video: None,
             inbox,
@@ -817,7 +818,7 @@ impl App {
                 device_id,
                 name,
                 open,
-            } => self.device_notice(DeviceNotice {
+            } => self.event_notice(EventNotice::Device {
                 kind,
                 device: device_id,
                 name,
@@ -826,31 +827,40 @@ impl App {
         }
     }
 
-    /// Tells the user a device joined or left (FR-027): in the app's balloon while the window has
-    /// focus, else as a system notification, with the same texts.
-    fn device_notice(&mut self, notice: DeviceNotice) {
+    /// Tells the user of an event, a device joining or leaving (FR-027) or a screenshot's outcome
+    /// (screenshot FR-008): in the app's balloon while the window has focus, else as a system
+    /// notification, with the same texts.
+    fn event_notice(&mut self, notice: EventNotice) {
         let texts = Texts::get(&self.ui.app);
-        let text = notice_text(&notice, &texts);
-        let summary = format!(
-            "{} ({}) {:?}, open {}",
-            notice.name, notice.device, notice.kind, notice.open
-        );
+        let text = notice.text(&texts);
+        let action = notice.action();
+        let summary = match &notice {
+            EventNotice::Device {
+                kind,
+                device,
+                name,
+                open,
+            } => format!("{name} ({device}) {kind:?}, open {open}"),
+            other => format!("{other:?}"),
+        };
+        let label = action.as_ref().map(|a| a.label(&texts)).unwrap_or_default();
+        let tag = action.as_ref().map(NoticeAction::tag).unwrap_or_default();
         if self.focused && self.window.is_some() {
             log::info!("notice: {summary} -> app");
-            self.device_notice_serial += 1;
+            self.event_notice_serial += 1;
             let app = &self.ui.app;
-            app.set_device_notice_kind(notice_kind(notice.kind).into());
-            app.set_device_notice_text(text.into());
-            app.set_device_notice_can_open(notice.open);
-            app.set_device_notice_device(notice.device.as_str().into());
-            app.set_device_notice_serial(self.device_notice_serial);
-            self.device_notice = Some(notice);
+            app.set_event_notice_kind(notice.kind().into());
+            app.set_event_notice_text(text);
+            app.set_event_notice_action_label(label);
+            app.set_event_notice_tag(tag.into());
+            app.set_event_notice_serial(self.event_notice_serial);
+            self.event_notice = Some(notice);
             self.request_redraw();
         } else {
             let shown = platform::notify(&platform::Notice {
-                title: text,
-                action: notice.open.then(|| texts.get_notice_open().into()),
-                tag: notice.device.clone(),
+                title: text.into(),
+                action: action.is_some().then(|| label.into()),
+                tag,
             });
             let to = if shown {
                 "system"
@@ -1120,9 +1130,11 @@ impl App {
         // The menus' named texts are read again from the new catalog.
         self.reset_menus();
         self.show_notice();
-        if let Some(notice) = &self.device_notice {
-            let text = notice_text(notice, &Texts::get(&self.ui.app));
-            self.ui.app.set_device_notice_text(text.into());
+        if let Some(notice) = &self.event_notice {
+            let texts = Texts::get(&self.ui.app);
+            self.ui.app.set_event_notice_text(notice.text(&texts));
+            let label = notice.action().map(|a| a.label(&texts)).unwrap_or_default();
+            self.ui.app.set_event_notice_action_label(label);
         }
         self.show_preview_state();
         if stages {
@@ -1803,13 +1815,23 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             UserEvent::Window(action) => self.act(event_loop, action),
             UserEvent::TryAgain => self.preview_event(preview::Event::TryAgain),
-            UserEvent::NoticeOpen { device, system } => {
-                // Chosen before the window shows: while hidden, the preview opens it when shown.
-                self.preview_event(preview::Event::NoticeOpen(device));
-                if system {
-                    self.show_window(event_loop);
+            UserEvent::NoticeAction { tag, system } => match NoticeAction::from_tag(&tag) {
+                NoticeAction::Open(device) => {
+                    // Chosen before the window shows: while hidden, the preview opens it when shown.
+                    self.preview_event(preview::Event::NoticeOpen(device));
+                    if system {
+                        self.show_window(event_loop);
+                    }
                 }
-            }
+                NoticeAction::Show(path) => platform::show_file(&path),
+                NoticeAction::Settings => {
+                    if system {
+                        self.show_window(event_loop);
+                    }
+                    self.ui.app.set_settings_open(true);
+                    self.request_redraw();
+                }
+            },
             UserEvent::DismissNotice => {
                 self.notices.dismiss();
                 self.show_notice();
@@ -2141,36 +2163,5 @@ fn camera_access() -> capture::Access {
         platform::Access::Allowed => capture::Access::Allowed,
         platform::Access::Denied => capture::Access::Denied,
         platform::Access::Unknown => capture::Access::Unknown,
-    }
-}
-
-/// A device notice (FR-027), kept to redo its text in another language.
-#[derive(Debug, Clone)]
-struct DeviceNotice {
-    kind: preview::NoticeKind,
-    device: String,
-    /// The device's name as the menu shows it.
-    name: String,
-    /// It offers **Open**.
-    open: bool,
-}
-
-/// The notice's text in the current language ("C920 connected").
-fn notice_text(notice: &DeviceNotice, texts: &Texts) -> String {
-    let name = notice.name.as_str().into();
-    match notice.kind {
-        preview::NoticeKind::Connected => texts.invoke_notice_connected(name),
-        preview::NoticeKind::Reconnected => texts.invoke_notice_reconnected(name),
-        preview::NoticeKind::Disconnected => texts.invoke_notice_disconnected(name),
-    }
-    .into()
-}
-
-/// The balloon's kind (main.slint `device-notice-kind`).
-fn notice_kind(kind: preview::NoticeKind) -> &'static str {
-    match kind {
-        preview::NoticeKind::Connected => "connected",
-        preview::NoticeKind::Reconnected => "reconnected",
-        preview::NoticeKind::Disconnected => "disconnected",
     }
 }

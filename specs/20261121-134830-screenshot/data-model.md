@@ -49,7 +49,8 @@ Reasons (a few words, from the error kind): `folder not found`, `no permission`,
 
 ## File name (pure)
 
-`CapturaX YYYY-MM-DD HH-MM-SS.png` from the local time the frame was taken; `n ≥ 2` gives
+`CapturaX YYYY-MM-DD HH-MM-SS.png` from the local time the frame was taken (UTC plus
+`platform::utc_offset`, the date by the log's `civil_from_days`); `n ≥ 2` gives
 `CapturaX YYYY-MM-DD HH-MM-SS (n).png`. The temporary file is `.<name>.part` in the same folder.
 
 ## Hotkey (`crates/platform` `hotkeys.rs`, pure part)

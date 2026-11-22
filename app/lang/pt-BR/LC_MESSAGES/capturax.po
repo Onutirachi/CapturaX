@@ -385,3 +385,39 @@ msgstr "Entradas"
 
 msgid "Outputs"
 msgstr "Saídas"
+
+msgid "Screenshot saved"
+msgstr "Captura de tela salva"
+
+msgid "Screenshot saved, not copied"
+msgstr "Captura de tela salva, não copiada"
+
+msgid "Couldn't save the screenshot: {}. Copied to the clipboard"
+msgstr "Não foi possível salvar a captura de tela: {}. Copiada para a área de transferência"
+
+msgid "Couldn't take the screenshot: {}"
+msgstr "Não foi possível fazer a captura de tela: {}"
+
+msgid "Nothing to capture"
+msgstr "Nada para capturar"
+
+msgid "Too many screenshots at once"
+msgstr "Muitas capturas de tela ao mesmo tempo"
+
+msgid "folder not found"
+msgstr "pasta não encontrada"
+
+msgid "no permission"
+msgstr "sem permissão"
+
+msgid "disk full"
+msgstr "disco cheio"
+
+msgid "write error"
+msgstr "erro de gravação"
+
+msgid "image error"
+msgstr "erro na imagem"
+
+msgid "Show"
+msgstr "Mostrar"

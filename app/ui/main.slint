@@ -6,7 +6,7 @@
 import { Theme, Palette } from "theme.slint";
 import { Texts } from "texts.slint";
 import { WindowState } from "window-state.slint";
-import { SettingsNotice, NoticeKind, DeviceNotice, NoticeBox } from "components/notice.slint";
+import { SettingsNotice, NoticeKind, EventNotice, NoticeBox } from "components/notice.slint";
 import { StateMessage, StateAction } from "components/state-message.slint";
 import { Input } from "components/focus-ring.slint";
 import { Menus, MenuItem, MenuLayer } from "components/menu.slint";
@@ -45,15 +45,16 @@ export component AppWindow inherits Window {
     in property <string> notice-text;
     callback dismiss-notice();
 
-    // The device notice (FR-027), set by Rust while the window has focus (a system notification
-    // otherwise): `connected`, `reconnected` or `disconnected`, the text, whether it offers
-    // **Open**, the device it names, and a number that changes for each notice and shows it.
-    in property <string> device-notice-kind;
-    in property <string> device-notice-text;
-    in property <bool> device-notice-can-open;
-    in property <string> device-notice-device;
-    in property <int> device-notice-serial;
-    callback device-notice-open(string /* device id */);
+    // The event notice (device preview FR-027, screenshot FR-008), set by Rust while the window has
+    // focus (a system notification otherwise): its kind (components/notice.slint), the text, the
+    // action's label (empty for none) and tag (app/src/notices.rs `NoticeAction`), and a number
+    // that changes for each notice and shows it.
+    in property <string> event-notice-kind;
+    in property <string> event-notice-text;
+    in property <string> event-notice-action-label;
+    in property <string> event-notice-tag;
+    in property <int> event-notice-serial;
+    callback event-notice-action(string /* tag */);
     // The corner notices show in: `top-left`, `top-right`, `bottom-left` or `bottom-right`, set
     // by Rust from the Notification position setting (FR-032).
     in property <string> notification-position: "bottom-left";
@@ -415,24 +416,24 @@ export component AppWindow inherits Window {
         }
     }
 
-    // The device notice balloon, placed by the properties under "Top layer" below. It is drawn
+    // The event notice balloon, placed by the properties under "Top layer" below. It is drawn
     // before the settings panel: while the panel is open the balloon stays under it and its
     // backdrop (FR-027, maintainer, 2026-11-10).
-    device-notice := DeviceNotice {
+    event-notice := EventNotice {
         x: root.video-x + root.notice-corner.x + (root.notice-clear-of.x - root.notice-corner.x) * (1 - root.hidden);
         y: root.video-y + root.notice-corner.y + (root.notice-clear-of.y - root.notice-corner.y) * (1 - root.hidden);
         room: root.video-width - 2 * root.notice-edge;
         top: root.notice-top;
         left: root.notice-left;
         focusable: !root.settings-open;
-        kind: root.device-notice-kind;
-        text: root.device-notice-text;
-        can-open: root.device-notice-can-open;
-        serial: root.device-notice-serial;
-        open => { root.device-notice-open(root.device-notice-device); }
+        kind: root.event-notice-kind;
+        text: root.event-notice-text;
+        action-label: root.event-notice-action-label;
+        serial: root.event-notice-serial;
+        action => { root.event-notice-action(root.event-notice-tag); }
     }
 
-    // The settings notice balloon (FR-033), stacked past the device notice in the same corner.
+    // The settings notice balloon (FR-033), stacked past the event notice in the same corner.
     settings-notice := SettingsNotice {
         x: root.video-x + root.settings-notice-corner.x + (root.settings-notice-clear-of.x - root.settings-notice-corner.x) * (1 - root.hidden);
         y: root.video-y + root.settings-notice-corner.y + (root.settings-notice-clear-of.y - root.settings-notice-corner.y) * (1 - root.hidden);
@@ -479,24 +480,24 @@ export component AppWindow inherits Window {
     // shown also with the controls hidden. While the controls show they keep clear of them: below
     // the toolbar dock, beside the left dock (8 px), above the bubbles (12 px; over them when that
     // would leave the video area); in the bottom right
-    // the device notice joins the bubble row at the corner when the row has room for it, and the
-    // bubbles slide aside. They move with the chrome's slide. With both on screen the device
+    // the event notice joins the bubble row at the corner when the row has room for it, and the
+    // bubbles slide aside. They move with the chrome's slide. With both on screen the event
     // notice is nearest the corner and the settings notice stacks past it (12 px), sliding as the
-    // device notice comes and goes.
+    // event notice comes and goes.
     property <bool> notice-top: root.notification-position == "top-left" || root.notification-position == "top-right";
     property <bool> notice-left: root.notification-position == "top-left" || root.notification-position == "bottom-left";
     property <length> notice-edge: Theme.gap-l;
     property <NoticeBox> notice-corner: {
-        x: root.notice-left ? root.notice-edge : root.video-width - root.notice-edge - device-notice.width,
-        y: root.notice-top ? root.notice-edge : root.video-height - root.notice-edge - device-notice.height,
-        w: device-notice.width,
-        h: device-notice.height,
+        x: root.notice-left ? root.notice-edge : root.video-width - root.notice-edge - event-notice.width,
+        y: root.notice-top ? root.notice-edge : root.video-height - root.notice-edge - event-notice.height,
+        w: event-notice.width,
+        h: event-notice.height,
     };
     // In the bottom right, at the end of the bubble row.
     property <bool> notice-joins: root.notification-position == "bottom-right"
-        && info.row-width + Theme.gap-m + device-notice.width <= info.width - info.row-start;
+        && info.row-width + Theme.gap-m + event-notice.width <= info.width - info.row-start;
     // The bubbles leave the notice its place at the row's end as it grows in.
-    property <length> notice-reserve: root.notice-joins ? (device-notice.width + Theme.gap-m) * device-notice.appear : 0;
+    property <length> notice-reserve: root.notice-joins ? (event-notice.width + Theme.gap-m) * event-notice.appear : 0;
     // What the notice keeps clear of, in the video area, where it stands when shown.
     property <NoticeBox> toolbar-box: { x: toolbar-area.x, y: chrome.edge, w: toolbar.width, h: toolbar.height };
     property <NoticeBox> dock-box: { x: chrome.edge, y: chrome.left-top, w: left-dock.width, h: left-dock.height };
@@ -539,14 +540,14 @@ export component AppWindow inherits Window {
 
     property <NoticeBox> notice-clear-of: root.notice-joins ? root.notice-corner : root.notice-clear(root.notice-corner);
 
-    // The settings notice in the corner, moved past the device notice `d` while that one shows.
+    // The settings notice in the corner, moved past the event notice `d` while that one shows.
     pure function settings-notice-from(d: NoticeBox) -> NoticeBox {
         {
             x: root.notice-left ? root.notice-edge : root.video-width - root.notice-edge - settings-notice.width,
             y: root.notice-top
-                ? root.notice-edge + max(0, d.y + d.h + Theme.gap-m - root.notice-edge) * device-notice.appear
+                ? root.notice-edge + max(0, d.y + d.h + Theme.gap-m - root.notice-edge) * event-notice.appear
                 : root.video-height - root.notice-edge - settings-notice.height
-                    - max(0, root.video-height - root.notice-edge - (d.y - Theme.gap-m)) * device-notice.appear,
+                    - max(0, root.video-height - root.notice-edge - (d.y - Theme.gap-m)) * event-notice.appear,
             w: settings-notice.width,
             h: settings-notice.height,
         }

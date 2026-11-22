@@ -59,6 +59,26 @@ export global Texts {
         @tr("{} disconnected", device)
     }
     out property <string> notice-open: @tr("Open");
+    // Screenshot notices (screenshot FR-008), in the same balloon and system notifications, with
+    // **Show** on a saved file and **Settings** when the folder failed.
+    out property <string> notice-screenshot-saved: @tr("Screenshot saved");
+    out property <string> notice-screenshot-saved-not-copied: @tr("Screenshot saved, not copied");
+    public pure function notice-screenshot-copied-not-saved(reason: string) -> string {
+        @tr("Couldn't save the screenshot: {}. Copied to the clipboard", reason)
+    }
+    public pure function notice-screenshot-failed(reason: string) -> string {
+        @tr("Couldn't take the screenshot: {}", reason)
+    }
+    out property <string> notice-screenshot-nothing: @tr("Nothing to capture");
+    out property <string> notice-screenshot-busy: @tr("Too many screenshots at once");
+    // Why a screenshot failed, a few words inside the two texts above.
+    out property <string> screenshot-folder-not-found: @tr("folder not found");
+    out property <string> screenshot-no-permission: @tr("no permission");
+    out property <string> screenshot-disk-full: @tr("disk full");
+    out property <string> screenshot-write-error: @tr("write error");
+    out property <string> screenshot-image-error: @tr("image error");
+    out property <string> notice-show: @tr("Show");
+    out property <string> notice-settings: @tr("Settings");
     // The mode menu (FR-007): its group headers, the automatic modes' names, and the detail line of
     // an automatic choice, its name then the mode it opens ("Auto max FPS · 1920 × 1080 · 120").
     out property <string> modes-automatic: @tr("Automatic");

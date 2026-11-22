@@ -1,0 +1,99 @@
+// The event notice's kinds for `slint-viewer` (not built into the app): the device ones and the
+// screenshot ones, with and without an action. A click on a balloon closes it, as in the app; click
+// the window's background to switch the theme and show them all again. Sample texts are plain
+// strings: previews are left out of the translation check.
+import { Theme } from "../theme.slint";
+import { EventNotice } from "../components/notice.slint";
+import "../assets/fonts/Inter.ttf";
+
+export component EventNoticePreview inherits Window {
+    title: "Event notice preview";
+    default-font-family: Theme.font;
+    preferred-width: 1000px;
+    preferred-height: 560px;
+    background: Theme.c.base;
+
+    // A balloon shows when this changes: once just after start, then on each background click.
+    property <int> serial: 0;
+
+    Timer {
+        interval: 100ms;
+        running: root.serial == 0;
+        triggered => { root.serial = 1; }
+    }
+
+    TouchArea {
+        clicked => {
+            Theme.dark = !Theme.dark;
+            root.serial += 1;
+        }
+    }
+
+    GridLayout {
+        padding: 16px;
+        spacing: 16px;
+
+        Row {
+            EventNotice {
+                kind: "connected";
+                text: "C920 connected";
+                action-label: "Open";
+                serial: root.serial;
+                room: 460px;
+                action => { debug("open"); }
+            }
+            EventNotice {
+                kind: "disconnected";
+                text: "C920 disconnected";
+                serial: root.serial;
+                room: 460px;
+            }
+        }
+        Row {
+            EventNotice {
+                kind: "saved";
+                text: "Screenshot saved";
+                action-label: "Show";
+                serial: root.serial;
+                room: 460px;
+                action => { debug("show"); }
+            }
+            EventNotice {
+                kind: "saved-not-copied";
+                text: "Screenshot saved, not copied";
+                action-label: "Show";
+                serial: root.serial;
+                room: 460px;
+            }
+        }
+        Row {
+            EventNotice {
+                kind: "copied-not-saved";
+                text: "Couldn't save the screenshot: folder not found. Copied to the clipboard";
+                action-label: "Settings";
+                serial: root.serial;
+                room: 460px;
+            }
+            EventNotice {
+                kind: "failed";
+                text: "Couldn't take the screenshot: image error";
+                serial: root.serial;
+                room: 460px;
+            }
+        }
+        Row {
+            EventNotice {
+                kind: "nothing";
+                text: "Nothing to capture";
+                serial: root.serial;
+                room: 460px;
+            }
+            EventNotice {
+                kind: "busy";
+                text: "Too many screenshots at once";
+                serial: root.serial;
+                room: 460px;
+            }
+        }
+    }
+}

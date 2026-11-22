@@ -1,0 +1,421 @@
+//! Screenshots (spec 20261121-134830-screenshot): the requests' state (data-model.md "Screenshot
+//! request") and the file writing (research R3, data-model.md "File name").
+
+#![cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring uses it (T014, T019)"))]
+
+use std::fs::{self, File};
+use std::io::{self, Write as _};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use crate::notices::{EventNotice, Reason};
+
+/// At most this many screenshots wait for a frame or for their file (FR-007).
+pub const MAX_WAITING: u32 = 4;
+
+/// The screenshots under way (data-model.md "Screenshot request").
+#[derive(Debug, Default)]
+pub struct Screenshots {
+    /// Requests sent or being written, 0 to [`MAX_WAITING`].
+    waiting: u32,
+    /// The number of the next request.
+    serial: u64,
+}
+
+/// What a request or a taken frame asks of the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Command {
+    /// Ask the video thread for the next frame for this screenshot.
+    Take(u64),
+    PlaySound,
+    /// Hand the screenshot's frame to the worker.
+    Write(u64),
+}
+
+/// What the worker did with a screenshot's image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Written {
+    /// The file, or why there is none.
+    pub saved: Result<PathBuf, Reason>,
+    pub copied: bool,
+}
+
+impl Screenshots {
+    /// The key, the button or the debug flag asks for a screenshot; `shows_image` tells whether
+    /// the video area shows an image (not a state). Refused with its notice, or the command to
+    /// take it.
+    pub fn request(&mut self, shows_image: bool) -> Result<Command, EventNotice> {
+        if !shows_image {
+            return Err(EventNotice::Nothing);
+        }
+        if self.waiting >= MAX_WAITING {
+            return Err(EventNotice::Busy);
+        }
+        self.waiting += 1;
+        self.serial += 1;
+        Ok(Command::Take(self.serial))
+    }
+
+    /// The video thread handed over screenshot `serial`'s frame: the sound and the flash start
+    /// now (FR-010), the file is written next.
+    pub fn taken(&self, serial: u64) -> [Command; 2] {
+        [Command::PlaySound, Command::Write(serial)]
+    }
+
+    /// No frame came for screenshot `serial` (500 ms, or the source closed).
+    pub fn not_taken(&mut self, _serial: u64) -> EventNotice {
+        self.waiting = self.waiting.saturating_sub(1);
+        EventNotice::Nothing
+    }
+
+    /// The worker is done with screenshot `serial`: its notice (FR-008).
+    pub fn written(&mut self, _serial: u64, written: Written) -> EventNotice {
+        self.waiting = self.waiting.saturating_sub(1);
+        match (written.saved, written.copied) {
+            (Ok(path), true) => EventNotice::Saved(path),
+            (Ok(path), false) => EventNotice::SavedNotCopied(path),
+            (Err(reason), true) => EventNotice::CopiedNotSaved(reason),
+            (Err(reason), false) => EventNotice::Failed(reason),
+        }
+    }
+}
+
+/// A local date and time to the second.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LocalTime {
+    pub year: i64,
+    pub month: u32,
+    pub day: u32,
+    pub hour: u32,
+    pub minute: u32,
+    pub second: u32,
+}
+
+impl LocalTime {
+    /// `time` in the system's time zone.
+    pub fn at(time: SystemTime) -> Self {
+        let secs = time.duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+        Self::from_local_seconds(secs + i64::from(platform::utc_offset(time)))
+    }
+
+    /// From seconds since 1970-01-01 00:00 local time.
+    fn from_local_seconds(secs: i64) -> Self {
+        let (days, rest) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+        let (year, month, day) = crate::log::civil_from_days(days);
+        let rest = rest as u32;
+        Self {
+            year,
+            month,
+            day,
+            hour: rest / 3600,
+            minute: rest % 3600 / 60,
+            second: rest % 60,
+        }
+    }
+}
+
+/// `CapturaX YYYY-MM-DD HH-MM-SS.png`, with ` (n)` before the extension for `n` ≥ 2 (FR-005).
+pub fn file_name(time: &LocalTime, n: u32) -> String {
+    let LocalTime {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+    } = time;
+    let number = if n >= 2 { format!(" ({n})") } else { String::new() };
+    format!("CapturaX {year:04}-{month:02}-{day:02} {hour:02}-{minute:02}-{second:02}{number}.png")
+}
+
+/// Why a file was not written (data-model.md "Outcome").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteError {
+    FolderNotFound,
+    NoPermission,
+    DiskFull,
+    Other,
+}
+
+impl WriteError {
+    fn from_io(err: &io::Error) -> Self {
+        // std gives StorageFull for ENOSPC and Windows' ERROR_DISK_FULL and ERROR_HANDLE_DISK_FULL.
+        match err.kind() {
+            io::ErrorKind::NotFound => Self::FolderNotFound,
+            io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem => Self::NoPermission,
+            io::ErrorKind::StorageFull | io::ErrorKind::QuotaExceeded => Self::DiskFull,
+            _ => Self::Other,
+        }
+    }
+}
+
+impl From<WriteError> for Reason {
+    fn from(err: WriteError) -> Self {
+        match err {
+            WriteError::FolderNotFound => Reason::FolderNotFound,
+            WriteError::NoPermission => Reason::NoPermission,
+            WriteError::DiskFull => Reason::DiskFull,
+            WriteError::Other => Reason::WriteError,
+        }
+    }
+}
+
+/// A `.part` file older than this was left by a crash (research R3).
+const STALE_PART: Duration = Duration::from_secs(60);
+
+/// Names past this are not tried (a folder full of one second's screenshots).
+const MAX_NUMBER: u32 = 10_000;
+
+/// Writes `bytes` (a PNG) into `folder` under [`file_name`] for `time`, never replacing a file and
+/// never showing a partial one under the final name (FR-005, FR-006, research R3). The folder is
+/// made when its parent exists.
+pub fn write_png(folder: &Path, time: &LocalTime, bytes: &[u8]) -> Result<PathBuf, WriteError> {
+    if !folder.is_dir() {
+        if !folder.parent().is_some_and(Path::is_dir) {
+            return Err(WriteError::FolderNotFound);
+        }
+        fs::create_dir(folder)
+            .or_else(|err| if folder.is_dir() { Ok(()) } else { Err(err) })
+            .map_err(|err| {
+                log::warn!("screenshot: cannot make {}: {err}", folder.display());
+                WriteError::from_io(&err)
+            })?;
+    }
+    remove_stale_parts(folder);
+    let part = folder.join(format!(".{}.part", file_name(time, 1)));
+    let fail = |err: io::Error, what: &str| {
+        log::warn!("screenshot: {what} {}: {err}", part.display());
+        let _ = fs::remove_file(&part);
+        WriteError::from_io(&err)
+    };
+    let mut file = File::create(&part).map_err(|err| fail(err, "cannot create"))?;
+    file.write_all(bytes)
+        .and_then(|()| file.sync_all())
+        .map_err(|err| fail(err, "cannot write"))?;
+    drop(file);
+    for n in 1..=MAX_NUMBER {
+        let target = folder.join(file_name(time, n));
+        match fs::hard_link(&part, &target) {
+            Ok(()) => {
+                let _ = fs::remove_file(&part);
+                return Ok(target);
+            }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
+            // No hard links on this file system (FAT32, exFAT; the error differs by system): the
+            // name is checked, then the file renamed. The worker is the only writer.
+            Err(link_err) => {
+                if target.symlink_metadata().is_ok() {
+                    continue;
+                }
+                return match fs::rename(&part, &target) {
+                    Ok(()) => Ok(target),
+                    Err(err) => {
+                        log::debug!("screenshot: hard link refused: {link_err}");
+                        Err(fail(err, "cannot rename"))
+                    }
+                };
+            }
+        }
+    }
+    Err(fail(io::Error::other("every name is taken"), "cannot name"))
+}
+
+/// Removes the `.part` files a crash left in `folder`.
+fn remove_stale_parts(folder: &Path) {
+    let Ok(entries) = fs::read_dir(folder) else {
+        return;
+    };
+    let now = SystemTime::now();
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !(name.starts_with(".CapturaX ") && name.ends_with(".part")) {
+            continue;
+        }
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .is_ok_and(|at| now.duration_since(at).is_ok_and(|age| age > STALE_PART));
+        if old {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn time() -> LocalTime {
+        LocalTime {
+            year: 2026,
+            month: 11,
+            day: 22,
+            hour: 9,
+            minute: 5,
+            second: 7,
+        }
+    }
+
+    fn files(folder: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(folder)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn names_carry_the_local_time_and_a_number_from_2() {
+        assert_eq!(file_name(&time(), 1), "CapturaX 2026-11-22 09-05-07.png");
+        assert_eq!(file_name(&time(), 2), "CapturaX 2026-11-22 09-05-07 (2).png");
+        assert_eq!(file_name(&time(), 12), "CapturaX 2026-11-22 09-05-07 (12).png");
+        // 2024-02-29 23:59:59, and the second after it.
+        let leap = 1_709_251_199;
+        let at = LocalTime::from_local_seconds(leap);
+        assert_eq!(file_name(&at, 1), "CapturaX 2024-02-29 23-59-59.png");
+        let next = LocalTime::from_local_seconds(leap + 1);
+        assert_eq!((next.month, next.day, next.hour), (3, 1, 0));
+        // Before 1970 (a negative local offset near the epoch).
+        let before = LocalTime::from_local_seconds(-1);
+        assert_eq!(
+            (before.year, before.month, before.day, before.second),
+            (1969, 12, 31, 59)
+        );
+    }
+
+    #[test]
+    fn the_local_time_follows_the_system_offset() {
+        let now = SystemTime::now();
+        let offset = platform::utc_offset(now);
+        assert!(offset.abs() <= 14 * 3600, "{offset}");
+        let secs = now.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        assert_eq!(
+            LocalTime::at(now),
+            LocalTime::from_local_seconds(secs + i64::from(offset))
+        );
+    }
+
+    #[test]
+    fn files_are_numbered_and_never_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        fs::write(folder.join("CapturaX 2026-11-22 09-05-07.png"), b"old").unwrap();
+        let second = write_png(folder, &time(), b"new").unwrap();
+        assert_eq!(second, folder.join("CapturaX 2026-11-22 09-05-07 (2).png"));
+        let third = write_png(folder, &time(), b"newer").unwrap();
+        assert_eq!(third, folder.join("CapturaX 2026-11-22 09-05-07 (3).png"));
+        assert_eq!(
+            fs::read(folder.join("CapturaX 2026-11-22 09-05-07.png")).unwrap(),
+            b"old"
+        );
+        assert_eq!(fs::read(&second).unwrap(), b"new");
+        assert_eq!(fs::read(&third).unwrap(), b"newer");
+        // No `.part` is left.
+        assert_eq!(files(folder).len(), 3, "{:?}", files(folder));
+    }
+
+    #[test]
+    fn the_folder_is_made_only_under_an_existing_parent() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("CapturaX");
+        let file = write_png(&folder, &time(), b"png").unwrap();
+        assert_eq!(file, folder.join("CapturaX 2026-11-22 09-05-07.png"));
+        let deep = dir.path().join("gone").join("CapturaX");
+        assert_eq!(write_png(&deep, &time(), b"png"), Err(WriteError::FolderNotFound));
+        assert!(!dir.path().join("gone").exists());
+    }
+
+    #[test]
+    fn parts_left_by_a_crash_go_after_a_minute() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        let old = folder.join(".CapturaX 2026-11-21 10-00-00.png.part");
+        let fresh = folder.join(".CapturaX 2026-11-22 09-04-59.png.part");
+        let other = folder.join(".other.part");
+        for path in [&old, &fresh, &other] {
+            fs::write(path, b"x").unwrap();
+        }
+        let long_ago = SystemTime::now() - Duration::from_secs(120);
+        for path in [&old, &other] {
+            File::options()
+                .write(true)
+                .open(path)
+                .unwrap()
+                .set_modified(long_ago)
+                .unwrap();
+        }
+        write_png(folder, &time(), b"png").unwrap();
+        assert!(!old.exists(), "an old part of ours goes");
+        assert!(fresh.exists(), "a recent one may still be written");
+        assert!(other.exists(), "not ours");
+    }
+
+    #[test]
+    fn io_errors_map_to_reasons() {
+        let kind = |kind| WriteError::from_io(&io::Error::from(kind));
+        assert_eq!(kind(io::ErrorKind::NotFound), WriteError::FolderNotFound);
+        assert_eq!(kind(io::ErrorKind::PermissionDenied), WriteError::NoPermission);
+        assert_eq!(kind(io::ErrorKind::ReadOnlyFilesystem), WriteError::NoPermission);
+        assert_eq!(kind(io::ErrorKind::StorageFull), WriteError::DiskFull);
+        assert_eq!(kind(io::ErrorKind::Interrupted), WriteError::Other);
+        assert_eq!(kind(io::ErrorKind::QuotaExceeded), WriteError::DiskFull);
+        assert_eq!(Reason::from(WriteError::Other), Reason::WriteError);
+        assert_eq!(Reason::from(WriteError::DiskFull), Reason::DiskFull);
+    }
+
+    #[test]
+    fn requests_follow_the_rules() {
+        let mut shots = Screenshots::default();
+        assert_eq!(shots.request(false), Err(EventNotice::Nothing));
+        assert_eq!(shots.request(true), Ok(Command::Take(1)));
+        assert_eq!(shots.taken(1), [Command::PlaySound, Command::Write(1)]);
+        let file = PathBuf::from("a.png");
+        let written = |saved: Result<PathBuf, Reason>, copied| Written { saved, copied };
+        assert_eq!(
+            shots.written(1, written(Ok(file.clone()), true)),
+            EventNotice::Saved(file.clone())
+        );
+        assert_eq!(shots.request(true), Ok(Command::Take(2)));
+        assert_eq!(shots.not_taken(2), EventNotice::Nothing);
+        assert_eq!(shots.waiting, 0);
+        // Every outcome.
+        for (saved, copied, notice) in [
+            (Ok(file.clone()), false, EventNotice::SavedNotCopied(file.clone())),
+            (
+                Err(Reason::DiskFull),
+                true,
+                EventNotice::CopiedNotSaved(Reason::DiskFull),
+            ),
+            (Err(Reason::ImageError), false, EventNotice::Failed(Reason::ImageError)),
+        ] {
+            let Ok(Command::Take(serial)) = shots.request(true) else {
+                panic!("refused");
+            };
+            assert_eq!(shots.written(serial, written(saved, copied)), notice);
+        }
+        assert_eq!(shots.waiting, 0);
+    }
+
+    #[test]
+    fn a_burst_of_6_takes_4_and_refuses_2() {
+        let mut shots = Screenshots::default();
+        let answers: Vec<_> = (0..6).map(|_| shots.request(true)).collect();
+        assert_eq!(
+            answers,
+            [
+                Ok(Command::Take(1)),
+                Ok(Command::Take(2)),
+                Ok(Command::Take(3)),
+                Ok(Command::Take(4)),
+                Err(EventNotice::Busy),
+                Err(EventNotice::Busy),
+            ]
+        );
+        // One done makes room for one more, with the next number.
+        shots.not_taken(1);
+        assert_eq!(shots.request(true), Ok(Command::Take(5)));
+        assert_eq!(shots.request(true), Err(EventNotice::Busy));
+    }
+}
