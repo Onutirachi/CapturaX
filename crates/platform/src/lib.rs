@@ -22,6 +22,9 @@ pub use os::autostart;
 
 pub mod audio;
 
+pub mod hotkeys;
+pub use hotkeys::{Hotkey, Key, Modifier, Modifiers};
+
 /// Built for Windows: the latency estimate counts the USB transfer there (device-preview
 /// data-model.md "Latency estimate"), so the app needs no platform condition of its own.
 pub const IS_WINDOWS: bool = cfg!(windows);

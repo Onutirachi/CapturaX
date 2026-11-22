@@ -7,8 +7,9 @@ Windows and a Linux implementation; the app sees this interface only.
 
 ```rust
 pub enum Modifier { Ctrl, Alt, Shift, Super }
-pub enum Key { A, /* … */ Z, D0, /* … */ D9, F(u8) /* 1–24 */, Space, Insert, Delete, Home, End,
-               PageUp, PageDown, Up, Down, Left, Right, Pause, PrintScreen }
+pub struct Modifiers(/* set of Modifier */);
+pub enum Key { Letter(u8) /* b'A'–b'Z' */, Digit(u8) /* 0–9 */, F(u8) /* 1–24 */, Space, Insert,
+               Delete, Home, End, PageUp, PageDown, Up, Down, Left, Right, Pause, PrintScreen }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Hotkey { pub modifiers: Modifiers, pub key: Key }
