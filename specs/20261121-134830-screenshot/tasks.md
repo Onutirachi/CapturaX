@@ -155,7 +155,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 - [ ] T038 [P] Docs: README (screenshot, the key, the folder), AGENTS.md "Status", docs/product.md Spec column for F19 and F50 (framework, screenshot), docs/roadmap.md #5 done with its links
 - [ ] T039 (maintainer) quickstart check 16 (languages and themes) and the flash's look (curve and timings, research R11), tuned with the maintainer; the spec is updated if the values change
-- [ ] T040 Final sound: the maintainer sends the WAV; it replaces app/sounds/screenshot.wav, is removed from `.git/info/exclude`, the gain is tuned with the maintainer by ear, and the file is committed with the code that embeds it (handoff)
+- [X] T040 Final sound: the maintainer sends the WAV; it replaces app/sounds/screenshot.wav, is removed from `.git/info/exclude`, the gain is tuned with the maintainer by ear, and the file is committed with the code that embeds it (handoff)
 - [ ] T041 Handoff and acceptance summary in measurements/acceptance.md; the maintainer validates; the branch is ready for the pull request
 
 ---

@@ -14,7 +14,8 @@ hand-off) committed. T009–T012, T020 and T024 tested on Windows by the maintai
 (`c5cd7e1` platform files and local time, `21cd3ae` outline flash, `fb9c21a` event notice and
 screenshot state/writing, then the debug flag with its temporary wiring). T015, T016, T021 and
 T022 done and committed as unwired code (fmt, clippy, tests); their manual checks wait (Next
-step).
+step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and committed
+(`f3c5505`); T023 (sound player) committed with the maintainer's final sound (T040).
 
 ## Done in the last sessions
 
@@ -125,16 +126,56 @@ step).
   **Temporary wiring**: `still()` in app.rs plays the sound when a frame is taken (T019 keeps it
   there). fmt, clippy (workspace) and 247 app tests pass; not yet heard.
 
+- 2026-11-22: T018 (uncommitted, waits for the maintainer's check): app/src/hotkeys.rs:
+  `ACTIONS` (`screenshot` → `settings::DEFAULT_SCREENSHOT_KEY`, now re-exported with
+  `settings::Hotkeys`), `read` (rules 2 and 3 of contracts/settings-file.md through `resolve`,
+  which takes `(action, default, text)` so the duplicate rule is tested with three made-up
+  actions), `from_window` (winit `key_without_modifiers` + modifiers → `Hotkey`; letters/digits
+  from the layout's text, a digit also from the physical top row for AZERTY), `AppHotkeys`
+  (`start`, `register` with the descriptions, `event` → the action pressed, `Bound` logged
+  "hotkeys: screenshot on Ctrl+F8", `WindowOnly` sets `window_only`; `window_key` matches only
+  then, pressed and not repeat). app.rs: `UserEvent::Hotkey`, `start_hotkeys` right after the
+  window exists (before the start-hidden return, FR-015), `hotkey_action` → `request_screenshot`
+  (so today: frame taken, sound, frame dropped: T019's temporary end), `ModifiersChanged`
+  tracked and still passed to Slint, a matched window key not passed to Slint; on a language
+  change the bindings are registered again with the translated description (new text
+  `hotkey-screenshot` "Screenshot" / "Captura de tela", for the portal's list and T031). 8 new
+  tests (255 app tests), clippy clean. Checked on Windows by the maintainer (2026-11-22, log
+  read by the agent): Ctrl+F8 with another app focused fires (sound heard), a held key gives one
+  press, minimized takes a real frame, hidden in the tray gives "no frame within 500 ms".
+- 2026-11-22: T042 (uncommitted): after that check the maintainer asked for **silent
+  refusals** (spec FR-008, US5 scenario 1, Edge Cases, FR-004, FR-007, FR-010/FR-010a,
+  data-model, research R1/R5/R13, plan, quickstart 5/8/9 updated first): `Screenshots::request`
+  returns `Refused::{NoImage, Busy}`, `not_taken` returns nothing; the app logs "screenshot: not
+  taken (…)". `EventNotice::Nothing`/`Busy`, their texts, translations and preview rows removed.
+- 2026-11-22: T040: the maintainer's sound replaced the placeholder (app/sounds/screenshot.wav,
+  44.1 kHz stereo 16-bit, 1.6 s file, audible ≈ 430 ms, peak −10.4 dBFS; gain 0.5 kept); removed
+  from `.git/info/exclude` and committed with T023. CC0 options (OpenGameArt shutters, Kenney
+  Interface Sounds) were compared on https://claude.ai/artifact/QD1N5U1rv1YdEfcL4tuHV4 and set
+  aside: the maintainer's own sounds keep one instrument, timing and pattern for the later ones.
+  `tools/make_screenshot_sound.py` stays as a test-click generator.
+- 2026-11-22: T018 checks done on Windows: refused key (the `hotkeys` example holding Ctrl+F8
+  first: "Ctrl+F8 refused by the system … (os error 1409)", then "screenshot has no key"); tray
+  press silent; No audio: sound session opened in 10 ms and closed ≈ 3 s after the sound. Hidden
+  to the tray is refused at once (`Preview::hidden()`; the state still reads Playing there), seen
+  with `--autostart --screenshot-every 1000`: "screenshot: not taken (NoImage)".
+- 2026-11-22: docs/roadmap.md #17 **UI review** (new, any time after #5) collects small UI fixes:
+  menu buttons' orange → the settings categories' light semi-transparent orange; F59 (new in
+  product.md) a **Log** category showing the log, scrollable (maintainer).
+
 ## Decisions
 
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
   spec #9 (maintainer, 2026-11-21). Roadmap updated.
 - The screenshots folder is a setting, default Pictures/CapturaX (maintainer, 2026-11-21).
+- FR-008 (maintainer, 2026-11-22): the capture sound is the confirmation. A request that takes no
+  frame (hidden to the tray, a state in the video area, 4 already waiting, no frame in 500 ms)
+  does nothing visible or audible, only a log line; notices only after the click (saved, or a
+  save/copy failure). Minimized still captures (passthrough use; the device stays open). Small UI
+  issues go to roadmap #17, not into this spec.
 - FR-010: a capture sound on the preview's output; no thumbnail (maintainer, 2026-11-21).
-  **The implementation ships a placeholder sound (`app/sounds/screenshot.wav`, from
-  `tools/make_screenshot_sound.py`); after the implementation is validated and before it is committed,
-  the maintainer sends the final sound file and it replaces the placeholder.** Do not commit the
-  implementation without it.
+  The sound is the maintainer's own (T040, 2026-11-22); later sounds (recording, live, viewers)
+  come from the same instrument, timing and pattern.
 - FR-010a: an **outline flash** (maintainer, 2026-11-22): a thin white line on the video's
   rounded edge with a faint inner glow, 40 ms in, 400 ms out. Chosen from the mockup
   https://claude.ai/artifact/XknXi4EvntqmHHZU4axncC (option D) after the first edge glow was
@@ -167,33 +208,17 @@ step).
 
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
    clipboard pastes on Windows (GIMP/Krita, Paint, Discord) and on CachyOS (Wayland, X11 if
-   installed); `shortcuts_probe` on CachyOS. On a new Linux checkout run
-   `python tools/make_screenshot_sound.py` and add `app/sounds/screenshot.wav` to
-   `.git/info/exclude` there too.
+   installed); `shortcuts_probe` on CachyOS.
 2. Done on Windows (2026-11-22): device notices (ezcap disabled/enabled in Device Manager:
    balloon and system notification, both logged), notice preview approved, `files` show/open
    OK, hand-off OK, outline flash approved. Left for CachyOS: the `files` example (show/open:
    Dolphin or the portal), `utc_offset` (a file name in local time once T014 writes files) and
    **Open** on a C920 notice (never exercised: needs a device that does not open by itself).
-3. Done on Windows (2026-11-22): `hotkeys` example: both keys bound, nothing during the
-   suspend, one `Pressed` per press with another app focused. `audio_session --output-only` on
-   `Voicemeeter VAIO3 Input` and on the default output: `Opened` (output only, shared, 48 kHz
-   stereo) in 18–19 ms, no event after the input reopen, ~48000 frames/s, `Closed` 3–4 ms after
-   the close; the tone heard on both (maintainer). Not yet seen: a held key giving one `Pressed`,
-   and a second copy getting `Bound { shown: None }` (check with T018 in the app).
-   CachyOS: `cargo build` first (the PipeWire change was not compiled on Windows), then the same
-   `audio_session --output-only`, and `hotkeys` in an X11 session if one is installed (on Wayland
-   it prints `WindowOnly` until T017).
-4. Done on Windows (2026-11-22, maintainer heard all four): T023 with `--screenshot-every 2000`
-   and the ezcap: (a) click over the preview audio, no sound session; (b) No audio: sound session
-   opened in 13–14 ms, 48000/2/f32; (c) back to the card: "audio session N: waits for [\"sound
-   session N\"]", closed in 16–37 ms, then the preview opened; (d) exclusive output (I24, 2 ms):
-   click heard. No drop or warning in the log. Not seen in the app: the close 3 s after the last
-   sound (a screenshot every 2 s never left it idle; covered by the router tests); check it with
-   the key after T019. Linux later with the CachyOS build.
-5. Agent: T023 stays uncommitted until the final sound (Decisions). T013 waits for T003, T017
-   for T004, T018 for T017 (or start it with X11/Windows and WindowOnly and add the portal
-   later); T014 (worker) can start after T013, or its write/copy split can be planned now.
-
-The placeholder sound stays untracked and the code that embeds it waits for the final sound
-before its commit (tasks.md "Commits"; maintainer, 2026-11-22).
+3. Done on Windows (2026-11-22): the `hotkeys` example, `audio_session --output-only`, T023
+   (click over the preview audio, No audio session, waiting for the sound session to close,
+   exclusive output) and T018 in the app (another app focused, held key, minimized, tray silent,
+   refused key, the sound session's 3 s close). Left for CachyOS: `cargo build` first (the
+   PipeWire change was never compiled), `audio_session --output-only`, the sound in the app,
+   `hotkeys` in an X11 session if installed, and window-only matching on Wayland (until T017).
+4. Agent: T013 waits for T003, T017 for T004; T014 (worker) after T013, or plan its write/copy
+   split now; T019 (wiring: written → notice, Show) after T014.
