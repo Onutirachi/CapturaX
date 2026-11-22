@@ -159,8 +159,9 @@ full, clipboard taken) and check the notice and its action.
 **Acceptance Scenarios**:
 
 1. **Given** no image is shown (no device, a state in the video area, the window hidden to the
-   tray), **When** the user presses the key, **Then** a notice says "Nothing to capture" and no
-   file is written.
+   tray), **When** the user presses the key, **Then** nothing happens: no sound, no flash, no
+   notice, no file (only a log line). The missing click tells the user no screenshot was taken
+   (maintainer, 2026-11-22).
 2. **Given** the folder cannot be written (removed drive, no permission, disk full), **When** a
    screenshot is taken, **Then** a notice says "Couldn't save the screenshot" with the reason in
    a few words and **Settings** (opens the folder row); the image is still copied to the
@@ -173,8 +174,8 @@ full, clipboard taken) and check the notice and its action.
 ### Edge Cases
 
 - **The window is hidden to the tray**: the device is closed (device preview), so there is no
-  image; the key gives "Nothing to capture" as a system notification. The device is not opened
-  for a screenshot.
+  image; the key does nothing (US5 scenario 1), so a key pressed in another app is not answered
+  by a system notification. The device is not opened for a screenshot.
 - **Window minimized**: the device stays open (device preview); the screenshot is taken from the
   latest frame received.
 - **A frame with HDCP or a black signal**: it is an image; it is saved as received.
@@ -182,8 +183,8 @@ full, clipboard taken) and check the notice and its action.
   already taken is written; a screenshot asked while the video area shows a state follows US5.
 - **Many presses in a row** (faster than the files can be written): each press takes its frame
   at that moment and each is written in order; at most 4 wait to be written, further presses
-  meanwhile are refused with "Too many screenshots at once" (the preview is never slowed to
-  catch up).
+  meanwhile are refused silently, like US5 scenario 1: no sound, so the missing click tells it
+  (the preview is never slowed to catch up).
 - **Folder deleted between screenshots**: it is created again when the folder's parent exists;
   otherwise US5 scenario 2.
 - **Default folder**: the system's Pictures folder (as the user's system names and places it,
@@ -217,26 +218,29 @@ full, clipboard taken) and check the notice and its action.
   transparency) and copied to the system clipboard as an image that image editors, chat apps and
   browsers can paste.
 - **FR-004**: A request MUST be possible only while the video area shows an image. Otherwise the
-  button is disabled and the key gives the "Nothing to capture" notice.
+  button is disabled and the key does nothing (US5 scenario 1).
 - **FR-005**: The file name MUST be `CapturaX <YYYY-MM-DD HH-MM-SS>.png` in local time; when that
   name exists, ` (2)`, ` (3)`… is added before the extension. A file is never overwritten.
 - **FR-006**: A file MUST be written so that no other program sees a partial PNG under the final
   name (a crash or a full disk leaves no truncated screenshot under that name).
 - **FR-007**: At most 4 screenshots MUST wait to be written at a time; a request beyond that is
-  refused with the notice of the Edge Cases.
+  refused silently (Edge Cases).
 
 **Feedback**
 
-- **FR-008**: After each screenshot, the app MUST show one notice, using the rules of device
+- **FR-008**: After each screenshot whose frame was taken, the app MUST show one notice, using
+  the rules of device
   preview FR-027 (inside the window when it has the focus, at the notification position, the
   latest replacing the current; a system notification otherwise):
   - saved and copied: "Screenshot saved", with **Show**;
   - saved, not copied: "Screenshot saved, not copied", with **Show**;
   - not saved, copied: "Couldn't save the screenshot: <reason>. Copied to the clipboard", with
     **Settings**;
-  - nothing saved or copied: "Couldn't take the screenshot: <reason>";
-  - no image: "Nothing to capture";
-  - too many: "Too many screenshots at once".
+  - nothing saved or copied: "Couldn't take the screenshot: <reason>".
+
+  A request that takes no frame (no image, too many waiting, no frame within 500 ms) shows no
+  notice and plays no sound: the capture sound is the confirmation, and its absence says the
+  screenshot was not taken (maintainer, 2026-11-22). It is logged.
 - **FR-009**: **Show** MUST open the system's file manager on the folder with the file selected
   where the platform allows it, else on the folder.
 - **FR-010a**: When a screenshot's frame is taken, the video area MUST show an outline flash
@@ -246,8 +250,8 @@ full, clipboard taken) and check the notice and its action.
   (about 40 ms) and fades out (about 400 ms), then is gone. It is drawn over the video in the
   window only: never in the saved image, never delaying a frame (FR-002).
   It covers the video area, not the toolbar or the docks; a new screenshot during the flash
-  restarts it. It is not shown for "Nothing to capture" or "Too many screenshots at once", nor
-  while the window is minimized or hidden. It starts with the frame being taken, not when the
+  restarts it. It is not shown when no frame is taken (FR-008), nor while the window is minimized
+  or hidden. It starts with the frame being taken, not when the
   file is written, so it comes at once; a later failure to save and copy is told by the notice
   (plan, 2026-11-22).
 - **FR-010**: When a screenshot's frame is taken, the app MUST also play a short capture
@@ -259,7 +263,7 @@ full, clipboard taken) and check the notice and its action.
     their headset while playing (maintainer, 2026-11-22);
   - is independent of the preview's volume and mute (a muted preview still confirms the
     screenshot), and never interrupts or delays the preview audio (FR-002);
-  - is not played for "Nothing to capture" or "Too many screenshots at once"; it plays when the
+  - is not played when no frame is taken (FR-008); it plays when the
     frame is taken, before the file is written, so a later failure to save and copy is told by
     the notice alone (plan, 2026-11-22);
   - one sound per screenshot; a burst plays one per screenshot taken, never overlapping into a

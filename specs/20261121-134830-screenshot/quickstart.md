@@ -28,11 +28,11 @@ cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && ca
 | 2 | Same with a browser focused over the window; with the window minimized | Same file; system notification; focus unchanged; no flash while minimized |
 | 3 | Fullscreen game focused (Windows) | Key works, focus stays in the game |
 | 4 | Hold Ctrl+F8 for 2 s | One screenshot |
-| 5 | Press 6 times fast | 4 written in order with ` (2)`… names when in the same second; the rest "Too many screenshots at once" |
+| 5 | Press 6 times fast | 4 written in order with ` (2)`… names when in the same second; the rest give no click and no notice |
 | 6 | Window small, controls and bubbles visible; then fullscreen | File at the mode's resolution, no interface, no flash in the image |
 | 7 | 4K30 mode | Notice within 2 s |
-| 8 | Unplug the card (state shown), press the key; click the dock button | "Nothing to capture"; button disabled |
-| 9 | Hide to the tray, press the key | System notification "Nothing to capture" |
+| 8 | Unplug the card (state shown), press the key; click the dock button | No click, no flash, no notice; button disabled |
+| 9 | Hide to the tray, press the key | Nothing: no click, no system notification |
 | 10 | Choose a headset that is not the system default as Audio output; then preview muted; preview audio "No audio"; output exclusive (Windows) | Sound heard on the headset each time |
 | 11 | Settings → Hotkeys: set Ctrl+Shift+S; press Ctrl+F8, then Ctrl+Shift+S, inside and outside the window; restart | Old key does nothing; new one works; kept |
 | 12 | Try Shift+A, A alone; Clear; Reset | Refused (A alone, Shift+A); no key; Ctrl+F8 back; tooltip follows |

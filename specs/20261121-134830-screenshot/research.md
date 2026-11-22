@@ -10,7 +10,7 @@ Decisions behind [plan.md](plan.md). Each item: decision, rationale, alternative
 that frame's planes are uploaded to the GPU: instead of dropping the `Frame` (its buffers going
 back to the pool), it moves it into the reply. While the window is not shown (minimized; frames
 arrive but are not presented) it fulfils it with the next frame that arrives. A request not
-fulfilled within 500 ms (no frame comes) is answered "Nothing to capture". Requests wait in
+fulfilled within 500 ms (no frame comes) is answered empty (no notice, FR-008). Requests wait in
 order; one frame fulfils one request.
 
 **Rationale**: the frame already holds the device's own planes in memory with the matrix and
@@ -96,9 +96,8 @@ bundled, a subprocess per copy).
 
 ## R5. Threads of a screenshot
 
-**Decision**: the main thread decides (the app's `Screenshots` state, pure): it refuses with
-"Nothing to capture" when the preview state is not an image, with "Too many screenshots at
-once" when 4 are already waiting, and otherwise sends the request to the `Inbox` and counts it.
+**Decision**: the main thread decides (the app's `Screenshots` state, pure): it refuses, silently
+(FR-008), when the preview state is not an image or when 4 are already waiting, and otherwise sends the request to the `Inbox` and counts it.
 When the frame comes back (through the event loop's proxy), the main thread starts the sound
 (R10), the video thread has already started the flash (R10), and the frame goes to one worker
 thread (`screenshot`, started at the first screenshot, kept): convert (R2) → encode → write
@@ -272,7 +271,8 @@ otherwise).
 **Decision**: the device notice balloon (device preview FR-027) becomes the app's "event notice":
 the same balloon and rules (one at a time, latest replaces, system notification when the window
 has no focus), with a kind per message. Screenshot kinds: `saved`, `saved-not-copied`,
-`copied-not-saved`, `failed`, `nothing`, `busy`, each with its icon (camera; camera with a slash
+`copied-not-saved`, `failed` (`nothing` and `busy` were dropped: a screenshot that takes no
+frame has no notice, FR-008, maintainer 2026-11-22), each with its icon (camera; camera with a slash
 for the failures) and action (**Show**, **Settings** or none). The system notification's tag
 carries the action: `show:<path>` or `settings:screenshot`.
 

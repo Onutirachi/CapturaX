@@ -61,7 +61,7 @@ deviation (Complexity Tracking).*
 | Principle | How the plan complies |
 |---|---|
 | I. Preview latency | The video thread only moves the presented `Frame` (R1); conversion, encoding, writing and copying on a worker; the flash is a shader term (R11); the sound is mixed without locks or allocation, into the preview's own stream (R10); measured: SC-003 with `--stats` and `--screenshot-every` (R16) |
-| II. Simple by default | Works with no setup (Ctrl+F8, Pictures/CapturaX); one new option the maintainer asked for (folder); no sound setting; every failure has a notice with its next action (FR-008) |
+| II. Simple by default | Works with no setup (Ctrl+F8, Pictures/CapturaX); one new option the maintainer asked for (folder); no sound setting; every failure after the click has a notice with its next action; no click means no screenshot (FR-008) |
 | III. One native pipeline | One process; frames come from the existing session. The PNG is made outside GStreamer: **deviation**, see Complexity Tracking |
 | IV. Platform layer | Hotkeys, clipboard, folder dialog, file manager, output-only audio session only in `crates/platform` (contracts/platform.md); the boundary test covers the new modules; degraded behaviors (Wayland without the portal, Linux clipboard after quit) stated in the spec |
 | V. Private and safe | No network; no keyboard hook (R6), no `/dev/input` (R7); files only in the chosen folder |

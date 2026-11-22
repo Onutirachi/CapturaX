@@ -9,11 +9,12 @@
 
 Rules:
 
-1. `request(preview_shows_image)`: not an image → outcome `Nothing`; `waiting == 4` → outcome
-   `Busy`; else `waiting += 1` and the command `Take(serial)` (send to the `Inbox`).
+1. `request(preview_shows_image)`: not an image → refused `NoImage`; `waiting == 4` → refused
+   `Busy`; else `waiting += 1` and the command `Take(serial)` (send to the `Inbox`). A refusal is
+   only logged: no notice, no sound (FR-008).
 2. `taken(serial, frame)`: commands `PlaySound(Screenshot)`, `Write(serial, frame, folder)`.
-3. `not_taken(serial)` (500 ms with no frame, or the session closed): `waiting -= 1`, outcome
-   `Nothing`.
+3. `not_taken(serial)` (500 ms with no frame, or the session closed): `waiting -= 1`; logged,
+   no notice.
 4. `written(serial, result)`: `waiting -= 1`, outcome from the result (below).
 
 ## Frame hand-off (renderer `Inbox`)
@@ -41,8 +42,6 @@ takes RGBA (`Still::rgba()`).
 | yes | no | `saved-not-copied` | Screenshot saved, not copied | Show |
 | no | yes | `copied-not-saved` | Couldn't save the screenshot: <reason>. Copied to the clipboard | Settings |
 | no | no | `failed` | Couldn't take the screenshot: <reason> | — |
-| — | — | `nothing` | Nothing to capture | — |
-| — | — | `busy` | Too many screenshots at once | — |
 
 Reasons (a few words, from the error kind): `folder not found`, `no permission`, `disk full`,
 `write error`; for `failed` also `image error`.
