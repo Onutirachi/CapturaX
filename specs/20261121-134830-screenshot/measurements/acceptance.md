@@ -115,3 +115,18 @@ change, test video 1080p60.
 |---|---|---|
 | 14 | pass | `/mnt/capxusb/` typed in the portal dialog: stored and shown as `/mnt/capxusb`; a screenshot saved there. Picking `/` keeps `/` |
 | 15 | pass | drive unmounted and its mount point removed: "cannot make /mnt/capxusb: Permission denied" logged, notice "Não foi possível salvar a captura de tela: pasta não encontrada. Copiada para a área de transferência"; read-only mount (the folder exists): "sem permissão"; `/` (exists, not writable): "sem permissão" |
+
+## Windows, third pass (agent, 2026-11-23, with T027)
+
+Release build of `e3f3dde` with debug assertions (for `--screenshot-every`), ezcap with the PS5
+in a game; the agent ran the app, sent Ctrl+F8 with `keybd_event` and read the log
+(latency.md; logs local in `raw/t027/`).
+
+| # | Result | Notes |
+|---|---|---|
+| 5 | pass, limit reached | 1080p120, 10 presses ≈ 45 ms apart: screenshots 1–9 written in order, ` (2)`…` (9)` in one second, the 6th press "not taken (Busy)" |
+| 7 | pass | PS5 at 4K output, mode 3840x2160@30: real pictures (10 MB files), notice 254–343 ms after the request over 90 screenshots (rgb 90–97 ms, png 39–48 ms, copied 106–131 ms) |
+| quit | pass | closed as soon as screenshot 1's line was logged: app ended 100 ms later, file complete. Five presses 15 ms apart (the 5th "not taken (Busy)") and the window closed at once: the 4 waiting screenshots were written and copied, the app ended 1 ms after the last (≈ 220 ms), all 4 PNGs complete (IEND) |
+
+Still for T025, by the maintainer: check 3 (fullscreen PC game) and check 10 (headset that is
+not the default: normal, muted, "No audio", exclusive).

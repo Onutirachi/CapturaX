@@ -30,6 +30,9 @@ on CachyOS over SSH by the agent, 2026-11-23 (check 13 passes); validated and co
 Wayland shortcuts portal`). Default keys moved to the Ctrl+Shift family (Decisions).
 The Linux (Wayland) checks were run by the agent on CachyOS, 2026-11-23: T026, T032, T035 and
 T037 done; T003 done (Krita AppImage).
+T027's Windows half and the rest of T025 the agent can do (checks 5 and 7, a quit with screenshots
+waiting) done by the agent on Windows, 2026-11-23 (measurements/latency.md, acceptance.md third
+pass); SC-003 amended for 4K (Decisions).
 
 ## Done in the last sessions
 
@@ -330,6 +333,12 @@ T037 done; T003 done (Krita AppImage).
 
 ## Decisions
 
+- SC-003 at 4K (maintainer, 2026-11-23): with a screenshot every second at 4K30, a few seconds
+  have one frame presented up to 9.2 ms late (0 frames lost, no audio gap; nothing at 1080p).
+  Accepted as rare and unseen, without looking for the cause (a fix was not sure to exist);
+  SC-003 now allows up to 10 ms at 4K. Candidates, for a later improvement: RGB conversion or
+  the 33 MB clipboard copy competing for memory, or the flash and notice (latency.md).
+
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
   spec #9 (maintainer, 2026-11-21). Roadmap updated.
 - The screenshots folder is a setting, default Pictures/CapturaX (maintainer, 2026-11-21).
@@ -411,10 +420,10 @@ T037 done; T003 done (Krita AppImage).
 
 ## Next step
 
-0. Done: T004/T017 committed; the Linux checks (T026, T032, T035, T037) done 2026-11-23.
-1. Maintainer: answer the open questions (a)–(c) above; (a) or (b) changes the spec first.
-2. Maintainer, Windows: T025 check 7 (PS5 at 4K output), checks 3 and 10, a quit right after
-   a screenshot.
-3. Then T027 (latency, both systems; the limit of 4 waiting screenshots was never reached by
-   hand, each ends in ≈ 75 ms: check it there with `--screenshot-every`) and T041 (pull request; check the README and the roadmap
-   links first, T038 note).
+1. Maintainer, Windows: T025 check 3 (Ctrl+Shift+F8 in a fullscreen PC game, focus stays) and
+   check 10 (headset that is not the default: normal, muted, "No audio", exclusive); then T025
+   is done.
+2. T027's Linux half: with the ezcap moved to CachyOS (agent over SSH; measurement build:
+   `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true cargo build --release`), 1080p60, 1080p120 and
+   4K30, baseline and `--screenshot-every 1000`, ~30 s each, as latency.md's Windows part.
+3. T041 (pull request; check the README and the roadmap links first, T038 note).

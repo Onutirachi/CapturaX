@@ -385,8 +385,10 @@ confirm it does not move beyond the measurement's spread.
 - **SC-002**: The saved image has exactly the mode's resolution, and its pixels match the frame
   the preview presented at that moment (checked against a test pattern: same colors within ±1
   per channel after the color range correction).
-- **SC-003**: The preview drops 0 frames and its frame-time spread does not grow during the
-  measurement above; the preview audio has no gap.
+- **SC-003**: The preview drops 0 frames during the measurement above and the preview audio has
+  no gap. Its frame-time spread does not grow at 1080p; at 4K a frame presented while a
+  screenshot is being processed may come up to 10 ms late (accepted by the maintainer: rare,
+  unseen, no frame lost; measurements/latency.md).
 - **SC-004**: Ctrl+Shift+F8 takes a screenshot with CapturaX focused, with another app focused, with
   the window minimized, and from a fullscreen game window on Windows; on Linux under KDE Plasma
   (Wayland, portal) and under an X11 session where available.
