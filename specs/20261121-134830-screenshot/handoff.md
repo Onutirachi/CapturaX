@@ -33,7 +33,8 @@ T037 done; T003 done (Krita AppImage).
 T027's Windows half and the rest of T025 the agent can do (checks 5 and 7, a quit with screenshots
 waiting) done by the agent on Windows, 2026-11-23 (measurements/latency.md, acceptance.md third
 pass); SC-003 amended for 4K (Decisions). Checks 3 and 10 passed on Windows (maintainer,
-2026-11-23): T025 done.
+2026-11-23): T025 done. T027's Linux half run by the agent on CachyOS with the ezcap, 2026-11-23
+(measurements/latency.md): SC-001 and SC-003 pass in all three modes; T027 done.
 
 ## Done in the last sessions
 
@@ -424,7 +425,7 @@ pass); SC-003 amended for 4K (Decisions). Checks 3 and 10 passed on Windows (mai
 
 ## Next step
 
-1. T027's Linux half: with the ezcap moved to CachyOS (agent over SSH; measurement build:
-   `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true cargo build --release`), 1080p60, 1080p120 and
-   4K30, baseline and `--screenshot-every 1000`, ~30 s each, as latency.md's Windows part.
-2. T041 (pull request; check the README and the roadmap links first, T038 note).
+1. T041 (pull request): check the README and the roadmap links (T038 note: the Wayland portal
+   is built and `measurements/latency.md` exists now), the acceptance summary in
+   measurements/acceptance.md, the maintainer validates; push and open the pull request only
+   when the maintainer asks.

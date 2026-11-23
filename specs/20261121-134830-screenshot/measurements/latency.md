@@ -63,7 +63,55 @@ and the notice is posted 1 ms after the line.
 **Verdict (Windows)**: SC-001 passes with a wide margin. SC-003 passes at 1080p60 and 1080p120
 (0 frames lost, spread unchanged, no audio gap) and, as amended, at 4K30.
 
-## Linux
+## Linux (CachyOS, KDE Plasma Wayland), 2026-11-23
 
-To do: the ezcap is on the Windows PC. The Linux checks of T026 timed a test-video 4K30
-screenshot at ≈ 350 ms (rgb 267–280 ms on the i3-10105).
+**Environment**: CachyOS (kernel 7.3.1-1-cachyos), KDE Plasma 6.8.2 Wayland, Intel Core
+i3-10105, NVIDIA GeForce RTX 3050 (driver 615.78.08), the same commit e3f3dde built as release
+with debug assertions. Header `[present] backend=vulkan mode=mailbox`, window maximized
+(1920×1034) on the 1080p 120 Hz monitor. The ezcap moved to this PC, NV12 in every mode, with
+the PS5 on Astro's PLAYROOM's opening scenes (a starfield and title screens: less detail than
+the Windows game, 1080p files of 1.4–1.6 MB, 4K files of 4.0–4.8 MB). Audio paired with the
+ezcap's input, output a test null sink (`capx_t027`). Runs of about 30 s; the agent ran them
+over SSH and sent the burst's keys with `ydotool` (through the GlobalShortcuts portal binding).
+
+| Mode | Run | Seconds | `recv` | Lost | `repl` | `ready_ms` median | Max > 3 | Worst max | Worst `gap_ms` | Audio gap |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1080p60 | baseline | 27 | 59–60 | 0 | 0 | 0.8 | 0 | 1.0 | 17.0 | 0 |
+| | every 1000 ms | 27 | 59–60 | 0 | 0 | 0.8 | 0 | 1.4 | 17.3 | 0 |
+| 1080p120 | baseline | 27 | 117–118 | 0 | 0 | 0.8 | 0 | 1.1 | 8.8 | 0 |
+| | every 1000 ms | 27 | 117–118 | 0 | 0 | 0.8 | 0 | 1.0 | 8.8 | 0 |
+| | burst of 10 | 26 | 117–118 | 0 | 0 | 0.8 | 0 | 2.3 | 9.7 | 0 |
+| 4K30 | baseline | 27 | 29–30 | 0 | 0 | 2.5 | 0 | 2.8 | 34.8 | 0 |
+| | every 1000 ms | 27 | 29–30 | 0 | 0 | 2.5 | 1 | 3.2 | 35.5 | 0 |
+
+On Linux the card delivers its nominal rates (117–118 fps at 1080p120, 29–30 fps at 4K30),
+where Windows' Media Foundation path gave about 108 and 27–28. The 4K30 `ready_ms` median is
+higher than on Windows (2.5 against 1.2–1.4 ms) with or without screenshots: the preview's own
+4K path on this PC, not the screenshots.
+
+**Burst** (1080p120): each `ydotool` call takes about 100 ms here, so the 10 presses came
+≈ 104 ms apart (Windows: ≈ 45 ms). All 10 were written in order, none refused: each took
+≈ 115 ms, so at most one waited and the limit of 4 was not reached (it was reached on Linux in
+acceptance check 5, presses 25 ms apart). The burst's seconds (t=11–13) have `ready_ms` max
+1.0–2.3 ms and no lost frame. The first try had no keys: `ydotoold` was not running after a
+reboot; the run was repeated.
+
+**4K**: one second in the run with screenshots has a frame presented 3.2 ms after it was ready
+(2.8 ms worst without screenshots); no lost frame, no audio gap. The late frames seen on Windows
+at 4K (up to 9.2 ms) did not appear here.
+
+### SC-001 (key to notice)
+
+From the 103 log lines of the runs above.
+
+| Mode | Taken | RGB | PNG | Written | Copied | Total | Limit |
+|---|---|---|---|---|---|---|---|
+| 1080p60 | +0–16 ms | 65–70 ms | 13–14 ms | 9–31 ms | 26–30 ms | 116–151 ms | 1 s |
+| 1080p120 | +0–8 ms | 65–70 ms | 13–15 ms | 2–13 ms | 26–31 ms | 110–129 ms | 1 s |
+| 4K30 | +0–33 ms | 257–275 ms | 45–49 ms | 4–15 ms | 96–103 ms | 419–464 ms | 2 s |
+
+The RGB conversion is about 3 times slower than on the Ryzen 9 9950X3D (i3-10105, 4 cores); it
+runs on the worker, off the preview's path.
+
+**Verdict (Linux)**: SC-001 passes with a wide margin. SC-003 passes in all three modes: no
+frame lost or replaced, the spread unchanged, no audio gap.

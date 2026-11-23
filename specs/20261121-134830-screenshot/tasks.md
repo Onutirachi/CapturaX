@@ -99,7 +99,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 - [X] T024 [P] [US1] Debug flag (contracts/cli.md): `--screenshot-every <ms>` in app/src/cli.rs, debug builds only, driving the same request path as the key
 - [X] T025 [US1] (maintainer) Windows: quickstart checks 1–7 and 10 with the ezcap; record in measurements/acceptance.md (checks 5, 7 and the quit by the agent; 3 and 10 by the maintainer 2026-11-23)
 - [X] T026 [US1] (maintainer) Linux (CachyOS, Wayland; X11 if installed): quickstart checks 1, 2, 4–7 and 10; record in measurements/acceptance.md (done by the agent over SSH 2026-11-23 with the C920 and the test video; no X11 session installed; Krita pasted with T003)
-- [ ] T027 [US1] (maintainer) Latency check (SC-003, research R16): quickstart "Latency check" at 1080p60, 1080p120 and 4K30 on both systems; record in measurements/latency.md with SC-001's times from the log lines
+- [X] T027 [US1] (maintainer) Latency check (SC-003, research R16): quickstart "Latency check" at 1080p60, 1080p120 and 4K30 on both systems; record in measurements/latency.md with SC-001's times from the log lines (both halves by the agent, 2026-11-23)
 
 **Checkpoint**: the MVP: a screenshot by key, on both systems, with no preview cost.
 
