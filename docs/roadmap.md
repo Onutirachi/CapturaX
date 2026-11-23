@@ -246,6 +246,8 @@ item here when it is found (with the date), instead of fixing it inside an unrel
   semi-transparent one (maintainer, 2026-11-22).
 - F59: a **Log** category in the settings panel showing the log, scrollable (maintainer,
   2026-11-22).
+- Audio settings: turning an endpoint's **Exclusive** box on or off makes the list flicker on
+  that device's row (maintainer, 2026-11-23).
 
 ```text
 /speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the
