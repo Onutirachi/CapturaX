@@ -957,14 +957,24 @@ impl App {
     }
 
     /// Shows the keys: the Hotkeys category's rows (FR-016) and the dock button's tooltip, which
-    /// names the key the user set, also when the system refused it (FR-011). Called after every
-    /// change and after a language switch (the key names are the locale's).
+    /// names the key the user set, also when the system refused it (FR-011); where the desktop
+    /// owns the keys (Wayland portal), the desktop's keys as it names them. Called after every
+    /// change, after every hotkey event but a press, and after a language switch (the key names
+    /// are the locale's).
     fn show_hotkeys(&self) {
         let Some(hotkeys) = &self.hotkeys else {
             return;
         };
         let texts = Texts::get(&self.ui.app);
-        let shown = |key: Option<platform::Hotkey>| key.map(|key| key_text(&texts, key)).unwrap_or_default();
+        let by_desktop = hotkeys.by_desktop();
+        let setting = |key: Option<platform::Hotkey>| key.map(|key| key_text(&texts, key)).unwrap_or_default();
+        let shown = |action: &str, key: Option<platform::Hotkey>| {
+            if by_desktop {
+                hotkeys.desktop_key(action).unwrap_or_default().to_string()
+            } else {
+                setting(key)
+            }
+        };
         let recording = hotkeys.recording();
         let rows: Vec<HotkeyRowData> = hotkeys
             .bindings()
@@ -981,8 +991,8 @@ impl App {
                 HotkeyRowData {
                     action: action.into(),
                     name: hotkey_description(&texts, action).into(),
-                    key: shown(key).into(),
-                    default_key: shown(default).into(),
+                    key: shown(action, key).into(),
+                    default_key: setting(default).into(),
                     is_default: key == default,
                     recording: recording.is_some_and(|(recorded, _)| recorded == action),
                     refusal: refusal
@@ -995,9 +1005,10 @@ impl App {
         let prefs = self.ui.app.global::<Prefs>();
         prefs.set_hotkeys(slint::ModelRc::new(slint::VecModel::from(rows)));
         prefs.set_hotkeys_window_only(hotkeys.window_only());
+        prefs.set_hotkeys_by_desktop(by_desktop);
         self.ui
             .app
-            .set_screenshot_key(shown(hotkeys.key(crate::hotkeys::SCREENSHOT)).into());
+            .set_screenshot_key(shown(crate::hotkeys::SCREENSHOT, hotkeys.key(crate::hotkeys::SCREENSHOT)).into());
     }
 
     /// Saves `action`'s key in the settings file (FR-018).
@@ -1013,6 +1024,13 @@ impl App {
         };
         self.hotkey_refusal = None;
         match ui {
+            HotkeyUi::Record(_) if hotkeys.by_desktop() => {
+                let opened = hotkeys.configure();
+                self.ui
+                    .app
+                    .global::<Prefs>()
+                    .set_hotkeys_desktop_dialog_missing(!opened);
+            }
             HotkeyUi::Record(action) => {
                 if hotkeys.recording().is_some_and(|(recorded, _)| recorded == action) {
                     hotkeys.cancel_recording();
@@ -2352,7 +2370,7 @@ impl ApplicationHandler<UserEvent> for App {
                 if let Some(action) = self.hotkeys.as_mut().and_then(|h| h.event(event)) {
                     self.hotkey_action(action);
                 }
-                // `WindowOnly` changes the category's line.
+                // `WindowOnly` changes the category's line; `Bound` the desktop's keys.
                 if !pressed {
                     self.show_hotkeys();
                 }

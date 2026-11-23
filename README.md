@@ -82,7 +82,11 @@ hidden to the tray. The settings' **Hotkeys** category changes it: click the key
 new one (a function key alone, or a key with Ctrl, Alt or Win/Super), Esc to cancel; it can also
 be cleared or reset. A key the system refuses (another program holds it) is logged and the row
 says so. On Linux the key is global under X11 and, under Wayland, through the desktop's global
-shortcuts portal; without the portal it works only while CapturaX's window has the focus. The
+shortcuts portal: the desktop asks once to confirm the key and owns it from then on, so the
+Hotkeys row shows the desktop's key and clicking it opens the desktop's shortcut settings. The
+portal needs a `capturax.desktop` entry; when no package installed one, CapturaX writes a
+hidden one in `~/.local/share/applications` (not shown in the menu). Without the portal the key
+works only while CapturaX's window has the focus. The
 copied image stays pasteable on Linux while CapturaX runs, and after it quits only with a
 clipboard manager.
 

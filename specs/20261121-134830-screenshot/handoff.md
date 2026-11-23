@@ -24,7 +24,10 @@ recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category)
 dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`) done
 2026-11-23; check 14 passes on Windows (T035's Windows half, acceptance.md). T036
 (failure notices, **Settings** opens Folders) done 2026-11-23; checks 9 and 15 pass on Windows.
-T038 (docs) done 2026-11-23.
+T038 (docs) done 2026-11-23. T004 (probe) run and T017 (Wayland portal hotkeys) built and checked
+on CachyOS over SSH by the agent, 2026-11-23 (check 13 passes); validated and committed
+(`docs(screenshot): record the shortcuts probe…`, `feat(platform): bind hotkeys through the
+Wayland shortcuts portal`). Default keys moved to the Ctrl+Shift family (Decisions).
 
 ## Done in the last sessions
 
@@ -285,6 +288,33 @@ T038 (docs) done 2026-11-23.
   (quickstart 9). 272 app tests. T037's Windows half passes (checks 9 and 15,
   acceptance.md); its Linux half needs CachyOS.
 
+- 2026-11-23: T004 run by the agent over SSH on CachyOS (measurements/probes.md): passes, but
+  the portal refuses an app with no `capturax.desktop` ("An app id is required"); a hidden one
+  works. KDE asks once (OK/Cancel; Cancel leaves the action with no key and never asks again);
+  afterwards the desktop's key wins over `preferred_trigger`; `ConfigureShortcuts` opens System
+  Settings → Shortcuts on CapturaX; `ShortcutsChanged` comes (`""` then the new key). Ctrl+F9 and
+  Ctrl+F10 are KWin's defaults (bound but never fire for the app). Spec updated first (Edge Cases
+  "Wayland: the desktop owns the key" and "the app's desktop entry", FR-016 note, R7 "Probe
+  result", contracts/platform.md portal rules, data-model, quickstart 13, T017, roadmap #13 note).
+- 2026-11-23: T017: crates/platform/src/linux/desktop_entry.rs (helpers moved from
+  autostart.rs: `keys`, `exec(exe, args)`, `program`, `executable`; `ensure`: a package's or the
+  user's entry kept, else a hidden marked one written, a marked one gets only `Exec` replaced, a
+  marked one shadowing a package's removed; 7 tests). linux/hotkeys/portal.rs: `hotkeys` thread
+  owns the session, a `hotkeys signals` thread forwards the portal's signals; `ensure`,
+  `Register`, `CreateSession`, `BindShortcuts` (rebinds in a new session only when actions or
+  descriptions change, e.g. a language switch), Response/`ShortcutsChanged` → `Bound`,
+  `Activated` → `Pressed` unless suspended, `configure()` (version ≥ 2), `changed_by_desktop()`
+  once the session exists; any failure → `WindowOnly` (logged). linux/hotkeys.rs picks X11,
+  portal (Wayland session), else window-only. App: `AppHotkeys` keeps the reported keys
+  (`desktop_key`), `by_desktop`, `configure`; no recording there. Hotkeys row: the desktop's key,
+  no Clear/Reset, key at the row's edge; click → `configure()`, else the category line "Change it
+  in the system settings" (pt-BR "Altere nas configurações do sistema") until another category;
+  dock tooltip from the desktop's key. README and the `hotkeys` example's doc updated. fmt,
+  clippy and all tests pass on Windows and CachyOS; `cargo build --release` on CachyOS (the first
+  full Linux build of this branch: the PipeWire change of T022 compiles). Checked with the
+  `hotkeys` example and in the app (acceptance.md "Linux Wayland, portal hotkeys");
+  `utc_offset` checked on Linux too.
+
 ## Decisions
 
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
@@ -305,6 +335,24 @@ T038 (docs) done 2026-11-23.
 - FR-020 (maintainer, 2026-11-23, after seeing a Screenshot category in the app): the folder
   row goes in a **Folders** category, Hotkeys after it; spec #9 adds the recordings folder
   there (its other options live in the Record panel).
+- Wayland desktop entry (maintainer, 2026-11-23): the app writes a **hidden** `capturax.desktop`
+  when none is installed and only fixes its `Exec` later; showing it in the menu is an option
+  for spec #13 (roadmap note).
+- Default keys use **Ctrl+Shift** on both systems (maintainer, 2026-11-23): screenshot
+  Ctrl+Shift+F8, live Ctrl+Shift+F9, record Ctrl+Shift+F10. KDE's defaults take Ctrl+F7, F9,
+  F10, F12 (and F1–F4); Ctrl+Alt+F-keys switch virtual terminals on Linux. Checked free on
+  Windows (`RegisterHotKey` of Ctrl+Shift+F8–F12, released at once) and on KDE (the three bound
+  through the portal with no conflict mark, each fired with Dolphin focused). Spec FR-013,
+  research R7, data-model, contracts, plan, quickstart, tasks, product.md and roadmap updated;
+  the code default, its tests, the examples, README and AGENTS.md were folded into their
+  original commits by fixup and `git rebase --autosquash` (now `1e5b211`, `c8ee8aa`, `135dda1`,
+  `de3028b`, `3ddc939`, `088cd85`; every hash of the branch after `main` changed, so the older
+  hashes quoted above are stale; the final tree was checked identical).
+  A settings file that already holds `"Ctrl+F8"` keeps it (the key is written to the file):
+  Reset in the Hotkeys row gives the new default. The records in measurements/ keep Ctrl+F8:
+  that is what was tested.
+- The agent may run, close and test anything on the CachyOS PC over SSH (maintainer,
+  2026-11-23): Linux checks are the agent's work, not the maintainer's.
 - Plan (2026-11-22), spec updated: the sound and the flash start when the frame is taken, not
   when the file is written; letters, digits and Space need Ctrl, Alt or Super (Shift alone
   refused).
@@ -319,6 +367,7 @@ T038 (docs) done 2026-11-23.
   build through Slint and winit (R15).
 
 ## Open questions
+
 
 - Probes before their code: the clipboard while another app has the focus (R4, Wayland
   data-control on KWin) and the GlobalShortcuts portal on KDE (R7). A failure updates the spec
@@ -336,30 +385,20 @@ T038 (docs) done 2026-11-23.
 
 ## Next step
 
-0. Windows passes done (2026-11-23, measurements/acceptance.md): checks 1, 2, 4, 5, 6 and 15
-   pass (real PS5 picture at 1080p60 included), the T003 Windows paste rows filled. T025 still
-   needs check 7 with the PS5 at 4K output (the "4K" try was 2560×1440 with no matching
-   source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
-   reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`.
-   T028–T031, T033, T034 and T036 done (2026-11-23); T037 (checks 9 and 15) passes on
-   Windows, Linux left. T038 done. Next agent work: T017 once T004 runs on CachyOS; the rest waits for the maintainer. T032 (checks 11–13), T037's
-   Linux half and T035's Linux half (check 14: the portal folder dialog, never run) still
-   need CachyOS.
-1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
-   clipboard pastes on CachyOS (Wayland, X11 if installed; Windows done through the app);
-   `shortcuts_probe` on CachyOS.
-2. Done on Windows (2026-11-22): device notices (ezcap disabled/enabled in Device Manager:
-   balloon and system notification, both logged), notice preview approved, `files` show/open
-   OK, hand-off OK, outline flash approved. Left for CachyOS: the `files` example (show/open:
-   Dolphin or the portal), `utc_offset` (a file name in local time once T014 writes files) and
-   **Open** on a C920 notice (never exercised: needs a device that does not open by itself).
-3. Done on Windows (2026-11-22): the `hotkeys` example, `audio_session --output-only`, T023
-   (click over the preview audio, No audio session, waiting for the sound session to close,
-   exclusive output) and T018 in the app (another app focused, held key, minimized, tray silent,
-   refused key, the sound session's 3 s close). Left for CachyOS: `cargo build` first (the
-   PipeWire change was never compiled), `audio_session --output-only`, the sound in the app,
-   `hotkeys` in an X11 session if installed, and window-only matching on Wayland (until T017).
-4. Agent: T013 waits for T003 (the Windows pastes are enough to start it; the Linux rows can
-   change the spec later), T017 for T004; then T019 (wiring: the worker started at the first
-   screenshot with `Clipboard::set_image`, `written` → notice, **Show**, `stop(QUIT_WAIT)` in
-   `exiting`, the main thread's "taken" log line removed since the worker logs it).
+0. Done: T004/T017 committed; the CachyOS clone was synced to the branch.
+1. Agent, on CachyOS over SSH (allowed, see Decisions): T003 clipboard rows (set time; pastes
+   in GIMP or Krita, Dolphin, Firefox), T026 (checks 1, 2, 4–7, 10 on Wayland), T032's Linux
+   half (11–12 are the Windows/X11 recorder; on Wayland check 13 passed), T035's Linux half
+   (check 14: the portal folder dialog, never run), T037's Linux half (9, 15), the `files`
+   example (show/open), `audio_session --output-only`, the sound in the app, **Open** on a C920
+   notice (simulate the unplug with the usb unbind in the hardware memory). X11 checks only if
+   an X11 session is installed. Unlock: the maintainer must leave the screen unlocked.
+   `ydotoold` listens on `/tmp/.ydotool_socket` (`~/capx/lib.sh` sets another path: export
+   `YDOTOOL_SOCKET=/tmp/.ydotool_socket`). The KDE binding is cleared (the next start asks
+   with Ctrl+Shift+F8); to clear it again: `qdbus6 org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel.unregister capturax
+   screenshot` resets it (the next start asks again).
+2. Maintainer, Windows: T025 check 7 (PS5 at 4K output), checks 3 and 10, a quit right after
+   a screenshot.
+3. Then T027 (latency, both systems; the limit of 4 waiting screenshots was never reached by
+   hand, each ends in ≈ 75 ms: check it there with `--screenshot-every`) and T041 (pull request; check the README and the roadmap
+   links first, T038 note).

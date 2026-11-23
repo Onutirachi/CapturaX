@@ -1,7 +1,7 @@
 //! Global hotkeys check (screenshot spec, research R6 and R9, quickstart "Hotkeys"): takes the
 //! given keys through the platform's `Hotkeys` and prints every event, so a press can be checked
-//! while another app (a fullscreen game) has the focus. Windows and Linux X11; on Wayland it
-//! prints `WindowOnly` until the portal (T017).
+//! while another app (a fullscreen game) has the focus. Windows, Linux X11, and Wayland through
+//! the GlobalShortcuts portal (the desktop asks once; its key wins over the one given here).
 //!
 //! `cargo run -p capturax-platform --example hotkeys -- [<key>…] [--suspend-after <s>]`
 //!

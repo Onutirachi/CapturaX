@@ -446,6 +446,9 @@ msgstr "Esc para cancelar"
 msgid "Works only while CapturaX is focused"
 msgstr "Funciona só com o CapturaX em foco"
 
+msgid "Change it in the system settings"
+msgstr "Altere nas configurações do sistema"
+
 msgid "Use F1–F24, or a key with Ctrl, Alt or {}"
 msgstr "Use F1–F24 ou uma tecla com Ctrl, Alt ou {}"
 

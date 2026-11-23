@@ -6,7 +6,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-const FILE: &str = "capturax.desktop";
+use super::desktop_entry::{FILE, exec, keys, program};
 
 /// `$XDG_CONFIG_HOME` when set to an absolute path, else `~/.config`.
 fn config_home() -> Option<PathBuf> {
@@ -27,23 +27,6 @@ fn read_entry() -> Option<String> {
     std::fs::read_to_string(entry_path()?).ok()
 }
 
-/// The entry's `[Desktop Entry]` keys and values, in order.
-fn keys(text: &str) -> impl Iterator<Item = (&str, &str)> {
-    let mut in_group = false;
-    text.lines().filter_map(move |line| {
-        let line = line.trim();
-        if line.starts_with('[') {
-            in_group = line == "[Desktop Entry]";
-            return None;
-        }
-        if !in_group || line.starts_with('#') {
-            return None;
-        }
-        let (key, value) = line.split_once('=')?;
-        Some((key.trim(), value.trim()))
-    })
-}
-
 /// Whether an entry starts the app: not hidden and not switched off by GNOME's key.
 fn enabled(text: &str) -> bool {
     !keys(text).any(|(key, value)| {
@@ -51,65 +34,11 @@ fn enabled(text: &str) -> bool {
     })
 }
 
-/// The `Exec` line for `exe`: quoted as the Desktop Entry spec asks (`"`, `` ` ``, `$` and `\`
-/// escaped inside the quotes, then `\` escaped again as a string value, `%` doubled).
-fn exec(exe: &Path) -> String {
-    let mut quoted = String::from("\"");
-    for c in exe.to_string_lossy().chars() {
-        match c {
-            '"' | '`' | '$' => {
-                quoted.push_str(r"\\");
-                quoted.push(c);
-            }
-            '\\' => quoted.push_str(r"\\\\"),
-            '%' => quoted.push_str("%%"),
-            _ => quoted.push(c),
-        }
-    }
-    quoted.push_str("\" --autostart");
-    quoted
-}
-
-/// The program an `Exec` value starts: its first argument, unescaped.
-fn program(value: &str) -> Option<PathBuf> {
-    // String-value escapes first (`\\` → `\`), then the argument quoting.
-    let mut unescaped = String::new();
-    let mut chars = value.chars();
-    while let Some(c) = chars.next() {
-        match (c, c == '\\') {
-            (_, true) => match chars.next()? {
-                's' => unescaped.push(' '),
-                'n' => unescaped.push('\n'),
-                't' => unescaped.push('\t'),
-                'r' => unescaped.push('\r'),
-                other => unescaped.push(other),
-            },
-            _ => unescaped.push(c),
-        }
-    }
-    let mut path = String::new();
-    let mut chars = unescaped.trim_start().chars();
-    if unescaped.trim_start().starts_with('"') {
-        chars.next();
-        loop {
-            match chars.next()? {
-                '"' => break,
-                '\\' => path.push(chars.next()?),
-                c => path.push(c),
-            }
-        }
-    } else {
-        path.extend(chars.take_while(|&c| c != ' '));
-    }
-    let path = path.replace("%%", "%");
-    (!path.is_empty()).then(|| PathBuf::from(path))
-}
-
 /// The whole entry file for `exe`.
 fn entry(exe: &Path) -> String {
     format!(
         "[Desktop Entry]\nType=Application\nName=CapturaX\nExec={}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
-        exec(exe)
+        exec(exe, "--autostart")
     )
 }
 
@@ -142,41 +71,11 @@ pub fn target() -> Option<PathBuf> {
         .and_then(|(_, value)| program(value))
 }
 
-/// The program an entry should start: the AppImage file when running from one (the executable
-/// itself is inside a mount that changes on every start), else this executable.
-pub fn executable() -> io::Result<PathBuf> {
-    match std::env::var_os("APPIMAGE") {
-        Some(image) if !image.is_empty() => Ok(PathBuf::from(image)),
-        _ => std::env::current_exe(),
-    }
-}
+pub use super::desktop_entry::executable;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn exec_round_trips() {
-        for exe in [
-            "/home/me/Apps/CapturaX.AppImage",
-            "/home/me/My Apps/capturax",
-            r#"/odd/"quote"/$dollar/`tick`/back\slash/100%/capturax"#,
-        ] {
-            let exe = Path::new(exe);
-            assert_eq!(program(&exec(exe)).as_deref(), Some(exe), "{}", exec(exe));
-        }
-        assert_eq!(exec(Path::new("/a b/c")), r#""/a b/c" --autostart"#);
-    }
-
-    #[test]
-    fn program_reads_unquoted_and_rejects_broken() {
-        assert_eq!(
-            program("/usr/bin/capturax --autostart"),
-            Some(PathBuf::from("/usr/bin/capturax"))
-        );
-        assert_eq!(program(r#""/usr/bin/capturax"#), None);
-        assert_eq!(program(""), None);
-    }
 
     #[test]
     fn written_entry_is_enabled_and_points_to_exe() {

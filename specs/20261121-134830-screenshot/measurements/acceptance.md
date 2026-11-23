@@ -61,3 +61,16 @@ Debug build of the uncommitted T036, test video 1080p60. The agent ran the faili
 |---|---|---|
 | 15 | pass | `Z:/CapturaX` (no Z: drive): "not saved (FolderNotFound), copied", notice `CopiedNotSaved(FolderNotFound)`; `C:/Windows/System32/CapturaX`: "not saved (NoPermission), copied", nothing made there; copy ≈ 290 ms in debug |
 | 9 | pass | **Settings** on the in-app notice opens the panel on Folders; closed and opened from the dock it is on General again; the system notification's **Settings** (another app focused, `-> system` in the log) shows the window on Folders |
+
+## Linux Wayland, portal hotkeys (agent over SSH, CachyOS, 2026-11-23, T017)
+
+KDE Plasma 6.8.2 Wayland, release build of the uncommitted T017, C920 at 1080p. Keys and clicks
+sent with `ydotool` (uinput), screens read with Spectacle; the KDE binding and the desktop entry
+removed first.
+
+| # | Result | Notes |
+|---|---|---|
+| 13 | pass | Start: "wrote the hidden desktop entry …/capturax.desktop" (`NoDisplay=true`), KDE's question listed "Captura de tela" Ctrl+F8; OK → "screenshot on Ctrl+F8". Ctrl+F8 with Dolphin focused: screenshot 1 saved and copied, focus stayed on Dolphin. Hotkeys row: "Captura de tela  Ctrl+F8", no Clear or Reset (the key moved to the row's edge after the first look). Click on the key: System Settings → Shortcuts on CapturaX; Ctrl+Shift+F8 added, Ctrl+F8 unchecked, Apply → "screenshot has no key", then "on Ctrl+Shift+F8"; the row followed; Ctrl+F8 did nothing, Ctrl+Shift+F8 saved screenshot 2. Restart: no question, Ctrl+Shift+F8 kept, dock tooltip "Captura de tela (Ctrl+Shift+F8)". Run from another folder (with a space, fresh settings proposing Ctrl+F8): "desktop entry … now names this program", `Exec` updated, Ctrl+Shift+F8 still the key and works. "Change it in the system settings" (portal version 1) not reachable on KDE. |
+
+File names came in local time (`14-38-06` for a 17:38 UTC log line): `utc_offset` checked on
+Linux. The test screenshots (webcam pictures) were deleted afterwards.

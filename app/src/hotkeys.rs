@@ -327,6 +327,9 @@ pub struct AppHotkeys {
     window_only: bool,
     /// The modifiers held, from the window's events (for `window_only`).
     modifiers: ModifiersState,
+    /// The key the system reported for each action (`Bound`): under Wayland the desktop's, shown
+    /// instead of the setting's.
+    reported: Vec<(&'static str, Option<String>)>,
 }
 
 impl AppHotkeys {
@@ -344,6 +347,7 @@ impl AppHotkeys {
             descriptions: Vec::new(),
             window_only: false,
             modifiers: ModifiersState::empty(),
+            reported: Vec::new(),
         };
         app.register(description);
         app
@@ -368,11 +372,14 @@ impl AppHotkeys {
     }
 
     /// Starts recording `action`'s key: every hotkey is released until it ends (FR-017). False
-    /// for an unknown action.
+    /// for an unknown action, and where the desktop owns the keys.
     pub fn start_recording(&mut self, action: &str) -> bool {
         let Some(action) = self.action(action) else {
             return false;
         };
+        if self.by_desktop() {
+            return false;
+        }
         log::info!("hotkeys: recording {action}'s key");
         self.recorder.start(action);
         self.hotkeys.suspend(true);
@@ -452,9 +459,13 @@ impl AppHotkeys {
                 found
             }
             HotkeyEvent::Bound { action, shown } => {
-                match shown {
+                match &shown {
                     Some(key) => log::info!("hotkeys: {action} on {key}"),
                     None => log::info!("hotkeys: {action} has no key"),
+                }
+                if let Some(action) = self.action(&action) {
+                    self.reported.retain(|(name, _)| *name != action);
+                    self.reported.push((action, shown));
                 }
                 None
             }
@@ -506,6 +517,25 @@ impl AppHotkeys {
     /// Keys work only while the window has the focus (FR-012).
     pub fn window_only(&self) -> bool {
         self.window_only
+    }
+
+    /// The desktop owns the keys (Wayland portal): they are changed in its settings, not here.
+    pub fn by_desktop(&self) -> bool {
+        self.hotkeys.changed_by_desktop()
+    }
+
+    /// The key the desktop uses for `action`, as it names it; None before it answered or when it
+    /// has none.
+    pub fn desktop_key(&self, action: &str) -> Option<&str> {
+        self.reported
+            .iter()
+            .find(|(name, _)| *name == action)
+            .and_then(|(_, shown)| shown.as_deref())
+    }
+
+    /// Opens the desktop's shortcut settings; false when it offers no way to.
+    pub fn configure(&self) -> bool {
+        self.hotkeys.configure()
     }
 
     fn action(&self, name: &str) -> Option<&'static str> {

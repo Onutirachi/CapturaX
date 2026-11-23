@@ -88,6 +88,11 @@ export global Prefs {
     // the panel. A category change or the panel's closing cancels too.
     in property <[HotkeyRowData]> hotkeys;
     in property <bool> hotkeys-window-only;
+    // Under Wayland with the portal the desktop owns the keys (screenshot Edge Cases): the rows
+    // show its keys, have no Clear or Reset, and a click on a key opens the desktop's shortcut
+    // settings; when it cannot, the category says where to change them until another category.
+    in property <bool> hotkeys-by-desktop;
+    in-out property <bool> hotkeys-desktop-dialog-missing;
     callback hotkey-record(string);
     callback hotkey-cancel();
     callback hotkey-clear(string);
@@ -659,8 +664,9 @@ component HotkeyRow inherits Row {
         }
 
         // Placed by hand: a layout here would hand its fixed width to the row as its maximum.
+        // Where the desktop owns the keys there is no Clear or Reset: the key takes the edge.
         key := ActionButton {
-            x: clear.x - 4px - self.width;
+            x: Prefs.hotkeys-by-desktop ? parent.width - self.width - Rows.pad : clear.x - 4px - self.width;
             y: (parent.height - self.height) / 2;
             width: max(150px, self.preferred-width);
             primary: root.data.recording;
@@ -678,7 +684,7 @@ component HotkeyRow inherits Row {
             filled: true;
             icon: @image-url("../assets/icons/backspace.svg");
             tooltip: @tr("Clear");
-            visible: root.data.key != "";
+            visible: root.data.key != "" && !Prefs.hotkeys-by-desktop;
             focusable: self.visible;
             clicked => { root.clear(); }
         }
@@ -691,7 +697,7 @@ component HotkeyRow inherits Row {
             filled: true;
             icon: @image-url("../assets/icons/arrow_back_up.svg");
             tooltip: root.data.default-key == "" ? @tr("Reset") : @tr("Reset to {}", root.data.default-key);
-            visible: !root.data.is-default;
+            visible: !root.data.is-default && !Prefs.hotkeys-by-desktop;
             focusable: self.visible;
             clicked => { root.reset(); }
         }
@@ -829,10 +835,11 @@ export component SettingsPanel inherits Raised {
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ];
     // A recording ends when its row goes away (FR-016).
-    // The folder dialog's warning belongs to the Change that showed it.
+    // The folder dialog's warning and the desktop's one belong to the click that showed them.
     changed category => {
         Prefs.hotkey-cancel();
         Prefs.folder-picker-missing = false;
+        Prefs.hotkeys-desktop-dialog-missing = false;
     }
 
     // The category column runs the panel's full height on the base tone (FR-034).
@@ -1058,6 +1065,21 @@ export component SettingsPanel inherits Raised {
                 Text {
                     text: @tr("Works only while CapturaX is focused");
                     color: Theme.c.text-muted;
+                    font-size: Theme.text-m;
+                    wrap: word-wrap;
+                }
+            }
+
+            // The desktop owns the keys and offers no way to open its settings.
+            if root.category == Category.hotkeys && Prefs.hotkeys-desktop-dialog-missing: VerticalLayout {
+                padding-left: Rows.pad;
+                padding-right: Rows.pad;
+                padding-top: Theme.gap-s;
+                padding-bottom: Theme.gap-s;
+
+                Text {
+                    text: @tr("Change it in the system settings");
+                    color: Theme.c.warn;
                     font-size: Theme.text-m;
                     wrap: word-wrap;
                 }

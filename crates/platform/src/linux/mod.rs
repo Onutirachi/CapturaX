@@ -13,6 +13,7 @@ mod activation;
 pub use activation::activate;
 pub mod audio;
 pub mod autostart;
+mod desktop_entry;
 pub mod files;
 pub mod hotkeys;
 pub mod instance;
