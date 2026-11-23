@@ -257,6 +257,11 @@ item here when it is found (with the date), instead of fixing it inside an unrel
 - Settings panel consistency: dropdowns, segmented controls, switches, text and icon buttons
   use different fills, colors, heights and corners; one set of control tokens for all of them
   (maintainer, 2026-11-23).
+- Settings panel: the category buttons in the column need a consistent height and alignment,
+  and the setting rows a consistent height (maintainer, 2026-11-23).
+- Double click on the video toggles fullscreen (maintainer, 2026-11-23).
+- An open overlay (menu, popover, settings panel) closes when the window is resized
+  (maintainer, 2026-11-23).
 
 ```text
 /speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the
