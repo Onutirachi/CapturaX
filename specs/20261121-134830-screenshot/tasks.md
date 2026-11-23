@@ -111,8 +111,8 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 **Independent Test**: quickstart check 8 and the tooltip.
 
-- [ ] T028 [US2] Right dock (FR-011): in app/ui/main.slint show the right dock (device preview FR-002a placement) with a camera button (`camera.svg`), disabled while the video area shows a state; tooltip "Screenshot (<key>)" with the key shown per platform (`Hotkey::shown`), or "Screenshot" when none; the click goes to T019's request path; both themes, all layouts down to 640 × 360
-- [ ] T029 [US2] (maintainer) quickstart check 8 and the dock in both themes and the compact layout
+- [x] T028 [US2] Right dock (FR-011): in app/ui/main.slint show the right dock (device preview FR-002a placement) with a camera button (`camera.svg`), disabled while the video area shows a state; tooltip "Screenshot (<key>)" with the key shown per platform (`Hotkey::shown`), or "Screenshot" when none; the click goes to T019's request path; both themes, all layouts down to 640 × 360
+- [x] T029 [US2] (maintainer) quickstart check 8 and the dock in both themes and the compact layout
 
 ---
 

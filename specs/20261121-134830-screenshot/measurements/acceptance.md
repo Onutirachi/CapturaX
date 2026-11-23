@@ -34,3 +34,12 @@ Same build, the PS5 as the source.
 
 Still for T025: check 7 with the PS5 set to 4K output, check 3 (fullscreen game), check 10, and a
 quit right after a screenshot (e.g. `--screenshot-every` plus the tray Quit).
+
+## Windows, dock button (maintainer, 2026-11-23, T029)
+
+Debug build of the uncommitted T028, ezcap with the PS5.
+
+| # | Result | Notes |
+|---|---|---|
+| 8 | pass | card unplugged: button disabled, its tooltip still shown; click and Ctrl+F8 do nothing |
+| dock | pass | tooltip "Captura de tela (Ctrl+F8)"; click: sound, outline, saved notice; Tab reaches it after the left dock, Enter takes one; both themes; small window: the bubbles' column first stood behind the right dock (fixed: the column always ends 8 px left of it, FR-002a), then checked again |

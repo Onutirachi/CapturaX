@@ -17,7 +17,9 @@ T022 done and committed as unwired code (fmt, clippy, tests); their manual check
 step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and committed
 (`f3c5505`); T023 (sound player) committed with the maintainer's final sound (T040). T014
 (worker) committed as unwired code. T013 (clipboard) and T019 (wiring) done 2026-11-23 and
-checked on Windows by the maintainer (measurements/acceptance.md, first pass).
+checked on Windows by the maintainer (measurements/acceptance.md, first pass). T028 (dock
+button) done 2026-11-23 and checked by the maintainer (T029, acceptance.md), uncommitted until
+validated.
 
 ## Done in the last sessions
 
@@ -195,6 +197,25 @@ checked on Windows by the maintainer (measurements/acceptance.md, first pass).
   `capturax.toml` with a Windows path in `"…"` (a basic string, `\C` an invalid escape) is
   invalid TOML and the whole file is set aside as damaged; use `'…'` or forward slashes.
 - 2026-11-23: roadmap #17 gained the Exclusive box's list flicker (maintainer).
+- 2026-11-23: T028 (uncommitted): main.slint right dock (`right-area`/`right-dock`, mirrors the
+  left: centered on the video area's height, under the toolbar in the compact layout, slides out
+  to the right, after the left dock in the keyboard order, counts for `engaged`) with the
+  `screenshot-button` (camera.svg, tooltip side left, `enabled: preview-state == "playing"`,
+  which is also what the test video sets). `in screenshot-key` (set in `start_hotkeys` from
+  `AppHotkeys::key`, new: the key the user set, shown with `Hotkey::shown(IS_WINDOWS)`, empty
+  when none, so a key the system refused still shows) and `callback screenshot()` →
+  `UserEvent::Screenshot` → log "screenshot: dock button" → `request_screenshot`. Tooltip
+  `@tr("Screenshot ({})")` (pt-BR "Captura de tela ({})") or `@tr("Screenshot")`. IconButton:
+  a disabled button now keeps its hover tooltip (US2 scenario 2; its TouchArea stays enabled,
+  clicks, hold, wheel, right press and the hover tint ignored); no other IconButton is ever
+  disabled today. Bubbles: `meets-right` → row and column end 8 px left of the right dock (the
+  existing `column-end`); the bottom-right notice does not join the row then. The column always
+  ends 8 px left of the right dock (the maintainer saw it behind the dock in a small window
+  first: a column is taller than the one-row test). Notices keep clear
+  of the right dock too (`right-dock-box`; `notice-past` beside a dock in the right half goes to
+  its left). With one button the dock never reaches the bubble row (checked by numbers at
+  640 × 360: dock bottom ≈ 234, row top ≈ 264). fmt, clippy, all tests pass. When T030/T031
+  change a key, `set_screenshot_key` must be called again.
 
 ## Decisions
 
@@ -243,8 +264,8 @@ checked on Windows by the maintainer (measurements/acceptance.md, first pass).
    pass (real PS5 picture at 1080p60 included), the T003 Windows paste rows filled. T025 still
    needs check 7 with the PS5 at 4K output (the "4K" try was 2560×1440 with no matching
    source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
-   reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`. Next agent work: T028 (dock button, US2) or T030
-   (key recorder, US3), both unblocked now.
+   reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`.
+   T028 and T029 done (2026-11-23). Next agent work: T030 (key recorder, US3).
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
    clipboard pastes on CachyOS (Wayland, X11 if installed; Windows done through the app);
    `shortcuts_probe` on CachyOS.
