@@ -114,19 +114,14 @@ pub enum EventNotice {
         open: bool,
     },
     /// Screenshot FR-008: saved and copied.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     Saved(PathBuf),
-    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     SavedNotCopied(PathBuf),
-    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     CopiedNotSaved(Reason),
-    #[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes it (T019)"))]
     Failed(Reason),
 }
 
 /// Why a screenshot was not saved or not taken, in a few words (data-model.md "Outcome").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring makes them (T019)"))]
 pub enum Reason {
     FolderNotFound,
     NoPermission,

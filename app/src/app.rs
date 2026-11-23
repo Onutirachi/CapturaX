@@ -97,6 +97,11 @@ pub enum UserEvent {
         asked: Instant,
         frame: Option<Arc<crate::render::Frame>>,
     },
+    /// The screenshot worker is done with screenshot `serial` (screenshot FR-008).
+    Written {
+        serial: u64,
+        written: crate::screenshot::Written,
+    },
     /// The `hotkeys` thread's events (screenshot FR-012).
     Hotkey(platform::HotkeyEvent),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
@@ -218,6 +223,8 @@ pub struct App {
     screenshots: crate::screenshot::Screenshots,
     /// The next `--screenshot-every` screenshot.
     screenshot_at: Option<Instant>,
+    /// The `screenshot` thread, started at the first screenshot (research R5).
+    screenshot_worker: Option<crate::screenshot::Worker>,
     /// The hotkeys, started once the window exists (screenshot T018).
     hotkeys: Option<crate::hotkeys::AppHotkeys>,
     /// The next 3 s re-read while the preview waits for a device.
@@ -404,6 +411,7 @@ impl App {
             tick_at: Instant::now(),
             screenshots: Default::default(),
             screenshot_at,
+            screenshot_worker: None,
             hotkeys: None,
             tick_wall: None,
             relist_at: Instant::now(),
@@ -950,22 +958,69 @@ impl App {
             self.screenshots.not_taken(serial);
             return;
         };
-        log::info!(
-            "screenshot {serial}: {}x{} taken +{} ms",
-            frame.width,
-            frame.height,
-            // Until the answer reached the event loop.
-            asked.elapsed().as_millis()
-        );
-        let _ = self.screenshots.taken(serial);
-        // FR-010: the sound starts when the frame is taken.
-        if let Some(sound) = &mut self.sound {
-            sound.play(::audio::sound::Sound::Screenshot, &self.store.get());
+        // Until the answer reached the event loop; the worker logs it with the rest.
+        let taken = asked.elapsed();
+        // The folder and the file name's time are the ones at the frame's arrival.
+        let time = crate::screenshot::LocalTime::at(SystemTime::now());
+        let folder = crate::screenshot::folder(&self.store.get().screenshot.folder);
+        for command in self.screenshots.taken(serial) {
+            match command {
+                // FR-010: the sound starts when the frame is taken.
+                crate::screenshot::Command::PlaySound => {
+                    if let Some(sound) = &mut self.sound {
+                        sound.play(::audio::sound::Sound::Screenshot, &self.store.get());
+                    }
+                }
+                crate::screenshot::Command::Write(serial) => {
+                    let job = crate::screenshot::Job {
+                        serial,
+                        frame: frame.clone(),
+                        taken,
+                        folder: folder.clone(),
+                        time,
+                    };
+                    self.write_screenshot(job);
+                }
+                crate::screenshot::Command::Take(_) => {}
+            }
         }
-        // The worker that writes and copies it comes next (screenshot T014, T019); until then the
-        // frame goes back to the pool and the screenshot ends here, with no notice.
-        drop(frame);
-        self.screenshots.not_taken(serial);
+    }
+
+    /// Hands a taken frame to the `screenshot` thread, started at the first screenshot with the
+    /// clipboard (research R4, R5); its outcome comes back as [`UserEvent::Written`].
+    fn write_screenshot(&mut self, job: crate::screenshot::Job) {
+        if self.screenshot_worker.is_none() {
+            let clipboard = platform::Clipboard::start();
+            let proxy = self.proxy.clone();
+            let started = crate::screenshot::Worker::start(
+                Box::new(move |width, height, rgba, timeout| clipboard.set_image(width, height, rgba, timeout)),
+                move |serial, written| {
+                    let _ = proxy.send_event(UserEvent::Written { serial, written });
+                },
+            );
+            match started {
+                Ok(worker) => self.screenshot_worker = Some(worker),
+                Err(err) => log::warn!("screenshot: cannot start its thread: {err}"),
+            }
+        }
+        let serial = job.serial;
+        let queued = match &self.screenshot_worker {
+            Some(worker) => worker.write(job).is_ok(),
+            None => false,
+        };
+        if !queued {
+            // The sound already played: the notice tells that nothing came of it.
+            log::warn!("screenshot {serial}: no worker to write it");
+            self.screenshot_worker = None;
+            let notice = self.screenshots.written(
+                serial,
+                crate::screenshot::Written {
+                    saved: Err(crate::notices::Reason::WriteError),
+                    copied: false,
+                },
+            );
+            self.event_notice(notice);
+        }
     }
 
     /// Shows the preview's state in the video area, in the current language.
@@ -2074,6 +2129,10 @@ impl ApplicationHandler<UserEvent> for App {
                 self.reset_menus();
             }
             UserEvent::Still { serial, asked, frame } => self.still(serial, asked, frame),
+            UserEvent::Written { serial, written } => {
+                let notice = self.screenshots.written(serial, written);
+                self.event_notice(notice);
+            }
             UserEvent::Second(summary) => {
                 self.second = summary;
                 // On Wayland the window has no monitor yet when it is created and no `Moved`
@@ -2290,6 +2349,10 @@ impl ApplicationHandler<UserEvent> for App {
         }
         if let Some(mut video) = self.video.take() {
             video.stop();
+        }
+        // The screenshots already taken are written and copied first (research R5).
+        if let Some(mut worker) = self.screenshot_worker.take() {
+            worker.stop(crate::screenshot::QUIT_WAIT);
         }
         self.store.flush();
         // Releasing the name before the window is destroyed lets a start during the rest of the

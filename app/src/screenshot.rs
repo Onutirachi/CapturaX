@@ -1,8 +1,6 @@
 //! Screenshots (spec 20261121-134830-screenshot): the requests' state (data-model.md "Screenshot
 //! request"), the file writing (research R3, data-model.md "File name") and the worker (research R5).
 
-#![cfg_attr(not(test), expect(dead_code, reason = "the screenshot wiring uses it (T019)"))]
-
 use std::fs::{self, File};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
