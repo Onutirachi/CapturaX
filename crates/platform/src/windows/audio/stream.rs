@@ -98,7 +98,8 @@ impl Shared {
 
 pub struct Session {
     shared: Arc<Shared>,
-    input: Sender<Open>,
+    /// None for an output-only session.
+    input: Option<Sender<Open>>,
     output: Sender<Open>,
 }
 
@@ -109,17 +110,19 @@ impl Session {
             samples,
             on_event,
             stop: AtomicBool::new(false),
-            running: AtomicUsize::new(2),
+            running: AtomicUsize::new(if request.input.is_some() { 2 } else { 1 }),
             rates: [AtomicU32::new(0), AtomicU32::new(0)],
         });
-        let input = spawn(
-            Side::Input,
-            Open {
-                device: Some(request.input),
-                exclusive: request.input_exclusive,
-            },
-            &shared,
-        );
+        let input = request.input.map(|input| {
+            spawn(
+                Side::Input,
+                Open {
+                    device: Some(input),
+                    exclusive: request.input_exclusive,
+                },
+                &shared,
+            )
+        });
         let output = spawn(
             Side::Output,
             Open {
@@ -131,11 +134,14 @@ impl Session {
         Self { shared, input, output }
     }
 
+    /// Ignored by an output-only session.
     pub fn reopen_input(&self, input: String, exclusive: bool) {
-        let _ = self.input.send(Open {
-            device: Some(input),
-            exclusive,
-        });
+        if let Some(sender) = &self.input {
+            let _ = sender.send(Open {
+                device: Some(input),
+                exclusive,
+            });
+        }
     }
 
     pub fn reopen_output(&self, output: Option<String>, exclusive: bool) {

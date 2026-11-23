@@ -128,18 +128,21 @@ export component SettingsNotice inherits Rectangle {
     }
 }
 
-// The device notice balloon (FR-027, research R15 "In-app balloon"): one line in the info bubbles'
-// shape (44 px, 16 px corners, 14 px text) with the theme's raised fill and shadow, so it reads over
-// any video and is not taken for a bubble. The plug icon, the text Rust gives ("C920 connected"),
-// **Open** when the device did not open by itself, and ×. It grows in from its corner, stays about
-// 5 s (paused while the pointer or the keyboard is on it) and leaves the same way; a click anywhere
-// on it closes it. Only the latest message: a new one replaces the text and starts the time again.
+// The event notice balloon (device preview FR-027, research R15 "In-app balloon"; screenshot FR-008,
+// research R13): one line in the info bubbles' shape (44 px, 16 px corners, 14 px text) with the
+// theme's raised fill and shadow, so it reads over any video and is not taken for a bubble. The
+// kind's icon, the text Rust gives ("C920 connected", "Screenshot saved"), the action Rust names
+// (**Open**, **Show**, **Settings**) if any, and ×. It grows in from its corner, stays about 5 s
+// (paused while the pointer or the keyboard is on it) and leaves the same way; a click anywhere on
+// it closes it. Only the latest message: a new one replaces the text and starts the time again.
 // The owner places it (main.slint) and gives it the room it may take.
-export component DeviceNotice inherits Rectangle {
-    // `connected`, `reconnected` or `disconnected`.
+export component EventNotice inherits Rectangle {
+    // Devices: `connected`, `reconnected`, `disconnected`. Screenshots: `saved`,
+    // `saved-not-copied`, `copied-not-saved`, `failed`.
     in property <string> kind;
     in property <string> text;
-    in property <bool> can-open;
+    // The action button's label; empty for none.
+    in property <string> action-label;
     // Changes for each new notice, which shows it.
     in property <int> serial;
     // The widest it may be; a longer text is cut with an ellipsis.
@@ -153,9 +156,14 @@ export component DeviceNotice inherits Rectangle {
     out property <float> appear: root.showing ? 1 : 0;
     animate appear { duration: Theme.quick; easing: ease-out; }
     out property <bool> present: root.showing || root.appear > 0;
-    callback open();
+    callback action();
 
     property <bool> showing;
+    property <bool> screenshot: root.kind != "connected" && root.kind != "reconnected" && root.kind != "disconnected";
+    // Nothing went wrong: the plug or camera in the success color.
+    property <bool> good: root.kind == "connected" || root.kind == "reconnected" || root.kind == "saved";
+    // Done in part: the camera in the warning color.
+    property <bool> partial: root.kind == "saved-not-copied" || root.kind == "copied-not-saved";
     // The time left before it leaves.
     property <duration> left-time;
     property <bool> open-focused;
@@ -215,9 +223,12 @@ export component DeviceNotice inherits Rectangle {
             Image {
                 width: 20px;
                 height: 20px;
-                source: root.kind == "disconnected" ? @image-url("../assets/icons/plug_connected_x.svg")
-                    : @image-url("../assets/icons/plug_connected.svg");
-                colorize: root.kind == "disconnected" ? Theme.c.text-muted : Theme.c.ok;
+                source: !root.screenshot
+                    ? (root.kind == "disconnected" ? @image-url("../assets/icons/plug_connected_x.svg")
+                        : @image-url("../assets/icons/plug_connected.svg"))
+                    : (root.good || root.partial ? @image-url("../assets/icons/camera.svg")
+                        : @image-url("../assets/icons/camera_off.svg"));
+                colorize: root.good ? Theme.c.ok : root.partial || root.kind == "failed" ? Theme.c.warn : Theme.c.text-muted;
                 accessible-role: none;
             }
         }
@@ -232,11 +243,11 @@ export component DeviceNotice inherits Rectangle {
             accessible-role: none;
         }
 
-        if root.can-open: VerticalLayout {
+        if root.action-label != "": VerticalLayout {
             alignment: center;
             padding-left: 4px;
             ActionButton {
-                label: @tr("Open");
+                label: root.action-label;
                 primary: true;
                 height: 32px;
                 min-width: 0;
@@ -244,7 +255,7 @@ export component DeviceNotice inherits Rectangle {
                 focusable: root.focusable && root.showing;
                 changed has-focus => { root.open-focused = self.has-focus; }
                 clicked => {
-                    root.open();
+                    root.action();
                     root.close();
                 }
             }

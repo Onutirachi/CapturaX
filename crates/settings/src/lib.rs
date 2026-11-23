@@ -9,9 +9,10 @@ mod store;
 pub use file::LoadOutcome;
 pub use location::{FileTimes, Location, LocationKind};
 pub use model::{
-    AUDIO_DEVICES_LIMIT, Audio, AudioDevice, Background, ColorRange, DEFAULT_VOLUME, DEVICES_LIMIT, DeviceChoices,
-    FpsDisplay, General, LanguageSetting, LatencyDisplay, MIN_HEIGHT, MIN_WIDTH, ModeDisplay, NotificationPosition,
-    Overlay, Presentation, Preview, RECENT_LIMIT, Settings, Shadow, ThemeSetting, VERSION, WindowSettings,
+    AUDIO_DEVICES_LIMIT, Audio, AudioDevice, Background, ColorRange, DEFAULT_FOLDER, DEFAULT_SCREENSHOT_KEY,
+    DEFAULT_VOLUME, DEVICES_LIMIT, DeviceChoices, FpsDisplay, General, Hotkeys, LanguageSetting, LatencyDisplay,
+    MIN_HEIGHT, MIN_WIDTH, ModeDisplay, NotificationPosition, Overlay, Presentation, Preview, RECENT_LIMIT, Settings,
+    Shadow, ThemeSetting, VERSION, WindowSettings,
 };
 pub use store::Store;
 

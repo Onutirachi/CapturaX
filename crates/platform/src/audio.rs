@@ -206,8 +206,9 @@ impl fmt::Display for StreamMode {
 pub struct SessionRequest {
     /// Carried by every event of the session, so the app can ignore an older session's events.
     pub number: u64,
-    /// The input endpoint's id.
-    pub input: String,
+    /// The input endpoint's id; None opens only the output (an output-only session, for the
+    /// app's sounds: screenshot research R10), which never calls [`Samples::on_input`].
+    pub input: Option<String>,
     /// The output endpoint's id; None follows the system default output.
     pub output: Option<String>,
     /// Try the device alone first (Windows; ignored on Linux).
@@ -234,7 +235,7 @@ pub enum SessionEvent {
     },
     /// A side could not open or stopped; the other side keeps running.
     Error { number: u64, side: Side, error: AudioError },
-    /// Both sides closed and released their devices, after [`Session::close`].
+    /// Every side closed and released its device, after [`Session::close`].
     Closed { number: u64 },
 }
 
@@ -249,14 +250,15 @@ pub trait Samples: Send + Sync {
     fn fill(&self, out: &mut [f32], format: Format);
 }
 
-/// A running audio session: an input and an output (research R2, R3). Closes when dropped.
+/// A running audio session: an input and an output, or an output alone (research R2, R3).
+/// Closes when dropped.
 pub struct Session {
     os: os::audio::Session,
     closed: bool,
 }
 
 impl Session {
-    /// Asks for both sides to open and returns at once; each side reports `Opened` or `Error`
+    /// Asks for the sides to open and returns at once; each side reports `Opened` or `Error`
     /// through `on_event`, from the audio threads.
     pub fn open(
         request: SessionRequest,
@@ -269,7 +271,8 @@ impl Session {
         }
     }
 
-    /// Closes the input and opens `input` in its place; reports as at open.
+    /// Closes the input and opens `input` in its place; reports as at open. Ignored by an
+    /// output-only session.
     pub fn reopen_input(&self, input: String, exclusive: bool) {
         self.os.reopen_input(input, exclusive);
     }

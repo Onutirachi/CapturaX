@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use winit::window::Window;
 
-use capture::{Frame, Matrix, PixelFormat, Range};
+use capture::{Frame, PixelFormat, conversion};
 
 use super::{Presentation, Scene};
 use crate::cli::{Backend, PresentMode};
@@ -612,9 +612,15 @@ impl Gpu {
     }
 
     /// Composites the video (letterboxed in the scene's video area, corners rounded, at
-    /// `video_opacity` over the backdrop) and the UI layer, then presents at once. False when the
-    /// surface was not ready.
-    pub fn render(&mut self, acquired: Option<wgpu::SurfaceTexture>, scene: &Scene, video_opacity: f32) -> bool {
+    /// `video_opacity` over the backdrop, with the screenshot flash at `flash`) and the UI layer,
+    /// then presents at once. False when the surface was not ready.
+    pub fn render(
+        &mut self,
+        acquired: Option<wgpu::SurfaceTexture>,
+        scene: &Scene,
+        video_opacity: f32,
+        flash: f32,
+    ) -> bool {
         // An image acquired at the old size goes unpresented, before the surface is configured.
         let size = (scene.size.0.max(1), scene.size.1.max(1));
         let acquired = acquired.filter(|_| size == (self.config.width, self.config.height));
@@ -645,6 +651,10 @@ impl Gpu {
             let rect = letterbox(scene.video, (video.width, video.height));
             let mut values = uniform(rect, scene.video[4], (w, h), video);
             values[OPACITY] = video_opacity;
+            if flash > 0.0 {
+                let scale = if scene.shadow[0] > 0.0 { scene.shadow[0] } else { 1.0 };
+                values[FLASH..FLASH + 3].copy_from_slice(&[flash, FLASH_LINE * scale, FLASH_GLOW * scale]);
+            }
             self.queue.write_buffer(&video.rect, 0, bytemuck::cast_slice(&values));
             if let Some(layer) = shadow {
                 let [scale, strength] = scene.shadow;
@@ -785,10 +795,17 @@ fn plane_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
 }
 
 /// Floats in the shader's `Rect` uniform.
-const UNIFORM_LEN: usize = 24;
+const UNIFORM_LEN: usize = 28;
 
 /// Where the layer's opacity is in the uniform.
 const OPACITY: usize = 7;
+
+/// Where the screenshot flash is in the uniform (`flash`: opacity, line width, glow deviation).
+const FLASH: usize = 24;
+
+/// The flash's line width and inner glow deviation in logical pixels (FR-010a, research R11).
+const FLASH_LINE: f32 = 3.0;
+const FLASH_GLOW: f32 = 9.0;
 
 /// A layer's rectangle as the shader's uniform: bounds in clip space, size, corner radius,
 /// opacity, then the kind and picture size, then the YUV to RGB rows.
@@ -800,35 +817,6 @@ fn uniform(rect: [f32; 4], radius: f32, surface: (f32, f32), layer: &Layer) -> [
         values[12 + i * 4..16 + i * 4].copy_from_slice(row);
     }
     values
-}
-
-/// The rows that turn normalized `(y, u, v, 1)` into RGB for a matrix and range (research R4):
-/// `R = Y' + 2(1 − Kr)·Cr`, `B = Y' + 2(1 − Kb)·Cb`, `G = (Y' − Kr·R − Kb·B) / Kg`, with
-/// `Y' = (Y − 16/255)·255/219` and `C = (C − 128/255)·255/224` in limited range, `Y' = Y` and
-/// `C = C − 128/255` in full range.
-pub fn conversion(matrix: Matrix, range: Range) -> [[f32; 4]; 3] {
-    let (kr, kb) = match matrix {
-        Matrix::Bt601 => (0.299_f64, 0.114_f64),
-        Matrix::Bt709 => (0.2126, 0.0722),
-    };
-    let kg = 1.0 - kr - kb;
-    let (ys, yo, cs) = match range {
-        Range::Limited => (255.0 / 219.0, -16.0 / 219.0, 255.0 / 224.0),
-        Range::Full => (1.0, 0.0, 1.0),
-    };
-    let co = -128.0 / 255.0 * cs;
-    let (rv, bu) = (2.0 * (1.0 - kr), 2.0 * (1.0 - kb));
-    let (gu, gv) = (-kb * bu / kg, -kr * rv / kg);
-    let row = |u: f64, v: f64| [ys as f32, (u * cs) as f32, (v * cs) as f32, (yo + (u + v) * co) as f32];
-    [row(0.0, rv), row(gu, gv), row(bu, 0.0)]
-}
-
-/// What the shader gives for 8-bit `y`, `u`, `v`: RGB from 0 to 1, clamped. Mirrors composite.wgsl
-/// for the tests.
-#[cfg(test)]
-fn yuv_to_rgb(y: u8, u: u8, v: u8, matrix: Matrix, range: Range) -> [f32; 3] {
-    let p = [f32::from(y) / 255.0, f32::from(u) / 255.0, f32::from(v) / 255.0, 1.0];
-    conversion(matrix, range).map(|row| row.iter().zip(p).map(|(a, b)| a * b).sum::<f32>().clamp(0.0, 1.0))
 }
 
 /// Bounds in clip space, size, corner radius, opacity.
@@ -937,34 +925,6 @@ mod tests {
             placement([0.0, 0.0, 100.0, 50.0], 4.0, (100.0, 50.0)),
             [-1.0, 1.0, 1.0, -1.0, 100.0, 50.0, 4.0, 1.0]
         );
-    }
-
-    fn close(actual: [f32; 3], expected: [f32; 3]) {
-        for (a, e) in actual.iter().zip(expected) {
-            assert!((a - e).abs() < 0.01, "{actual:?} != {expected:?}");
-        }
-    }
-
-    #[test]
-    fn yuv_to_rgb_in_both_matrices_and_ranges() {
-        use Matrix::{Bt601, Bt709};
-        use Range::{Full, Limited};
-        for matrix in [Bt601, Bt709] {
-            close(yuv_to_rgb(16, 128, 128, matrix, Limited), [0.0, 0.0, 0.0]);
-            close(yuv_to_rgb(235, 128, 128, matrix, Limited), [1.0, 1.0, 1.0]);
-            close(yuv_to_rgb(0, 128, 128, matrix, Full), [0.0, 0.0, 0.0]);
-            close(yuv_to_rgb(255, 128, 128, matrix, Full), [1.0, 1.0, 1.0]);
-            // Limited black read as full is grey, not black.
-            assert!(yuv_to_rgb(16, 128, 128, matrix, Full)[0] > 0.05);
-        }
-        // Red, from the standards' reference values.
-        close(yuv_to_rgb(63, 102, 240, Bt709, Limited), [1.0, 0.0, 0.0]);
-        close(yuv_to_rgb(81, 90, 240, Bt601, Limited), [1.0, 0.0, 0.0]);
-        close(yuv_to_rgb(54, 99, 255, Bt709, Full), [1.0, 0.0, 0.0]);
-        close(yuv_to_rgb(76, 85, 255, Bt601, Full), [1.0, 0.0, 0.0]);
-        // Green and blue in BT.709 limited.
-        close(yuv_to_rgb(173, 42, 26, Bt709, Limited), [0.0, 1.0, 0.0]);
-        close(yuv_to_rgb(32, 240, 118, Bt709, Limited), [0.0, 0.0, 1.0]);
     }
 
     #[test]

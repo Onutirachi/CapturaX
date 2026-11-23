@@ -385,3 +385,123 @@ msgstr "Entradas"
 
 msgid "Outputs"
 msgstr "Saídas"
+
+msgid "Screenshot saved"
+msgstr "Captura de tela salva"
+
+msgid "Screenshot saved, not copied"
+msgstr "Captura de tela salva, não copiada"
+
+msgid "Couldn't save the screenshot: {}. Copied to the clipboard"
+msgstr "Não foi possível salvar a captura de tela: {}. Copiada para a área de transferência"
+
+msgid "Couldn't take the screenshot: {}"
+msgstr "Não foi possível fazer a captura de tela: {}"
+
+msgid "Screenshot"
+msgstr "Captura de tela"
+
+msgid "Screenshot ({})"
+msgstr "Captura de tela ({})"
+
+msgid "folder not found"
+msgstr "pasta não encontrada"
+
+msgid "no permission"
+msgstr "sem permissão"
+
+msgid "disk full"
+msgstr "disco cheio"
+
+msgid "write error"
+msgstr "erro de gravação"
+
+msgid "image error"
+msgstr "erro na imagem"
+
+msgid "Show"
+msgstr "Mostrar"
+
+msgid "Hotkeys"
+msgstr "Atalhos"
+
+msgid "Press a key…"
+msgstr "Pressione uma tecla…"
+
+msgid "None"
+msgstr "Nenhuma"
+
+msgid "Clear"
+msgstr "Limpar"
+
+msgid "Reset"
+msgstr "Restaurar"
+
+msgid "Reset to {}"
+msgstr "Restaurar para {}"
+
+msgid "Esc to cancel"
+msgstr "Esc para cancelar"
+
+msgid "Works only while CapturaX is focused"
+msgstr "Funciona só com o CapturaX em foco"
+
+msgid "Change it in the system settings"
+msgstr "Altere nas configurações do sistema"
+
+msgid "Use F1–F24, or a key with Ctrl, Alt or {}"
+msgstr "Use F1–F24 ou uma tecla com Ctrl, Alt ou {}"
+
+msgid "Already used by {}"
+msgstr "Já usada por {}"
+
+msgid "Space"
+msgstr "Espaço"
+
+msgid "Insert"
+msgstr "Insert"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Home"
+msgstr "Home"
+
+msgid "End"
+msgstr "End"
+
+msgid "Page Up"
+msgstr "Page Up"
+
+msgid "Page Down"
+msgstr "Page Down"
+
+msgid "Up"
+msgstr "Seta para cima"
+
+msgid "Down"
+msgstr "Seta para baixo"
+
+msgid "Left"
+msgstr "Seta para a esquerda"
+
+msgid "Right"
+msgstr "Seta para a direita"
+
+msgid "Pause"
+msgstr "Pause"
+
+msgid "Print Screen"
+msgstr "Print Screen"
+
+msgid "Folders"
+msgstr "Pastas"
+
+msgid "Screenshots"
+msgstr "Capturas de tela"
+
+msgid "Change"
+msgstr "Alterar"
+
+msgid "No folder picker on this desktop"
+msgstr "Sem seletor de pastas neste ambiente"

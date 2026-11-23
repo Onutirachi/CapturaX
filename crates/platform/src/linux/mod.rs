@@ -13,6 +13,9 @@ mod activation;
 pub use activation::activate;
 pub mod audio;
 pub mod autostart;
+mod desktop_entry;
+pub mod files;
+pub mod hotkeys;
 pub mod instance;
 pub mod notify;
 mod nvml;
@@ -88,6 +91,35 @@ pub fn follow_dpi_rect(_window: &Window) {}
 
 pub fn drawn_size(window: &Window) -> PhysicalSize<u32> {
     window.inner_size()
+}
+
+/// `localtime_r`'s `tm_gmtoff`, declared here like `clock_gettime` below.
+pub fn utc_offset(time: std::time::SystemTime) -> i32 {
+    // glibc's `struct tm` on 64-bit Linux.
+    #[repr(C)]
+    struct Tm {
+        fields: [i32; 9],
+        gmtoff: i64,
+        zone: *const std::ffi::c_char,
+    }
+    unsafe extern "C" {
+        fn localtime_r(time: *const i64, out: *mut Tm) -> *mut Tm;
+    }
+    let Ok(since) = time.duration_since(std::time::UNIX_EPOCH) else {
+        return 0;
+    };
+    let secs = since.as_secs() as i64;
+    let mut tm = Tm {
+        fields: [0; 9],
+        gmtoff: 0,
+        zone: std::ptr::null(),
+    };
+    // SAFETY: `secs` and `tm` match `time_t` and `struct tm` on 64-bit Linux and outlive the
+    // call; a null result means it failed and `tm` is not read.
+    if unsafe { localtime_r(&secs, &mut tm) }.is_null() {
+        return 0;
+    }
+    tm.gmtoff as i32
 }
 
 /// `CLOCK_MONOTONIC` in nanoseconds. Declared here rather than through the `libc` crate: one call,

@@ -1,9 +1,12 @@
 //! The settings notices' queue (app shell FR-034, here FR-033; data-model.md "State message and
 //! notice"): one notice shown at a time in the notice balloon, in the corner of the Notification
 //! position setting, the rest waiting; each id is shown at most once per run.
+//!
+//! And the event notices (device preview FR-027, screenshot FR-008, research R13): one at a time,
+//! the latest replacing the one shown, in the event notice balloon or as a system notification.
 
 use std::collections::{HashSet, VecDeque};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::ui::Texts;
 
@@ -98,9 +101,204 @@ impl Notices {
     }
 }
 
+/// An event notice (research R13), kept to redo its text in another language.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EventNotice {
+    /// A device joined or left (device preview FR-027).
+    Device {
+        kind: crate::preview::NoticeKind,
+        device: String,
+        /// The device's name as the menu shows it.
+        name: String,
+        /// It offers **Open**.
+        open: bool,
+    },
+    /// Screenshot FR-008: saved and copied.
+    Saved(PathBuf),
+    SavedNotCopied(PathBuf),
+    CopiedNotSaved(Reason),
+    Failed(Reason),
+}
+
+/// Why a screenshot was not saved or not taken, in a few words (data-model.md "Outcome").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reason {
+    FolderNotFound,
+    NoPermission,
+    DiskFull,
+    WriteError,
+    ImageError,
+}
+
+impl EventNotice {
+    /// The balloon's kind (main.slint `event-notice-kind`): its icon and color.
+    pub fn kind(&self) -> &'static str {
+        use crate::preview::NoticeKind;
+        match self {
+            Self::Device { kind, .. } => match kind {
+                NoticeKind::Connected => "connected",
+                NoticeKind::Reconnected => "reconnected",
+                NoticeKind::Disconnected => "disconnected",
+            },
+            Self::Saved(_) => "saved",
+            Self::SavedNotCopied(_) => "saved-not-copied",
+            Self::CopiedNotSaved(_) => "copied-not-saved",
+            Self::Failed(_) => "failed",
+        }
+    }
+
+    /// The text in the current language ("C920 connected", "Screenshot saved").
+    pub fn text(&self, texts: &Texts<'_>) -> slint::SharedString {
+        use crate::preview::NoticeKind;
+        match self {
+            Self::Device { kind, name, .. } => {
+                let name = name.as_str().into();
+                match kind {
+                    NoticeKind::Connected => texts.invoke_notice_connected(name),
+                    NoticeKind::Reconnected => texts.invoke_notice_reconnected(name),
+                    NoticeKind::Disconnected => texts.invoke_notice_disconnected(name),
+                }
+            }
+            Self::Saved(_) => texts.get_notice_screenshot_saved(),
+            Self::SavedNotCopied(_) => texts.get_notice_screenshot_saved_not_copied(),
+            Self::CopiedNotSaved(reason) => texts.invoke_notice_screenshot_copied_not_saved(reason.text(texts)),
+            Self::Failed(reason) => texts.invoke_notice_screenshot_failed(reason.text(texts)),
+        }
+    }
+
+    /// What its button does, if it has one.
+    pub fn action(&self) -> Option<NoticeAction> {
+        match self {
+            Self::Device { device, open, .. } => open.then(|| NoticeAction::Open(device.clone())),
+            Self::Saved(path) | Self::SavedNotCopied(path) => Some(NoticeAction::Show(path.clone())),
+            Self::CopiedNotSaved(_) => Some(NoticeAction::Settings),
+            Self::Failed(_) => None,
+        }
+    }
+}
+
+impl Reason {
+    fn text(self, texts: &Texts<'_>) -> slint::SharedString {
+        match self {
+            Self::FolderNotFound => texts.get_screenshot_folder_not_found(),
+            Self::NoPermission => texts.get_screenshot_no_permission(),
+            Self::DiskFull => texts.get_screenshot_disk_full(),
+            Self::WriteError => texts.get_screenshot_write_error(),
+            Self::ImageError => texts.get_screenshot_image_error(),
+        }
+    }
+}
+
+/// What an event notice's button does. A system notification carries it in its tag, which comes
+/// back when its button is clicked (research R13).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NoticeAction {
+    /// **Open** the device with this id (device preview FR-027); its tag is the id alone.
+    Open(String),
+    /// **Show** the file in the file manager (screenshot FR-009).
+    Show(PathBuf),
+    /// **Settings**, on the screenshots folder (screenshot FR-008).
+    Settings,
+}
+
+const SHOW_TAG: &str = "show:";
+const SETTINGS_TAG: &str = "settings:screenshot";
+
+impl NoticeAction {
+    pub fn tag(&self) -> String {
+        match self {
+            Self::Open(device) => device.clone(),
+            Self::Show(path) => format!("{SHOW_TAG}{}", path.to_string_lossy()),
+            Self::Settings => SETTINGS_TAG.to_owned(),
+        }
+    }
+
+    /// The action a tag names; a tag of neither screenshot form is a device id.
+    pub fn from_tag(tag: &str) -> Self {
+        if tag == SETTINGS_TAG {
+            Self::Settings
+        } else if let Some(path) = tag.strip_prefix(SHOW_TAG) {
+            Self::Show(PathBuf::from(path))
+        } else {
+            Self::Open(tag.to_owned())
+        }
+    }
+
+    /// The button's label in the current language.
+    pub fn label(&self, texts: &Texts<'_>) -> slint::SharedString {
+        match self {
+            Self::Open(_) => texts.get_notice_open(),
+            Self::Show(_) => texts.get_notice_show(),
+            Self::Settings => texts.get_notice_settings(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn event_notices_have_their_kind_and_action() {
+        use crate::preview::NoticeKind;
+        let device = |kind, open| EventNotice::Device {
+            kind,
+            device: "usb:1234".into(),
+            name: "C920".into(),
+            open,
+        };
+        let open = Some(NoticeAction::Open("usb:1234".into()));
+        assert_eq!(device(NoticeKind::Connected, true).kind(), "connected");
+        assert_eq!(device(NoticeKind::Connected, true).action(), open);
+        assert_eq!(device(NoticeKind::Reconnected, false).kind(), "reconnected");
+        assert_eq!(device(NoticeKind::Disconnected, false).kind(), "disconnected");
+        assert_eq!(device(NoticeKind::Disconnected, false).action(), None);
+        let file = PathBuf::from("C:/Pictures/CapturaX/CapturaX 2026-11-22 10-00-00.png");
+        let show = Some(NoticeAction::Show(file.clone()));
+        let cases = [
+            (EventNotice::Saved(file.clone()), "saved", show.clone()),
+            (EventNotice::SavedNotCopied(file), "saved-not-copied", show),
+            (
+                EventNotice::CopiedNotSaved(Reason::DiskFull),
+                "copied-not-saved",
+                Some(NoticeAction::Settings),
+            ),
+            (EventNotice::Failed(Reason::ImageError), "failed", None),
+        ];
+        for (notice, kind, action) in cases {
+            assert_eq!(notice.kind(), kind);
+            assert_eq!(notice.action(), action, "{kind}");
+        }
+        // The reason changes the text only.
+        use Reason::*;
+        for reason in [FolderNotFound, NoPermission, DiskFull, WriteError, ImageError] {
+            assert_eq!(
+                EventNotice::CopiedNotSaved(reason).action(),
+                Some(NoticeAction::Settings)
+            );
+            assert_eq!(EventNotice::Failed(reason).action(), None);
+        }
+    }
+
+    #[test]
+    fn notice_actions_go_through_their_tags() {
+        let actions = [
+            NoticeAction::Open("usb:1234".into()),
+            NoticeAction::Open(r"\\?\usb#vid_046d&pid_082d#8&1a2b#{e5323777}\global".into()),
+            NoticeAction::Show(PathBuf::from(
+                r"D:\Pictures\CapturaX\CapturaX 2026-11-22 10-00-00 (2).png",
+            )),
+            NoticeAction::Show(PathBuf::from(
+                "/home/me/Pictures/CapturaX/CapturaX 2026-11-22 10-00-00.png",
+            )),
+            NoticeAction::Settings,
+        ];
+        for action in actions {
+            assert_eq!(NoticeAction::from_tag(&action.tag()), action);
+        }
+        assert_eq!(NoticeAction::Settings.tag(), "settings:screenshot");
+        assert_eq!(NoticeAction::Show(PathBuf::from("/a.png")).tag(), "show:/a.png");
+    }
 
     fn notice(id: &'static str) -> Notice {
         let kind = if id == "a" { Kind::Info } else { Kind::Warning };

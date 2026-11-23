@@ -11,6 +11,7 @@ pub mod mode;
 pub mod monitor;
 pub mod recorded;
 pub mod session;
+pub mod still;
 pub mod tags;
 pub mod test_source;
 
@@ -20,6 +21,7 @@ pub use frame::{Frame, Matrix, PixelFormat, Plane, Range};
 pub use mode::{Mode, ModeChoice};
 pub use monitor::{Monitor, MonitorEvent};
 pub use session::{Access, DeviceError, ErrorContext, Session, SessionEvent};
+pub use still::{Still, conversion, still};
 
 /// GStreamer cannot start, or an element the capture needs is missing (exit code 69,
 /// contracts/cli.md).

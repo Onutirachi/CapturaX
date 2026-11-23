@@ -12,11 +12,11 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
 | 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
 | 4 | [Preview audio](#4-preview-audio) ([spec](../specs/20261113-103922-preview-audio/spec.md)) | F12–F14, F47 | 3 | done |
-| 5 | [Screenshot](#5-screenshot) | F19 | 3 | |
+| 5 | [Screenshot](#5-screenshot) ([spec](../specs/20261121-134830-screenshot/spec.md)) | F19, F50 (framework, screenshot) | 3 | done |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
 | 8 | [Output audio](#8-output-audio) | F15–F17 | 4 | |
-| 9 | [Recording](#9-recording) | F20–F27, F48 (Record in the tray), F50 (framework, record, screenshot), F51 (recording) | 7, 8 | |
+| 9 | [Recording](#9-recording) | F20–F27, F48 (Record in the tray), F50 (record), F51 (recording) | 7, 8 | |
 | 10 | [Direct link](#10-direct-link) | F28–F33, F38, F48 (Live in the tray), F50 (stream), F51 (streaming), F53 | 9 | |
 | 11 | [Server](#11-server) | F34–F37, F53 (server side) | 10 | |
 | 12 | [Peer-to-peer live](#12-peer-to-peer-live) | F34, F36, F37, F53 (app side) | 11 | |
@@ -24,9 +24,11 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
 | 15 | [Accelerate GPU](#15-accelerate-gpu) | F55 | 10 | |
 | 16 | [Getting started guide](#16-getting-started-guide) | F54 | 15 | |
+| 17 | [UI review](#17-ui-review) | F59 and the small fixes listed there | 5 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
-spec 13 can start any time after spec 2.
+spec 13 can start any time after spec 2; spec 17 any time after spec 5, when its list is worth
+a spec.
 
 ## Specs
 
@@ -114,9 +116,23 @@ and the Linux path. Must state a latency budget and how it is measured.
 
 ### 5. Screenshot
 
+Done: [handoff](../specs/20261121-134830-screenshot/handoff.md),
+[acceptance](../specs/20261121-134830-screenshot/measurements/acceptance.md),
+[latency](../specs/20261121-134830-screenshot/measurements/latency.md) and
+[probes](../specs/20261121-134830-screenshot/measurements/probes.md). PNG saved off the
+preview's thread and copied to the clipboard, an outline flash and a capture sound on the
+preview's output; global hotkeys through `RegisterHotKey` on Windows, X11 key grabs and the
+GlobalShortcuts portal on Linux (window-only without it). The Folders category is ready for the recordings folder of spec #9.
+
 ```text
 /speckit-specify Screenshot (see docs/roadmap.md #5): covers F19 from docs/product.md.
 ```
+
+The global hotkey framework of F50 and the screenshot key come here, not in spec 9 (maintainer,
+2026-11-21): a screenshot needs its key while playing.
+
+Its capture sound plays on the output chosen for the preview audio; later specs may add sounds
+for their events the same way (maintainer idea, 2026-11-22).
 
 ### 6. Preview extras
 
@@ -146,11 +162,15 @@ loopback, Linux PipeWire), mix on track 1 and optional separate tracks.
 
 ```text
 /speckit-specify Recording (see docs/roadmap.md #9): covers F20-F27 from docs/product.md,
-including the Record panel (the Stream panel is added by spec 10), the global
-hotkeys of F50 for recording and screenshot (the streaming hotkey is added by spec 10), and the
+including the Record panel (the Stream panel is added by spec 10), the F50 global hotkey for
+recording (the framework and the screenshot key come from spec 5, the streaming hotkey from
+spec 10), and the
 recording status of F51 on the tray icon and the taskbar button. The tray's Record entry and
-Ctrl+F10 open the Record panel in the main window (the compact window comes in spec 14).
+Ctrl+Shift+F10 open the Record panel in the main window (the compact window comes in spec 14).
 ```
+
+The recordings folder (default Videos/CapturaX) is a second row in the settings' **Folders**
+category, beside the screenshots folder from spec 5, reusing its row (maintainer, 2026-11-23).
 
 ### 10. Direct link
 
@@ -188,12 +208,16 @@ firewall parts of F41, F44 and F45 from docs/product.md: Windows installer, Linu
 bundled GStreamer, Configure firewall action, update check with automatic install.
 ```
 
+Linux: since spec #5 the app writes a hidden `capturax.desktop` (needed by the Wayland
+shortcuts portal) when no package installed one. This spec adds the app's icon to it and an
+option "Show in the applications menu" (maintainer, 2026-11-23).
+
 ### 14. Compact windows
 
 ```text
 /speckit-specify Compact windows (see docs/roadmap.md #14): covers the compact windows of F25 and
 the Settings entry of F48 from docs/product.md. When the main window is not visible, the tray's
-Live, Record and Settings entries and the Ctrl+F9 / Ctrl+F10 hotkeys open that panel as a compact
+Live, Record and Settings entries and the Ctrl+Shift+F9 / Ctrl+Shift+F10 hotkeys open that panel as a compact
 window of its own on the desktop (the same panel, same size and look, without the preview and
 without opening the preview device); `--live` and `--record` start the app that way (a running
 instance opens them). Live and Record can be open at the same time. Reuses the panels built in
@@ -226,4 +250,38 @@ black image from a console with HDCP on, and how to turn it off). Reopened from 
 Decide when it is first shown. Also tooltips on the more complex settings (Accelerate GPU, color
 range, presentation), a few words of detail each. Texts in both languages; screenshots per
 language and theme if needed.
+```
+
+### 17. UI review
+
+Small layout and look problems collected while the other specs are built, fixed together. Add an
+item here when it is found (with the date), instead of fixing it inside an unrelated spec.
+
+- The orange of the menu buttons becomes the settings categories' orange: the light,
+  semi-transparent one (maintainer, 2026-11-22).
+- F59: a **Log** category in the settings panel showing the log, scrollable (maintainer,
+  2026-11-22).
+- Audio settings: turning an endpoint's **Exclusive** box on or off makes the list flicker on
+  that device's row (maintainer, 2026-11-23).
+- Settings panel: larger in a big window and in fullscreen (today at most 760 × 520), so rows
+  wrap less; maybe the whole UI a little larger too (a scale above the system's DPI)
+  (maintainer, 2026-11-23).
+- Settings panel consistency: dropdowns, segmented controls, switches, text and icon buttons
+  use different fills, colors, heights and corners; one set of control tokens for all of them
+  (maintainer, 2026-11-23).
+- Settings panel: the category buttons in the column need a consistent height and alignment,
+  and the setting rows a consistent height (maintainer, 2026-11-23).
+- Double click on the video toggles fullscreen (maintainer, 2026-11-23).
+- An open overlay (menu, popover, settings panel) closes when the window is resized
+  (maintainer, 2026-11-23).
+- Volume button dimmed when the preview has no sound to play ("No audio", no input, a state
+  shown): the popover, the wheel and the keys do nothing, tooltip "No audio"; the app's one
+  level (preview audio FR-012) is kept for when sound returns. Today it still moves on "No
+  audio" though nothing plays; same idea as the screenshot button dimmed without video.
+  Changes preview audio's FR-011 (maintainer, 2026-11-23).
+
+```text
+/speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the
+small layout and look fixes listed in the roadmap's #17 section. Both themes, both languages,
+all window layouts down to 640 × 360.
 ```

@@ -8,4 +8,5 @@ pub mod choice;
 pub mod pairing;
 pub mod resample;
 pub mod resync;
+pub mod sound;
 pub mod volume;

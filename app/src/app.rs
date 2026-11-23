@@ -18,14 +18,16 @@ use crate::frame::{self, Escape};
 use crate::i18n;
 use crate::icon;
 use crate::latency;
-use crate::notices::{Kind, Notices};
+use crate::notices::{EventNotice, Kind, NoticeAction, Notices};
 use crate::placement::{self, Rect};
 use crate::present_log::{self, Event as LogEvent, Stage};
 use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
 use crate::sound::Sound;
 use crate::theme::{self, SystemTheme};
-use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
+use crate::ui::{
+    Category, HotkeyRowData, MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState,
+};
 use platform::autostart;
 use platform::snap::{self, ButtonRect, Snap, SnapEvent};
 use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
@@ -73,10 +75,13 @@ pub enum UserEvent {
     ModePicked(i32),
     /// The state message's **Try again** (FR-019).
     TryAgain,
-    /// **Open** on a device notice (FR-027), in the app's balloon or on a system notification
-    /// (`system`), which also brings the window back.
-    NoticeOpen {
-        device: String,
+    /// The right dock's screenshot button (screenshot FR-011).
+    Screenshot,
+    /// An event notice's button (device FR-027, screenshot FR-008), in the app's balloon or on a
+    /// system notification (`system`), which also brings the window back: the action's tag
+    /// ([`NoticeAction`]).
+    NoticeAction {
+        tag: String,
         system: bool,
     },
     /// The video thread's summary of the last second (FR-016).
@@ -88,6 +93,25 @@ pub enum UserEvent {
     },
     /// The audio monitor's and audio session's events.
     Audio(crate::audio::Event),
+    /// An event of the sound player's output-only session (screenshot research R10).
+    SoundSession(platform::audio::SessionEvent),
+    /// The video thread's answer to screenshot `serial`, asked at `asked`: its frame, or none.
+    Still {
+        serial: u64,
+        asked: Instant,
+        frame: Option<Arc<crate::render::Frame>>,
+    },
+    /// The screenshot worker is done with screenshot `serial` (screenshot FR-008).
+    Written {
+        serial: u64,
+        written: crate::screenshot::Written,
+    },
+    /// The `hotkeys` thread's events (screenshot FR-012).
+    Hotkey(platform::HotkeyEvent),
+    /// The Hotkeys category's controls (screenshot FR-016).
+    HotkeyUi(HotkeyUi),
+    /// The Folders category's screenshots row (screenshot FR-020).
+    FolderUi(FolderUi),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
@@ -130,6 +154,30 @@ impl From<&settings::Preview> for Backdrop {
             shadow: p.shadow == settings::Shadow::Always,
         }
     }
+}
+
+/// What the Hotkeys category asks for (screenshot FR-016), by action.
+#[derive(Debug, Clone)]
+pub enum HotkeyUi {
+    /// A click on the key: starts recording it, or stops when it is recording.
+    Record(String),
+    /// Another category, or the panel closed: a recording ends without a change.
+    Cancel,
+    Clear(String),
+    Reset(String),
+}
+
+/// What the screenshots folder row asks for (screenshot FR-020).
+#[derive(Debug, Clone)]
+pub enum FolderUi {
+    /// **Change**: the system's folder dialog.
+    Change,
+    /// The dialog's answer: the folder chosen, None when cancelled.
+    Picked(Option<std::path::PathBuf>),
+    /// **Open**: the file manager on the folder.
+    Open,
+    /// **Reset**: the default folder again.
+    Reset,
 }
 
 /// A change made in the settings panel.
@@ -203,6 +251,19 @@ pub struct App {
     /// first, so a slow start is not taken for a sleep.
     tick_at: Instant,
     tick_wall: Option<SystemTime>,
+    /// The screenshots under way (data-model.md "Screenshot request").
+    screenshots: crate::screenshot::Screenshots,
+    /// The next `--screenshot-every` screenshot.
+    screenshot_at: Option<Instant>,
+    /// The `screenshot` thread, started at the first screenshot (research R5).
+    screenshot_worker: Option<crate::screenshot::Worker>,
+    /// The hotkeys, started once the window exists (screenshot T018).
+    hotkeys: Option<crate::hotkeys::AppHotkeys>,
+    /// A Reset refused because another action has the default: shown on that row until the next
+    /// change in the Hotkeys category.
+    hotkey_refusal: Option<(&'static str, crate::hotkeys::Refusal)>,
+    /// The folder dialog is open: another **Change** is ignored until its answer.
+    picking_folder: bool,
     /// The next 3 s re-read while the preview waits for a device.
     relist_at: Instant,
     /// When microphone access is read next while the audio input is Blocked.
@@ -255,13 +316,13 @@ pub struct App {
     language_stages: bool,
     /// The system's theme, for the Automatic setting (FR-017).
     system_theme: Option<SystemTheme>,
-    /// The window has the keyboard focus: device notices show in the app, else as system
+    /// The window has the keyboard focus: event notices show in the app, else as system
     /// notifications (FR-027).
     focused: bool,
-    /// The last device notice shown in the app, its text redone on a language switch, and the
+    /// The last event notice shown in the app, its text redone on a language switch, and the
     /// number that shows each one.
-    device_notice: Option<DeviceNotice>,
-    device_notice_serial: i32,
+    event_notice: Option<EventNotice>,
+    event_notice_serial: i32,
     /// The preview's sound; None with `--no-audio` or the test video.
     sound: Option<Sound>,
     /// The wheel's moves over the volume button not yet a whole notch.
@@ -280,6 +341,7 @@ impl App {
         instance: Option<platform::Serving>,
     ) -> Self {
         let state = ui.app.global::<WindowState>();
+        let screenshot_at = options.screenshot_every.map(|every| Instant::now() + every);
         let tray_available = tray::available();
         let backdrop = Backdrop::from(&store.get().preview);
         ui.app.global::<Prefs>().set_tray_available(tray_available);
@@ -311,9 +373,11 @@ impl App {
         let on = send.clone();
         ui.app.on_try_again(move || on(UserEvent::TryAgain));
         let on = send.clone();
-        ui.app.on_device_notice_open(move |device| {
-            on(UserEvent::NoticeOpen {
-                device: device.into(),
+        ui.app.on_screenshot(move || on(UserEvent::Screenshot));
+        let on = send.clone();
+        ui.app.on_event_notice_action(move |tag| {
+            on(UserEvent::NoticeAction {
+                tag: tag.into(),
                 system: false,
             })
         });
@@ -367,8 +431,8 @@ impl App {
             ui,
             notices: Notices::default(),
             focused: false,
-            device_notice: None,
-            device_notice_serial: 0,
+            event_notice: None,
+            event_notice_serial: 0,
             window: None,
             video: None,
             inbox,
@@ -384,6 +448,12 @@ impl App {
             relisting: None,
             relist_queued: None,
             tick_at: Instant::now(),
+            screenshots: Default::default(),
+            screenshot_at,
+            screenshot_worker: None,
+            hotkeys: None,
+            hotkey_refusal: None,
+            picking_folder: false,
             tick_wall: None,
             relist_at: Instant::now(),
             audio_access_at: Instant::now(),
@@ -817,7 +887,7 @@ impl App {
                 device_id,
                 name,
                 open,
-            } => self.device_notice(DeviceNotice {
+            } => self.event_notice(EventNotice::Device {
                 kind,
                 device: device_id,
                 name,
@@ -826,31 +896,40 @@ impl App {
         }
     }
 
-    /// Tells the user a device joined or left (FR-027): in the app's balloon while the window has
-    /// focus, else as a system notification, with the same texts.
-    fn device_notice(&mut self, notice: DeviceNotice) {
+    /// Tells the user of an event, a device joining or leaving (FR-027) or a screenshot's outcome
+    /// (screenshot FR-008): in the app's balloon while the window has focus, else as a system
+    /// notification, with the same texts.
+    fn event_notice(&mut self, notice: EventNotice) {
         let texts = Texts::get(&self.ui.app);
-        let text = notice_text(&notice, &texts);
-        let summary = format!(
-            "{} ({}) {:?}, open {}",
-            notice.name, notice.device, notice.kind, notice.open
-        );
+        let text = notice.text(&texts);
+        let action = notice.action();
+        let summary = match &notice {
+            EventNotice::Device {
+                kind,
+                device,
+                name,
+                open,
+            } => format!("{name} ({device}) {kind:?}, open {open}"),
+            other => format!("{other:?}"),
+        };
+        let label = action.as_ref().map(|a| a.label(&texts)).unwrap_or_default();
+        let tag = action.as_ref().map(NoticeAction::tag).unwrap_or_default();
         if self.focused && self.window.is_some() {
             log::info!("notice: {summary} -> app");
-            self.device_notice_serial += 1;
+            self.event_notice_serial += 1;
             let app = &self.ui.app;
-            app.set_device_notice_kind(notice_kind(notice.kind).into());
-            app.set_device_notice_text(text.into());
-            app.set_device_notice_can_open(notice.open);
-            app.set_device_notice_device(notice.device.as_str().into());
-            app.set_device_notice_serial(self.device_notice_serial);
-            self.device_notice = Some(notice);
+            app.set_event_notice_kind(notice.kind().into());
+            app.set_event_notice_text(text);
+            app.set_event_notice_action_label(label);
+            app.set_event_notice_tag(tag.into());
+            app.set_event_notice_serial(self.event_notice_serial);
+            self.event_notice = Some(notice);
             self.request_redraw();
         } else {
             let shown = platform::notify(&platform::Notice {
-                title: text,
-                action: notice.open.then(|| texts.get_notice_open().into()),
-                tag: notice.device.clone(),
+                title: text.into(),
+                action: action.is_some().then(|| label.into()),
+                tag,
             });
             let to = if shown {
                 "system"
@@ -858,6 +937,301 @@ impl App {
                 "nowhere (system notifications unavailable)"
             };
             log::info!("notice: {summary} -> {to}");
+        }
+    }
+
+    /// Starts the hotkeys with the settings' keys (screenshot T018): after the window exists, and
+    /// also when the app starts hidden in the tray (FR-015).
+    fn start_hotkeys(&mut self) {
+        let proxy = self.proxy.clone();
+        let texts = Texts::get(&self.ui.app);
+        let hotkeys = crate::hotkeys::AppHotkeys::start(
+            &self.store.get().hotkeys,
+            |action| hotkey_description(&texts, action),
+            move |event| {
+                let _ = proxy.send_event(UserEvent::Hotkey(event));
+            },
+        );
+        self.hotkeys = Some(hotkeys);
+        self.show_hotkeys();
+    }
+
+    /// Shows the keys: the Hotkeys category's rows (FR-016) and the dock button's tooltip, which
+    /// names the key the user set, also when the system refused it (FR-011); where the desktop
+    /// owns the keys (Wayland portal), the desktop's keys as it names them. Called after every
+    /// change, after every hotkey event but a press, and after a language switch (the key names
+    /// are the locale's).
+    fn show_hotkeys(&self) {
+        let Some(hotkeys) = &self.hotkeys else {
+            return;
+        };
+        let texts = Texts::get(&self.ui.app);
+        let by_desktop = hotkeys.by_desktop();
+        let setting = |key: Option<platform::Hotkey>| key.map(|key| key_text(&texts, key)).unwrap_or_default();
+        let shown = |action: &str, key: Option<platform::Hotkey>| {
+            if by_desktop {
+                hotkeys.desktop_key(action).unwrap_or_default().to_string()
+            } else {
+                setting(key)
+            }
+        };
+        let recording = hotkeys.recording();
+        let rows: Vec<HotkeyRowData> = hotkeys
+            .bindings()
+            .iter()
+            .map(|&(action, key)| {
+                let default = crate::hotkeys::default_key(action);
+                let refusal = match recording {
+                    Some((recorded, refusal)) if recorded == action => refusal,
+                    _ => self
+                        .hotkey_refusal
+                        .filter(|(refused, _)| *refused == action)
+                        .map(|(_, refusal)| refusal),
+                };
+                HotkeyRowData {
+                    action: action.into(),
+                    name: hotkey_description(&texts, action).into(),
+                    key: shown(action, key).into(),
+                    default_key: setting(default).into(),
+                    is_default: key == default,
+                    recording: recording.is_some_and(|(recorded, _)| recorded == action),
+                    refusal: refusal
+                        .map(|refusal| refusal_text(&texts, refusal))
+                        .unwrap_or_default()
+                        .into(),
+                }
+            })
+            .collect();
+        let prefs = self.ui.app.global::<Prefs>();
+        prefs.set_hotkeys(slint::ModelRc::new(slint::VecModel::from(rows)));
+        prefs.set_hotkeys_window_only(hotkeys.window_only());
+        prefs.set_hotkeys_by_desktop(by_desktop);
+        self.ui
+            .app
+            .set_screenshot_key(shown(crate::hotkeys::SCREENSHOT, hotkeys.key(crate::hotkeys::SCREENSHOT)).into());
+    }
+
+    /// Saves `action`'s key in the settings file (FR-018).
+    fn save_hotkey(&self, action: &str, key: Option<platform::Hotkey>) {
+        self.store
+            .update(|s| crate::hotkeys::set_setting(&mut s.hotkeys, action, key));
+    }
+
+    /// A control of the Hotkeys category (FR-016).
+    fn hotkey_ui(&mut self, ui: HotkeyUi) {
+        let Some(hotkeys) = &mut self.hotkeys else {
+            return;
+        };
+        self.hotkey_refusal = None;
+        match ui {
+            HotkeyUi::Record(_) if hotkeys.by_desktop() => {
+                let opened = hotkeys.configure();
+                self.ui
+                    .app
+                    .global::<Prefs>()
+                    .set_hotkeys_desktop_dialog_missing(!opened);
+            }
+            HotkeyUi::Record(action) => {
+                if hotkeys.recording().is_some_and(|(recorded, _)| recorded == action) {
+                    hotkeys.cancel_recording();
+                } else {
+                    hotkeys.start_recording(&action);
+                }
+            }
+            HotkeyUi::Cancel => hotkeys.cancel_recording(),
+            HotkeyUi::Clear(action) => {
+                hotkeys.clear(&action);
+                self.save_hotkey(&action, None);
+            }
+            HotkeyUi::Reset(action) => match hotkeys.reset(&action) {
+                Ok(key) => self.save_hotkey(&action, key),
+                Err(refusal) => {
+                    log::info!("hotkeys: {action} reset refused ({refusal:?})");
+                    self.hotkey_refusal = hotkeys
+                        .bindings()
+                        .iter()
+                        .find(|(name, _)| *name == action)
+                        .map(|(name, _)| (*name, refusal));
+                }
+            },
+        }
+        self.show_hotkeys();
+        self.request_redraw();
+    }
+
+    /// The Folders category's screenshots row (FR-020, FR-022): the dialog's answer is kept as an
+    /// absolute path, Reset keeps `"default"`.
+    fn folder_ui(&mut self, ui: FolderUi) {
+        let current = crate::screenshot::folder(&self.store.get().screenshot.folder);
+        match ui {
+            FolderUi::Change => {
+                let Some(window) = self.window.clone() else {
+                    return;
+                };
+                if self.picking_folder {
+                    return;
+                }
+                let proxy = self.proxy.clone();
+                let shown = platform::pick_folder(&window, &current, move |picked| {
+                    let _ = proxy.send_event(UserEvent::FolderUi(FolderUi::Picked(picked)));
+                });
+                self.picking_folder = shown;
+                self.ui.app.global::<Prefs>().set_folder_picker_missing(!shown);
+            }
+            FolderUi::Picked(picked) => {
+                self.picking_folder = false;
+                let Some(path) = picked else {
+                    return;
+                };
+                let Some(text) = path.is_absolute().then(|| path.to_str()).flatten() else {
+                    log::warn!(
+                        "screenshot folder {} cannot be kept (not absolute or not UTF-8)",
+                        path.display()
+                    );
+                    return;
+                };
+                let text = crate::screenshot::picked_folder(text);
+                log::info!("screenshot folder: {text}");
+                self.store.update(|s| s.screenshot.folder = text.to_string());
+            }
+            // The folder is made at the first screenshot: Open makes it too, as a screenshot
+            // would, so the file manager has something to show (FR-021).
+            FolderUi::Open => {
+                if let Err(err) = crate::screenshot::make_folder(&current) {
+                    log::warn!("screenshot folder {}: {err:?}", current.display());
+                }
+                platform::open_folder(&current);
+            }
+            FolderUi::Reset => {
+                log::info!("screenshot folder: default");
+                self.store
+                    .update(|s| s.screenshot.folder = settings::DEFAULT_FOLDER.to_string());
+            }
+        }
+        show_screenshot_folder(&self.ui, &self.store.get().screenshot.folder);
+        self.request_redraw();
+    }
+
+    /// A key event of the window while a key is being recorded (FR-016, FR-017): it goes to the
+    /// recorder, not to Slint (Esc cancels the recording, it does not close the panel).
+    fn record_hotkey(&mut self, event: &winit::event::KeyEvent) {
+        let Some(hotkeys) = &mut self.hotkeys else {
+            return;
+        };
+        if let Some(crate::hotkeys::Recorded::Accepted { action, key }) = hotkeys.record(event) {
+            self.save_hotkey(action, Some(key));
+        }
+        self.show_hotkeys();
+        self.request_redraw();
+    }
+
+    /// Runs a hotkey's action.
+    fn hotkey_action(&mut self, action: &str) {
+        log::info!("hotkeys: {action} pressed");
+        if action == crate::hotkeys::SCREENSHOT {
+            self.request_screenshot();
+        }
+    }
+
+    /// A screenshot is asked for (screenshot FR-001; by the hotkey, the dock button and
+    /// `--screenshot-every`): the video thread hands over the next frame it presents, which a
+    /// short-lived thread passes back to the event loop.
+    fn request_screenshot(&mut self) {
+        // Hidden to the tray the device is closed, though the state still reads Playing.
+        let shows_image =
+            !self.preview.hidden() && (self.test_video.is_some() || self.preview.state() == PreviewState::Playing);
+        match self.screenshots.request(shows_image) {
+            // No sound and no notice: the missing click tells it (FR-008).
+            Err(refused) => log::info!("screenshot: not taken ({refused:?})"),
+            Ok(crate::screenshot::Command::Take(serial)) => {
+                let (reply, answer) = std::sync::mpsc::channel();
+                let asked = Instant::now();
+                self.inbox.request_still(serial, reply);
+                let proxy = self.proxy.clone();
+                let spawned = std::thread::Builder::new()
+                    .name("screenshot wait".into())
+                    .spawn(move || {
+                        let frame = answer.recv().ok().flatten().map(Arc::new);
+                        let _ = proxy.send_event(UserEvent::Still { serial, asked, frame });
+                    });
+                if let Err(err) = spawned {
+                    log::warn!("screenshot {serial}: cannot wait for its frame: {err}");
+                    self.screenshots.not_taken(serial);
+                }
+            }
+            Ok(command) => log::warn!("screenshot: unexpected {command:?}"),
+        }
+    }
+
+    /// The video thread answered screenshot `serial`.
+    fn still(&mut self, serial: u64, asked: Instant, frame: Option<Arc<crate::render::Frame>>) {
+        let Some(frame) = frame else {
+            log::info!("screenshot {serial}: no frame");
+            self.screenshots.not_taken(serial);
+            return;
+        };
+        // Until the answer reached the event loop; the worker logs it with the rest.
+        let taken = asked.elapsed();
+        // The folder and the file name's time are the ones at the frame's arrival.
+        let time = crate::screenshot::LocalTime::at(SystemTime::now());
+        let folder = crate::screenshot::folder(&self.store.get().screenshot.folder);
+        for command in self.screenshots.taken(serial) {
+            match command {
+                // FR-010: the sound starts when the frame is taken.
+                crate::screenshot::Command::PlaySound => {
+                    if let Some(sound) = &mut self.sound {
+                        sound.play(::audio::sound::Sound::Screenshot, &self.store.get());
+                    }
+                }
+                crate::screenshot::Command::Write(serial) => {
+                    let job = crate::screenshot::Job {
+                        serial,
+                        frame: frame.clone(),
+                        taken,
+                        folder: folder.clone(),
+                        time,
+                    };
+                    self.write_screenshot(job);
+                }
+                crate::screenshot::Command::Take(_) => {}
+            }
+        }
+    }
+
+    /// Hands a taken frame to the `screenshot` thread, started at the first screenshot with the
+    /// clipboard (research R4, R5); its outcome comes back as [`UserEvent::Written`].
+    fn write_screenshot(&mut self, job: crate::screenshot::Job) {
+        if self.screenshot_worker.is_none() {
+            let clipboard = platform::Clipboard::start();
+            let proxy = self.proxy.clone();
+            let started = crate::screenshot::Worker::start(
+                Box::new(move |width, height, rgba, timeout| clipboard.set_image(width, height, rgba, timeout)),
+                move |serial, written| {
+                    let _ = proxy.send_event(UserEvent::Written { serial, written });
+                },
+            );
+            match started {
+                Ok(worker) => self.screenshot_worker = Some(worker),
+                Err(err) => log::warn!("screenshot: cannot start its thread: {err}"),
+            }
+        }
+        let serial = job.serial;
+        let queued = match &self.screenshot_worker {
+            Some(worker) => worker.write(job).is_ok(),
+            None => false,
+        };
+        if !queued {
+            // The sound already played: the notice tells that nothing came of it.
+            log::warn!("screenshot {serial}: no worker to write it");
+            self.screenshot_worker = None;
+            let notice = self.screenshots.written(
+                serial,
+                crate::screenshot::Written {
+                    saved: Err(crate::notices::Reason::WriteError),
+                    copied: false,
+                },
+            );
+            self.event_notice(notice);
         }
     }
 
@@ -1117,12 +1491,19 @@ impl App {
             window.set_title(Texts::get(&self.ui.app).get_app_name().as_str());
         }
         set_language_items(&self.ui);
+        if let Some(hotkeys) = &mut self.hotkeys {
+            let texts = Texts::get(&self.ui.app);
+            hotkeys.register(|action| hotkey_description(&texts, action));
+        }
+        self.show_hotkeys();
         // The menus' named texts are read again from the new catalog.
         self.reset_menus();
         self.show_notice();
-        if let Some(notice) = &self.device_notice {
-            let text = notice_text(notice, &Texts::get(&self.ui.app));
-            self.ui.app.set_device_notice_text(text.into());
+        if let Some(notice) = &self.event_notice {
+            let texts = Texts::get(&self.ui.app);
+            self.ui.app.set_event_notice_text(notice.text(&texts));
+            let label = notice.action().map(|a| a.label(&texts)).unwrap_or_default();
+            self.ui.app.set_event_notice_action_label(label);
         }
         self.show_preview_state();
         if stages {
@@ -1556,6 +1937,17 @@ impl App {
     }
 }
 
+/// The Folders category's screenshots row for `[screenshot] folder` (screenshot FR-020).
+fn show_screenshot_folder(ui: &Ui, setting: &str) {
+    let prefs = ui.app.global::<Prefs>();
+    let folder = crate::screenshot::folder(setting);
+    prefs.set_screenshot_folder(crate::screenshot::short_folder(&folder).into());
+    prefs.set_screenshot_folder_path(folder.display().to_string().into());
+    prefs
+        .set_screenshot_default_folder(crate::screenshot::short_folder(&platform::default_screenshots_folder()).into());
+    prefs.set_screenshot_folder_is_default(setting == settings::DEFAULT_FOLDER);
+}
+
 /// Shows the saved settings in the settings panel and saves each change from it (FR-025, FR-029).
 fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone + 'static) {
     let prefs = ui.app.global::<Prefs>();
@@ -1579,6 +1971,21 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     prefs.on_exclusive_changed(move |id, v| {
         on(UserEvent::Exclusive { id: id.into(), on: v });
     });
+    let on = send.clone();
+    prefs.on_hotkey_record(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Record(action.into()))));
+    let on = send.clone();
+    prefs.on_hotkey_cancel(move || on(UserEvent::HotkeyUi(HotkeyUi::Cancel)));
+    let on = send.clone();
+    prefs.on_hotkey_clear(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Clear(action.into()))));
+    let on = send.clone();
+    prefs.on_hotkey_reset(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Reset(action.into()))));
+    show_screenshot_folder(ui, &store.get().screenshot.folder);
+    let on = send.clone();
+    prefs.on_screenshot_folder_change(move || on(UserEvent::FolderUi(FolderUi::Change)));
+    let on = send.clone();
+    prefs.on_screenshot_folder_open(move || on(UserEvent::FolderUi(FolderUi::Open)));
+    let on = send.clone();
+    prefs.on_screenshot_folder_reset(move || on(UserEvent::FolderUi(FolderUi::Reset)));
     set_language_items(ui);
     prefs.set_language(i18n::choice_index(&general.language));
     prefs.set_theme(theme::choice_index(general.theme));
@@ -1683,6 +2090,50 @@ fn set_notification_position(ui: &Ui, position: settings::NotificationPosition) 
 
 /// The settings panel's Language entries (FR-024): Automatic in the interface's language, then
 /// each language's name in itself. Set again after a language switch.
+/// A hotkey action's name in the current language, for the desktop's shortcut list.
+fn hotkey_description(texts: &Texts<'_>, action: &str) -> String {
+    match action {
+        crate::hotkeys::SCREENSHOT => texts.get_hotkey_screenshot().into(),
+        other => other.to_string(),
+    }
+}
+
+/// A key as the UI shows it, with the platform's modifier names and the locale's key names.
+fn key_text(texts: &Texts<'_>, key: platform::Hotkey) -> String {
+    use platform::Key;
+    crate::hotkeys::shown(key, platform::IS_WINDOWS, |key| {
+        match key {
+            Key::Space => texts.get_key_space(),
+            Key::Insert => texts.get_key_insert(),
+            Key::Delete => texts.get_key_delete(),
+            Key::Home => texts.get_key_home(),
+            Key::End => texts.get_key_end(),
+            Key::PageUp => texts.get_key_page_up(),
+            Key::PageDown => texts.get_key_page_down(),
+            Key::Up => texts.get_key_up(),
+            Key::Down => texts.get_key_down(),
+            Key::Left => texts.get_key_left(),
+            Key::Right => texts.get_key_right(),
+            Key::Pause => texts.get_key_pause(),
+            Key::PrintScreen => texts.get_key_print_screen(),
+            other => other.name().into(),
+        }
+        .into()
+    })
+}
+
+/// Why a key was refused, for its row (FR-016).
+fn refusal_text(texts: &Texts<'_>, refusal: crate::hotkeys::Refusal) -> String {
+    match refusal {
+        crate::hotkeys::Refusal::NotAllowed => texts
+            .invoke_hotkey_not_allowed(if platform::IS_WINDOWS { "Win" } else { "Super" }.into())
+            .into(),
+        crate::hotkeys::Refusal::Taken(action) => texts
+            .invoke_hotkey_taken(hotkey_description(texts, action).into())
+            .into(),
+    }
+}
+
 fn set_language_items(ui: &Ui) {
     let automatic = Texts::get(&ui.app).get_automatic();
     let items: Vec<MenuItem> = std::iter::once(automatic)
@@ -1770,6 +2221,7 @@ impl ApplicationHandler<UserEvent> for App {
             self.ui.app.set_preview_state("playing".into());
         }
         self.window = Some(window.clone());
+        self.start_hotkeys();
         self.sync_tray();
         // Started by the system with Keep in tray on: only the tray icon, whatever Start in
         // fullscreen says (FR-014b). Without a tray the window opens as usual.
@@ -1803,13 +2255,29 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             UserEvent::Window(action) => self.act(event_loop, action),
             UserEvent::TryAgain => self.preview_event(preview::Event::TryAgain),
-            UserEvent::NoticeOpen { device, system } => {
-                // Chosen before the window shows: while hidden, the preview opens it when shown.
-                self.preview_event(preview::Event::NoticeOpen(device));
-                if system {
-                    self.show_window(event_loop);
-                }
+            UserEvent::Screenshot => {
+                log::info!("screenshot: dock button");
+                self.request_screenshot();
             }
+            UserEvent::NoticeAction { tag, system } => match NoticeAction::from_tag(&tag) {
+                NoticeAction::Open(device) => {
+                    // Chosen before the window shows: while hidden, the preview opens it when shown.
+                    self.preview_event(preview::Event::NoticeOpen(device));
+                    if system {
+                        self.show_window(event_loop);
+                    }
+                }
+                NoticeAction::Show(path) => platform::show_file(&path),
+                NoticeAction::Settings => {
+                    if system {
+                        self.show_window(event_loop);
+                    }
+                    // The screenshots folder's row (FR-008); also when the panel is already open.
+                    self.ui.app.global::<Prefs>().set_settings_category(Category::Folders);
+                    self.ui.app.set_settings_open(true);
+                    self.request_redraw();
+                }
+            },
             UserEvent::DismissNotice => {
                 self.notices.dismiss();
                 self.show_notice();
@@ -1880,6 +2348,11 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 self.show_audio();
             }
+            UserEvent::SoundSession(event) => {
+                if let Some(sound) = &mut self.sound {
+                    sound.sound_session(event);
+                }
+            }
             // A select marks the row picked itself: the menus are shown again from the choices.
             UserEvent::AudioPicked(index) => {
                 self.audio_picked(index);
@@ -1892,6 +2365,18 @@ impl ApplicationHandler<UserEvent> for App {
                 self.audio_menus = None;
                 self.show_audio();
             }
+            UserEvent::Hotkey(event) => {
+                let pressed = matches!(event, platform::HotkeyEvent::Pressed(_));
+                if let Some(action) = self.hotkeys.as_mut().and_then(|h| h.event(event)) {
+                    self.hotkey_action(action);
+                }
+                // `WindowOnly` changes the category's line; `Bound` the desktop's keys.
+                if !pressed {
+                    self.show_hotkeys();
+                }
+            }
+            UserEvent::HotkeyUi(ui) => self.hotkey_ui(ui),
+            UserEvent::FolderUi(ui) => self.folder_ui(ui),
             // The level moves and the sound plays again, as with the slider.
             UserEvent::VolumeWheel(delta) => {
                 let notches = self.volume_wheel.notches(delta);
@@ -1930,6 +2415,11 @@ impl ApplicationHandler<UserEvent> for App {
                     pick => log::warn!("mode menu: row {index} picks {pick:?}"),
                 }
                 self.reset_menus();
+            }
+            UserEvent::Still { serial, asked, frame } => self.still(serial, asked, frame),
+            UserEvent::Written { serial, written } => {
+                let notice = self.screenshots.written(serial, written);
+                self.event_notice(notice);
             }
             UserEvent::Second(summary) => {
                 self.second = summary;
@@ -1976,6 +2466,13 @@ impl ApplicationHandler<UserEvent> for App {
                 // Where minimizing cannot be read (Wayland), focus is the sign the window is back.
                 if focused {
                     self.update_shown();
+                } else if let Some(hotkeys) = &mut self.hotkeys
+                    && hotkeys.recording().is_some()
+                {
+                    // A key being recorded is left as it was (screenshot FR-016).
+                    hotkeys.cancel_recording();
+                    self.show_hotkeys();
+                    self.request_redraw();
                 }
             }
             WindowEvent::Resized(_) => {
@@ -2011,6 +2508,27 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::RedrawRequested => {
                 if Instant::now() >= self.last_ui + self.refresh {
                     self.update_ui();
+                }
+            }
+            // A key being recorded (screenshot FR-016, research R14): neither Slint nor the
+            // window's own keys see it.
+            WindowEvent::KeyboardInput { ref event, .. }
+                if self.hotkeys.as_ref().is_some_and(|h| h.recording().is_some()) =>
+            {
+                self.record_hotkey(event);
+            }
+            // Only where global keys do not work (research R8); the key does not reach Slint.
+            WindowEvent::KeyboardInput { ref event, .. }
+                if let Some(action) = self.hotkeys.as_ref().and_then(|h| h.window_key(event)) =>
+            {
+                self.hotkey_action(action);
+            }
+            WindowEvent::ModifiersChanged(ref modifiers) => {
+                if let Some(hotkeys) = &mut self.hotkeys {
+                    hotkeys.set_modifiers(modifiers.state());
+                }
+                if self.ui.window_event(&event) {
+                    self.request_redraw();
                 }
             }
             WindowEvent::KeyboardInput { ref event, .. }
@@ -2091,14 +2609,24 @@ impl ApplicationHandler<UserEvent> for App {
         if now >= self.tick_at {
             self.tick(now);
         }
+        if let (Some(at), Some(every)) = (self.screenshot_at, self.options.screenshot_every)
+            && now >= at
+        {
+            self.request_screenshot();
+            self.screenshot_at = Some(now + every);
+        }
+        if let Some(at) = self.screenshot_at {
+            wake = Some(wake.map_or(at, |w| w.min(at)));
+        }
         wake = Some(wake.map_or(self.tick_at, |w| w.min(self.tick_at)));
         if let Some(sound) = &mut self.sound {
             sound.print_stats(now);
             sound.open_queued(now);
-            if let Some(at) = sound.next_stats() {
-                wake = Some(wake.map_or(at, |w| w.min(at)));
-            }
-            if let Some(at) = sound.next_open() {
+            sound.tick_sounds(now);
+            for at in [sound.next_stats(), sound.next_open(), sound.next_sounds()]
+                .into_iter()
+                .flatten()
+            {
                 wake = Some(wake.map_or(at, |w| w.min(at)));
             }
         }
@@ -2124,6 +2652,10 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(mut video) = self.video.take() {
             video.stop();
         }
+        // The screenshots already taken are written and copied first (research R5).
+        if let Some(mut worker) = self.screenshot_worker.take() {
+            worker.stop(crate::screenshot::QUIT_WAIT);
+        }
         self.store.flush();
         // Releasing the name before the window is destroyed lets a start during the rest of the
         // quit become the new instance.
@@ -2141,36 +2673,5 @@ fn camera_access() -> capture::Access {
         platform::Access::Allowed => capture::Access::Allowed,
         platform::Access::Denied => capture::Access::Denied,
         platform::Access::Unknown => capture::Access::Unknown,
-    }
-}
-
-/// A device notice (FR-027), kept to redo its text in another language.
-#[derive(Debug, Clone)]
-struct DeviceNotice {
-    kind: preview::NoticeKind,
-    device: String,
-    /// The device's name as the menu shows it.
-    name: String,
-    /// It offers **Open**.
-    open: bool,
-}
-
-/// The notice's text in the current language ("C920 connected").
-fn notice_text(notice: &DeviceNotice, texts: &Texts) -> String {
-    let name = notice.name.as_str().into();
-    match notice.kind {
-        preview::NoticeKind::Connected => texts.invoke_notice_connected(name),
-        preview::NoticeKind::Reconnected => texts.invoke_notice_reconnected(name),
-        preview::NoticeKind::Disconnected => texts.invoke_notice_disconnected(name),
-    }
-    .into()
-}
-
-/// The balloon's kind (main.slint `device-notice-kind`).
-fn notice_kind(kind: preview::NoticeKind) -> &'static str {
-    match kind {
-        preview::NoticeKind::Connected => "connected",
-        preview::NoticeKind::Reconnected => "reconnected",
-        preview::NoticeKind::Disconnected => "disconnected",
     }
 }

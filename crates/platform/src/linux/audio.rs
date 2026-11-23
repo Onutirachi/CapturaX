@@ -60,11 +60,14 @@ pub struct Session {
     on_event: OnSessionEvent,
     /// The `pipewire` thread took the session; false when PipeWire could not be reached.
     sent: bool,
+    /// No input side (an output-only session): `reopen_input` is ignored.
+    output_only: bool,
 }
 
 impl Session {
     pub fn open(request: SessionRequest, samples: Arc<dyn Samples>, on_event: OnSessionEvent) -> Self {
         let number = request.number;
+        let output_only = request.input.is_none();
         let command = Command::Open {
             request,
             samples,
@@ -74,28 +77,34 @@ impl Session {
             number,
             on_event,
             sent: true,
+            output_only,
         };
         if let Err(error) = pipewire::send(command) {
             session.sent = false;
-            session.report(vec![
-                SessionEvent::Error {
-                    number,
-                    side: Side::Input,
-                    error: error.clone(),
-                },
-                SessionEvent::Error {
-                    number,
-                    side: Side::Output,
-                    error,
-                },
-            ]);
+            let sides: &[Side] = if output_only {
+                &[Side::Output]
+            } else {
+                &[Side::Input, Side::Output]
+            };
+            session.report(
+                sides
+                    .iter()
+                    .map(|&side| SessionEvent::Error {
+                        number,
+                        side,
+                        error: error.clone(),
+                    })
+                    .collect(),
+            );
         }
         session
     }
 
     /// The exclusive flag is ignored: PipeWire has no such mode.
     pub fn reopen_input(&self, input: String, _exclusive: bool) {
-        self.reopen(Side::Input, Some(input));
+        if !self.output_only {
+            self.reopen(Side::Input, Some(input));
+        }
     }
 
     pub fn reopen_output(&self, output: Option<String>, _exclusive: bool) {

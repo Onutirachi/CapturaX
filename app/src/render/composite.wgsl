@@ -2,7 +2,8 @@
 // rounded) then the UI. The UI texture holds premultiplied RGBA, blended with (One,
 // OneMinusSrcAlpha). The video arrives in the device's own format and is converted to RGB here
 // (device preview research R4): `to_r`, `to_g`, `to_b` hold the matrix and the range, so
-// `rgb = rows · (y, u, v, 1)`; `yuv_to_rgb` in gpu.rs mirrors it for the tests.
+// `rgb = rows · (y, u, v, 1)`; `conversion` in crates/capture/src/still.rs makes the rows and
+// mirrors this for still images.
 
 struct Rect {
     // Left, top, right, bottom in clip space.
@@ -19,6 +20,9 @@ struct Rect {
     to_r: vec4<f32>,
     to_g: vec4<f32>,
     to_b: vec4<f32>,
+    // The screenshot flash on video layers: opacity, the line's width and the inner glow's
+    // deviation in pixels.
+    flash: vec4<f32>,
 };
 
 @group(0) @binding(0) var tex0: texture_2d<f32>;
@@ -129,5 +133,14 @@ fn fs(in: VertexOut) -> @location(0) vec4<f32> {
     let half_size = rect.size * 0.5;
     let q = abs(in.uv * rect.size - half_size) - (half_size - vec2<f32>(rect.radius));
     let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - rect.radius;
+    // The screenshot flash (screenshot FR-010a, research R11): a white line along the video's
+    // rounded edge with a faint glow just inside it.
+    if kind >= 1u && kind <= 5u && rect.flash.x > 0.0 {
+        let inside = max(-d, 0.0);
+        let line = clamp(rect.flash.y - inside + 0.5, 0.0, 1.0);
+        let deviation = max(rect.flash.z, 0.001);
+        let glow = 0.35 * exp(-inside * inside / (2.0 * deviation * deviation));
+        color = vec4<f32>(mix(color.rgb, vec3<f32>(1.0), rect.flash.x * max(line, glow)), color.a);
+    }
     return color * (clamp(0.5 - d, 0.0, 1.0) * rect.opacity);
 }

@@ -32,6 +32,7 @@ wgpu = { workspace = true, features = ["std", "parking_lot", "wgsl", "dx12", "vu
 wgpu = { workspace = true, features = ["std", "parking_lot", "wgsl", "vulkan", "gles"] }
 
 [dev-dependencies]
+png.workspace = true
 tempfile.workspace = true
 toml.workspace = true
 

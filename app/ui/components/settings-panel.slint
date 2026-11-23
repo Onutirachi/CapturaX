@@ -16,6 +16,7 @@ import { Select } from "select.slint";
 import { MenuItem } from "menu.slint";
 import { Segmented } from "segmented.slint";
 import { Tag } from "tag.slint";
+import { ActionButton } from "action-button.slint";
 
 // One audio endpoint in the Audio category (preview audio FR-014), set by Rust.
 export struct AudioEndpointRow {
@@ -26,7 +27,31 @@ export struct AudioEndpointRow {
     in-use: bool,
 }
 
+// One action in the Hotkeys category (screenshot FR-016), set by Rust.
+export struct HotkeyRowData {
+    action: string,
+    // The action's name in the current language.
+    name: string,
+    // The key as shown (`Ctrl+F8`, `Win+Shift+S`), empty when none.
+    key: string,
+    // The default key as shown; empty when the action has no default.
+    default-key: string,
+    // The key is the default: no Reset.
+    is-default: bool,
+    // Waiting for a key (FR-016, FR-017).
+    recording: bool,
+    // Why the last key was refused, empty when none.
+    refusal: string,
+}
+
+// Later specs add their categories here (F40), with their names in `CategoryItem`.
+export enum Category { general, appearance, preview, audio, folders, hotkeys, about }
+
 export global Prefs {
+    // The category shown: General when the panel opens from its button (main.slint sets it back
+    // when the panel closes); Rust sets Folders before opening it from a notice's **Settings**
+    // (screenshot FR-008).
+    in-out property <Category> settings-category: Category.general;
     in-out property <bool> start-fullscreen;
     in-out property <bool> keep-in-tray;
     in-out property <bool> start-with-system;
@@ -57,6 +82,32 @@ export global Prefs {
     in property <[AudioEndpointRow]> audio-outputs;
     // An endpoint's switch asked to change (by id); Rust saves it and sets the row.
     callback exclusive-changed(string, bool);
+    // The Hotkeys category (screenshot FR-016): each action's row, and whether keys work only
+    // while the window has the focus (FR-012). A click on a key starts recording it (again:
+    // stops); Rust reads the keys pressed before Slint sees them, so Esc cancels without closing
+    // the panel. A category change or the panel's closing cancels too.
+    in property <[HotkeyRowData]> hotkeys;
+    in property <bool> hotkeys-window-only;
+    // Under Wayland with the portal the desktop owns the keys (screenshot Edge Cases): the rows
+    // show its keys, have no Clear or Reset, and a click on a key opens the desktop's shortcut
+    // settings; when it cannot, the category says where to change them until another category.
+    in property <bool> hotkeys-by-desktop;
+    in-out property <bool> hotkeys-desktop-dialog-missing;
+    callback hotkey-record(string);
+    callback hotkey-cancel();
+    callback hotkey-clear(string);
+    callback hotkey-reset(string);
+    // The Folders category (screenshot FR-020): the folder shortened, its full path, the
+    // default folder shortened (Reset's tooltip), whether the default is in use (no Reset), and
+    // whether the last Change found no folder dialog (Linux without the portal).
+    in property <string> screenshot-folder;
+    in property <string> screenshot-folder-path;
+    in property <string> screenshot-default-folder;
+    in property <bool> screenshot-folder-is-default: true;
+    in-out property <bool> folder-picker-missing;
+    callback screenshot-folder-change();
+    callback screenshot-folder-open();
+    callback screenshot-folder-reset();
     callback background-changed(int);
     callback watermark-changed(bool);
     callback shadow-changed(int);
@@ -69,9 +120,6 @@ export global Prefs {
     // The panel opened: Rust reads the system's autostart entry again (FR-014b).
     callback opened();
 }
-
-// Later specs add their categories here (F40), with their names in `CategoryItem`.
-enum Category { general, appearance, preview, audio, about }
 
 // No text here: a translated name in the list would make a language switch build the items
 // again, losing the keyboard focus and leaving a shown tooltip in the old language.
@@ -103,6 +151,8 @@ component CategoryItem inherits Rectangle {
         : root.id == Category.appearance ? @tr("Appearance")
         : root.id == Category.preview ? @tr("Preview")
         : root.id == Category.audio ? @tr("Audio")
+        : root.id == Category.folders ? @tr("Folders")
+        : root.id == Category.hotkeys ? @tr("Hotkeys")
         : @tr("About");
 
     // The token of the tooltip shown, 0 when none.
@@ -572,15 +622,198 @@ component EndpointRow inherits Row {
     }
 }
 
+// An action with its key (screenshot FR-016): its name, under it the refusal of the last key
+// pressed (or how to cancel while recording); then the key button, which records a new key
+// ("Press a key…", filled with the accent while recording), **Clear** while it has a key and
+// **Reset** while the key is not the default. Clear and Reset keep their places when hidden, so
+// the key button does not move.
+component HotkeyRow inherits Row {
+    in property <HotkeyRowData> data;
+    callback record();
+    callback clear();
+    callback reset();
+
+    property <string> line: root.data.refusal != "" ? root.data.refusal
+        : root.data.recording ? @tr("Esc to cancel")
+        : "";
+
+    height: max(Rows.height, texts.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
+
+    area := TouchArea {
+        texts := VerticalLayout {
+            x: Rows.pad;
+            width: key.x - Rows.pad - Theme.gap-m;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: root.data.name;
+                color: Theme.c.text;
+                font-size: Rows.text;
+                wrap: word-wrap;
+            }
+
+            if root.line != "": Text {
+                text: root.line;
+                color: root.data.refusal != "" ? Theme.c.warn : Theme.c.text-muted;
+                font-size: Theme.text-m;
+                wrap: word-wrap;
+            }
+        }
+
+        // Placed by hand: a layout here would hand its fixed width to the row as its maximum.
+        // Where the desktop owns the keys there is no Clear or Reset: the key takes the edge.
+        key := ActionButton {
+            x: Prefs.hotkeys-by-desktop ? parent.width - self.width - Rows.pad : clear.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            width: max(150px, self.preferred-width);
+            primary: root.data.recording;
+            label: root.data.recording ? @tr("Press a key…")
+                : root.data.key == "" ? @tr("None")
+                : root.data.key;
+            clicked => { root.record(); }
+        }
+
+        clear := IconButton {
+            x: reset.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            size: 36px;
+            icon-size: 18px;
+            filled: true;
+            icon: @image-url("../assets/icons/backspace.svg");
+            tooltip: @tr("Clear");
+            visible: root.data.key != "" && !Prefs.hotkeys-by-desktop;
+            focusable: self.visible;
+            clicked => { root.clear(); }
+        }
+
+        reset := IconButton {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            size: 36px;
+            icon-size: 18px;
+            filled: true;
+            icon: @image-url("../assets/icons/arrow_back_up.svg");
+            tooltip: root.data.default-key == "" ? @tr("Reset") : @tr("Reset to {}", root.data.default-key);
+            visible: !root.data.is-default && !Prefs.hotkeys-by-desktop;
+            focusable: self.visible;
+            clicked => { root.reset(); }
+        }
+    }
+}
+
+// A folder of the Folders category (screenshot FR-020; spec #9 adds the recordings one): its name, under it the folder shortened (the full
+// path in a tooltip after 500 ms of hover on it) or why Change did nothing; then **Change** (the
+// system's folder dialog), **Open** (the file manager on it) and **Reset** while a folder other
+// than the default is set. Reset keeps its place when hidden, so the buttons do not move.
+component FolderRow inherits Row {
+    callback change();
+    callback open();
+    callback reset();
+
+    // The token of the tooltip shown, 0 when none.
+    property <int> tip;
+    // Its tooltip still shows: a size change or another control's tooltip hides it without telling.
+    property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
+    property <bool> wants-tip: path-area.has-hover && Prefs.screenshot-folder-path != "";
+
+    function show-tip() {
+        root.tip = Tooltips.show(Prefs.screenshot-folder-path, Side.top,
+            path.absolute-position.x, path.absolute-position.y, path.width, path.height);
+    }
+
+    changed wants-tip => {
+        if (!self.wants-tip) {
+            Tooltips.hide(root.tip);
+            root.tip = 0;
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: root.wants-tip && !root.tip-shown;
+        triggered => { root.show-tip(); }
+    }
+
+    height: max(Rows.height, texts.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
+
+    area := TouchArea {
+        texts := VerticalLayout {
+            x: Rows.pad;
+            width: change.x - Rows.pad - Theme.gap-m;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: @tr("Screenshots");
+                color: Theme.c.text;
+                font-size: Rows.text;
+                wrap: word-wrap;
+            }
+
+            path := Text {
+                text: Prefs.screenshot-folder;
+                color: Theme.c.text-muted;
+                font-size: Theme.text-m;
+                overflow: elide;
+                accessible-description: Prefs.screenshot-folder-path;
+
+                path-area := TouchArea { }
+            }
+
+            if Prefs.folder-picker-missing: Text {
+                text: @tr("No folder picker on this desktop");
+                color: Theme.c.warn;
+                font-size: Theme.text-m;
+                wrap: word-wrap;
+            }
+        }
+
+        // Placed by hand: a layout here would hand its fixed width to the row as its maximum.
+        change := ActionButton {
+            x: open.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            width: max(96px, self.preferred-width);
+            label: @tr("Change");
+            clicked => { root.change(); }
+        }
+
+        open := ActionButton {
+            x: reset.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            width: max(96px, self.preferred-width);
+            label: @tr("Open");
+            clicked => { root.open(); }
+        }
+
+        reset := IconButton {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            size: 36px;
+            icon-size: 18px;
+            filled: true;
+            icon: @image-url("../assets/icons/arrow_back_up.svg");
+            tooltip: @tr("Reset to {}", Prefs.screenshot-default-folder);
+            visible: !Prefs.screenshot-folder-is-default;
+            focusable: self.visible;
+            clicked => { root.reset(); }
+        }
+    }
+}
+
 export component SettingsPanel inherits Raised {
     // The compact layout (FR-009): the column keeps only the icons.
     in property <bool> compact;
     callback close();
 
-    // Created each time the panel opens (`if` in main.slint), so it opens on General.
+    // Created each time the panel opens (`if` in main.slint).
     init => { Prefs.opened(); }
 
-    property <Category> category: Category.general;
+    property <Category> category <=> Prefs.settings-category;
     // The Audio category's tab: 0 Inputs, 1 Outputs. Another tab's list starts at its top.
     property <int> audio-tab;
     changed audio-tab => { rows.content-y = 0; }
@@ -590,13 +823,24 @@ export component SettingsPanel inherits Raised {
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
         { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
         { id: Category.audio, icon: @image-url("../assets/icons/volume.svg") },
+        { id: Category.folders, icon: @image-url("../assets/icons/folder.svg") },
+        { id: Category.hotkeys, icon: @image-url("../assets/icons/keyboard.svg") },
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ] : [
         { id: Category.general, icon: @image-url("../assets/icons/adjustments_horizontal.svg") },
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
         { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
+        { id: Category.folders, icon: @image-url("../assets/icons/folder.svg") },
+        { id: Category.hotkeys, icon: @image-url("../assets/icons/keyboard.svg") },
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ];
+    // A recording ends when its row goes away (FR-016).
+    // The folder dialog's warning and the desktop's one belong to the click that showed them.
+    changed category => {
+        Prefs.hotkey-cancel();
+        Prefs.folder-picker-missing = false;
+        Prefs.hotkeys-desktop-dialog-missing = false;
+    }
 
     // The category column runs the panel's full height on the base tone (FR-034).
     property <length> nav-pad: 10px;
@@ -801,6 +1045,53 @@ export component SettingsPanel inherits Raised {
                     endpoint: endpoint;
                     last: index == (root.audio-tab == 0 ? Prefs.audio-inputs : Prefs.audio-outputs).length - 1;
                     toggled(on) => { Prefs.exclusive-changed(endpoint.id, on); }
+                }
+            }
+
+            if root.category == Category.folders: FolderRow {
+                last: true;
+                change => { Prefs.screenshot-folder-change(); }
+                open => { Prefs.screenshot-folder-open(); }
+                reset => { Prefs.screenshot-folder-reset(); }
+            }
+
+            // Where global keys cannot work (Wayland without the portal, FR-012).
+            if root.category == Category.hotkeys && Prefs.hotkeys-window-only: VerticalLayout {
+                padding-left: Rows.pad;
+                padding-right: Rows.pad;
+                padding-top: Theme.gap-s;
+                padding-bottom: Theme.gap-s;
+
+                Text {
+                    text: @tr("Works only while CapturaX is focused");
+                    color: Theme.c.text-muted;
+                    font-size: Theme.text-m;
+                    wrap: word-wrap;
+                }
+            }
+
+            // The desktop owns the keys and offers no way to open its settings.
+            if root.category == Category.hotkeys && Prefs.hotkeys-desktop-dialog-missing: VerticalLayout {
+                padding-left: Rows.pad;
+                padding-right: Rows.pad;
+                padding-top: Theme.gap-s;
+                padding-bottom: Theme.gap-s;
+
+                Text {
+                    text: @tr("Change it in the system settings");
+                    color: Theme.c.warn;
+                    font-size: Theme.text-m;
+                    wrap: word-wrap;
+                }
+            }
+
+            if root.category == Category.hotkeys: VerticalLayout {
+                for row[index] in Prefs.hotkeys: HotkeyRow {
+                    data: row;
+                    last: index == Prefs.hotkeys.length - 1;
+                    record => { Prefs.hotkey-record(row.action); }
+                    clear => { Prefs.hotkey-clear(row.action); }
+                    reset => { Prefs.hotkey-reset(row.action); }
                 }
             }
 

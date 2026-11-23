@@ -58,6 +58,11 @@ struct Args {
     /// Use this language for this start, without saving it
     #[arg(long, value_name = "CODE")]
     lang: Option<String>,
+
+    /// Developer: take a screenshot every <MS> ms while the preview shows an image (0: off)
+    #[cfg(debug_assertions)]
+    #[arg(long, value_name = "MS")]
+    screenshot_every: Option<u64>,
 }
 
 /// Window mode asked for this start, overriding the saved setting.
@@ -102,6 +107,8 @@ pub struct StartupOptions {
     pub backend: Option<Backend>,
     pub present: Option<PresentMode>,
     pub lang: Option<String>,
+    /// `--screenshot-every`, debug builds only (screenshot contracts/cli.md); 0 is off.
+    pub screenshot_every: Option<std::time::Duration>,
 }
 
 impl StartupOptions {
@@ -153,6 +160,7 @@ where
     } else {
         None
     };
+    let screenshot_every = screenshot_every(&args);
     Ok(StartupOptions {
         start_mode,
         autostart: args.autostart,
@@ -164,7 +172,21 @@ where
         backend: args.backend,
         present: args.present,
         lang: args.lang,
+        screenshot_every,
     })
+}
+
+/// `--screenshot-every`, which release builds do not have; 0 is off.
+#[cfg(debug_assertions)]
+fn screenshot_every(args: &Args) -> Option<std::time::Duration> {
+    args.screenshot_every
+        .filter(|&ms| ms > 0)
+        .map(std::time::Duration::from_millis)
+}
+
+#[cfg(not(debug_assertions))]
+fn screenshot_every(_args: &Args) -> Option<std::time::Duration> {
+    None
 }
 
 /// `1080p60`, `1440p60` or `WxH@FPS`.
@@ -266,6 +288,18 @@ mod tests {
             Some(PathBuf::from("pm log.txt"))
         );
         assert_eq!(run(&["--present-log"]).unwrap_err().code, EXIT_USAGE);
+    }
+
+    #[test]
+    fn screenshot_every_is_a_debug_option() {
+        if cfg!(debug_assertions) {
+            let every = run(&["--screenshot-every", "250"]).unwrap().screenshot_every;
+            assert_eq!(every, Some(std::time::Duration::from_millis(250)));
+            assert_eq!(run(&["--screenshot-every", "0"]).unwrap().screenshot_every, None);
+        } else {
+            assert_eq!(run(&["--screenshot-every", "250"]).unwrap_err().code, EXIT_USAGE);
+        }
+        assert_eq!(run(&[]).unwrap().screenshot_every, None);
     }
 
     #[test]
