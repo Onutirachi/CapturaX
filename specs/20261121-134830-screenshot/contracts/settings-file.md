@@ -9,7 +9,7 @@ tables.
 folder = "default"                 # or an absolute path (FR-020, FR-022)
 
 [hotkeys]
-screenshot = "Ctrl+F8"             # a key (data-model.md "Hotkey") or "" for none (FR-018)
+screenshot = "Ctrl+Shift+F8"             # a key (data-model.md "Hotkey") or "" for none (FR-018)
 ```
 
 Rules:

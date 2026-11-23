@@ -72,9 +72,9 @@ Reasons (a few words, from the error kind): `folder not found`, `no permission`,
 
 | Action | Default | Spec |
 |---|---|---|
-| `screenshot` | `Ctrl+F8` | this |
-| `record` | `Ctrl+F10` | #9 |
-| `live` | `Ctrl+F9` | #10 |
+| `screenshot` | `Ctrl+Shift+F8` | this |
+| `record` | `Ctrl+Shift+F10` | #9 |
+| `live` | `Ctrl+Shift+F9` | #10 |
 
 Value: a `Hotkey`, or none (cleared). Two actions never share a key (FR-016); a settings file
 that has two equal keys keeps the first action's and clears the other's (logged).
@@ -85,7 +85,8 @@ that has two equal keys keeps the first action's and clears the other's (logged)
 
 - `Pressed`: the action's key was pressed (once per press).
 - `Bound`: the key the system uses for the action, as text to show (on Wayland the desktop's
-  `trigger_description`, which may differ from the setting).
+  `trigger_description`, which may differ from the setting; there the Hotkeys row and the dock
+  button's tooltip show it, and the setting is only the key proposed the first time).
 - `Unavailable { WindowOnly }`: no global keys (Wayland without the portal): the app matches key
   events in the window (research R8) and the Hotkeys category shows the line.
 

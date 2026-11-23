@@ -166,7 +166,7 @@ including the Record panel (the Stream panel is added by spec 10), the F50 globa
 recording (the framework and the screenshot key come from spec 5, the streaming hotkey from
 spec 10), and the
 recording status of F51 on the tray icon and the taskbar button. The tray's Record entry and
-Ctrl+F10 open the Record panel in the main window (the compact window comes in spec 14).
+Ctrl+Shift+F10 open the Record panel in the main window (the compact window comes in spec 14).
 ```
 
 The recordings folder (default Videos/CapturaX) is a second row in the settings' **Folders**
@@ -208,12 +208,16 @@ firewall parts of F41, F44 and F45 from docs/product.md: Windows installer, Linu
 bundled GStreamer, Configure firewall action, update check with automatic install.
 ```
 
+Linux: since spec #5 the app writes a hidden `capturax.desktop` (needed by the Wayland
+shortcuts portal) when no package installed one. This spec adds the app's icon to it and an
+option "Show in the applications menu" (maintainer, 2026-11-23).
+
 ### 14. Compact windows
 
 ```text
 /speckit-specify Compact windows (see docs/roadmap.md #14): covers the compact windows of F25 and
 the Settings entry of F48 from docs/product.md. When the main window is not visible, the tray's
-Live, Record and Settings entries and the Ctrl+F9 / Ctrl+F10 hotkeys open that panel as a compact
+Live, Record and Settings entries and the Ctrl+Shift+F9 / Ctrl+Shift+F10 hotkeys open that panel as a compact
 window of its own on the desktop (the same panel, same size and look, without the preview and
 without opening the preview device); `--live` and `--record` start the app that way (a running
 instance opens them). Live and Record can be open at the same time. Reuses the panels built in

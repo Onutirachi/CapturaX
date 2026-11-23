@@ -133,7 +133,7 @@ which anti-cheat software and antivirus flag, and adds work to every key press);
 **Decision**: the XDG desktop portal's `org.freedesktop.portal.GlobalShortcuts`, over `zbus`
 (already used for notifications and the theme), on the `hotkeys` thread: `CreateSession`, then
 `BindShortcuts` with one shortcut per action (`screenshot`, description "Screenshot",
-`preferred_trigger` such as `CTRL+F8`), `Activated` reports the action. Before it, the app
+`preferred_trigger` such as `CTRL+SHIFT+F8`), `Activated` reports the action. Before it, the app
 registers its id with `org.freedesktop.host.portal.Registry.Register("capturax")` where the
 portal offers it (an unsandboxed app has no id otherwise). The trigger the desktop actually
 bound comes back in the `BindShortcuts` response and in `ShortcutsChanged` (its
@@ -149,6 +149,33 @@ the window (R8) and the row says so.
 with another app focused, with a fullscreen game, after a restart of the example (is the binding
 kept or asked again?), and what `ConfigureShortcuts` shows. Pass: the key arrives in all three.
 What KDE asks the user the first time is recorded in the quickstart.
+
+**Probe result** (2026-11-23, measurements/probes.md): passes on KDE Plasma 6.8.2 (portal 1.22.1,
+version 2) with one condition: `Registry.Register` fails and `CreateSession` is refused ("An app
+id is required") unless a `capturax.desktop` is installed in an XDG data folder; a hidden one
+(`NoDisplay=true`) is enough. Decided (maintainer): the app writes a hidden entry in
+`$XDG_DATA_HOME/applications` when none exists, marked `X-CapturaX-Written=true`, and later only
+updates that entry's `Exec` when the executable moved (the AppImage file when running from one,
+as autostart does); an entry without the mark (a package's, or the user's own) is not touched.
+The rest of the findings shape the code:
+
+- The first `BindShortcuts` shows KDE's "Global shortcuts requested" dialog (the key can be
+  changed there). OK → response 0 with `trigger_description`; Cancel → response 1 and KDE stores
+  the action with no key: later sessions answer 0 with `trigger_description ""` and never ask
+  again. Either way the app reports what the desktop answered (`""` → no key).
+- Once bound, the desktop's key wins: a later `preferred_trigger` is ignored. So the app never
+  sends its own key changes there; the Hotkeys row shows `Bound` and **Change** calls
+  `ConfigureShortcuts`, which opens System Settings → Shortcuts on CapturaX's entry.
+- A change there gives `ShortcutsChanged` (once with `""`, then the new key); the old key stops
+  at once.
+- `Activated` once per press, none while held; its timestamp is 0 (not used). Works with another
+  app focused and over fullscreen Vulkan windows on XWayland and native Wayland.
+- A proposed key the desktop already uses (KWin's Ctrl+F9) is "bound" (`trigger_description`
+  says so) but never fires; nothing tells the app (FR-019: not handled). KDE's defaults use
+  Ctrl+F7, Ctrl+F9, Ctrl+F10 and Ctrl+F12 (and Ctrl+F1–F4); Ctrl+Alt+F-keys switch virtual
+  terminals on Linux. Decided (maintainer): every default uses Ctrl+Shift on both systems
+  (screenshot Ctrl+Shift+F8, live Ctrl+Shift+F9, record Ctrl+Shift+F10); checked free on Windows
+  (`RegisterHotKey`) and on KDE (bound through the portal, each fired with Dolphin focused).
 
 **Alternatives**: reading `/dev/input` (needs the `input` group: elevation, against principle V);
 X11 grabs through XWayland (only while an XWayland window has the focus).

@@ -15,10 +15,10 @@ sound. This spec adds the first feature of the right dock: saving the current im
 preview as a PNG file at the device's native resolution and copying it to the clipboard (F19,
 group "E. Screenshot" of docs/product.md).
 
-F19 is triggered by **Ctrl+F8**, a hotkey of F50: it must work while another app (a game, a
+F19 is triggered by **Ctrl+Shift+F8**, a hotkey of F50: it must work while another app (a game, a
 browser over the preview) has the focus. The roadmap had the global hotkey framework in spec #9
 (Recording). **Decision (maintainer, 2026-11-21)**: the framework comes in this spec, with the
-screenshot key and its setting; spec #9 only adds Ctrl+F10 and spec #10 Ctrl+F9. A screenshot
+screenshot key and its setting; spec #9 only adds Ctrl+Shift+F10 and spec #10 Ctrl+Shift+F9. A screenshot
 taken by clicking a button while playing is not usable, so the key belongs to the feature.
 
 **Decision (maintainer, 2026-11-21)**: the folder is a setting, **Pictures/CapturaX** by
@@ -33,7 +33,7 @@ showed "Screenshot saved and copied: <file>". This spec keeps that behavior wher
 ### User Story 1 - Save the moment while playing (Priority: P1)
 
 The user plays the console through the preview. Something worth keeping happens; they press
-Ctrl+F8 without leaving the game. The image the preview shows at that moment is saved as a PNG at
+Ctrl+Shift+F8 without leaving the game. The image the preview shows at that moment is saved as a PNG at
 the device's native resolution in the screenshots folder and copied to the clipboard; a short
 capture sound on their headset, a quick white flash on the video's edges and a notice confirm
 it, so they know it worked without looking
@@ -43,24 +43,24 @@ away from the game. The preview does not stutter.
 their hands are on the controller or the keyboard.
 
 **Independent Test**: with the PS5 on the ezcap card at 1080p60 (and at 4K30, 1080p120 where the
-card offers them), press Ctrl+F8 with CapturaX focused, then with another app focused over it;
+card offers them), press Ctrl+Shift+F8 with CapturaX focused, then with another app focused over it;
 check the file (size equal to the mode's resolution, the same image as the preview), paste it in
 an image editor and a chat app, and check the preview's frame counters show no dropped frame
 (SC-003).
 
 **Acceptance Scenarios**:
 
-1. **Given** the preview shows a device's image, **When** the user presses Ctrl+F8, **Then** a
+1. **Given** the preview shows a device's image, **When** the user presses Ctrl+Shift+F8, **Then** a
    PNG of the frame shown at that moment is saved in the screenshots folder at the mode's native
    resolution, copied to the clipboard, the capture sound plays on the preview's output (FR-010),
    the video's outline flashes (FR-010a) and a notice says so, within the time of SC-001.
 2. **Given** the preview shows a device's image and another app has the focus (CapturaX's window
-   visible, behind or beside it), **When** the user presses Ctrl+F8, **Then** the same happens,
+   visible, behind or beside it), **When** the user presses Ctrl+Shift+F8, **Then** the same happens,
    the focus stays where it was, and the confirmation is a system notification.
 3. **Given** the window is smaller than the image, fullscreen, or the controls and info bubbles
    are visible, **When** a screenshot is taken, **Then** the file has the native resolution and
    contains only the device's image: no interface, no bubbles, no notice, no letterbox bars.
-4. **Given** the user holds Ctrl+F8 down, **When** the key repeats, **Then** only one screenshot
+4. **Given** the user holds Ctrl+Shift+F8 down, **When** the key repeats, **Then** only one screenshot
    is taken; pressing it again takes another.
 5. **Given** two screenshots are taken within the same second, **When** they are saved, **Then**
    neither overwrites the other.
@@ -81,18 +81,18 @@ the video area (no device, no signal, connecting, error); check what each one do
 **Acceptance Scenarios**:
 
 1. **Given** the preview shows an image, **When** the user clicks the screenshot button, **Then**
-   the result is the same as Ctrl+F8 (US1 scenario 1).
+   the result is the same as Ctrl+Shift+F8 (US1 scenario 1).
 2. **Given** the video area shows a state instead of an image (no device, connecting, no signal,
    device error), **When** the user looks at the button, **Then** it is disabled, and its tooltip
    still names the action and the key.
 3. **Given** the user hovers the button, **When** the tooltip shows, **Then** it reads
-   "Screenshot (Ctrl+F8)", with the key the user set, or only "Screenshot" when no key is set.
+   "Screenshot (Ctrl+Shift+F8)", with the key the user set, or only "Screenshot" when no key is set.
 
 ---
 
 ### User Story 3 - Change the key (Priority: P2)
 
-The user's game or another program already uses Ctrl+F8, or they prefer another key. In the
+The user's game or another program already uses Ctrl+Shift+F8, or they prefer another key. In the
 settings they press the new key for **Screenshot**; it works at once, globally, and is kept for
 the next start.
 
@@ -106,13 +106,13 @@ check no key takes screenshots and the button's tooltip has no key.
 **Acceptance Scenarios**:
 
 1. **Given** the settings are open, **When** the user opens the **Hotkeys** category, **Then** it
-   lists **Screenshot** with its current key (Ctrl+F8 by default).
+   lists **Screenshot** with its current key (Ctrl+Shift+F8 by default).
 2. **Given** the user starts changing the key, **When** they press a combination allowed by
    FR-016 (a function key alone, or a key with a modifier), **Then** it becomes the screenshot key at once and is saved; Esc cancels the change.
 3. **Given** the user is changing the key, **When** they press a combination another CapturaX
    action already uses, **Then** it is refused and the row says which action has it.
 4. **Given** the user clears the key, **When** they press the old key, **Then** nothing happens;
-   **Reset** puts back Ctrl+F8.
+   **Reset** puts back Ctrl+Shift+F8.
 5. **Given** a key was set, **When** the app starts again, **Then** the same key works.
 
 ---
@@ -195,6 +195,20 @@ full, clipboard taken) and check the notice and its action.
   change it in its own settings; the Hotkeys category then shows the key the desktop reports.
   Where the desktop has no such portal, the key works only while CapturaX's window has the
   focus, and the Hotkeys category says so in one line.
+- **Wayland: the desktop owns the key** (probe T004, KDE Plasma 6.8, 2026-11-23): once the
+  desktop bound an action, its key wins; the key in the settings file is only the one CapturaX
+  proposes the first time. The Hotkeys row shows the desktop's key, and **Change** opens the
+  desktop's own shortcut settings (or says the key is changed in the system settings when the
+  desktop offers no way to open them); the row has no Clear or Reset there. If the user cancels
+  the desktop's first question, the desktop keeps the action with no key and does not ask again:
+  the row shows no key until it is set in the desktop.
+- **Wayland: the app's desktop entry** (maintainer, 2026-11-23): the portal only accepts an app
+  that has a `capturax.desktop` entry. When none is installed (a portable folder, an AppImage, a
+  build from source), CapturaX writes a hidden one (not shown in the applications menu) in the
+  user's applications folder before asking for the keys, and points it again at the executable
+  when the folder moved, changing nothing else in it (a user who unhid it keeps that). An entry
+  installed by a package is used as it is. The entry is left in place when the folder is deleted
+  (hidden, it shows nowhere).
 - **Hotkey on Linux under X11**: the key is global, as on Windows.
 - **A key already taken by another program**: not detected or handled (F50); the user changes it.
 - **Two CapturaX instances**: not possible (single instance, app shell).
@@ -288,8 +302,10 @@ full, clipboard taken) and check the notice and its action.
   and while another app has it, on Windows and on Linux under X11; on Linux under Wayland through
   the desktop's global shortcuts portal where it exists, else only while the window has the focus
   (the Hotkeys category states it). There are no separate in-window keys (F50).
-- **FR-013**: The only hotkey in this spec is **Screenshot**, default **Ctrl+F8**. The framework
-  MUST let later specs add actions (Record Ctrl+F10 in spec #9, Live Ctrl+F9 in spec #10) with
+- **FR-013**: The only hotkey in this spec is **Screenshot**, default **Ctrl+Shift+F8**. The defaults use Ctrl+Shift (maintainer,
+  2026-11-23): KDE's own defaults take Ctrl+F7, F9, F10 and F12, and Ctrl+Alt+F-keys switch virtual
+  terminals on Linux; Ctrl+Shift+F8–F10 are free on Windows and KDE. The framework
+  MUST let later specs add actions (Record Ctrl+Shift+F10 in spec #9, Live Ctrl+Shift+F9 in spec #10) with
   their default keys and their rows in the Hotkeys category, without changes to this behavior.
 - **FR-014**: A held key MUST trigger its action once (auto-repeat ignored). A hotkey MUST NOT
   take the focus from the app that has it nor show CapturaX's window.
@@ -302,6 +318,8 @@ full, clipboard taken) and check the notice and its action.
   or Win/Super (Shift alone would take a capital letter from every app) (plan, 2026-11-22); Esc
   cancels; a combination another CapturaX action uses is
   refused, naming that action; each row can be cleared (no key) and reset to its default.
+  Under Wayland with the portal the desktop owns the keys instead (Edge Cases, "Wayland: the
+  desktop owns the key").
 - **FR-017**: While a key is being recorded, hotkeys MUST NOT trigger their actions.
 - **FR-018**: A key change MUST apply at once (the old key released, the new one working) and be
   kept in the settings file; a cleared key is kept as cleared.
@@ -365,7 +383,7 @@ confirm it does not move beyond the measurement's spread.
   per channel after the color range correction).
 - **SC-003**: The preview drops 0 frames and its frame-time spread does not grow during the
   measurement above; the preview audio has no gap.
-- **SC-004**: Ctrl+F8 takes a screenshot with CapturaX focused, with another app focused, with
+- **SC-004**: Ctrl+Shift+F8 takes a screenshot with CapturaX focused, with another app focused, with
   the window minimized, and from a fullscreen game window on Windows; on Linux under KDE Plasma
   (Wayland, portal) and under an X11 session where available.
 - **SC-005**: A changed key works at once and after a restart in 10 of 10 tries; the old key
