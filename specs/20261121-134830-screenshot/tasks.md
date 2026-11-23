@@ -146,8 +146,8 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 **Independent Test**: quickstart checks 9 and 15.
 
-- [ ] T036 [US5] Failure texts and actions (FR-008, data-model.md "Outcome"): reasons from `WriteError` (`folder not found`, `no permission`, `disk full`, `write error`) and the conversion's `image error`; **Settings** opens the settings panel on the Folders category; tests for the outcome → kind/text mapping in app/src/screenshot.rs
-- [ ] T037 [US5] (maintainer) quickstart checks 9 and 15 on both systems
+- [X] T036 [US5] Failure texts and actions (FR-008, data-model.md "Outcome"): reasons from `WriteError` (`folder not found`, `no permission`, `disk full`, `write error`) and the conversion's `image error`; **Settings** opens the settings panel on the Folders category; tests for the outcome → kind/text mapping in app/src/screenshot.rs
+- [ ] T037 [US5] (maintainer) quickstart checks 9 and 15 on both systems (Windows done 2026-11-23)
 
 ---
 

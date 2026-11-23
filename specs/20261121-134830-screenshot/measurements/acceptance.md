@@ -51,3 +51,13 @@ Release build of the uncommitted T034, ezcap with the PS5.
 | # | Result | Notes |
 |---|---|---|
 | 14 | pass | Change to another folder (system dialog over the window), screenshot saved there, Open and Reset work; a screenshot with the settings panel open works too; first build had **Change** and **Open** stretched over the row (no width), fixed; the category became **Folders** (maintainer) and was checked again |
+
+## Windows, failure notices (agent and maintainer, 2026-11-23, T037 Windows half)
+
+Debug build of the uncommitted T036, test video 1080p60. The agent ran the failing folders with
+`--screenshot-every 3000` and read the log; the maintainer clicked the notices.
+
+| # | Result | Notes |
+|---|---|---|
+| 15 | pass | `Z:/CapturaX` (no Z: drive): "not saved (FolderNotFound), copied", notice `CopiedNotSaved(FolderNotFound)`; `C:/Windows/System32/CapturaX`: "not saved (NoPermission), copied", nothing made there; copy ≈ 290 ms in debug |
+| 9 | pass | **Settings** on the in-app notice opens the panel on Folders; closed and opened from the dock it is on General again; the system notification's **Settings** (another app focused, `-> system` in the log) shows the window on Folders |

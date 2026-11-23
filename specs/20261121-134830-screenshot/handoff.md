@@ -22,7 +22,8 @@ button) done 2026-11-23 and checked by the maintainer (T029, acceptance.md). T03
 recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category) done
 2026-11-23 and checked on Windows by the maintainer (quickstart 11 and 12). T033 (folder
 dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`) done
-2026-11-23; check 14 passes on Windows (T035's Windows half, acceptance.md).
+2026-11-23; check 14 passes on Windows (T035's Windows half, acceptance.md). T036
+(failure notices, **Settings** opens Folders) done 2026-11-23; checks 9 and 15 pass on Windows.
 
 ## Done in the last sessions
 
@@ -273,6 +274,15 @@ dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`)
   The maintainer asked for Folders instead of a Screenshot category (spec FR-020, FR-021,
   roadmap #9 updated in `bca5ded`); roadmap #17 gained category/row heights, double click for
   fullscreen and overlays closing on resize (`1ccef52`).
+- 2026-11-23: T036: the reasons, texts, pt-BR translations and outcome mapping were already
+  in place (T009, T010, T014). Added: `Prefs.settings-category` (the `Category` enum is now
+  exported from settings-panel.slint and declared above `Prefs`); the panel's `category` is
+  two-way bound to it, main.slint sets it back to General when the panel closes, and the
+  notice's **Settings** sets Folders before opening the panel (also when it is already open).
+  Test `every_failure_has_its_notice` (each `WriteError` and `ImageError`, copied or not →
+  kind and action). The reason texts need a Slint window, so they are checked by eye
+  (quickstart 9). 272 app tests. T037's Windows half passes (checks 9 and 15,
+  acceptance.md); its Linux half needs CachyOS.
 
 ## Decisions
 
@@ -323,9 +333,10 @@ dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`)
    needs check 7 with the PS5 at 4K output (the "4K" try was 2560×1440 with no matching
    source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
    reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`.
-   T028–T031, T033 and T034 done (2026-11-23). Next agent work: T036 (failure texts, US5;
-   **Settings** opens the panel on the Folders category). T032 (checks 11–13) and T035's Linux
-   half (check 14: the portal folder dialog, never run) still need CachyOS.
+   T028–T031, T033, T034 and T036 done (2026-11-23); T037 (checks 9 and 15) passes on
+   Windows, Linux left. Next agent work: T038 (docs) or T027. T032 (checks 11–13), T037's
+   Linux half and T035's Linux half (check 14: the portal folder dialog, never run) still
+   need CachyOS.
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
    clipboard pastes on CachyOS (Wayland, X11 if installed; Windows done through the app);
    `shortcuts_probe` on CachyOS.
