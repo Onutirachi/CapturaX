@@ -130,12 +130,12 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 ## Phase 6: User Story 4 - Choose the folder (Priority: P2)
 
-**Goal**: the Screenshot category picks, opens and resets the folder.
+**Goal**: the Folders category picks, opens and resets the folder.
 
 **Independent Test**: quickstart check 14.
 
 - [x] T033 [P] [US4] Files, part 2 (research R12): `pick_folder(owner, start, done)` in crates/platform/src/files.rs: windows/files.rs `IFileOpenDialog` with `FOS_PICKFOLDERS` on its own STA thread owned by the main window; linux/files.rs portal `FileChooser.OpenFile` with `directory: true`, the answer from the `Request`'s `Response` signal; false at once without the portal
-- [ ] T034 [US4] Screenshot category (FR-020–FR-022): in app/ui/components/settings-panel.slint add `screenshot` after `audio` (icon `camera.svg`) with the folder row: the folder shortened, the full path in its tooltip, **Change** (T033; the answer saved as an absolute path; "No folder picker on this desktop" when none), **Open** (`open_folder`), **Reset** (only when not `"default"`)
+- [ ] T034 [US4] Folders category (FR-020–FR-022): in app/ui/components/settings-panel.slint add `folders` after `audio` (icon `folder.svg`) with the Screenshots folder row: the folder shortened, the full path in its tooltip, **Change** (T033; the answer saved as an absolute path; "No folder picker on this desktop" when none), **Open** (`open_folder`), **Reset** (only when not `"default"`)
 - [ ] T035 [US4] (maintainer) quickstart check 14 on both systems
 
 ---
@@ -146,7 +146,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 **Independent Test**: quickstart checks 9 and 15.
 
-- [ ] T036 [US5] Failure texts and actions (FR-008, data-model.md "Outcome"): reasons from `WriteError` (`folder not found`, `no permission`, `disk full`, `write error`) and the conversion's `image error`; **Settings** opens the settings panel on the Screenshot category; tests for the outcome → kind/text mapping in app/src/screenshot.rs
+- [ ] T036 [US5] Failure texts and actions (FR-008, data-model.md "Outcome"): reasons from `WriteError` (`folder not found`, `no permission`, `disk full`, `write error`) and the conversion's `image error`; **Settings** opens the settings panel on the Folders category; tests for the outcome → kind/text mapping in app/src/screenshot.rs
 - [ ] T037 [US5] (maintainer) quickstart checks 9 and 15 on both systems
 
 ---

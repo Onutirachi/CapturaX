@@ -313,12 +313,13 @@ full, clipboard taken) and check the notice and its action.
 - **FR-020**: The settings panel MUST offer the screenshots folder: the current folder shortened
   with the full path in its tooltip, **Change** (the system's folder dialog), **Open** (the file
   manager on the folder) and **Reset** (only while a folder other than the default is set).
-  The row sits in a new **Screenshot** category, after Audio, so each output keeps its own
-  category (spec #9 adds Recording beside it); the Hotkeys category comes after it. Chosen by
-  the agent; the maintainer reviews it in the app (maintainer, 2026-11-21).
+  The row, named **Screenshots**, sits in a new **Folders** category (folder icon), after Audio;
+  the Hotkeys category comes after it. Screenshots have no other setting, and recording's
+  options live in its Record panel (F25), so the recordings folder joins this category as a
+  second row in spec #9 (maintainer, 2026-11-23, replacing a Screenshot category per output).
 - **FR-021**: The default folder MUST be the user's Pictures folder as the system defines it,
-  plus `CapturaX`; it is created at the first screenshot, as is a chosen folder that was removed
-  when its parent exists.
+  plus `CapturaX`; it is created at the first screenshot (or by **Open** in the settings), as is
+  a chosen folder that was removed when its parent exists.
 - **FR-022**: The chosen folder is kept in the portable settings file (constitution principle VI)
   as an absolute path; the default is kept as "default", so a copied installation on another
   system uses that system's Pictures folder.

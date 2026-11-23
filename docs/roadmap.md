@@ -161,6 +161,9 @@ recording status of F51 on the tray icon and the taskbar button. The tray's Reco
 Ctrl+F10 open the Record panel in the main window (the compact window comes in spec 14).
 ```
 
+The recordings folder (default Videos/CapturaX) is a second row in the settings' **Folders**
+category, beside the screenshots folder from spec 5, reusing its row (maintainer, 2026-11-23).
+
 ### 10. Direct link
 
 ```text

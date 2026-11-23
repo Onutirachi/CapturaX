@@ -132,8 +132,8 @@ video thread: after uploading the next presented frame ◄───┘
 
 - `components/dock.slint` and `main.slint`: the right dock with the screenshot button (camera
   icon), disabled while the video area shows a state, tooltip "Screenshot (Ctrl+F8)".
-- `components/settings-panel.slint`: categories `screenshot` (folder row: path, Change, Open,
-  Reset) and `hotkeys` (one row per action: name, key button that records, Clear, Reset; the
+- `components/settings-panel.slint`: categories `folders` (the Screenshots folder row: path,
+  Change, Open, Reset; spec #9 adds the recordings folder) and `hotkeys` (one row per action: name, key button that records, Clear, Reset; the
   Wayland line and the "changed in the system settings" variant), after Audio.
 - `components/notice.slint`: event notice kinds and icons (R13).
 - `texts.slint` and the catalogs: every new text in English and Portuguese.

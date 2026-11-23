@@ -37,7 +37,7 @@ cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && ca
 | 11 | Settings → Hotkeys: set Ctrl+Shift+S; press Ctrl+F8, then Ctrl+Shift+S, inside and outside the window; restart | Old key does nothing; new one works; kept |
 | 12 | Try Shift+A, A alone; Clear; Reset | Refused (A alone, Shift+A); no key; Ctrl+F8 back; tooltip follows |
 | 13 | Wayland: the Hotkeys row | Shows the desktop's key; Change opens the desktop's dialog or says where to change it |
-| 14 | Settings → Screenshot: Change to a folder on another drive; take one; Open; Show on the notice; Reset | Saved there; file manager opens (file selected where possible); default back |
+| 14 | Settings → Folders: Change to a folder on another drive; take one; Open; Show on the notice; Reset | Saved there; file manager opens (file selected where possible); default back |
 | 15 | Folder on a removed USB drive; read-only folder | "Couldn't save the screenshot: …. Copied to the clipboard" with Settings |
 | 16 | Languages and themes | Every new text in both languages; balloon and dock in both themes |
 

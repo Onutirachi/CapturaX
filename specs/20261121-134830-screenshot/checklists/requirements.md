@@ -33,6 +33,6 @@
 
 - FR-010 settled: a capture sound, no thumbnail (maintainer, 2026-11-21); FR-010a: an edge
   flash (maintainer, 2026-11-22).
-  FR-020: a Screenshot category, chosen by the agent, reviewed by the maintainer in the app.
+  FR-020: a Folders category (the maintainer, after seeing a Screenshot category in the app).
 - Platform names (Wayland portal, X11) appear only where they define a degraded behavior, as
   constitution principle IV requires.
