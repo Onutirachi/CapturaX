@@ -1,7 +1,7 @@
 // Square icon control, ported from the stack spike's `basics.slint`. `active` marks a toggled
 // state; with `primary` it fills with the accent (recording, live). The tooltip shows after 500 ms
 // of hover, or at once on keyboard focus, in the top layer. Disabled, it fades, ignores clicks and
-// leaves the focus order. Enter or Space activates it (FR-020). An empty tooltip hides the one
+// leaves the focus order; its tooltip still shows on hover (screenshot US2 scenario 2). Enter or Space activates it (FR-020). An empty tooltip hides the one
 // shown. With `takes-wheel` the mouse wheel over it calls `wheel`; a right press calls
 // `right-pressed`. With `takes-hold` a press held 500 ms calls `held` instead of `clicked`. Keys
 // other than Enter and Space go to `key`.
@@ -44,7 +44,7 @@ export component IconButton inherits Rectangle {
     property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
     // The press in progress was held: its release clicks nothing.
     property <bool> was-held;
-    property <bool> wants-tip: (area.has-hover || focus.has-focus) && root.enabled && root.visible;
+    property <bool> wants-tip: (area.has-hover || focus.has-focus) && root.visible;
 
     width: root.size;
     height: root.size;
@@ -113,6 +113,7 @@ export component IconButton inherits Rectangle {
     Rectangle {
         border-radius: root.border-radius;
         background: root.active && root.primary ? transparent
+            : !root.enabled ? transparent
             : area.pressed ? Theme.c.press
             : area.has-hover ? Theme.c.hover
             : transparent;
@@ -129,8 +130,9 @@ export component IconButton inherits Rectangle {
             : root.icon-color;
     }
 
+    // Enabled also while the button is not, so the hover still shows the tooltip; `activate`
+    // ignores the click.
     area := TouchArea {
-        enabled: root.enabled;
         clicked => {
             if (!root.was-held) {
                 root.activate();
@@ -140,12 +142,12 @@ export component IconButton inherits Rectangle {
             if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
                 root.was-held = false;
             }
-            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
+            if (root.enabled && event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
                 root.right-pressed();
             }
         }
         scroll-event(event) => {
-            if (!root.takes-wheel || event.delta-y == 0) {
+            if (!root.enabled || !root.takes-wheel || event.delta-y == 0) {
                 return reject;
             }
             root.wheel(event.delta-y);

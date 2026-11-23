@@ -401,6 +401,9 @@ msgstr "Não foi possível fazer a captura de tela: {}"
 msgid "Screenshot"
 msgstr "Captura de tela"
 
+msgid "Screenshot ({})"
+msgstr "Captura de tela ({})"
+
 msgid "folder not found"
 msgstr "pasta não encontrada"
 

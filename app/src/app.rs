@@ -73,6 +73,8 @@ pub enum UserEvent {
     ModePicked(i32),
     /// The state message's **Try again** (FR-019).
     TryAgain,
+    /// The right dock's screenshot button (screenshot FR-011).
+    Screenshot,
     /// An event notice's button (device FR-027, screenshot FR-008), in the app's balloon or on a
     /// system notification (`system`), which also brings the window back: the action's tag
     /// ([`NoticeAction`]).
@@ -335,6 +337,8 @@ impl App {
         ui.app.on_mode_picked(move |index| on(UserEvent::ModePicked(index)));
         let on = send.clone();
         ui.app.on_try_again(move || on(UserEvent::TryAgain));
+        let on = send.clone();
+        ui.app.on_screenshot(move || on(UserEvent::Screenshot));
         let on = send.clone();
         ui.app.on_event_notice_action(move |tag| {
             on(UserEvent::NoticeAction {
@@ -904,13 +908,19 @@ impl App {
     fn start_hotkeys(&mut self) {
         let proxy = self.proxy.clone();
         let texts = Texts::get(&self.ui.app);
-        self.hotkeys = Some(crate::hotkeys::AppHotkeys::start(
+        let hotkeys = crate::hotkeys::AppHotkeys::start(
             &self.store.get().hotkeys,
             |action| hotkey_description(&texts, action),
             move |event| {
                 let _ = proxy.send_event(UserEvent::Hotkey(event));
             },
-        ));
+        );
+        // The key the user set, also when the system refused it (FR-011: "the key the user set").
+        let key = hotkeys.key(crate::hotkeys::SCREENSHOT);
+        self.ui
+            .app
+            .set_screenshot_key(key.map(|k| k.shown(platform::IS_WINDOWS)).unwrap_or_default().into());
+        self.hotkeys = Some(hotkeys);
     }
 
     /// Runs a hotkey's action.
@@ -921,9 +931,9 @@ impl App {
         }
     }
 
-    /// A screenshot is asked for (screenshot FR-001; by the hotkey and `--screenshot-every`): the
-    /// video thread hands over the next frame it presents, which a short-lived thread passes back
-    /// to the event loop.
+    /// A screenshot is asked for (screenshot FR-001; by the hotkey, the dock button and
+    /// `--screenshot-every`): the video thread hands over the next frame it presents, which a
+    /// short-lived thread passes back to the event loop.
     fn request_screenshot(&mut self) {
         // Hidden to the tray the device is closed, though the state still reads Playing.
         let shows_image =
@@ -1980,6 +1990,10 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             UserEvent::Window(action) => self.act(event_loop, action),
             UserEvent::TryAgain => self.preview_event(preview::Event::TryAgain),
+            UserEvent::Screenshot => {
+                log::info!("screenshot: dock button");
+                self.request_screenshot();
+            }
             UserEvent::NoticeAction { tag, system } => match NoticeAction::from_tag(&tag) {
                 NoticeAction::Open(device) => {
                     // Chosen before the window shows: while hidden, the preview opens it when shown.

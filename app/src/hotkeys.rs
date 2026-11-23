@@ -238,6 +238,15 @@ impl AppHotkeys {
             .map(|(action, _)| *action)
     }
 
+    /// The key bound to `action` in the settings, if any (shown in the dock button's tooltip,
+    /// FR-011).
+    pub fn key(&self, action: &str) -> Option<Hotkey> {
+        self.bindings
+            .iter()
+            .find(|(name, _)| *name == action)
+            .and_then(|(_, key)| *key)
+    }
+
     fn action(&self, name: &str) -> Option<&'static str> {
         self.bindings
             .iter()
