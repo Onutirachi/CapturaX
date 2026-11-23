@@ -19,7 +19,8 @@ step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and comm
 (worker) committed as unwired code. T013 (clipboard) and T019 (wiring) done 2026-11-23 and
 checked on Windows by the maintainer (measurements/acceptance.md, first pass). T028 (dock
 button) done 2026-11-23 and checked by the maintainer (T029, acceptance.md). T030 (key
-recorder) done 2026-11-23 as unwired code and committed; T031 wires it.
+recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category) done
+2026-11-23 and checked on Windows by the maintainer (quickstart 11 and 12).
 
 ## Done in the last sessions
 
@@ -232,6 +233,24 @@ recorder) done 2026-11-23 as unwired code and committed; T031 wires it.
   close the panel), call `cancel_recording` when the panel closes or the window loses the focus,
   save with `set_setting` + `store.update`, and call `set_screenshot_key` after every change.
 
+- 2026-11-23: T031: Hotkeys category (`hotkeys` before About; T034 puts Screenshot before it),
+  icon keyboard.svg (+ backspace.svg, arrow_back_up.svg, Tabler 3.35.0). `HotkeyRow`: name, a
+  line under it (the refusal in `warn`, or "Esc to cancel" while recording), key `ActionButton`
+  (primary while recording, "Press a key…", "None"), Clear and Reset `IconButton`s that keep
+  their places when hidden. They are placed by hand: a `HorizontalLayout` there gave the row its
+  fixed width as a maximum and the row shrank (seen in the app, fixed). `Prefs.hotkeys`
+  (`HotkeyRowData`), `hotkeys-window-only`, callbacks `hotkey-record/cancel/clear/reset`;
+  category change and panel close call `hotkey-cancel`. app.rs: `UserEvent::HotkeyUi`,
+  `show_hotkeys` (rows + dock tooltip; after every change, language switch and non-press
+  hotkey event), `save_hotkey`, `record_hotkey` (first `KeyboardInput` arm while recording:
+  neither Slint nor F11/Esc see the key), focus lost cancels, a refused Reset kept in
+  `hotkey_refusal`. Key names: `hotkeys::shown` with the catalog's `key-*` texts (Win/Super
+  from the platform); refusals `hotkey-not-allowed`/`hotkey-taken`. pt-BR added. The portal
+  part (desktop's key, Change → `configure()`) moved to T017 (tasks.md). Clear and Reset use the new
+  `IconButton.filled` (top fill, `radius-s`, as the text buttons). 269 app tests.
+- 2026-11-23: roadmap #17: settings panel larger in big windows/fullscreen, maybe a UI scale
+  above the system DPI; and one set of control tokens for the settings panel (maintainer).
+
 ## Decisions
 
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
@@ -280,8 +299,8 @@ recorder) done 2026-11-23 as unwired code and committed; T031 wires it.
    needs check 7 with the PS5 at 4K output (the "4K" try was 2560×1440 with no matching
    source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
    reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`.
-   T028 and T029 done (2026-11-23), T030 done. Next agent work: T031 (Hotkeys category, US3;
-   wiring notes under T030 above).
+   T028–T031 done (2026-11-23). Next agent work: T033/T034 (folder picker and Screenshot
+   category, US4), then T036 (failure texts, US5). T032 (checks 11–13) still needs CachyOS.
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
    clipboard pastes on CachyOS (Wayland, X11 if installed; Windows done through the app);
    `shortcuts_probe` on CachyOS.
