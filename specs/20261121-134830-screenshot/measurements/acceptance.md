@@ -43,3 +43,11 @@ Debug build of the uncommitted T028, ezcap with the PS5.
 |---|---|---|
 | 8 | pass | card unplugged: button disabled, its tooltip still shown; click and Ctrl+F8 do nothing |
 | dock | pass | tooltip "Captura de tela (Ctrl+F8)"; click: sound, outline, saved notice; Tab reaches it after the left dock, Enter takes one; both themes; small window: the bubbles' column first stood behind the right dock (fixed: the column always ends 8 px left of it, FR-002a), then checked again |
+
+## Windows, folder row (maintainer, 2026-11-23, T035 Windows half)
+
+Release build of the uncommitted T034, ezcap with the PS5.
+
+| # | Result | Notes |
+|---|---|---|
+| 14 | pass | Change to another folder (system dialog over the window), screenshot saved there, Open and Reset work; a screenshot with the settings panel open works too; first build had **Change** and **Open** stretched over the row (no width), fixed; the category became **Folders** (maintainer) and was checked again |

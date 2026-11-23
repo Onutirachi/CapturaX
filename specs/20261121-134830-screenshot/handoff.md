@@ -20,7 +20,9 @@ step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and comm
 checked on Windows by the maintainer (measurements/acceptance.md, first pass). T028 (dock
 button) done 2026-11-23 and checked by the maintainer (T029, acceptance.md). T030 (key
 recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category) done
-2026-11-23 and checked on Windows by the maintainer (quickstart 11 and 12).
+2026-11-23 and checked on Windows by the maintainer (quickstart 11 and 12). T033 (folder
+dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`) done
+2026-11-23; check 14 passes on Windows (T035's Windows half, acceptance.md).
 
 ## Done in the last sessions
 
@@ -250,6 +252,27 @@ recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category)
   `IconButton.filled` (top fill, `radius-s`, as the text buttons). 269 app tests.
 - 2026-11-23: roadmap #17: settings panel larger in big windows/fullscreen, maybe a UI scale
   above the system DPI; and one set of control tokens for the settings panel (maintainer).
+- 2026-11-23: T033 (`7b41db6`): `platform::pick_folder(owner, start, done) -> bool`
+  (`FolderPicked`). Windows `IFileOpenDialog` (`FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM`) on a
+  "folder dialog" STA thread, owner HWND passed as an integer, cancel → None. Linux: the portal
+  `FileChooser.OpenFile` (`directory`, `modal`, `current_folder` as NUL-ended bytes,
+  `handle_token`), listening on the predicted `Request` path before the call (and on the
+  returned one if it differs); owner `x11:<id>` on X11, none on Wayland (would need
+  xdg-foreign); false at once when the bus neither runs nor can start
+  `org.freedesktop.portal.Desktop`. `path_from_file_uri` with tests. The Linux file was only
+  type-checked (a scratch crate with zbus 5.19 and winit 0.30.13, target Linux): the full
+  crate needs PipeWire's pkg-config, and WSL Ubuntu has no Rust.
+- 2026-11-23: T034 (`8d22042`): settings-panel.slint `FolderRow` in a **Folders** category
+  (`folder.svg`, Tabler, after Audio), row **Screenshots**: `screenshot::short_folder` (whole up
+  to 40 characters, else start (drive/root + first folder), "…", as many last folders as fit),
+  full path in a tooltip after 500 ms on it, **Change**/**Open** (ActionButtons, width
+  `max(96px, preferred)`, the first build had none and stretched), **Reset** with the default
+  folder in its tooltip, "No folder picker on this desktop" until the category changes.
+  app.rs `FolderUi` (`Change` ignored while a dialog is open, `Picked` kept only absolute and
+  UTF-8, `Open` makes the folder by `screenshot::make_folder`, the writer's rule, `Reset`).
+  The maintainer asked for Folders instead of a Screenshot category (spec FR-020, FR-021,
+  roadmap #9 updated in `bca5ded`); roadmap #17 gained category/row heights, double click for
+  fullscreen and overlays closing on resize (`1ccef52`).
 
 ## Decisions
 
@@ -268,8 +291,9 @@ recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category)
   rounded edge with a faint inner glow, 40 ms in, 400 ms out. Chosen from the mockup
   https://claude.ai/artifact/XknXi4EvntqmHHZU4axncC (option D) after the first edge glow was
   built and seen in the app and judged ugly (research R11).
-- FR-020: the folder row goes in a new Screenshot category, Hotkeys after it (agent's choice;
-  the maintainer reviews it in the app).
+- FR-020 (maintainer, 2026-11-23, after seeing a Screenshot category in the app): the folder
+  row goes in a **Folders** category, Hotkeys after it; spec #9 adds the recordings folder
+  there (its other options live in the Record panel).
 - Plan (2026-11-22), spec updated: the sound and the flash start when the frame is taken, not
   when the file is written; letters, digits and Space need Ctrl, Alt or Super (Shift alone
   refused).
@@ -299,8 +323,9 @@ recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category)
    needs check 7 with the PS5 at 4K output (the "4K" try was 2560×1440 with no matching
    source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
    reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`.
-   T028–T031 done (2026-11-23). Next agent work: T033/T034 (folder picker and Screenshot
-   category, US4), then T036 (failure texts, US5). T032 (checks 11–13) still needs CachyOS.
+   T028–T031, T033 and T034 done (2026-11-23). Next agent work: T036 (failure texts, US5;
+   **Settings** opens the panel on the Folders category). T032 (checks 11–13) and T035's Linux
+   half (check 14: the portal folder dialog, never run) still need CachyOS.
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
    clipboard pastes on CachyOS (Wayland, X11 if installed; Windows done through the app);
    `shortcuts_probe` on CachyOS.
