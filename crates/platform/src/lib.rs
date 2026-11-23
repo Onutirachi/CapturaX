@@ -25,6 +25,9 @@ pub mod audio;
 pub mod hotkeys;
 pub use hotkeys::{Binding, Hotkey, HotkeyEvent, Hotkeys, Key, Modifier, Modifiers};
 
+mod clipboard;
+pub use clipboard::Clipboard;
+
 mod files;
 pub use files::{default_screenshots_folder, open_folder, show_file};
 
