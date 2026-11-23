@@ -3,6 +3,8 @@
 
 use std::path::{Path, PathBuf};
 
+use winit::window::Window;
+
 /// The system's Pictures folder plus `CapturaX`; the home folder plus `Pictures/CapturaX` when the
 /// system reports none.
 pub fn default_screenshots_folder() -> PathBuf {
@@ -10,6 +12,17 @@ pub fn default_screenshots_folder() -> PathBuf {
         .or_else(|| dirs::home_dir().map(|home| home.join("Pictures")))
         .unwrap_or_else(|| PathBuf::from("Pictures"))
         .join("CapturaX")
+}
+
+/// Where [`pick_folder`] hands its answer: the folder chosen, None when cancelled or failed.
+pub type FolderPicked = Box<dyn FnOnce(Option<PathBuf>) + Send + 'static>;
+
+/// Opens the system's folder dialog over `owner`, starting at `start` (FR-020): Windows
+/// `IFileOpenDialog`, Linux the desktop portal's `FileChooser`. Returns at once; the answer comes
+/// through `done` on another thread, once. False, and `done` dropped unused, when the system has
+/// no folder dialog (Linux without the portal).
+pub fn pick_folder(owner: &Window, start: &Path, done: impl FnOnce(Option<PathBuf>) + Send + 'static) -> bool {
+    crate::os::files::pick_folder(owner, start, Box::new(done))
 }
 
 /// Opens the file manager on the file's folder with the file selected where the platform allows
@@ -25,7 +38,7 @@ pub fn open_folder(folder: &Path) {
     spawn("open folder", move || crate::os::files::open_folder(&folder));
 }
 
-fn spawn(name: &str, work: impl FnOnce() + Send + 'static) {
+pub(crate) fn spawn(name: &str, work: impl FnOnce() + Send + 'static) {
     if let Err(err) = std::thread::Builder::new().name(name.into()).spawn(work) {
         log::warn!("files: cannot start the {name} thread: {err}");
     }
@@ -47,6 +60,33 @@ pub(crate) fn file_uri(path: &Path) -> String {
     uri
 }
 
+/// The path of a `file://` URI (the portal's answer), percent-decoded; None for another scheme
+/// or a host other than empty or `localhost`.
+#[cfg(any(target_os = "linux", test))]
+pub(crate) fn path_from_file_uri(uri: &str) -> Option<PathBuf> {
+    let rest = uri.strip_prefix("file://")?;
+    let rest = rest.strip_prefix("localhost").unwrap_or(rest);
+    if !rest.starts_with('/') {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(rest.len());
+    let mut input = rest.bytes();
+    while let Some(b) = input.next() {
+        if b == b'%' {
+            let hex = [input.next()?, input.next()?];
+            bytes.push(u8::from_str_radix(std::str::from_utf8(&hex).ok()?, 16).ok()?);
+        } else {
+            bytes.push(b);
+        }
+    }
+    // Any bytes form a path on Unix; elsewhere (the tests on Windows) they must be UTF-8.
+    #[cfg(unix)]
+    let path = PathBuf::from(<std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(bytes));
+    #[cfg(not(unix))]
+    let path = PathBuf::from(String::from_utf8(bytes).ok()?);
+    Some(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,6 +103,25 @@ mod tests {
             file_uri(Path::new("/home/me/Imagens/ação")),
             "file:///home/me/Imagens/a%C3%A7%C3%A3o"
         );
+    }
+
+    #[test]
+    fn file_uris_decode_back_to_paths() {
+        for path in ["/home/me/Pictures/CapturaX (2)", "/home/me/Imagens/ação", "/mnt/d/100%"] {
+            assert_eq!(
+                path_from_file_uri(&file_uri(Path::new(path))),
+                Some(PathBuf::from(path))
+            );
+        }
+        assert_eq!(
+            path_from_file_uri("file://localhost/tmp/a%20b"),
+            Some(PathBuf::from("/tmp/a b"))
+        );
+        assert_eq!(path_from_file_uri("file:///tmp/x"), Some(PathBuf::from("/tmp/x")));
+        assert_eq!(path_from_file_uri("https://example.com/x"), None);
+        assert_eq!(path_from_file_uri("file://server/share"), None);
+        assert_eq!(path_from_file_uri("file:///tmp/%2"), None);
+        assert_eq!(path_from_file_uri("file:///tmp/%zz"), None);
     }
 
     #[test]

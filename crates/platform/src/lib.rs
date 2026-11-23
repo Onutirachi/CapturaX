@@ -29,7 +29,7 @@ mod clipboard;
 pub use clipboard::Clipboard;
 
 mod files;
-pub use files::{default_screenshots_folder, open_folder, show_file};
+pub use files::{FolderPicked, default_screenshots_folder, open_folder, pick_folder, show_file};
 
 /// Built for Windows: the latency estimate counts the USB transfer there (device-preview
 /// data-model.md "Latency estimate"), so the app needs no platform condition of its own.
