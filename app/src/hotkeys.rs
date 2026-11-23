@@ -156,15 +156,38 @@ fn physical_digit(physical: PhysicalKey) -> Option<Key> {
 }
 
 /// The action's default key.
-fn default_key(action: &str) -> Option<Hotkey> {
+pub fn default_key(action: &str) -> Option<Hotkey> {
     ACTIONS
         .iter()
         .find(|(name, _)| *name == action)
         .and_then(|(_, default)| Hotkey::parse(default))
 }
 
+/// The key as the UI shows it (FR-023): the modifiers in the file's order with `Win` for Super on
+/// Windows, then the key, whose name `named` gives for the keys that are not a letter, a digit or
+/// F1–F24 (the locale's names, from the catalog).
+pub fn shown(key: Hotkey, windows: bool, named: impl Fn(Key) -> String) -> String {
+    let key_name = match key.key {
+        Key::Letter(_) | Key::Digit(_) | Key::F(_) => key.key.name(),
+        other => named(other),
+    };
+    let mut parts: Vec<String> = key
+        .modifiers
+        .iter()
+        .map(|m| {
+            if m == Modifier::Super && windows {
+                "Win"
+            } else {
+                m.name()
+            }
+            .to_string()
+        })
+        .collect();
+    parts.push(key_name);
+    parts.join("+")
+}
+
 /// Writes the action's key into the settings (`""`: no key, FR-018).
-#[cfg_attr(not(test), expect(dead_code, reason = "the Hotkeys category calls it (T031)"))]
 pub fn set_setting(hotkeys: &mut settings::Hotkeys, action: &str, key: Option<Hotkey>) {
     let text = key.map(|key| key.to_string()).unwrap_or_default();
     match action {
@@ -186,7 +209,6 @@ pub enum Press {
 
 /// The press a window key event makes while recording; None for what the recorder ignores: a
 /// release, an auto-repeat, a modifier alone.
-#[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
 fn press(modifiers: ModifiersState, event: &KeyEvent) -> Option<Press> {
     if event.state != winit::event::ElementState::Pressed || event.repeat {
         return None;
@@ -347,7 +369,6 @@ impl AppHotkeys {
 
     /// Starts recording `action`'s key: every hotkey is released until it ends (FR-017). False
     /// for an unknown action.
-    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
     pub fn start_recording(&mut self, action: &str) -> bool {
         let Some(action) = self.action(action) else {
             return false;
@@ -359,13 +380,11 @@ impl AppHotkeys {
     }
 
     /// The recording, if any: the action and the refusal of its last press.
-    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
     pub fn recording(&self) -> Option<(&'static str, Option<Refusal>)> {
         self.recorder.recording()
     }
 
     /// Ends a recording without a change (the panel closed, the window lost the focus).
-    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
     pub fn cancel_recording(&mut self) {
         if self.recorder.cancel() {
             log::info!("hotkeys: recording cancelled");
@@ -376,7 +395,6 @@ impl AppHotkeys {
     /// A key event of the window while recording: what it did, None when not recording or when
     /// the recorder ignores it (a release, a repeat, a modifier alone). An accepted key is
     /// registered at once (FR-018); the caller saves it with [`set_setting`].
-    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
     pub fn record(&mut self, event: &KeyEvent) -> Option<Recorded> {
         self.recorder.recording()?;
         let outcome = self.recorder.press(&self.bindings, press(self.modifiers, event)?)?;
@@ -397,8 +415,8 @@ impl AppHotkeys {
     }
 
     /// Leaves `action` with no key (FR-016, FR-018); the caller saves `None`.
-    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
     pub fn clear(&mut self, action: &str) {
+        self.cancel_recording();
         if let Some(action) = self.action(action) {
             log::info!("hotkeys: {action} key cleared");
             assign(&mut self.bindings, action, None);
@@ -408,8 +426,8 @@ impl AppHotkeys {
 
     /// Puts back `action`'s default key; refused when another action has it. The caller saves the
     /// key returned.
-    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
     pub fn reset(&mut self, action: &str) -> Result<Option<Hotkey>, Refusal> {
+        self.cancel_recording();
         let Some(action) = self.action(action) else {
             return Ok(None);
         };
@@ -478,6 +496,16 @@ impl AppHotkeys {
             .iter()
             .find(|(name, _)| *name == action)
             .and_then(|(_, key)| *key)
+    }
+
+    /// Every action with its key, in the table's order (the Hotkeys category's rows).
+    pub fn bindings(&self) -> &[(&'static str, Option<Hotkey>)] {
+        &self.bindings
+    }
+
+    /// Keys work only while the window has the focus (FR-012).
+    pub fn window_only(&self) -> bool {
+        self.window_only
     }
 
     fn action(&self, name: &str) -> Option<&'static str> {
@@ -690,6 +718,17 @@ mod tests {
                 "{named:?}"
             );
         }
+    }
+
+    #[test]
+    fn keys_are_shown_with_the_platform_s_and_the_locale_s_names() {
+        let named = |key: Key| format!("<{}>", key.name());
+        assert_eq!(shown(key("super+shift+s").unwrap(), true, named), "Shift+Win+S");
+        assert_eq!(shown(key("super+shift+s").unwrap(), false, named), "Shift+Super+S");
+        assert_eq!(shown(key("Ctrl+F8").unwrap(), true, named), "Ctrl+F8");
+        assert_eq!(shown(key("Alt+7").unwrap(), true, named), "Alt+7");
+        assert_eq!(shown(key("Ctrl+PageUp").unwrap(), true, named), "Ctrl+<PageUp>");
+        assert_eq!(shown(key("Ctrl+Space").unwrap(), false, named), "Ctrl+<Space>");
     }
 
     fn character(text: &str) -> WinitKey {

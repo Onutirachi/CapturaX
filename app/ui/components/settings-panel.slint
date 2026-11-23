@@ -16,6 +16,7 @@ import { Select } from "select.slint";
 import { MenuItem } from "menu.slint";
 import { Segmented } from "segmented.slint";
 import { Tag } from "tag.slint";
+import { ActionButton } from "action-button.slint";
 
 // One audio endpoint in the Audio category (preview audio FR-014), set by Rust.
 export struct AudioEndpointRow {
@@ -24,6 +25,23 @@ export struct AudioEndpointRow {
     exclusive: bool,
     // The preview plays on it now: the `Preview` tag (later specs add their own users).
     in-use: bool,
+}
+
+// One action in the Hotkeys category (screenshot FR-016), set by Rust.
+export struct HotkeyRowData {
+    action: string,
+    // The action's name in the current language.
+    name: string,
+    // The key as shown (`Ctrl+F8`, `Win+Shift+S`), empty when none.
+    key: string,
+    // The default key as shown; empty when the action has no default.
+    default-key: string,
+    // The key is the default: no Reset.
+    is-default: bool,
+    // Waiting for a key (FR-016, FR-017).
+    recording: bool,
+    // Why the last key was refused, empty when none.
+    refusal: string,
 }
 
 export global Prefs {
@@ -57,6 +75,16 @@ export global Prefs {
     in property <[AudioEndpointRow]> audio-outputs;
     // An endpoint's switch asked to change (by id); Rust saves it and sets the row.
     callback exclusive-changed(string, bool);
+    // The Hotkeys category (screenshot FR-016): each action's row, and whether keys work only
+    // while the window has the focus (FR-012). A click on a key starts recording it (again:
+    // stops); Rust reads the keys pressed before Slint sees them, so Esc cancels without closing
+    // the panel. A category change or the panel's closing cancels too.
+    in property <[HotkeyRowData]> hotkeys;
+    in property <bool> hotkeys-window-only;
+    callback hotkey-record(string);
+    callback hotkey-cancel();
+    callback hotkey-clear(string);
+    callback hotkey-reset(string);
     callback background-changed(int);
     callback watermark-changed(bool);
     callback shadow-changed(int);
@@ -71,7 +99,7 @@ export global Prefs {
 }
 
 // Later specs add their categories here (F40), with their names in `CategoryItem`.
-enum Category { general, appearance, preview, audio, about }
+enum Category { general, appearance, preview, audio, hotkeys, about }
 
 // No text here: a translated name in the list would make a language switch build the items
 // again, losing the keyboard focus and leaving a shown tooltip in the old language.
@@ -103,6 +131,7 @@ component CategoryItem inherits Rectangle {
         : root.id == Category.appearance ? @tr("Appearance")
         : root.id == Category.preview ? @tr("Preview")
         : root.id == Category.audio ? @tr("Audio")
+        : root.id == Category.hotkeys ? @tr("Hotkeys")
         : @tr("About");
 
     // The token of the tooltip shown, 0 when none.
@@ -572,6 +601,87 @@ component EndpointRow inherits Row {
     }
 }
 
+// An action with its key (screenshot FR-016): its name, under it the refusal of the last key
+// pressed (or how to cancel while recording); then the key button, which records a new key
+// ("Press a key…", filled with the accent while recording), **Clear** while it has a key and
+// **Reset** while the key is not the default. Clear and Reset keep their places when hidden, so
+// the key button does not move.
+component HotkeyRow inherits Row {
+    in property <HotkeyRowData> data;
+    callback record();
+    callback clear();
+    callback reset();
+
+    property <string> line: root.data.refusal != "" ? root.data.refusal
+        : root.data.recording ? @tr("Esc to cancel")
+        : "";
+
+    height: max(Rows.height, texts.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
+
+    area := TouchArea {
+        texts := VerticalLayout {
+            x: Rows.pad;
+            width: key.x - Rows.pad - Theme.gap-m;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: root.data.name;
+                color: Theme.c.text;
+                font-size: Rows.text;
+                wrap: word-wrap;
+            }
+
+            if root.line != "": Text {
+                text: root.line;
+                color: root.data.refusal != "" ? Theme.c.warn : Theme.c.text-muted;
+                font-size: Theme.text-m;
+                wrap: word-wrap;
+            }
+        }
+
+        // Placed by hand: a layout here would hand its fixed width to the row as its maximum.
+        key := ActionButton {
+            x: clear.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            width: max(150px, self.preferred-width);
+            primary: root.data.recording;
+            label: root.data.recording ? @tr("Press a key…")
+                : root.data.key == "" ? @tr("None")
+                : root.data.key;
+            clicked => { root.record(); }
+        }
+
+        clear := IconButton {
+            x: reset.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            size: 36px;
+            icon-size: 18px;
+            filled: true;
+            icon: @image-url("../assets/icons/backspace.svg");
+            tooltip: @tr("Clear");
+            visible: root.data.key != "";
+            focusable: self.visible;
+            clicked => { root.clear(); }
+        }
+
+        reset := IconButton {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            size: 36px;
+            icon-size: 18px;
+            filled: true;
+            icon: @image-url("../assets/icons/arrow_back_up.svg");
+            tooltip: root.data.default-key == "" ? @tr("Reset") : @tr("Reset to {}", root.data.default-key);
+            visible: !root.data.is-default;
+            focusable: self.visible;
+            clicked => { root.reset(); }
+        }
+    }
+}
+
 export component SettingsPanel inherits Raised {
     // The compact layout (FR-009): the column keeps only the icons.
     in property <bool> compact;
@@ -590,13 +700,17 @@ export component SettingsPanel inherits Raised {
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
         { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
         { id: Category.audio, icon: @image-url("../assets/icons/volume.svg") },
+        { id: Category.hotkeys, icon: @image-url("../assets/icons/keyboard.svg") },
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ] : [
         { id: Category.general, icon: @image-url("../assets/icons/adjustments_horizontal.svg") },
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
         { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
+        { id: Category.hotkeys, icon: @image-url("../assets/icons/keyboard.svg") },
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ];
+    // A recording ends when its row goes away (FR-016).
+    changed category => { Prefs.hotkey-cancel(); }
 
     // The category column runs the panel's full height on the base tone (FR-034).
     property <length> nav-pad: 10px;
@@ -801,6 +915,31 @@ export component SettingsPanel inherits Raised {
                     endpoint: endpoint;
                     last: index == (root.audio-tab == 0 ? Prefs.audio-inputs : Prefs.audio-outputs).length - 1;
                     toggled(on) => { Prefs.exclusive-changed(endpoint.id, on); }
+                }
+            }
+
+            // Where global keys cannot work (Wayland without the portal, FR-012).
+            if root.category == Category.hotkeys && Prefs.hotkeys-window-only: VerticalLayout {
+                padding-left: Rows.pad;
+                padding-right: Rows.pad;
+                padding-top: Theme.gap-s;
+                padding-bottom: Theme.gap-s;
+
+                Text {
+                    text: @tr("Works only while CapturaX is focused");
+                    color: Theme.c.text-muted;
+                    font-size: Theme.text-m;
+                    wrap: word-wrap;
+                }
+            }
+
+            if root.category == Category.hotkeys: VerticalLayout {
+                for row[index] in Prefs.hotkeys: HotkeyRow {
+                    data: row;
+                    last: index == Prefs.hotkeys.length - 1;
+                    record => { Prefs.hotkey-record(row.action); }
+                    clear => { Prefs.hotkey-clear(row.action); }
+                    reset => { Prefs.hotkey-reset(row.action); }
                 }
             }
 

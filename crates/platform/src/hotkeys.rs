@@ -151,7 +151,7 @@ impl Modifier {
     }
 
     /// The name in the settings file.
-    fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Modifier::Ctrl => "Ctrl",
             Modifier::Alt => "Alt",

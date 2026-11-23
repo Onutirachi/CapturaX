@@ -25,7 +25,7 @@ use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
 use crate::sound::Sound;
 use crate::theme::{self, SystemTheme};
-use crate::ui::{MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
+use crate::ui::{HotkeyRowData, MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
 use platform::autostart;
 use platform::snap::{self, ButtonRect, Snap, SnapEvent};
 use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
@@ -106,6 +106,8 @@ pub enum UserEvent {
     },
     /// The `hotkeys` thread's events (screenshot FR-012).
     Hotkey(platform::HotkeyEvent),
+    /// The Hotkeys category's controls (screenshot FR-016).
+    HotkeyUi(HotkeyUi),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
@@ -148,6 +150,17 @@ impl From<&settings::Preview> for Backdrop {
             shadow: p.shadow == settings::Shadow::Always,
         }
     }
+}
+
+/// What the Hotkeys category asks for (screenshot FR-016), by action.
+#[derive(Debug, Clone)]
+pub enum HotkeyUi {
+    /// A click on the key: starts recording it, or stops when it is recording.
+    Record(String),
+    /// Another category, or the panel closed: a recording ends without a change.
+    Cancel,
+    Clear(String),
+    Reset(String),
 }
 
 /// A change made in the settings panel.
@@ -229,6 +242,9 @@ pub struct App {
     screenshot_worker: Option<crate::screenshot::Worker>,
     /// The hotkeys, started once the window exists (screenshot T018).
     hotkeys: Option<crate::hotkeys::AppHotkeys>,
+    /// A Reset refused because another action has the default: shown on that row until the next
+    /// change in the Hotkeys category.
+    hotkey_refusal: Option<(&'static str, crate::hotkeys::Refusal)>,
     /// The next 3 s re-read while the preview waits for a device.
     relist_at: Instant,
     /// When microphone access is read next while the audio input is Blocked.
@@ -417,6 +433,7 @@ impl App {
             screenshot_at,
             screenshot_worker: None,
             hotkeys: None,
+            hotkey_refusal: None,
             tick_wall: None,
             relist_at: Instant::now(),
             audio_access_at: Instant::now(),
@@ -915,12 +932,106 @@ impl App {
                 let _ = proxy.send_event(UserEvent::Hotkey(event));
             },
         );
-        // The key the user set, also when the system refused it (FR-011: "the key the user set").
-        let key = hotkeys.key(crate::hotkeys::SCREENSHOT);
+        self.hotkeys = Some(hotkeys);
+        self.show_hotkeys();
+    }
+
+    /// Shows the keys: the Hotkeys category's rows (FR-016) and the dock button's tooltip, which
+    /// names the key the user set, also when the system refused it (FR-011). Called after every
+    /// change and after a language switch (the key names are the locale's).
+    fn show_hotkeys(&self) {
+        let Some(hotkeys) = &self.hotkeys else {
+            return;
+        };
+        let texts = Texts::get(&self.ui.app);
+        let shown = |key: Option<platform::Hotkey>| key.map(|key| key_text(&texts, key)).unwrap_or_default();
+        let recording = hotkeys.recording();
+        let rows: Vec<HotkeyRowData> = hotkeys
+            .bindings()
+            .iter()
+            .map(|&(action, key)| {
+                let default = crate::hotkeys::default_key(action);
+                let refusal = match recording {
+                    Some((recorded, refusal)) if recorded == action => refusal,
+                    _ => self
+                        .hotkey_refusal
+                        .filter(|(refused, _)| *refused == action)
+                        .map(|(_, refusal)| refusal),
+                };
+                HotkeyRowData {
+                    action: action.into(),
+                    name: hotkey_description(&texts, action).into(),
+                    key: shown(key).into(),
+                    default_key: shown(default).into(),
+                    is_default: key == default,
+                    recording: recording.is_some_and(|(recorded, _)| recorded == action),
+                    refusal: refusal
+                        .map(|refusal| refusal_text(&texts, refusal))
+                        .unwrap_or_default()
+                        .into(),
+                }
+            })
+            .collect();
+        let prefs = self.ui.app.global::<Prefs>();
+        prefs.set_hotkeys(slint::ModelRc::new(slint::VecModel::from(rows)));
+        prefs.set_hotkeys_window_only(hotkeys.window_only());
         self.ui
             .app
-            .set_screenshot_key(key.map(|k| k.shown(platform::IS_WINDOWS)).unwrap_or_default().into());
-        self.hotkeys = Some(hotkeys);
+            .set_screenshot_key(shown(hotkeys.key(crate::hotkeys::SCREENSHOT)).into());
+    }
+
+    /// Saves `action`'s key in the settings file (FR-018).
+    fn save_hotkey(&self, action: &str, key: Option<platform::Hotkey>) {
+        self.store
+            .update(|s| crate::hotkeys::set_setting(&mut s.hotkeys, action, key));
+    }
+
+    /// A control of the Hotkeys category (FR-016).
+    fn hotkey_ui(&mut self, ui: HotkeyUi) {
+        let Some(hotkeys) = &mut self.hotkeys else {
+            return;
+        };
+        self.hotkey_refusal = None;
+        match ui {
+            HotkeyUi::Record(action) => {
+                if hotkeys.recording().is_some_and(|(recorded, _)| recorded == action) {
+                    hotkeys.cancel_recording();
+                } else {
+                    hotkeys.start_recording(&action);
+                }
+            }
+            HotkeyUi::Cancel => hotkeys.cancel_recording(),
+            HotkeyUi::Clear(action) => {
+                hotkeys.clear(&action);
+                self.save_hotkey(&action, None);
+            }
+            HotkeyUi::Reset(action) => match hotkeys.reset(&action) {
+                Ok(key) => self.save_hotkey(&action, key),
+                Err(refusal) => {
+                    log::info!("hotkeys: {action} reset refused ({refusal:?})");
+                    self.hotkey_refusal = hotkeys
+                        .bindings()
+                        .iter()
+                        .find(|(name, _)| *name == action)
+                        .map(|(name, _)| (*name, refusal));
+                }
+            },
+        }
+        self.show_hotkeys();
+        self.request_redraw();
+    }
+
+    /// A key event of the window while a key is being recorded (FR-016, FR-017): it goes to the
+    /// recorder, not to Slint (Esc cancels the recording, it does not close the panel).
+    fn record_hotkey(&mut self, event: &winit::event::KeyEvent) {
+        let Some(hotkeys) = &mut self.hotkeys else {
+            return;
+        };
+        if let Some(crate::hotkeys::Recorded::Accepted { action, key }) = hotkeys.record(event) {
+            self.save_hotkey(action, Some(key));
+        }
+        self.show_hotkeys();
+        self.request_redraw();
     }
 
     /// Runs a hotkey's action.
@@ -1293,6 +1404,7 @@ impl App {
             let texts = Texts::get(&self.ui.app);
             hotkeys.register(|action| hotkey_description(&texts, action));
         }
+        self.show_hotkeys();
         // The menus' named texts are read again from the new catalog.
         self.reset_menus();
         self.show_notice();
@@ -1757,6 +1869,14 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     prefs.on_exclusive_changed(move |id, v| {
         on(UserEvent::Exclusive { id: id.into(), on: v });
     });
+    let on = send.clone();
+    prefs.on_hotkey_record(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Record(action.into()))));
+    let on = send.clone();
+    prefs.on_hotkey_cancel(move || on(UserEvent::HotkeyUi(HotkeyUi::Cancel)));
+    let on = send.clone();
+    prefs.on_hotkey_clear(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Clear(action.into()))));
+    let on = send.clone();
+    prefs.on_hotkey_reset(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Reset(action.into()))));
     set_language_items(ui);
     prefs.set_language(i18n::choice_index(&general.language));
     prefs.set_theme(theme::choice_index(general.theme));
@@ -1866,6 +1986,42 @@ fn hotkey_description(texts: &Texts<'_>, action: &str) -> String {
     match action {
         crate::hotkeys::SCREENSHOT => texts.get_hotkey_screenshot().into(),
         other => other.to_string(),
+    }
+}
+
+/// A key as the UI shows it, with the platform's modifier names and the locale's key names.
+fn key_text(texts: &Texts<'_>, key: platform::Hotkey) -> String {
+    use platform::Key;
+    crate::hotkeys::shown(key, platform::IS_WINDOWS, |key| {
+        match key {
+            Key::Space => texts.get_key_space(),
+            Key::Insert => texts.get_key_insert(),
+            Key::Delete => texts.get_key_delete(),
+            Key::Home => texts.get_key_home(),
+            Key::End => texts.get_key_end(),
+            Key::PageUp => texts.get_key_page_up(),
+            Key::PageDown => texts.get_key_page_down(),
+            Key::Up => texts.get_key_up(),
+            Key::Down => texts.get_key_down(),
+            Key::Left => texts.get_key_left(),
+            Key::Right => texts.get_key_right(),
+            Key::Pause => texts.get_key_pause(),
+            Key::PrintScreen => texts.get_key_print_screen(),
+            other => other.name().into(),
+        }
+        .into()
+    })
+}
+
+/// Why a key was refused, for its row (FR-016).
+fn refusal_text(texts: &Texts<'_>, refusal: crate::hotkeys::Refusal) -> String {
+    match refusal {
+        crate::hotkeys::Refusal::NotAllowed => texts
+            .invoke_hotkey_not_allowed(if platform::IS_WINDOWS { "Win" } else { "Super" }.into())
+            .into(),
+        crate::hotkeys::Refusal::Taken(action) => texts
+            .invoke_hotkey_taken(hotkey_description(texts, action).into())
+            .into(),
     }
 }
 
@@ -2099,10 +2255,16 @@ impl ApplicationHandler<UserEvent> for App {
                 self.show_audio();
             }
             UserEvent::Hotkey(event) => {
+                let pressed = matches!(event, platform::HotkeyEvent::Pressed(_));
                 if let Some(action) = self.hotkeys.as_mut().and_then(|h| h.event(event)) {
                     self.hotkey_action(action);
                 }
+                // `WindowOnly` changes the category's line.
+                if !pressed {
+                    self.show_hotkeys();
+                }
             }
+            UserEvent::HotkeyUi(ui) => self.hotkey_ui(ui),
             // The level moves and the sound plays again, as with the slider.
             UserEvent::VolumeWheel(delta) => {
                 let notches = self.volume_wheel.notches(delta);
@@ -2192,6 +2354,13 @@ impl ApplicationHandler<UserEvent> for App {
                 // Where minimizing cannot be read (Wayland), focus is the sign the window is back.
                 if focused {
                     self.update_shown();
+                } else if let Some(hotkeys) = &mut self.hotkeys
+                    && hotkeys.recording().is_some()
+                {
+                    // A key being recorded is left as it was (screenshot FR-016).
+                    hotkeys.cancel_recording();
+                    self.show_hotkeys();
+                    self.request_redraw();
                 }
             }
             WindowEvent::Resized(_) => {
@@ -2228,6 +2397,13 @@ impl ApplicationHandler<UserEvent> for App {
                 if Instant::now() >= self.last_ui + self.refresh {
                     self.update_ui();
                 }
+            }
+            // A key being recorded (screenshot FR-016, research R14): neither Slint nor the
+            // window's own keys see it.
+            WindowEvent::KeyboardInput { ref event, .. }
+                if self.hotkeys.as_ref().is_some_and(|h| h.recording().is_some()) =>
+            {
+                self.record_hotkey(event);
             }
             // Only where global keys do not work (research R8); the key does not reach Slint.
             WindowEvent::KeyboardInput { ref event, .. }

@@ -78,6 +78,28 @@ export global Texts {
     out property <string> notice-show: @tr("Show");
     // The hotkey actions' names (screenshot FR-013), also given to the desktop's shortcut list.
     out property <string> hotkey-screenshot: @tr("Screenshot");
+    // Why the Hotkeys category refused a key (FR-016): the rules, with the platform's name of the
+    // Super key (Win, Super), and the action that already has it.
+    public pure function hotkey-not-allowed(super-key: string) -> string {
+        @tr("Use F1–F24, or a key with Ctrl, Alt or {}", super-key)
+    }
+    public pure function hotkey-taken(action: string) -> string {
+        @tr("Already used by {}", action)
+    }
+    // The names of the keys that are not a letter, a digit or F1–F24, as hotkeys show them.
+    out property <string> key-space: @tr("Space");
+    out property <string> key-insert: @tr("Insert");
+    out property <string> key-delete: @tr("Delete");
+    out property <string> key-home: @tr("Home");
+    out property <string> key-end: @tr("End");
+    out property <string> key-page-up: @tr("Page Up");
+    out property <string> key-page-down: @tr("Page Down");
+    out property <string> key-up: @tr("Up");
+    out property <string> key-down: @tr("Down");
+    out property <string> key-left: @tr("Left");
+    out property <string> key-right: @tr("Right");
+    out property <string> key-pause: @tr("Pause");
+    out property <string> key-print-screen: @tr("Print Screen");
     out property <string> notice-settings: @tr("Settings");
     // The mode menu (FR-007): its group headers, the automatic modes' names, and the detail line of
     // an automatic choice, its name then the mode it opens ("Auto max FPS · 1920 × 1080 · 120").

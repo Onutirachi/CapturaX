@@ -25,6 +25,8 @@ export component IconButton inherits Rectangle {
     in property <bool> focusable: true;
     // Where the tooltip prefers to open: towards the inside of the window.
     in property <Side> tooltip-side: Side.top;
+    // On the opaque top surface with the text buttons' corners, beside them in a settings row.
+    in property <bool> filled;
     out property <bool> hovered: area.has-hover;
     out property <bool> has-focus: focus.has-focus;
     in property <bool> takes-wheel;
@@ -48,11 +50,12 @@ export component IconButton inherits Rectangle {
 
     width: root.size;
     height: root.size;
-    border-radius: Theme.radius-m;
+    border-radius: root.filled ? Theme.radius-s : Theme.radius-m;
     // A toggled tool sits on an opaque chip: on a semi-transparent panel the video behind would
     // change the icon's contrast (the soft accent tint is laid over it below).
     background: root.active && root.primary ? (area.has-hover ? Theme.c.accent-hover : Theme.c.accent)
         : root.active ? Theme.c.raised
+        : root.filled ? Theme.c.top
         : transparent;
     animate background { duration: Theme.quick; }
     opacity: root.enabled ? 1 : 0.35;
