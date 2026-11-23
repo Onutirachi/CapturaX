@@ -24,6 +24,7 @@ recorder) done 2026-11-23 as unwired code and committed; T031 (Hotkeys category)
 dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`) done
 2026-11-23; check 14 passes on Windows (T035's Windows half, acceptance.md). T036
 (failure notices, **Settings** opens Folders) done 2026-11-23; checks 9 and 15 pass on Windows.
+T038 (docs) done 2026-11-23.
 
 ## Done in the last sessions
 
@@ -325,6 +326,13 @@ dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`)
 - Defaults chosen without asking, for review: button disabled while the video area shows a
   state; no screenshot when hidden to the tray; at most 4 waiting; file name
   `CapturaX <YYYY-MM-DD HH-MM-SS>.png`; sound gain 0.5.
+- 2026-11-23: T038: README "Screenshots" section (key, dock button, flash, sound, notice,
+  file names, Folders and Hotkeys categories, Linux X11/Wayland/clipboard limits) and
+  `--screenshot-every` in the developer options; AGENTS.md "Status"; product.md Spec column for
+  F19 and F50 (the first rows filled: earlier specs left theirs empty, not back-filled);
+  roadmap #5 "done" with links. Written for the branch's final state: the README describes the
+  Wayland portal (T017, not built yet) and the roadmap links `measurements/latency.md`, which
+  T027 creates. Check both before the pull request (T041).
 
 ## Next step
 
@@ -334,7 +342,7 @@ dialog, `7b41db6`) and T034 (Folders category, `8d22042`, spec change `bca5ded`)
    source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
    reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`.
    T028–T031, T033, T034 and T036 done (2026-11-23); T037 (checks 9 and 15) passes on
-   Windows, Linux left. Next agent work: T038 (docs) or T027. T032 (checks 11–13), T037's
+   Windows, Linux left. T038 done. Next agent work: T017 once T004 runs on CachyOS; the rest waits for the maintainer. T032 (checks 11–13), T037's
    Linux half and T035's Linux half (check 14: the portal folder dialog, never run) still
    need CachyOS.
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:

@@ -12,7 +12,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 2 | [App shell](#2-app-shell) ([spec](../specs/20261104-112852-app-shell/spec.md)) | F8, F11 (framework), F39, F40, F41 (settings storage), F46, F48, F49 | 1 | done |
 | 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
 | 4 | [Preview audio](#4-preview-audio) ([spec](../specs/20261113-103922-preview-audio/spec.md)) | F12–F14, F47 | 3 | done |
-| 5 | [Screenshot](#5-screenshot) ([spec](../specs/20261121-134830-screenshot/spec.md)) | F19, F50 (framework, screenshot) | 3 | in progress |
+| 5 | [Screenshot](#5-screenshot) ([spec](../specs/20261121-134830-screenshot/spec.md)) | F19, F50 (framework, screenshot) | 3 | done |
 | 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
 | 8 | [Output audio](#8-output-audio) | F15–F17 | 4 | |
@@ -115,6 +115,14 @@ and the Linux path. Must state a latency budget and how it is measured.
 ```
 
 ### 5. Screenshot
+
+Done: [handoff](../specs/20261121-134830-screenshot/handoff.md),
+[acceptance](../specs/20261121-134830-screenshot/measurements/acceptance.md),
+[latency](../specs/20261121-134830-screenshot/measurements/latency.md) and
+[probes](../specs/20261121-134830-screenshot/measurements/probes.md). PNG saved off the
+preview's thread and copied to the clipboard, an outline flash and a capture sound on the
+preview's output; global hotkeys through `RegisterHotKey` on Windows, X11 key grabs and the
+GlobalShortcuts portal on Linux (window-only without it). The Folders category is ready for the recordings folder of spec #9.
 
 ```text
 /speckit-specify Screenshot (see docs/roadmap.md #5): covers F19 from docs/product.md.

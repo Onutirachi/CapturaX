@@ -12,8 +12,10 @@ settings, tray, autostart, single instance and a test video. The device preview 
 `20261106-170507-device-preview`) is built: capture cards and webcams in their
 native mode, with device notices and the Linux NVIDIA performance request. The preview audio
 (spec `20261113-103922-preview-audio`) is built: the paired input on a chosen output with
-volume and mute, WASAPI on Windows (with exclusive mode) and PipeWire on Linux. Build and
-run instructions are in the [README](README.md). The previous version lives in the
+volume and mute, WASAPI on Windows (with exclusive mode) and PipeWire on Linux. Screenshots
+(spec `20261121-134830-screenshot`) are built: PNG to a folder and the clipboard, outline flash
+and capture sound, and the global hotkey framework (Ctrl+Shift+F8, Hotkeys and Folders categories).
+Build and run instructions are in the [README](README.md). The previous version lives in the
 [CapturaX-old](https://github.com/Onutirachi/CapturaX-old) repository and is reference only.
 
 ## Starting a session

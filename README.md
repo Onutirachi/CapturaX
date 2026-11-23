@@ -5,13 +5,14 @@ console through it. Capture screens and windows, take screenshots, record, and s
 stream with friends by link. A simple alternative for these tasks, not a replacement for OBS.
 
 > **Status:** early rewrite. The app shows a capture card or webcam in its native mode and
-> plays its sound with low latency, with settings, tray and device notices. The previous
-> version is in [CapturaX-old](https://github.com/Onutirachi/CapturaX-old).
+> plays its sound with low latency, takes screenshots with a global key, with settings, tray
+> and device notices. The previous version is in
+> [CapturaX-old](https://github.com/Onutirachi/CapturaX-old).
 
 ## Planned
 
 - Screens and windows as a source
-- Screenshots and crash-safe recordings with hardware encoding
+- Crash-safe recordings with hardware encoding
 - Live streaming by direct link, or peer-to-peer through a self-hosted server
 - Windows and Linux, portable (settings stay in the program folder)
 
@@ -61,6 +62,30 @@ an exclusive device skips the Windows mixer for the lowest delay, and no other a
 while the preview does. On Linux the app plays through PipeWire with a 128-frame quantum
 (about 2.7 ms at 48 kHz) and has no exclusive mode.
 
+### Screenshots
+
+**Ctrl+Shift+F8**, or the camera button in the right dock, saves the next frame of the preview as a
+PNG at the device's native resolution, with the colors the preview shows and without the
+interface, and copies it to the clipboard. A white outline flashes around the video and a short
+capture sound plays on the preview's audio output (also when the preview is muted or has no
+audio), so you know it was taken while playing. A notice then says whether the file was saved
+and copied; **Show** opens the file manager on the file. When no frame can be taken (no image,
+or too many screenshots still being written) nothing plays and nothing is saved.
+
+Files are named `CapturaX <YYYY-MM-DD HH-MM-SS>.png` in local time and never overwritten. They
+go to `Pictures/CapturaX` by default; the settings' **Folders** category changes, opens or
+resets the folder. A chosen folder is kept as an absolute path, the default as "default", so a
+copied installation uses the other system's Pictures folder.
+
+The key works while another app (a game) has the focus, and while CapturaX is minimized or
+hidden to the tray. The settings' **Hotkeys** category changes it: click the key and press the
+new one (a function key alone, or a key with Ctrl, Alt or Win/Super), Esc to cancel; it can also
+be cleared or reset. A key the system refuses (another program holds it) is logged and the row
+says so. On Linux the key is global under X11 and, under Wayland, through the desktop's global
+shortcuts portal; without the portal it works only while CapturaX's window has the focus. The
+copied image stays pasteable on Linux while CapturaX runs, and after it quits only with a
+clipboard manager.
+
 Developer options (`--help` lists every option):
 
 | Option | Effect |
@@ -69,6 +94,7 @@ Developer options (`--help` lists every option):
 | `--test-video <PRESET>` | Plays a moving test pattern (`1080p60`, `1440p60` or `WxH@FPS`) instead of a device |
 | `--stats` | Prints presentation statistics once per second (also to `capturax.log`) |
 | `--no-audio` | Starts without the preview audio, to compare the video's measurements with and without sound |
+| `--screenshot-every <MS>` | Debug builds: takes a screenshot every `MS` milliseconds, as the key would, to measure their cost on the preview |
 | `--present-log <FILE>` | Writes one line per acquire, present and window event, to match against PresentMon |
 | `--backend`, `--present` | Force the graphics backend (`dx12`, `vulkan`, `gl`) or the present mode |
 
