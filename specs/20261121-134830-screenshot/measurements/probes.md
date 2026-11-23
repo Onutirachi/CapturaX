@@ -21,13 +21,14 @@ The 2 s clipboard timeout (T014) leaves room even in a debug build.
 
 ### Windows: pastes (maintainer)
 
-Focus another app within 5 s of the start, then paste.
+Checked through the app itself once T013/T019 were wired (2026-11-23, quickstart check 1): the
+same `arboard` call the probe makes, from the `clipboard` thread, with another app focused too.
 
 | Target | Pasted | Notes |
 |---|---|---|
-| GIMP or Krita | | |
-| Paint | | |
-| Discord (browser) | | |
+| GIMP or Krita | yes | maintainer, check 1 |
+| Paint | yes | maintainer, check 1 |
+| Discord (browser) | yes | maintainer, check 1 |
 
 ### CachyOS, Wayland (maintainer)
 

@@ -1,6 +1,6 @@
 # Handoff: Screenshot
 
-**Updated**: 2026-11-22 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261121-134830-screenshot`
+**Updated**: 2026-11-23 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261121-134830-screenshot`
 
 ## State
 
@@ -16,7 +16,8 @@ screenshot state/writing, then the debug flag with its temporary wiring). T015, 
 T022 done and committed as unwired code (fmt, clippy, tests); their manual checks wait (Next
 step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and committed
 (`f3c5505`); T023 (sound player) committed with the maintainer's final sound (T040). T014
-(worker) committed as unwired code, with the clipboard injected until T013.
+(worker) committed as unwired code. T013 (clipboard) and T019 (wiring) done 2026-11-23 and
+checked on Windows by the maintainer (measurements/acceptance.md, first pass).
 
 ## Done in the last sessions
 
@@ -176,6 +177,25 @@ step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and comm
   T019 passes `Clipboard::set_image` (T013). `png` is a dev-dependency of the app (the test
   decodes the file). 5 new tests (260 app tests), clippy clean.
 
+- 2026-11-23: T013 (uncommitted): crates/platform/src/clipboard.rs, `platform::Clipboard`
+  (`start`, `set_image(w, h, Arc<[u8]>, timeout)`): a `clipboard` thread opens one
+  `arboard::Clipboard` at the first image (again at the next when it failed) and keeps it until
+  dropped; a wrong buffer size is refused before the thread; a timeout answers the caller while
+  the image is still set later. 3 tests (no real clipboard touched: that is a foreground test).
+  Started on the Windows set time alone; the probe's pastes are checked through the app itself.
+- 2026-11-23: T019 (uncommitted): app.rs `still()` runs `Screenshots::taken`'s commands: sound,
+  then a `Job` (folder from `[screenshot] folder` and local time at the frame's arrival) to the
+  `screenshot_worker`, started at the first screenshot with `Clipboard::start()`;
+  `UserEvent::Written` → `Screenshots::written` → `event_notice` (Show → `show_file`, already
+  wired). The main thread's "taken" line is gone (the worker logs it). A worker that cannot
+  start or is gone gives the `failed` notice (write error), since the sound already played.
+  `exiting` stops the worker with `QUIT_WAIT` after the video thread, before the settings
+  flush. The T019 `dead_code` markers in screenshot.rs and notices.rs removed. fmt, clippy,
+  260 app tests pass. Checked in the app (acceptance.md). Note for testers: a hand-edited
+  `capturax.toml` with a Windows path in `"…"` (a basic string, `\C` an invalid escape) is
+  invalid TOML and the whole file is set aside as damaged; use `'…'` or forward slashes.
+- 2026-11-23: roadmap #17 gained the Exclusive box's list flicker (maintainer).
+
 ## Decisions
 
 - The F50 global hotkey framework and the screenshot key (Ctrl+F8) come in this spec, not in
@@ -219,9 +239,15 @@ step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and comm
 
 ## Next step
 
+0. Windows passes done (2026-11-23, measurements/acceptance.md): checks 1, 2, 4, 5, 6 and 15
+   pass (real PS5 picture at 1080p60 included), the T003 Windows paste rows filled. T025 still
+   needs check 7 with the PS5 at 4K output (the "4K" try was 2560×1440 with no matching
+   source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
+   reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`. Next agent work: T028 (dock button, US2) or T030
+   (key recorder, US3), both unblocked now.
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
-   clipboard pastes on Windows (GIMP/Krita, Paint, Discord) and on CachyOS (Wayland, X11 if
-   installed); `shortcuts_probe` on CachyOS.
+   clipboard pastes on CachyOS (Wayland, X11 if installed; Windows done through the app);
+   `shortcuts_probe` on CachyOS.
 2. Done on Windows (2026-11-22): device notices (ezcap disabled/enabled in Device Manager:
    balloon and system notification, both logged), notice preview approved, `files` show/open
    OK, hand-off OK, outline flash approved. Left for CachyOS: the `files` example (show/open:
