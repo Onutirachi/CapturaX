@@ -32,7 +32,8 @@ The Linux (Wayland) checks were run by the agent on CachyOS, 2026-11-23: T026, T
 T037 done; T003 done (Krita AppImage).
 T027's Windows half and the rest of T025 the agent can do (checks 5 and 7, a quit with screenshots
 waiting) done by the agent on Windows, 2026-11-23 (measurements/latency.md, acceptance.md third
-pass); SC-003 amended for 4K (Decisions).
+pass); SC-003 amended for 4K (Decisions). Checks 3 and 10 passed on Windows (maintainer,
+2026-11-23): T025 done.
 
 ## Done in the last sessions
 
@@ -418,12 +419,12 @@ pass); SC-003 amended for 4K (Decisions).
   Wayland portal (T017, not built yet) and the roadmap links `measurements/latency.md`, which
   T027 creates. Check both before the pull request (T041).
 
+- Maintainer's remark, 2026-11-23: the volume button still works on "No audio"; added to the
+  roadmap's #17 UI review (dim it when there is no sound to play).
+
 ## Next step
 
-1. Maintainer, Windows: T025 check 3 (Ctrl+Shift+F8 in a fullscreen PC game, focus stays) and
-   check 10 (headset that is not the default: normal, muted, "No audio", exclusive); then T025
-   is done.
-2. T027's Linux half: with the ezcap moved to CachyOS (agent over SSH; measurement build:
+1. T027's Linux half: with the ezcap moved to CachyOS (agent over SSH; measurement build:
    `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true cargo build --release`), 1080p60, 1080p120 and
    4K30, baseline and `--screenshot-every 1000`, ~30 s each, as latency.md's Windows part.
-3. T041 (pull request; check the README and the roadmap links first, T038 note).
+2. T041 (pull request; check the README and the roadmap links first, T038 note).

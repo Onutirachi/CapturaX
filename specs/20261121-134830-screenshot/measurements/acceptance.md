@@ -128,5 +128,14 @@ in a game; the agent ran the app, sent Ctrl+F8 with `keybd_event` and read the l
 | 7 | pass | PS5 at 4K output, mode 3840x2160@30: real pictures (10 MB files), notice 254–343 ms after the request over 90 screenshots (rgb 90–97 ms, png 39–48 ms, copied 106–131 ms) |
 | quit | pass | closed as soon as screenshot 1's line was logged: app ended 100 ms later, file complete. Five presses 15 ms apart (the 5th "not taken (Busy)") and the window closed at once: the 4 waiting screenshots were written and copied, the app ended 1 ms after the last (≈ 220 ms), all 4 PNGs complete (IEND) |
 
-Still for T025, by the maintainer: check 3 (fullscreen PC game) and check 10 (headset that is
-not the default: normal, muted, "No audio", exclusive).
+## Windows, fourth pass (maintainer, 2026-11-23)
+
+Release build of `7360f57`, ezcap previewed.
+
+| # | Result | Notes |
+|---|---|---|
+| 3 | pass | Ctrl+Shift+F8 with a fullscreen PC game focused: screenshot taken, focus stayed in the game |
+| 10 | pass | output a headset that is not the system default: capture sound heard on it with the preview normal, muted, on "No audio" and with the output exclusive |
+
+Remark: on "No audio" the volume control still works (it sets the app's one level, FR-012 of
+preview audio, but nothing plays). Added to the roadmap's #17 UI review.
