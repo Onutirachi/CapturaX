@@ -122,7 +122,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 **Independent Test**: quickstart checks 11–13.
 
-- [ ] T030 [US3] Key recorder (FR-016–FR-018): pure state in app/src/hotkeys.rs: `start(action)` (suspends the hotkeys, FR-017), `key(event)` → accepted (saved, re-registered at once), refused (not `allowed()`, or used by another action: which one), Esc cancels; `clear`, `reset`; `Hotkey::from_slint(text, modifiers)` mapping Slint key events; tests for each
+- [X] T030 [US3] Key recorder (FR-016–FR-018): pure state in app/src/hotkeys.rs: `start(action)` (suspends the hotkeys, FR-017), `key(event)` → accepted (saved, re-registered at once), refused (not `allowed()`, or used by another action: which one), Esc cancels; `clear`, `reset` (refused when another action has the default); the window's winit key events mapped with `from_window` (research R14), modifiers alone ignored; tests for each
 - [ ] T031 [US3] Hotkeys category (FR-016, FR-012): in app/ui/components/settings-panel.slint add `hotkeys` after `screenshot` (icon `keyboard.svg`), one row per action: name, key button ("Press a key…" while recording, the refused reason), Clear, Reset (only when not the default); on Wayland with the portal the key shown is the desktop's and Change calls `configure()` or shows "Change it in the system settings"; window-only shows "Works only while CapturaX is focused"; key names shown per platform and language (`Win`/`Super`, the locale's names such as `PgUp`) come from app/ui/texts.slint and the catalog
 - [ ] T032 [US3] (maintainer) quickstart checks 11–13 on both systems
 

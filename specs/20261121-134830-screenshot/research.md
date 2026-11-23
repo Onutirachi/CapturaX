@@ -289,8 +289,11 @@ End, Page Up, Page Down, the four arrows, Pause, Print Screen. Text form for the
 and the UI: `Ctrl+Shift+F8` (modifiers in that order; `Win` is shown for Super on Windows, the
 file always says `Super`). Rules of FR-016 in `Hotkey::allowed`. Mappings: Windows virtual-key
 codes; X11 keysyms; the portal's trigger strings (`CTRL+SHIFT+F8`, `LOGO` for Super). The key
-recorder in the UI reads Slint's key events (the text of the key plus modifiers) and maps them
-with `Hotkey::from_slint`.
+recorder reads the window's winit key events before Slint sees them and maps them with the app's
+`from_window` (the key without modifiers, a digit also from the physical top row), the same
+mapping as window-only matching (R8). Slint's key text was set aside (T030, 2026-11-23): it has
+the modifiers applied (Ctrl+Shift+1 gives `!`, AZERTY's top row gives `&`), so digits could not
+be read.
 
 **Rationale**: a closed list maps the same on every platform and keeps keys that change with the
 keyboard layout (punctuation) out.

@@ -1289,7 +1289,7 @@ impl App {
             window.set_title(Texts::get(&self.ui.app).get_app_name().as_str());
         }
         set_language_items(&self.ui);
-        if let Some(hotkeys) = &self.hotkeys {
+        if let Some(hotkeys) = &mut self.hotkeys {
             let texts = Texts::get(&self.ui.app);
             hotkeys.register(|action| hotkey_description(&texts, action));
         }

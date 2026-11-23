@@ -155,10 +155,152 @@ fn physical_digit(physical: PhysicalKey) -> Option<Key> {
     }
 }
 
+/// The action's default key.
+fn default_key(action: &str) -> Option<Hotkey> {
+    ACTIONS
+        .iter()
+        .find(|(name, _)| *name == action)
+        .and_then(|(_, default)| Hotkey::parse(default))
+}
+
+/// Writes the action's key into the settings (`""`: no key, FR-018).
+#[cfg_attr(not(test), expect(dead_code, reason = "the Hotkeys category calls it (T031)"))]
+pub fn set_setting(hotkeys: &mut settings::Hotkeys, action: &str, key: Option<Hotkey>) {
+    let text = key.map(|key| key.to_string()).unwrap_or_default();
+    match action {
+        SCREENSHOT => hotkeys.screenshot = text,
+        _ => log::warn!("hotkeys: no setting for action {action}"),
+    }
+}
+
+/// A key press while recording, from the window (research R14).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Press {
+    /// Esc: cancels.
+    Escape,
+    /// A key that maps to a hotkey (allowed or not).
+    Key(Hotkey),
+    /// A key outside the closed list (a symbol, Enter…).
+    Other,
+}
+
+/// The press a window key event makes while recording; None for what the recorder ignores: a
+/// release, an auto-repeat, a modifier alone.
+#[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
+fn press(modifiers: ModifiersState, event: &KeyEvent) -> Option<Press> {
+    if event.state != winit::event::ElementState::Pressed || event.repeat {
+        return None;
+    }
+    press_of(modifiers, &event.key_without_modifiers(), event.physical_key)
+}
+
+/// [`press`] from the modifiers, the key without modifiers and the physical key.
+fn press_of(modifiers: ModifiersState, key: &winit::keyboard::Key, physical: PhysicalKey) -> Option<Press> {
+    use winit::keyboard::Key as WinitKey;
+    match key {
+        WinitKey::Named(NamedKey::Escape) => Some(Press::Escape),
+        WinitKey::Named(
+            NamedKey::Control
+            | NamedKey::Shift
+            | NamedKey::Alt
+            | NamedKey::AltGraph
+            | NamedKey::Super
+            | NamedKey::Meta
+            | NamedKey::Hyper,
+        ) => None,
+        _ => Some(from_window(modifiers, key, physical).map_or(Press::Other, Press::Key)),
+    }
+}
+
+/// Why a key cannot be the action's (FR-016).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// Not a key the rules allow (a letter without Ctrl, Alt or Super, a key outside the list…).
+    NotAllowed,
+    /// Another action has it.
+    Taken(&'static str),
+}
+
+/// What a press did to the recording.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Recorded {
+    /// The key is the action's now: save and register it (FR-018).
+    Accepted { action: &'static str, key: Hotkey },
+    /// Refused; still recording, the row shows why.
+    Refused(Refusal),
+    /// Esc: the key is unchanged.
+    Cancelled,
+}
+
+/// Whether `key` can be `action`'s among `bindings` (FR-016).
+fn check(bindings: &[(&'static str, Option<Hotkey>)], action: &str, key: Hotkey) -> Result<(), Refusal> {
+    if !key.allowed() {
+        return Err(Refusal::NotAllowed);
+    }
+    match bindings
+        .iter()
+        .find(|(other, bound)| *other != action && *bound == Some(key))
+    {
+        Some((other, _)) => Err(Refusal::Taken(other)),
+        None => Ok(()),
+    }
+}
+
+/// Gives `action` its new key in `bindings`.
+fn assign(bindings: &mut [(&'static str, Option<Hotkey>)], action: &str, key: Option<Hotkey>) {
+    if let Some(binding) = bindings.iter_mut().find(|(name, _)| *name == action) {
+        binding.1 = key;
+    }
+}
+
+/// The key recorder (FR-016, FR-017): which action is recording and the last refusal shown.
+#[derive(Debug, Default)]
+pub struct Recorder {
+    recording: Option<(&'static str, Option<Refusal>)>,
+}
+
+impl Recorder {
+    /// The action recording, if any, with the refusal of its last press.
+    pub fn recording(&self) -> Option<(&'static str, Option<Refusal>)> {
+        self.recording
+    }
+
+    /// Starts recording `action`'s key (a new start replaces another recording).
+    fn start(&mut self, action: &'static str) {
+        self.recording = Some((action, None));
+    }
+
+    /// Stops without a change (the panel closed, the window lost the focus).
+    fn cancel(&mut self) -> bool {
+        self.recording.take().is_some()
+    }
+
+    /// A press while recording; None when not recording.
+    fn press(&mut self, bindings: &[(&'static str, Option<Hotkey>)], press: Press) -> Option<Recorded> {
+        let (action, _) = self.recording?;
+        let outcome = match press {
+            Press::Escape => Recorded::Cancelled,
+            Press::Other => Recorded::Refused(Refusal::NotAllowed),
+            Press::Key(key) => match check(bindings, action, key) {
+                Ok(()) => Recorded::Accepted { action, key },
+                Err(refusal) => Recorded::Refused(refusal),
+            },
+        };
+        self.recording = match outcome {
+            Recorded::Refused(refusal) => Some((action, Some(refusal))),
+            Recorded::Accepted { .. } | Recorded::Cancelled => None,
+        };
+        Some(outcome)
+    }
+}
+
 /// The running hotkeys: the bindings and the platform's `hotkeys` thread.
 pub struct AppHotkeys {
     hotkeys: platform::Hotkeys,
     bindings: Vec<(&'static str, Option<Hotkey>)>,
+    recorder: Recorder,
+    /// The actions' descriptions for the platform, kept for re-registering after a change.
+    descriptions: Vec<String>,
     /// No global keys: key presses in the window are matched here (research R8).
     window_only: bool,
     /// The modifiers held, from the window's events (for `window_only`).
@@ -173,9 +315,11 @@ impl AppHotkeys {
         description: impl Fn(&str) -> String,
         send: impl Fn(HotkeyEvent) + Send + Sync + 'static,
     ) -> AppHotkeys {
-        let app = AppHotkeys {
+        let mut app = AppHotkeys {
             hotkeys: platform::Hotkeys::start(send),
             bindings: read(hotkeys),
+            recorder: Recorder::default(),
+            descriptions: Vec::new(),
             window_only: false,
             modifiers: ModifiersState::empty(),
         };
@@ -185,13 +329,98 @@ impl AppHotkeys {
 
     /// Gives the platform the keys again with the actions' descriptions (also after a language
     /// change: the portal's list shows them).
-    pub fn register(&self, description: impl Fn(&str) -> String) {
+    pub fn register(&mut self, description: impl Fn(&str) -> String) {
+        self.descriptions = self.bindings.iter().map(|(action, _)| description(action)).collect();
+        self.send();
+    }
+
+    /// Gives the platform the bindings with the descriptions last registered.
+    fn send(&self) {
         let bindings = self
             .bindings
             .iter()
-            .map(|(action, key)| (action.to_string(), *key, description(action)))
+            .zip(&self.descriptions)
+            .map(|((action, key), description)| (action.to_string(), *key, description.clone()))
             .collect();
         self.hotkeys.set(bindings);
+    }
+
+    /// Starts recording `action`'s key: every hotkey is released until it ends (FR-017). False
+    /// for an unknown action.
+    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
+    pub fn start_recording(&mut self, action: &str) -> bool {
+        let Some(action) = self.action(action) else {
+            return false;
+        };
+        log::info!("hotkeys: recording {action}'s key");
+        self.recorder.start(action);
+        self.hotkeys.suspend(true);
+        true
+    }
+
+    /// The recording, if any: the action and the refusal of its last press.
+    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
+    pub fn recording(&self) -> Option<(&'static str, Option<Refusal>)> {
+        self.recorder.recording()
+    }
+
+    /// Ends a recording without a change (the panel closed, the window lost the focus).
+    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
+    pub fn cancel_recording(&mut self) {
+        if self.recorder.cancel() {
+            log::info!("hotkeys: recording cancelled");
+            self.hotkeys.suspend(false);
+        }
+    }
+
+    /// A key event of the window while recording: what it did, None when not recording or when
+    /// the recorder ignores it (a release, a repeat, a modifier alone). An accepted key is
+    /// registered at once (FR-018); the caller saves it with [`set_setting`].
+    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
+    pub fn record(&mut self, event: &KeyEvent) -> Option<Recorded> {
+        self.recorder.recording()?;
+        let outcome = self.recorder.press(&self.bindings, press(self.modifiers, event)?)?;
+        match outcome {
+            Recorded::Accepted { action, key } => {
+                log::info!("hotkeys: {action} key set to {key}");
+                assign(&mut self.bindings, action, Some(key));
+                self.send();
+                self.hotkeys.suspend(false);
+            }
+            Recorded::Cancelled => {
+                log::info!("hotkeys: recording cancelled");
+                self.hotkeys.suspend(false);
+            }
+            Recorded::Refused(refusal) => log::info!("hotkeys: key refused ({refusal:?})"),
+        }
+        Some(outcome)
+    }
+
+    /// Leaves `action` with no key (FR-016, FR-018); the caller saves `None`.
+    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
+    pub fn clear(&mut self, action: &str) {
+        if let Some(action) = self.action(action) {
+            log::info!("hotkeys: {action} key cleared");
+            assign(&mut self.bindings, action, None);
+            self.send();
+        }
+    }
+
+    /// Puts back `action`'s default key; refused when another action has it. The caller saves the
+    /// key returned.
+    #[expect(dead_code, reason = "the Hotkeys category calls it (T031)")]
+    pub fn reset(&mut self, action: &str) -> Result<Option<Hotkey>, Refusal> {
+        let Some(action) = self.action(action) else {
+            return Ok(None);
+        };
+        let key = default_key(action);
+        if let Some(key) = key {
+            check(&self.bindings, action, key)?;
+        }
+        log::info!("hotkeys: {action} key reset");
+        assign(&mut self.bindings, action, key);
+        self.send();
+        Ok(key)
     }
 
     /// A platform event; returns the action to run for a press.
@@ -228,7 +457,11 @@ impl AppHotkeys {
     /// not work (elsewhere the system already reports the press; matching it too would run the
     /// action twice). Once per press: repeats and releases are ignored (FR-014).
     pub fn window_key(&self, event: &KeyEvent) -> Option<&'static str> {
-        if !self.window_only || event.state != winit::event::ElementState::Pressed || event.repeat {
+        if !self.window_only
+            || self.recorder.recording().is_some()
+            || event.state != winit::event::ElementState::Pressed
+            || event.repeat
+        {
             return None;
         }
         let pressed = from_window(self.modifiers, &event.key_without_modifiers(), event.physical_key)?;
@@ -306,6 +539,157 @@ mod tests {
     fn a_cleared_key_frees_it_for_a_later_action() {
         let bindings = resolve([("screenshot", "Ctrl+F8", ""), ("record", "Ctrl+F10", "Ctrl+F8")]);
         assert_eq!(bindings, vec![("screenshot", None), ("record", key("Ctrl+F8"))]);
+    }
+
+    fn pressed(text: &str) -> Press {
+        Press::Key(key(text).unwrap())
+    }
+
+    /// Screenshot on Ctrl+F8, record on Ctrl+F10, live with no key.
+    fn three() -> Vec<(&'static str, Option<Hotkey>)> {
+        vec![
+            ("screenshot", key("Ctrl+F8")),
+            ("record", key("Ctrl+F10")),
+            ("live", None),
+        ]
+    }
+
+    #[test]
+    fn an_allowed_key_is_accepted_and_ends_the_recording() {
+        let mut recorder = Recorder::default();
+        recorder.start("screenshot");
+        assert_eq!(recorder.recording(), Some(("screenshot", None)));
+        assert_eq!(
+            recorder.press(&three(), pressed("Ctrl+Shift+S")),
+            Some(Recorded::Accepted {
+                action: "screenshot",
+                key: key("Ctrl+Shift+S").unwrap()
+            })
+        );
+        assert_eq!(recorder.recording(), None);
+        assert_eq!(recorder.press(&three(), pressed("F9")), None);
+    }
+
+    #[test]
+    fn the_action_s_own_key_is_accepted() {
+        let mut recorder = Recorder::default();
+        recorder.start("screenshot");
+        assert!(matches!(
+            recorder.press(&three(), pressed("Ctrl+F8")),
+            Some(Recorded::Accepted { .. })
+        ));
+    }
+
+    #[test]
+    fn a_key_the_rules_refuse_keeps_recording() {
+        let mut recorder = Recorder::default();
+        recorder.start("screenshot");
+        for press in [
+            pressed("A"),
+            pressed("Shift+A"),
+            pressed("Delete"),
+            pressed("Space"),
+            Press::Other,
+        ] {
+            assert_eq!(
+                recorder.press(&three(), press),
+                Some(Recorded::Refused(Refusal::NotAllowed)),
+                "{press:?}"
+            );
+            assert_eq!(recorder.recording(), Some(("screenshot", Some(Refusal::NotAllowed))));
+        }
+        assert!(matches!(
+            recorder.press(&three(), pressed("Alt+A")),
+            Some(Recorded::Accepted { .. })
+        ));
+    }
+
+    #[test]
+    fn a_key_of_another_action_is_refused_naming_it() {
+        let mut recorder = Recorder::default();
+        recorder.start("live");
+        assert_eq!(
+            recorder.press(&three(), pressed("Ctrl+F10")),
+            Some(Recorded::Refused(Refusal::Taken("record")))
+        );
+        assert_eq!(recorder.recording(), Some(("live", Some(Refusal::Taken("record")))));
+    }
+
+    #[test]
+    fn esc_cancels_and_cancel_stops() {
+        let mut recorder = Recorder::default();
+        recorder.start("screenshot");
+        recorder.press(&three(), pressed("A"));
+        assert_eq!(recorder.press(&three(), Press::Escape), Some(Recorded::Cancelled));
+        assert_eq!(recorder.recording(), None);
+        assert!(!recorder.cancel());
+        recorder.start("screenshot");
+        assert!(recorder.cancel());
+        assert_eq!(recorder.recording(), None);
+    }
+
+    #[test]
+    fn clear_and_reset_change_the_binding() {
+        let mut bindings = three();
+        assign(&mut bindings, "screenshot", None);
+        assert_eq!(bindings[0], ("screenshot", None));
+        // The default is free again: a reset may take it.
+        assert_eq!(
+            check(&bindings, "screenshot", default_key("screenshot").unwrap()),
+            Ok(())
+        );
+        // Another action has it: refused, naming that action.
+        assign(&mut bindings, "record", default_key("screenshot"));
+        assert_eq!(
+            check(&bindings, "screenshot", default_key("screenshot").unwrap()),
+            Err(Refusal::Taken("record"))
+        );
+        assert_eq!(default_key("unknown"), None);
+    }
+
+    #[test]
+    fn the_setting_takes_the_file_form() {
+        let mut hotkeys = keys("Ctrl+F8");
+        set_setting(&mut hotkeys, SCREENSHOT, key("super + shift + s"));
+        assert_eq!(hotkeys.screenshot, "Shift+Super+S");
+        set_setting(&mut hotkeys, SCREENSHOT, None);
+        assert_eq!(hotkeys.screenshot, "");
+        assert_eq!(read(&hotkeys), vec![(SCREENSHOT, None)]);
+    }
+
+    #[test]
+    fn window_presses_for_the_recorder() {
+        let code = |code| PhysicalKey::Code(code);
+        let ctrl = ModifiersState::CONTROL;
+        assert_eq!(
+            press_of(ctrl, &WinitKey::Named(NamedKey::Escape), code(KeyCode::Escape)),
+            Some(Press::Escape)
+        );
+        assert_eq!(
+            press_of(ctrl, &WinitKey::Named(NamedKey::F8), code(KeyCode::F8)),
+            Some(pressed("Ctrl+F8"))
+        );
+        assert_eq!(
+            press_of(ctrl | ModifiersState::SHIFT, &character("&"), code(KeyCode::Digit1)),
+            Some(pressed("Ctrl+Shift+1"))
+        );
+        assert_eq!(
+            press_of(ctrl, &WinitKey::Named(NamedKey::Enter), code(KeyCode::Enter)),
+            Some(Press::Other)
+        );
+        for (named, physical) in [
+            (NamedKey::Control, KeyCode::ControlLeft),
+            (NamedKey::Shift, KeyCode::ShiftRight),
+            (NamedKey::Alt, KeyCode::AltLeft),
+            (NamedKey::AltGraph, KeyCode::AltRight),
+            (NamedKey::Super, KeyCode::SuperLeft),
+        ] {
+            assert_eq!(
+                press_of(ctrl, &WinitKey::Named(named), code(physical)),
+                None,
+                "{named:?}"
+            );
+        }
     }
 
     fn character(text: &str) -> WinitKey {

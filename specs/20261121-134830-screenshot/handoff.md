@@ -18,8 +18,8 @@ step). T018 (app hotkeys) and T042 (silent refusals) checked on Windows and comm
 (`f3c5505`); T023 (sound player) committed with the maintainer's final sound (T040). T014
 (worker) committed as unwired code. T013 (clipboard) and T019 (wiring) done 2026-11-23 and
 checked on Windows by the maintainer (measurements/acceptance.md, first pass). T028 (dock
-button) done 2026-11-23 and checked by the maintainer (T029, acceptance.md), uncommitted until
-validated.
+button) done 2026-11-23 and checked by the maintainer (T029, acceptance.md). T030 (key
+recorder) done 2026-11-23 as unwired code and committed; T031 wires it.
 
 ## Done in the last sessions
 
@@ -216,6 +216,21 @@ validated.
   its left). With one button the dock never reaches the bubble row (checked by numbers at
   640 × 360: dock bottom ≈ 234, row top ≈ 264). fmt, clippy, all tests pass. When T030/T031
   change a key, `set_screenshot_key` must be called again.
+- 2026-11-23: T030 (unwired, committed): app/src/hotkeys.rs `Recorder` (pure: `start`, `press`,
+  `cancel`, `recording()` → action and last `Refusal`), `Press::{Escape, Key, Other}` from the
+  window's **winit** key events (`press_of`: modifiers alone, releases and repeats ignored; the
+  rest through `from_window`), `Refusal::{NotAllowed, Taken(action)}`, `Recorded::{Accepted,
+  Refused, Cancelled}`; a refusal keeps recording; the action's own key is accepted.
+  `AppHotkeys`: `start_recording` (suspend), `record(&KeyEvent)` (accepted → bindings sent at
+  once, then unsuspended), `cancel_recording`, `clear`, `reset` (refused when another action has
+  the default), `register` now keeps the descriptions (`&mut self`) so a change re-sends them;
+  `window_key` matches nothing while recording (FR-017). `set_setting(hotkeys, action, key)`
+  writes the file form (`""` for none). Research R14 and T030 updated first: Slint's key text has
+  the modifiers applied (Ctrl+Shift+1 → `!`, AZERTY `&`), so the recorder reads winit events
+  before Slint, like window-only matching. 9 new tests (268 app tests). T031 must: route every
+  `KeyboardInput` to `record` while `recording()` is some and not pass it to Slint (Esc must not
+  close the panel), call `cancel_recording` when the panel closes or the window loses the focus,
+  save with `set_setting` + `store.update`, and call `set_screenshot_key` after every change.
 
 ## Decisions
 
@@ -265,7 +280,8 @@ validated.
    needs check 7 with the PS5 at 4K output (the "4K" try was 2560×1440 with no matching
    source), checks 3 and 10, and a quit right after a screenshot; the limit of 4 was never
    reached by hand (each screenshot ends in ≈ 75 ms), left to T027's `--screenshot-every`.
-   T028 and T029 done (2026-11-23). Next agent work: T030 (key recorder, US3).
+   T028 and T029 done (2026-11-23), T030 done. Next agent work: T031 (Hotkeys category, US3;
+   wiring notes under T030 above).
 1. Maintainer: run the probes as quickstart "Probes" says and fill measurements/probes.md:
    clipboard pastes on CachyOS (Wayland, X11 if installed; Windows done through the app);
    `shortcuts_probe` on CachyOS.
