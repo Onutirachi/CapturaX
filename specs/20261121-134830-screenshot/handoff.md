@@ -35,6 +35,9 @@ waiting) done by the agent on Windows, 2026-11-23 (measurements/latency.md, acce
 pass); SC-003 amended for 4K (Decisions). Checks 3 and 10 passed on Windows (maintainer,
 2026-11-23): T025 done. T027's Linux half run by the agent on CachyOS with the ezcap, 2026-11-23
 (measurements/latency.md): SC-001 and SC-003 pass in all three modes; T027 done.
+T039 and T041 done 2026-11-23: check 16 passes (agent, CachyOS), the flash kept as built
+(maintainer), the acceptance summary written. Every task is done; the branch is ready for the
+pull request.
 
 ## Done in the last sessions
 
@@ -332,6 +335,10 @@ pass); SC-003 amended for 4K (Decisions). Checks 3 and 10 passed on Windows (mai
   first time (6 presses 25 ms apart: 5 written, 1 Busy). No X11 session is installed. Left on
   CachyOS: the KDE binding on Ctrl+Shift+F8, `~/capx/lib.sh` now with the right ydotool socket,
   `~/capx/peaks.py`, `~/capx/rec.sh` and `~/capx/paste/index.html` (paste test page).
+- 2026-11-23: T039: check 16 by the agent on CachyOS (pt-BR light, en dark: dock tooltip,
+  saved and failure notices, Folders and Hotkeys rows; acceptance.md); the maintainer keeps the
+  flash's curve and timings. T041: summary of every check and success criterion at the end of
+  measurements/acceptance.md; README and roadmap links checked (already right).
 
 ## Decisions
 
@@ -425,7 +432,5 @@ pass); SC-003 amended for 4K (Decisions). Checks 3 and 10 passed on Windows (mai
 
 ## Next step
 
-1. T041 (pull request): check the README and the roadmap links (T038 note: the Wayland portal
-   is built and `measurements/latency.md` exists now), the acceptance summary in
-   measurements/acceptance.md, the maintainer validates; push and open the pull request only
-   when the maintainer asks.
+1. The maintainer validates the T039/T041 commit; push and open the pull request only when the
+   maintainer asks (title `feat: add the screenshot`, like #9 and #10).

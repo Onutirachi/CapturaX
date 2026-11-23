@@ -139,3 +139,59 @@ Release build of `7360f57`, ezcap previewed.
 
 Remark: on "No audio" the volume control still works (it sets the app's one level, FR-012 of
 preview audio, but nothing plays). Added to the roadmap's #17 UI review.
+
+## Linux Wayland, languages and themes (agent over SSH, CachyOS, 2026-11-23, T039)
+
+Release build of `e3f3dde` (later commits are docs), test video 1080p60, output a null sink.
+Started with `--lang pt-BR` and the light theme, then `--lang en` and the dark theme; the
+failure notice with the folder set to `/mnt/gone/CapturaX`. Screens read with Spectacle; the
+settings file restored and the test files removed afterwards.
+
+| # | Result | Notes |
+|---|---|---|
+| 16 | pass | Dock tooltip "Captura de tela (Ctrl+Shift+F8)" / "Screenshot (Ctrl+Shift+F8)"; notice "Captura de tela salva" **Mostrar** / "Screenshot saved" **Show**; failure "Não foi possível salvar a captura de tela: pasta não encontrada. Copiada para a área de transferência" **Configurações** / "Couldn't save the screenshot: folder not found. Copied to the clipboard" **Settings**, on one line; Pastas/Folders row "Capturas de tela"/"Screenshots" with the path, **Alterar**/**Change**, **Abrir**/**Open**; Atalhos/Hotkeys row with the key. Both themes readable, nothing cut. Catalog: every new text translated (`every_catalog_matches_the_ui` passes) |
+
+The flash's curve and timings are kept as built: the maintainer saw them many times on Windows
+(2026-11-23). The Windows-only texts (Clear, Reset, the key refusals) were seen in T031; the
+system notifications in checks 2 and 9.
+
+## Summary (T041)
+
+Every quickstart check by system, with the section that records it. "Agent" checks were run
+over the log, `keybd_event` (Windows) or `ydotool` and SSH (CachyOS).
+
+| # | Windows 11 | CachyOS KDE Wayland |
+|---|---|---|
+| 1 | pass (first and second pass) | pass (screenshots) |
+| 2 | pass (first pass) | pass (screenshots) |
+| 3 | pass (fourth pass) | Windows only |
+| 4 | pass (first and second pass) | pass (screenshots) |
+| 5 | pass, limit reached (third pass) | pass, limit reached (screenshots) |
+| 6 | pass (first pass) | pass (screenshots) |
+| 7 | pass, real 4K pictures (third pass) | pass with the test video (screenshots); real 4K in latency.md |
+| 8 | pass (dock button) | pass (screenshots) |
+| 9 | pass (tray: handoff, T018 checks; the Settings action: failure notices) | pass (screenshots) |
+| 10 | pass, shared and exclusive (fourth pass) | pass, recorded on a null sink (screenshots) |
+| 11 | pass (maintainer, handoff: T031) | replaced by 13 (the desktop owns the key) |
+| 12 | pass (maintainer, handoff: T031) | replaced by 13 |
+| 13 | Linux only | pass (portal hotkeys) |
+| 14 | pass (folder row) | pass (screenshots, after the folder fixes) |
+| 15 | pass (first pass, failure notices) | pass (screenshots, after the folder fixes) |
+| 16 | texts in the catalog; Hotkeys row (T031) | pass (languages and themes) |
+| quit | pass, four waiting screenshots written (third pass) | not run |
+
+Success criteria:
+
+| SC | Result | Where |
+|---|---|---|
+| SC-001 | pass: 60–94 ms at 1080p, 254–343 ms at 4K (Windows); 110–151 ms at 1080p, 419–464 ms at 4K (Linux) | latency.md |
+| SC-002 | pass: resolution in checks 1, 6, 7; pixels against the shader's rows within ±1 in every format, matrix and range | unit tests of `still` (T005) |
+| SC-003 | pass, with late 4K frames accepted (spec change) | latency.md |
+| SC-004 | pass on Windows (focused, other app, minimized, fullscreen game) and KDE Wayland; X11 not run (no X11 session installed) | checks 1–3, 13 |
+| SC-005 | pass on a few tries per system, not counted to 10 | checks 11, 13 |
+| SC-006 | pass: Paint, GIMP or Krita, Discord (Windows); Dolphin, Firefox, Krita (Linux) | check 1, probes.md |
+| SC-007 | pass: every refusal silent by design (FR-016), every failure with its notice | checks 8, 9, 15 |
+| SC-008 | pass on both systems, exclusive on Windows | check 10 |
+
+Not covered: an X11 session (none installed on the test PC) and a quit with screenshots waiting
+on Linux.
