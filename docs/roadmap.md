@@ -248,6 +248,12 @@ item here when it is found (with the date), instead of fixing it inside an unrel
   2026-11-22).
 - Audio settings: turning an endpoint's **Exclusive** box on or off makes the list flicker on
   that device's row (maintainer, 2026-11-23).
+- Settings panel: larger in a big window and in fullscreen (today at most 760 × 520), so rows
+  wrap less; maybe the whole UI a little larger too (a scale above the system's DPI)
+  (maintainer, 2026-11-23).
+- Settings panel consistency: dropdowns, segmented controls, switches, text and icon buttons
+  use different fills, colors, heights and corners; one set of control tokens for all of them
+  (maintainer, 2026-11-23).
 
 ```text
 /speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the
