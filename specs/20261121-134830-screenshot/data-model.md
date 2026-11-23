@@ -44,7 +44,10 @@ takes RGBA (`Still::rgba()`).
 | no | no | `failed` | Couldn't take the screenshot: <reason> | — |
 
 Reasons (a few words, from the error kind): `folder not found`, `no permission`, `disk full`,
-`write error`; for `failed` also `image error`.
+`write error`; for `failed` also `image error`. A folder that is missing and cannot be made is
+always `folder not found`, whatever the error of the create (on Linux a removed drive's mount
+point is gone and its parent belongs to root, so the create is refused); `no permission` only
+when the folder exists (FR-021).
 
 ## File name (pure)
 
@@ -93,7 +96,8 @@ that has two equal keys keeps the first action's and clears the other's (logged)
 ## Screenshots folder (settings)
 
 `"default"` or an absolute path. The folder used: the path, or the system's Pictures folder plus
-`CapturaX` (research R12). An empty or relative path reads as `"default"` (logged).
+`CapturaX` (research R12). An empty or relative path reads as `"default"` (logged). A folder
+from the picker is kept without a trailing separator, except a root (FR-022).
 
 ## Sound (`crates/audio` `sound.rs`)
 

@@ -337,10 +337,14 @@ full, clipboard taken) and check the notice and its action.
   second row in spec #9 (maintainer, 2026-11-23, replacing a Screenshot category per output).
 - **FR-021**: The default folder MUST be the user's Pictures folder as the system defines it,
   plus `CapturaX`; it is created at the first screenshot (or by **Open** in the settings), as is
-  a chosen folder that was removed when its parent exists.
+  a chosen folder that was removed when its parent exists. A folder that is missing and cannot
+  be made (a removed drive, whose mount point is gone, included) is reported as "folder not
+  found", whatever the system's error; "no permission" is for a folder that exists and refuses
+  the file (maintainer, 2026-11-23, after the Linux checks).
 - **FR-022**: The chosen folder is kept in the portable settings file (constitution principle VI)
   as an absolute path; the default is kept as "default", so a copied installation on another
-  system uses that system's Pictures folder.
+  system uses that system's Pictures folder. A picked folder is kept without a trailing
+  separator (`/mnt/usb`, not `/mnt/usb/`), except a root (`/`, `C:\`).
 
 **Texts**
 

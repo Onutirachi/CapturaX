@@ -364,6 +364,13 @@ T037 done; T003 done (Krita AppImage).
   A settings file that already holds `"Ctrl+F8"` keeps it (the key is written to the file):
   Reset in the Hotkeys row gives the new default. The records in measurements/ keep Ctrl+F8:
   that is what was tested.
+- Folder errors and the picked folder (agent's proposal, maintainer's go, 2026-11-23, after
+  the Linux checks): a folder that is missing and cannot be made is "folder not found" whatever
+  the create's error (a removed drive on Linux gave "no permission"); "no permission" only when
+  the folder exists. A picked folder is kept without a trailing separator, except a root.
+  Spec FR-021, FR-022 and data-model updated; `make_folder` and `picked_folder` in
+  app/src/screenshot.rs (2 tests), folded into the Folders commit; checked on CachyOS
+  (acceptance.md "After the folder fixes").
 - The agent may run, close and test anything on the CachyOS PC over SSH (maintainer,
   2026-11-23): Linux checks are the agent's work, not the maintainer's.
 - Plan (2026-11-22), spec updated: the sound and the flash start when the frame is taken, not
@@ -386,11 +393,7 @@ T037 done; T003 done (Krita AppImage).
   parent `/run/media/<user>` belongs to root, so `make_folder`'s `create_dir` is refused
   (screenshot.rs). Keep it, or map a refused create of a missing folder to FolderNotFound (a
   spec change first)? (b) The portal folder dialog returns `/mnt/capxusb/` and the row shows
-  and stores the trailing slash; trim it? Agent's proposal (waiting for the maintainer's go):
-  (a) a folder that is missing and cannot be made is always "folder not found", whatever the
-  error; "no permission" only when the folder exists and refuses the write; (b) trim a trailing
-  separator from the picked folder (not from a root such as `/` or `C:\`). Both go into the spec
-  and data-model first, then screenshot.rs with tests.
+  and stores the trailing slash; trim it? Decided (see Decisions), built and checked.
 
 - Probes before their code: the clipboard while another app has the focus (R4, Wayland
   data-control on KWin) and the GlobalShortcuts portal on KDE (R7). A failure updates the spec

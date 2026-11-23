@@ -95,8 +95,8 @@ first: the start asked with Ctrl+Shift+F8, OK.
 | 8 | pass | C920 unplugged (`usb` unbind): "desconectado" state and notice (no action); the key gives "not taken (NoImage)"; the dock's camera button dimmed, tooltip "Captura de tela (Ctrl+Shift+F8)" on hover, a click does nothing. Plugged back: "Reconnected" notice (no action, the device reopens by itself) |
 | 9 | pass | `keep_in_tray`, window closed to the tray: the key gives "not taken (NoImage)", no notification |
 | 10 | pass | output `capx_test` (not the default): capture sound recorded at −16.4 dBFS peak (the file's −10.4 with gain 0.5) with the preview at volume 5 %, muted, and with the C920's audio set to "No audio" (output-only "sound session 1" opened in 112 ms, the sound ≈ 100 ms later than the others). Exclusive is Windows only |
-| 14 | pass | Settings → Pastas → **Alterar**: KDE's "Selecionar pasta" (portal) opened in the current folder; a vfat image mounted on `/mnt/capxusb` (another file system) chosen; two screenshots in one second written there as `15-40-47` and ` (2)` (vfat: the check-then-rename path); **Abrir** opened Dolphin on the folder; **Mostrar** on the notice opened Dolphin with the new file selected; **Restaurar** back to ~/Imagens/CapturaX, its button hidden again. The chosen path is stored and shown as `/mnt/capxusb/` (trailing slash from the portal) |
-| 15 | pass, reason questioned | drive unmounted (empty mount point left), mount point removed (what udisks does to `/run/media/<user>/<label>`), file system read-only: each "Não foi possível salvar a captura de tela: sem permissão. Copiada para a área de transferência" with **Configurações**. A removed drive gives **NoPermission**, not FolderNotFound: the mount point's parent belongs to root, so `make_folder`'s `create_dir` is refused. A folder whose parent is missing (`/mnt/gone/CapturaX`) gives "pasta não encontrada" |
+| 14 | pass | Settings → Pastas → **Alterar**: KDE's "Selecionar pasta" (portal) opened in the current folder; a vfat image mounted on `/mnt/capxusb` (another file system) chosen; two screenshots in one second written there as `15-40-47` and ` (2)` (vfat: the check-then-rename path); **Abrir** opened Dolphin on the folder; **Mostrar** on the notice opened Dolphin with the new file selected; **Restaurar** back to ~/Imagens/CapturaX, its button hidden again. The chosen path was stored and shown as `/mnt/capxusb/` (trailing slash from the portal); fixed afterwards (FR-022, see below) |
+| 15 | pass, reason changed afterwards | drive unmounted (empty mount point left), mount point removed (what udisks does to `/run/media/<user>/<label>`), file system read-only: each "Não foi possível salvar a captura de tela: sem permissão. Copiada para a área de transferência" with **Configurações**. A removed drive gives **NoPermission**, not FolderNotFound: the mount point's parent belongs to root, so `make_folder`'s `create_dir` is refused. A folder whose parent is missing (`/mnt/gone/CapturaX`) gives "pasta não encontrada" |
 | 9 (Windows' meaning) | pass | **Configurações** on the in-app failure notice opens the panel on Pastas; on the system notification (Firefox focused, `notify: action for settings:screenshot`) the window comes forward on Pastas |
 
 Also checked: `audio_session --output-only --output capx_test`: Opened after 0.12 s, a 440 Hz
@@ -104,3 +104,14 @@ tone recorded at −14 dBFS for ≈ 2 s, no event after the input reopen, Closed
 close. X11 checks not run: no X11 session installed. The test sink, the vfat image, the
 screenshots and the prints (webcam pictures) were removed afterwards; the KDE binding was left
 on Ctrl+Shift+F8.
+
+### After the folder fixes (agent, CachyOS, same day)
+
+Spec FR-021/FR-022 changed by the maintainer's go: a missing folder that cannot be made is
+"folder not found", and a picked folder loses its trailing separator. Release build with the
+change, test video 1080p60.
+
+| # | Result | Notes |
+|---|---|---|
+| 14 | pass | `/mnt/capxusb/` typed in the portal dialog: stored and shown as `/mnt/capxusb`; a screenshot saved there. Picking `/` keeps `/` |
+| 15 | pass | drive unmounted and its mount point removed: "cannot make /mnt/capxusb: Permission denied" logged, notice "Não foi possível salvar a captura de tela: pasta não encontrada. Copiada para a área de transferência"; read-only mount (the folder exists): "sem permissão"; `/` (exists, not writable): "sem permissão" |
