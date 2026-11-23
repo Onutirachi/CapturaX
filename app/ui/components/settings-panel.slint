@@ -44,7 +44,14 @@ export struct HotkeyRowData {
     refusal: string,
 }
 
+// Later specs add their categories here (F40), with their names in `CategoryItem`.
+export enum Category { general, appearance, preview, audio, folders, hotkeys, about }
+
 export global Prefs {
+    // The category shown: General when the panel opens from its button (main.slint sets it back
+    // when the panel closes); Rust sets Folders before opening it from a notice's **Settings**
+    // (screenshot FR-008).
+    in-out property <Category> settings-category: Category.general;
     in-out property <bool> start-fullscreen;
     in-out property <bool> keep-in-tray;
     in-out property <bool> start-with-system;
@@ -108,9 +115,6 @@ export global Prefs {
     // The panel opened: Rust reads the system's autostart entry again (FR-014b).
     callback opened();
 }
-
-// Later specs add their categories here (F40), with their names in `CategoryItem`.
-enum Category { general, appearance, preview, audio, folders, hotkeys, about }
 
 // No text here: a translated name in the list would make a language switch build the items
 // again, losing the keyboard focus and leaving a shown tooltip in the old language.
@@ -800,10 +804,10 @@ export component SettingsPanel inherits Raised {
     in property <bool> compact;
     callback close();
 
-    // Created each time the panel opens (`if` in main.slint), so it opens on General.
+    // Created each time the panel opens (`if` in main.slint).
     init => { Prefs.opened(); }
 
-    property <Category> category: Category.general;
+    property <Category> category <=> Prefs.settings-category;
     // The Audio category's tab: 0 Inputs, 1 Outputs. Another tab's list starts at its top.
     property <int> audio-tab;
     changed audio-tab => { rows.content-y = 0; }

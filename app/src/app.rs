@@ -25,7 +25,9 @@ use crate::preview::{self, Command, Preview, PreviewState};
 use crate::render::{Inbox, Presentation, Scene, VideoThread};
 use crate::sound::Sound;
 use crate::theme::{self, SystemTheme};
-use crate::ui::{HotkeyRowData, MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState};
+use crate::ui::{
+    Category, HotkeyRowData, MenuItem, Menus, NoticeKind, Prefs, Texts, Theme as UiTheme, Ui, WindowState,
+};
 use platform::autostart;
 use platform::snap::{self, ButtonRect, Snap, SnapEvent};
 use platform::tray::{self, IconImage, Labels, Tray, TrayEvent};
@@ -2252,6 +2254,8 @@ impl ApplicationHandler<UserEvent> for App {
                     if system {
                         self.show_window(event_loop);
                     }
+                    // The screenshots folder's row (FR-008); also when the panel is already open.
+                    self.ui.app.global::<Prefs>().set_settings_category(Category::Folders);
                     self.ui.app.set_settings_open(true);
                     self.request_redraw();
                 }

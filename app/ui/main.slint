@@ -15,12 +15,12 @@ import { TitleBar } from "components/title-bar.slint";
 import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
 import { VolumeButton } from "components/volume-popover.slint";
-import { SettingsPanel, Prefs, AudioEndpointRow, HotkeyRowData } from "components/settings-panel.slint";
+import { SettingsPanel, Prefs, Category, AudioEndpointRow, HotkeyRowData } from "components/settings-panel.slint";
 import { Toolbar } from "components/toolbar.slint";
 import { ProgressRing } from "components/progress-ring.slint";
 import { InfoBubbles, BubbleControls, BubbleControlsLayer } from "components/info-bubbles.slint";
 
-export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs, AudioEndpointRow, HotkeyRowData }
+export { Theme, Palette, Texts, WindowState, NoticeKind, Input, Menus, MenuItem, Tooltips, Prefs, Category, AudioEndpointRow, HotkeyRowData }
 
 export component AppWindow inherits Window {
     background: transparent;
@@ -219,6 +219,8 @@ export component AppWindow inherits Window {
         // A key being recorded is left as it was (screenshot FR-016).
         if (!self.settings-open) {
             Prefs.hotkey-cancel();
+            // It opens on General next time (Rust picks Folders for a notice's Settings).
+            Prefs.settings-category = Category.general;
         }
         if (!self.settings-open && Input.keyboard) {
             root.reveal-chrome();

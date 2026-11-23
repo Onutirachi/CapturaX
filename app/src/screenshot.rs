@@ -765,6 +765,45 @@ mod tests {
     }
 
     #[test]
+    fn every_failure_has_its_notice() {
+        use crate::notices::NoticeAction;
+        // A write error (data-model.md "Outcome") and the conversion's.
+        let reasons = [
+            (WriteError::FolderNotFound.into(), Reason::FolderNotFound),
+            (WriteError::NoPermission.into(), Reason::NoPermission),
+            (WriteError::DiskFull.into(), Reason::DiskFull),
+            (WriteError::Other.into(), Reason::WriteError),
+            (Reason::ImageError, Reason::ImageError),
+        ];
+        let mut shots = Screenshots::default();
+        for (reason, expected) in reasons {
+            assert_eq!(reason, expected);
+            for copied in [true, false] {
+                let Ok(Command::Take(serial)) = shots.request(true) else {
+                    panic!("refused");
+                };
+                let notice = shots.written(
+                    serial,
+                    Written {
+                        saved: Err(reason),
+                        copied,
+                    },
+                );
+                if copied {
+                    assert_eq!(notice, EventNotice::CopiedNotSaved(expected));
+                    assert_eq!(notice.kind(), "copied-not-saved");
+                    assert_eq!(notice.action(), Some(NoticeAction::Settings));
+                } else {
+                    assert_eq!(notice, EventNotice::Failed(expected));
+                    assert_eq!(notice.kind(), "failed");
+                    assert_eq!(notice.action(), None);
+                }
+            }
+        }
+        assert_eq!(shots.waiting, 0);
+    }
+
+    #[test]
     fn requests_follow_the_rules() {
         let mut shots = Screenshots::default();
         assert_eq!(shots.request(false), Err(Refused::NoImage));
