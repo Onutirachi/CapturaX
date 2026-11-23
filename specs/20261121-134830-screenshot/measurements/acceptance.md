@@ -74,3 +74,33 @@ removed first.
 
 File names came in local time (`14-38-06` for a 17:38 UTC log line): `utc_offset` checked on
 Linux. The test screenshots (webcam pictures) were deleted afterwards.
+
+## Linux Wayland, screenshots (agent over SSH, CachyOS, 2026-11-23, T026, T035, T037)
+
+KDE Plasma 6.8.2 Wayland, release build of `99aae30`, i3-10105 + RTX 3050. The ezcap is on the
+Windows PC, so the sources are the C920 (1920×1080@30 MJPG) and the test video (`1080p60`,
+`3840x2160@30`). Keys, clicks and pastes sent with `ydotool`, screens read with Spectacle. The
+sound was checked by recording: the app's output set to a null sink `capx_test` (not the
+system default `vban_out`) and its monitor recorded with `parecord`. The KDE binding was cleared
+first: the start asked with Ctrl+Shift+F8, OK.
+
+| # | Result | Notes |
+|---|---|---|
+| 1 | pass | C920, window focused: outline seen fading in a print taken 120 ms after the key, "Captura de tela salva" with **Mostrar**; 1920×1080 in ~/Imagens/CapturaX; taken +42–55 ms, rgb 72 ms, png 15 ms, written 9 ms, copied 24 ms. Pasted in Dolphin and in Firefox (a local page reading the `paste` event: `image/png 1920×1080`). Krita pasted with the T003 probe (probes.md) |
+| 2 | pass | Firefox focused over the window: system notification "Captura de tela salva" with **Mostrar**, Firefox kept the focus; minimized (KWin): a real frame (taken +4 ms), system notification, focus unchanged |
+| 4 | pass | Ctrl+Shift+F8 held 2 s (test video 1080p60): one screenshot |
+| 5 | pass, limit reached | 6 presses 25 ms apart: screenshots 2–6 written in order (`15-38-11`, ` (2)`…` (5)`), the 6th "not taken (Busy)": the first time the limit of 4 waiting was reached (screenshot 2 ended before the 5th press, freeing a place) |
+| 6 | pass | window 700×420 with the toolbar, both docks and a notice shown, then fullscreen: both files 1920×1080, only the video; their left, right and bottom 6 px rows are black (no outline in the image) |
+| 7 | pass (test video) | `3840x2160@30`: notice ≈ 350 ms after the key (taken +25–36 ms, rgb 267–280 ms on this CPU, png 4–8 ms of a pattern that compresses well, copied 34 ms). A real 4K picture would take longer to encode: to measure in T027 |
+| 8 | pass | C920 unplugged (`usb` unbind): "desconectado" state and notice (no action); the key gives "not taken (NoImage)"; the dock's camera button dimmed, tooltip "Captura de tela (Ctrl+Shift+F8)" on hover, a click does nothing. Plugged back: "Reconnected" notice (no action, the device reopens by itself) |
+| 9 | pass | `keep_in_tray`, window closed to the tray: the key gives "not taken (NoImage)", no notification |
+| 10 | pass | output `capx_test` (not the default): capture sound recorded at −16.4 dBFS peak (the file's −10.4 with gain 0.5) with the preview at volume 5 %, muted, and with the C920's audio set to "No audio" (output-only "sound session 1" opened in 112 ms, the sound ≈ 100 ms later than the others). Exclusive is Windows only |
+| 14 | pass | Settings → Pastas → **Alterar**: KDE's "Selecionar pasta" (portal) opened in the current folder; a vfat image mounted on `/mnt/capxusb` (another file system) chosen; two screenshots in one second written there as `15-40-47` and ` (2)` (vfat: the check-then-rename path); **Abrir** opened Dolphin on the folder; **Mostrar** on the notice opened Dolphin with the new file selected; **Restaurar** back to ~/Imagens/CapturaX, its button hidden again. The chosen path is stored and shown as `/mnt/capxusb/` (trailing slash from the portal) |
+| 15 | pass, reason questioned | drive unmounted (empty mount point left), mount point removed (what udisks does to `/run/media/<user>/<label>`), file system read-only: each "Não foi possível salvar a captura de tela: sem permissão. Copiada para a área de transferência" with **Configurações**. A removed drive gives **NoPermission**, not FolderNotFound: the mount point's parent belongs to root, so `make_folder`'s `create_dir` is refused. A folder whose parent is missing (`/mnt/gone/CapturaX`) gives "pasta não encontrada" |
+| 9 (Windows' meaning) | pass | **Configurações** on the in-app failure notice opens the panel on Pastas; on the system notification (Firefox focused, `notify: action for settings:screenshot`) the window comes forward on Pastas |
+
+Also checked: `audio_session --output-only --output capx_test`: Opened after 0.12 s, a 440 Hz
+tone recorded at −14 dBFS for ≈ 2 s, no event after the input reopen, Closed 0.2 ms after the
+close. X11 checks not run: no X11 session installed. The test sink, the vfat image, the
+screenshots and the prints (webcam pictures) were removed afterwards; the KDE binding was left
+on Ctrl+Shift+F8.

@@ -62,7 +62,7 @@ every working session the agent updates handoff.md.
 **⚠️ CRITICAL**: T003 and T004 can change the spec (research R4, R7); a failure stops that part
 for the maintainer's decision, and the spec is updated before the code.
 
-- [ ] T003 [P] Clipboard probe (research R4): crates/platform/examples/clipboard_probe.rs takes `<width> <height>`, waits 5 s (so another app can take the focus), puts a test pattern (eight color bars plus a gradient) on the clipboard through `arboard::Clipboard::set_image`, prints the call's time, and keeps running until Enter (Linux serves the selection while it runs); (maintainer) run it on Windows and on CachyOS (Wayland; an X11 session if installed) as quickstart "Probes" 1 says, paste in GIMP or Krita, Paint, Dolphin and Discord in the browser; record in specs/20261121-134830-screenshot/measurements/probes.md
+- [X] T003 [P] Clipboard probe (research R4): crates/platform/examples/clipboard_probe.rs takes `<width> <height>`, waits 5 s (so another app can take the focus), puts a test pattern (eight color bars plus a gradient) on the clipboard through `arboard::Clipboard::set_image`, prints the call's time, and keeps running until Enter (Linux serves the selection while it runs); (maintainer) run it on Windows and on CachyOS (Wayland; an X11 session if installed) as quickstart "Probes" 1 says, paste in GIMP or Krita, Paint, Dolphin and Discord in the browser; record in specs/20261121-134830-screenshot/measurements/probes.md (Windows 2026-11-22/23; CachyOS Wayland by the agent 2026-11-23: Dolphin, Firefox, Krita; no X11 session installed)
 - [X] T004 [P] GlobalShortcuts probe (research R7): crates/platform/examples/shortcuts_probe.rs (Linux; on Windows prints that it is Linux only) over `zbus` blocking: `org.freedesktop.host.portal.Registry.Register("capturax", {})` when the interface exists (print whether), `CreateSession`, `BindShortcuts` with one shortcut `screenshot` (description "Screenshot", `preferred_trigger` from the argument, default `CTRL+SHIFT+F8`), prints the response's shortcuts with `trigger_description`, every `Activated`/`Deactivated` and `ShortcutsChanged`, and with `--configure` calls `ConfigureShortcuts` when the portal's version is ≥ 2; (maintainer) run it on CachyOS: key with another app focused, with a fullscreen game, after a restart of the example, and `--configure`; record what KDE asks the first time and whether the binding is kept in measurements/probes.md
 - [X] T005 [P] Still conversion (research R2, data-model.md "Still image"): move `conversion(matrix, range)` and its tests from app/src/render/gpu.rs to crates/capture/src/still.rs (pub, re-exported; gpu.rs uses it); add `Still { width, height, rgb: Vec<u8> }`, `still(&Frame) -> Still` for NV12, I420 (bilinear chroma, the shader's sample positions), YUY2, UYVY (the shader's hand filter), BGRx and RGBA (copied), `Still::rgba() -> Vec<u8>` (alpha 255) and `Still::png() -> Result<Vec<u8>, String>` with `png` 0.18, `Compression::Fast`, adaptive filter, sRGB chunk, RGB 8-bit; tests: flat colors in every format and both matrices and ranges equal the shader's rows within ±1, a 2×2 chroma pattern, odd sizes, PNG round trip with `png::Decoder` (size, pixels)
 - [X] T006 [P] Settings (contracts/settings-file.md): in crates/settings/src/model.rs add `Screenshot { folder: String }` (`"default"`) as `[screenshot]` and `Hotkeys { screenshot: String }` (`"Ctrl+Shift+F8"`) as `[hotkeys]`, kept as text as `mode` is (the app parses them); rules: "A missing `folder`, an empty or relative path, or a non-text value reads as `"default"`"; "A missing hotkey takes its default; `""` is kept as no key"; an invalid text takes the default (the app checks validity, the settings crate keeps text); tests for each rule and a round trip
@@ -98,7 +98,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 - [X] T023 [US1] Sound player (data-model.md "Sound player"): app/src/sounds.rs routes `play(Sound::Screenshot)` to the preview `Feed`'s voice when its output side is open, else to an output-only session on the output resolved as the preview audio's (`OutputChoice`, missing-output rule), shared, opened on the first play, closed 3 s after the sound ends, a play while opening waits for `Opened` at most 300 ms (FR-010; then dropped and logged); the preview session opening closes the output-only one; app/src/sound.rs: the `Feed` holds the `Voice` and calls `mix` after `bridge.pull` in `fill`, the `Prepared` made on the main thread when the output format is known; tests for the routing with a fake session
 - [X] T024 [P] [US1] Debug flag (contracts/cli.md): `--screenshot-every <ms>` in app/src/cli.rs, debug builds only, driving the same request path as the key
 - [ ] T025 [US1] (maintainer) Windows: quickstart checks 1–7 and 10 with the ezcap; record in measurements/acceptance.md
-- [ ] T026 [US1] (maintainer) Linux (CachyOS, Wayland; X11 if installed): quickstart checks 1, 2, 4–7 and 10; record in measurements/acceptance.md
+- [X] T026 [US1] (maintainer) Linux (CachyOS, Wayland; X11 if installed): quickstart checks 1, 2, 4–7 and 10; record in measurements/acceptance.md (done by the agent over SSH 2026-11-23 with the C920 and the test video; no X11 session installed; Krita pasted with T003)
 - [ ] T027 [US1] (maintainer) Latency check (SC-003, research R16): quickstart "Latency check" at 1080p60, 1080p120 and 4K30 on both systems; record in measurements/latency.md with SC-001's times from the log lines
 
 **Checkpoint**: the MVP: a screenshot by key, on both systems, with no preview cost.
@@ -124,7 +124,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 - [X] T030 [US3] Key recorder (FR-016–FR-018): pure state in app/src/hotkeys.rs: `start(action)` (suspends the hotkeys, FR-017), `key(event)` → accepted (saved, re-registered at once), refused (not `allowed()`, or used by another action: which one), Esc cancels; `clear`, `reset` (refused when another action has the default); the window's winit key events mapped with `from_window` (research R14), modifiers alone ignored; tests for each
 - [X] T031 [US3] Hotkeys category (FR-016, FR-012): in app/ui/components/settings-panel.slint add `hotkeys` after `screenshot` (icon `keyboard.svg`), one row per action: name, key button ("Press a key…" while recording, the refused reason), Clear, Reset (only when not the default); on Wayland with the portal the key shown is the desktop's and Change calls `configure()` or shows "Change it in the system settings"; window-only shows "Works only while CapturaX is focused" (the portal part comes with T017, which has the portal); key names shown per platform and language (`Win`/`Super`, the locale's names such as `PgUp`) come from app/ui/texts.slint and the catalog
-- [ ] T032 [US3] (maintainer) quickstart checks 11–13 on both systems
+- [X] T032 [US3] (maintainer) quickstart checks 11–13 on both systems (11–12 on Windows with T031; 13 on Wayland with T017; no X11 session installed for the recorder on Linux)
 
 ---
 
@@ -136,7 +136,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 
 - [x] T033 [P] [US4] Files, part 2 (research R12): `pick_folder(owner, start, done)` in crates/platform/src/files.rs: windows/files.rs `IFileOpenDialog` with `FOS_PICKFOLDERS` on its own STA thread owned by the main window; linux/files.rs portal `FileChooser.OpenFile` with `directory: true`, the answer from the `Request`'s `Response` signal; false at once without the portal
 - [x] T034 [US4] Folders category (FR-020–FR-022): in app/ui/components/settings-panel.slint add `folders` after `audio` (icon `folder.svg`) with the Screenshots folder row: the folder shortened, the full path in its tooltip, **Change** (T033; the answer saved as an absolute path; "No folder picker on this desktop" when none), **Open** (`open_folder`), **Reset** (only when not `"default"`)
-- [ ] T035 [US4] (maintainer) quickstart check 14 on both systems
+- [X] T035 [US4] (maintainer) quickstart check 14 on both systems (Windows and CachyOS Wayland 2026-11-23)
 
 ---
 
@@ -147,7 +147,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 **Independent Test**: quickstart checks 9 and 15.
 
 - [X] T036 [US5] Failure texts and actions (FR-008, data-model.md "Outcome"): reasons from `WriteError` (`folder not found`, `no permission`, `disk full`, `write error`) and the conversion's `image error`; **Settings** opens the settings panel on the Folders category; tests for the outcome → kind/text mapping in app/src/screenshot.rs
-- [ ] T037 [US5] (maintainer) quickstart checks 9 and 15 on both systems (Windows done 2026-11-23)
+- [X] T037 [US5] (maintainer) quickstart checks 9 and 15 on both systems (Windows and CachyOS Wayland 2026-11-23)
 
 ---
 

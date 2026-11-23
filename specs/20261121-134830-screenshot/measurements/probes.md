@@ -30,22 +30,23 @@ same `arboard` call the probe makes, from the `clipboard` thread, with another a
 | Paint | yes | maintainer, check 1 |
 | Discord (browser) | yes | maintainer, check 1 |
 
-### CachyOS, Wayland (maintainer)
+### CachyOS, Wayland (agent over SSH, 2026-11-23)
+
+**Environment**: KDE Plasma 6.8.2 Wayland, release build of `99aae30`. The probe ran with no
+window of its own and no app focused by it (keys and pastes sent with `ydotool`); the app's own
+copies (quickstart check 1) went through the same pastes.
 
 | Target | Pasted | Notes |
 |---|---|---|
-| set call time (3840 × 2160) | | |
-| GIMP or Krita | | |
-| Dolphin | | |
-| Discord (browser) | | |
+| set call time (3840 × 2160) | 6.2 ms | release |
+| GIMP or Krita | yes (Krita) | the official Krita 6.0.4 AppImage (`QT_QPA_PLATFORM=wayland`; the system's package database was too old to install GIMP without a full upgrade): Ctrl+Shift+N "new image from clipboard" asked for the missing color profile, sRGB → a 3840 × 2160 RGBA image with the bars and gradient |
+| Dolphin | yes | Ctrl+V in a folder: "paste clipboard contents" dialog, OK → `arquivo colado.png`, PNG 3840 × 2160 RGBA; the app's copy too (1920 × 1080) |
+| Discord (browser) | stand-in | a local page in Firefox reading the `paste` event (what Discord's web client reads): `image/png 3840×2160`, the bars drawn; the app's copy `image/png 1920×1080` |
 
-### CachyOS, X11 (maintainer, if a session is installed)
+### CachyOS, X11
 
-| Target | Pasted | Notes |
-|---|---|---|
-| set call time (3840 × 2160) | | |
-| GIMP or Krita | | |
-| Dolphin | | |
+Not run: no X11 session is installed (`/usr/share/xsessions` does not exist; only
+`plasma.desktop` under wayland-sessions).
 
 ## T004: GlobalShortcuts (agent over SSH, CachyOS, 2026-11-23)
 

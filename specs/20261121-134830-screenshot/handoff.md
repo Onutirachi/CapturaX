@@ -28,6 +28,8 @@ T038 (docs) done 2026-11-23. T004 (probe) run and T017 (Wayland portal hotkeys) 
 on CachyOS over SSH by the agent, 2026-11-23 (check 13 passes); validated and committed
 (`docs(screenshot): record the shortcuts probe…`, `feat(platform): bind hotkeys through the
 Wayland shortcuts portal`). Default keys moved to the Ctrl+Shift family (Decisions).
+The Linux (Wayland) checks were run by the agent on CachyOS, 2026-11-23: T026, T032, T035 and
+T037 done; T003 done (Krita AppImage).
 
 ## Done in the last sessions
 
@@ -314,6 +316,17 @@ Wayland shortcuts portal`). Default keys moved to the Ctrl+Shift family (Decisio
   full Linux build of this branch: the PipeWire change of T022 compiles). Checked with the
   `hotkeys` example and in the app (acceptance.md "Linux Wayland, portal hotkeys");
   `utc_offset` checked on Linux too.
+- 2026-11-23: Linux checks by the agent over SSH (release build of `99aae30`, C920 and test
+  video; the ezcap is on Windows): T003 on Wayland (set 6.2 ms at 4K; pasted in Dolphin and in a
+  local Firefox page reading the `paste` event, the stand-in for Discord's web client; Krita through
+  the official 6.0.4 AppImage in `~/capx/krita`, run with `QT_QPA_PLATFORM=wayland`, since the
+  package database is too old to install GIMP without a full `pacman -Syu`), quickstart 1, 2,
+  4–10, 14 and 15 (measurements/acceptance.md "Linux Wayland, screenshots"), the `audio_session
+  --output-only` example. The sound was checked by recording a null sink chosen as the app's
+  output, so nothing played on the maintainer's VBAN. Check 5 reached the limit of 4 for the
+  first time (6 presses 25 ms apart: 5 written, 1 Busy). No X11 session is installed. Left on
+  CachyOS: the KDE binding on Ctrl+Shift+F8, `~/capx/lib.sh` now with the right ydotool socket,
+  `~/capx/peaks.py`, `~/capx/rec.sh` and `~/capx/paste/index.html` (paste test page).
 
 ## Decisions
 
@@ -368,6 +381,16 @@ Wayland shortcuts portal`). Default keys moved to the Ctrl+Shift family (Decisio
 
 ## Open questions
 
+- For the maintainer (from the Linux checks, 2026-11-23): (a) on Linux a **removed USB drive**
+  gives "sem permissão", not "pasta não encontrada": udisks removes the mount point and its
+  parent `/run/media/<user>` belongs to root, so `make_folder`'s `create_dir` is refused
+  (screenshot.rs). Keep it, or map a refused create of a missing folder to FolderNotFound (a
+  spec change first)? (b) The portal folder dialog returns `/mnt/capxusb/` and the row shows
+  and stores the trailing slash; trim it? Agent's proposal (waiting for the maintainer's go):
+  (a) a folder that is missing and cannot be made is always "folder not found", whatever the
+  error; "no permission" only when the folder exists and refuses the write; (b) trim a trailing
+  separator from the picked folder (not from a root such as `/` or `C:\`). Both go into the spec
+  and data-model first, then screenshot.rs with tests.
 
 - Probes before their code: the clipboard while another app has the focus (R4, Wayland
   data-control on KWin) and the GlobalShortcuts portal on KDE (R7). A failure updates the spec
@@ -385,18 +408,8 @@ Wayland shortcuts portal`). Default keys moved to the Ctrl+Shift family (Decisio
 
 ## Next step
 
-0. Done: T004/T017 committed; the CachyOS clone was synced to the branch.
-1. Agent, on CachyOS over SSH (allowed, see Decisions): T003 clipboard rows (set time; pastes
-   in GIMP or Krita, Dolphin, Firefox), T026 (checks 1, 2, 4–7, 10 on Wayland), T032's Linux
-   half (11–12 are the Windows/X11 recorder; on Wayland check 13 passed), T035's Linux half
-   (check 14: the portal folder dialog, never run), T037's Linux half (9, 15), the `files`
-   example (show/open), `audio_session --output-only`, the sound in the app, **Open** on a C920
-   notice (simulate the unplug with the usb unbind in the hardware memory). X11 checks only if
-   an X11 session is installed. Unlock: the maintainer must leave the screen unlocked.
-   `ydotoold` listens on `/tmp/.ydotool_socket` (`~/capx/lib.sh` sets another path: export
-   `YDOTOOL_SOCKET=/tmp/.ydotool_socket`). The KDE binding is cleared (the next start asks
-   with Ctrl+Shift+F8); to clear it again: `qdbus6 org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel.unregister capturax
-   screenshot` resets it (the next start asks again).
+0. Done: T004/T017 committed; the Linux checks (T026, T032, T035, T037) done 2026-11-23.
+1. Maintainer: answer the open questions (a)–(c) above; (a) or (b) changes the spec first.
 2. Maintainer, Windows: T025 check 7 (PS5 at 4K output), checks 3 and 10, a quit right after
    a screenshot.
 3. Then T027 (latency, both systems; the limit of 4 waiting screenshots was never reached by
