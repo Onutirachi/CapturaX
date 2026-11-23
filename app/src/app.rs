@@ -108,6 +108,8 @@ pub enum UserEvent {
     Hotkey(platform::HotkeyEvent),
     /// The Hotkeys category's controls (screenshot FR-016).
     HotkeyUi(HotkeyUi),
+    /// The Folders category's screenshots row (screenshot FR-020).
+    FolderUi(FolderUi),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
@@ -161,6 +163,19 @@ pub enum HotkeyUi {
     Cancel,
     Clear(String),
     Reset(String),
+}
+
+/// What the screenshots folder row asks for (screenshot FR-020).
+#[derive(Debug, Clone)]
+pub enum FolderUi {
+    /// **Change**: the system's folder dialog.
+    Change,
+    /// The dialog's answer: the folder chosen, None when cancelled.
+    Picked(Option<std::path::PathBuf>),
+    /// **Open**: the file manager on the folder.
+    Open,
+    /// **Reset**: the default folder again.
+    Reset,
 }
 
 /// A change made in the settings panel.
@@ -245,6 +260,8 @@ pub struct App {
     /// A Reset refused because another action has the default: shown on that row until the next
     /// change in the Hotkeys category.
     hotkey_refusal: Option<(&'static str, crate::hotkeys::Refusal)>,
+    /// The folder dialog is open: another **Change** is ignored until its answer.
+    picking_folder: bool,
     /// The next 3 s re-read while the preview waits for a device.
     relist_at: Instant,
     /// When microphone access is read next while the audio input is Blocked.
@@ -434,6 +451,7 @@ impl App {
             screenshot_worker: None,
             hotkeys: None,
             hotkey_refusal: None,
+            picking_folder: false,
             tick_wall: None,
             relist_at: Instant::now(),
             audio_access_at: Instant::now(),
@@ -1018,6 +1036,59 @@ impl App {
             },
         }
         self.show_hotkeys();
+        self.request_redraw();
+    }
+
+    /// The Folders category's screenshots row (FR-020, FR-022): the dialog's answer is kept as an
+    /// absolute path, Reset keeps `"default"`.
+    fn folder_ui(&mut self, ui: FolderUi) {
+        let current = crate::screenshot::folder(&self.store.get().screenshot.folder);
+        match ui {
+            FolderUi::Change => {
+                let Some(window) = self.window.clone() else {
+                    return;
+                };
+                if self.picking_folder {
+                    return;
+                }
+                let proxy = self.proxy.clone();
+                let shown = platform::pick_folder(&window, &current, move |picked| {
+                    let _ = proxy.send_event(UserEvent::FolderUi(FolderUi::Picked(picked)));
+                });
+                self.picking_folder = shown;
+                self.ui.app.global::<Prefs>().set_folder_picker_missing(!shown);
+            }
+            FolderUi::Picked(picked) => {
+                self.picking_folder = false;
+                let Some(path) = picked else {
+                    return;
+                };
+                let Some(text) = path.is_absolute().then(|| path.to_str()).flatten() else {
+                    log::warn!(
+                        "screenshot folder {} cannot be kept (not absolute or not UTF-8)",
+                        path.display()
+                    );
+                    return;
+                };
+                let text = crate::screenshot::picked_folder(text);
+                log::info!("screenshot folder: {text}");
+                self.store.update(|s| s.screenshot.folder = text.to_string());
+            }
+            // The folder is made at the first screenshot: Open makes it too, as a screenshot
+            // would, so the file manager has something to show (FR-021).
+            FolderUi::Open => {
+                if let Err(err) = crate::screenshot::make_folder(&current) {
+                    log::warn!("screenshot folder {}: {err:?}", current.display());
+                }
+                platform::open_folder(&current);
+            }
+            FolderUi::Reset => {
+                log::info!("screenshot folder: default");
+                self.store
+                    .update(|s| s.screenshot.folder = settings::DEFAULT_FOLDER.to_string());
+            }
+        }
+        show_screenshot_folder(&self.ui, &self.store.get().screenshot.folder);
         self.request_redraw();
     }
 
@@ -1846,6 +1917,17 @@ impl App {
     }
 }
 
+/// The Folders category's screenshots row for `[screenshot] folder` (screenshot FR-020).
+fn show_screenshot_folder(ui: &Ui, setting: &str) {
+    let prefs = ui.app.global::<Prefs>();
+    let folder = crate::screenshot::folder(setting);
+    prefs.set_screenshot_folder(crate::screenshot::short_folder(&folder).into());
+    prefs.set_screenshot_folder_path(folder.display().to_string().into());
+    prefs
+        .set_screenshot_default_folder(crate::screenshot::short_folder(&platform::default_screenshots_folder()).into());
+    prefs.set_screenshot_folder_is_default(setting == settings::DEFAULT_FOLDER);
+}
+
 /// Shows the saved settings in the settings panel and saves each change from it (FR-025, FR-029).
 fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone + 'static) {
     let prefs = ui.app.global::<Prefs>();
@@ -1877,6 +1959,13 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     prefs.on_hotkey_clear(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Clear(action.into()))));
     let on = send.clone();
     prefs.on_hotkey_reset(move |action| on(UserEvent::HotkeyUi(HotkeyUi::Reset(action.into()))));
+    show_screenshot_folder(ui, &store.get().screenshot.folder);
+    let on = send.clone();
+    prefs.on_screenshot_folder_change(move || on(UserEvent::FolderUi(FolderUi::Change)));
+    let on = send.clone();
+    prefs.on_screenshot_folder_open(move || on(UserEvent::FolderUi(FolderUi::Open)));
+    let on = send.clone();
+    prefs.on_screenshot_folder_reset(move || on(UserEvent::FolderUi(FolderUi::Reset)));
     set_language_items(ui);
     prefs.set_language(i18n::choice_index(&general.language));
     prefs.set_theme(theme::choice_index(general.theme));
@@ -2265,6 +2354,7 @@ impl ApplicationHandler<UserEvent> for App {
                 }
             }
             UserEvent::HotkeyUi(ui) => self.hotkey_ui(ui),
+            UserEvent::FolderUi(ui) => self.folder_ui(ui),
             // The level moves and the sound plays again, as with the slider.
             UserEvent::VolumeWheel(delta) => {
                 let notches = self.volume_wheel.notches(delta);

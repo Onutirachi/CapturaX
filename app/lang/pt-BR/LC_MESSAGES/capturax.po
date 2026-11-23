@@ -490,3 +490,15 @@ msgstr "Pause"
 
 msgid "Print Screen"
 msgstr "Print Screen"
+
+msgid "Folders"
+msgstr "Pastas"
+
+msgid "Screenshots"
+msgstr "Capturas de tela"
+
+msgid "Change"
+msgstr "Alterar"
+
+msgid "No folder picker on this desktop"
+msgstr "Sem seletor de pastas neste ambiente"

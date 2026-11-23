@@ -177,17 +177,7 @@ const MAX_NUMBER: u32 = 10_000;
 /// never showing a partial one under the final name (FR-005, FR-006, research R3). The folder is
 /// made when its parent exists.
 pub fn write_png(folder: &Path, time: &LocalTime, bytes: &[u8]) -> Result<PathBuf, WriteError> {
-    if !folder.is_dir() {
-        if !folder.parent().is_some_and(Path::is_dir) {
-            return Err(WriteError::FolderNotFound);
-        }
-        fs::create_dir(folder)
-            .or_else(|err| if folder.is_dir() { Ok(()) } else { Err(err) })
-            .map_err(|err| {
-                log::warn!("screenshot: cannot make {}: {err}", folder.display());
-                WriteError::from_io(&err)
-            })?;
-    }
+    make_folder(folder)?;
     remove_stale_parts(folder);
     let part = folder.join(format!(".{}.part", file_name(time, 1)));
     let fail = |err: io::Error, what: &str| {
@@ -249,6 +239,36 @@ fn remove_stale_parts(folder: &Path) {
     }
 }
 
+/// Makes the screenshots folder when it is missing and its parent exists (FR-021). A folder that
+/// is missing and cannot be made is "folder not found" whatever the create's error: on Linux a
+/// removed drive's mount point is gone and its parent belongs to root, so the create is refused.
+pub fn make_folder(folder: &Path) -> Result<(), WriteError> {
+    if folder.is_dir() {
+        return Ok(());
+    }
+    if !folder.parent().is_some_and(Path::is_dir) {
+        return Err(WriteError::FolderNotFound);
+    }
+    fs::create_dir(folder)
+        .or_else(|err| if folder.is_dir() { Ok(()) } else { Err(err) })
+        .map_err(|err| {
+            log::warn!("screenshot: cannot make {}: {err}", folder.display());
+            WriteError::FolderNotFound
+        })
+}
+
+/// A picked folder as kept in the settings (FR-022): without a trailing separator, except a root
+/// (`/`, `C:\`).
+pub fn picked_folder(text: &str) -> &str {
+    let trimmed = text.trim_end_matches(['/', '\\']);
+    if trimmed.is_empty() || trimmed.ends_with(':') {
+        // A root: keep its first separator.
+        &text[..(trimmed.len() + 1).min(text.len())]
+    } else {
+        trimmed
+    }
+}
+
 /// The folder for `[screenshot] folder` (data-model.md "Screenshots folder"): the path, or the
 /// system's Pictures folder plus `CapturaX`.
 pub fn folder(setting: &str) -> PathBuf {
@@ -257,6 +277,46 @@ pub fn folder(setting: &str) -> PathBuf {
     } else {
         PathBuf::from(setting)
     }
+}
+
+/// Folders longer than this, in characters, are shortened in the settings (FR-020).
+const SHORT_FOLDER: usize = 40;
+
+/// The folder as the settings show it (FR-020): whole when short, else its start (the drive or
+/// root and its first folder), "…" and as many of its last folders as fit in [`SHORT_FOLDER`]
+/// characters, the last one always.
+pub fn short_folder(path: &Path) -> String {
+    shorten(&path.display().to_string(), std::path::MAIN_SEPARATOR)
+}
+
+fn shorten(text: &str, sep: char) -> String {
+    let len = |s: &str| s.chars().count();
+    if len(text) <= SHORT_FOLDER {
+        return text.to_string();
+    }
+    let sep_text = sep.to_string();
+    let parts: Vec<&str> = text.split(sep).collect();
+    // The start ends with its second named part: `C:\Users`, `/home/me`, `\\server\share`.
+    let Some(head_end) = parts
+        .iter()
+        .enumerate()
+        .filter(|(_, part)| !part.is_empty())
+        .nth(1)
+        .map(|(i, _)| i)
+    else {
+        return text.to_string();
+    };
+    let head = parts[..=head_end].join(&sep_text);
+    // The start, "…" between two separators, then the tail.
+    let fits = |start: usize| len(&head) + 3 + len(&parts[start..].join(&sep_text)) <= SHORT_FOLDER;
+    let mut tail_start = parts.len() - 1;
+    while tail_start > head_end + 2 && fits(tail_start - 1) {
+        tail_start -= 1;
+    }
+    if tail_start <= head_end + 1 {
+        return text.to_string();
+    }
+    format!("{head}{sep}…{sep}{}", parts[tail_start..].join(&sep_text))
 }
 
 /// A taken frame for the worker (research R5).
@@ -523,6 +583,38 @@ mod tests {
     }
 
     #[test]
+    fn short_folders_stay_whole() {
+        let windows = r"C:\Users\clandini\Pictures\CapturaX";
+        assert_eq!(shorten(windows, '\\'), windows);
+        assert_eq!(shorten("/home/me/Pictures/CapturaX", '/'), "/home/me/Pictures/CapturaX");
+    }
+
+    #[test]
+    fn long_folders_keep_their_start_and_end() {
+        assert_eq!(
+            shorten(r"D:\Arquivos\Mídia\Capturas de tela\Jogos\2026\PlayStation 5", '\\'),
+            r"D:\Arquivos\…\Jogos\2026\PlayStation 5"
+        );
+        assert_eq!(
+            shorten("/home/carlos/Documentos/Projetos/Vídeos/Capturas/CapturaX", '/'),
+            "/home/carlos/…/Vídeos/Capturas/CapturaX"
+        );
+        assert_eq!(
+            shorten(r"\\server\share\equipe\mídia\capturas\CapturaX 2026", '\\'),
+            r"\\server\share\…\capturas\CapturaX 2026"
+        );
+        // A last folder too long to fit is kept whole; the panel elides what does not fit.
+        let long = "/home/me/a/b/a folder whose name alone is longer than the limit";
+        assert_eq!(
+            shorten(long, '/'),
+            "/home/me/…/a folder whose name alone is longer than the limit"
+        );
+        // Nothing to take out between the start and the last folder.
+        let two = "/home/me/a folder whose name alone is longer than the limit";
+        assert_eq!(shorten(two, '/'), two);
+    }
+
+    #[test]
     fn the_default_folder_is_the_systems() {
         assert_eq!(folder("default"), platform::default_screenshots_folder());
         let own = std::env::temp_dir().join("shots");
@@ -608,6 +700,30 @@ mod tests {
         let deep = dir.path().join("gone").join("CapturaX");
         assert_eq!(write_png(&deep, &time(), b"png"), Err(WriteError::FolderNotFound));
         assert!(!dir.path().join("gone").exists());
+    }
+
+    #[test]
+    fn a_folder_that_cannot_be_made_is_not_found() {
+        // The create fails (here a file is in the way; on Linux a removed drive's mount point
+        // under a root-owned parent): still "folder not found", not the create's error.
+        let dir = tempfile::tempdir().unwrap();
+        let blocked = dir.path().join("CapturaX");
+        std::fs::write(&blocked, b"not a folder").unwrap();
+        assert_eq!(make_folder(&blocked), Err(WriteError::FolderNotFound));
+        assert_eq!(write_png(&blocked, &time(), b"png"), Err(WriteError::FolderNotFound));
+    }
+
+    #[test]
+    fn a_picked_folder_loses_its_trailing_separator_but_a_root_keeps_it() {
+        assert_eq!(picked_folder("/mnt/capxusb/"), "/mnt/capxusb");
+        assert_eq!(picked_folder("/mnt/capxusb//"), "/mnt/capxusb");
+        assert_eq!(picked_folder("/home/me/Shots"), "/home/me/Shots");
+        assert_eq!(picked_folder("/"), "/");
+        assert_eq!(picked_folder("//"), "/");
+        assert_eq!(picked_folder(r"D:\Shots\"), r"D:\Shots");
+        assert_eq!(picked_folder(r"C:\"), r"C:\");
+        assert_eq!(picked_folder("C:"), "C:");
+        assert_eq!(picked_folder(r"\\server\share\"), r"\\server\share");
     }
 
     #[test]

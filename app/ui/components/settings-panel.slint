@@ -85,6 +85,17 @@ export global Prefs {
     callback hotkey-cancel();
     callback hotkey-clear(string);
     callback hotkey-reset(string);
+    // The Folders category (screenshot FR-020): the folder shortened, its full path, the
+    // default folder shortened (Reset's tooltip), whether the default is in use (no Reset), and
+    // whether the last Change found no folder dialog (Linux without the portal).
+    in property <string> screenshot-folder;
+    in property <string> screenshot-folder-path;
+    in property <string> screenshot-default-folder;
+    in property <bool> screenshot-folder-is-default: true;
+    in-out property <bool> folder-picker-missing;
+    callback screenshot-folder-change();
+    callback screenshot-folder-open();
+    callback screenshot-folder-reset();
     callback background-changed(int);
     callback watermark-changed(bool);
     callback shadow-changed(int);
@@ -99,7 +110,7 @@ export global Prefs {
 }
 
 // Later specs add their categories here (F40), with their names in `CategoryItem`.
-enum Category { general, appearance, preview, audio, hotkeys, about }
+enum Category { general, appearance, preview, audio, folders, hotkeys, about }
 
 // No text here: a translated name in the list would make a language switch build the items
 // again, losing the keyboard focus and leaving a shown tooltip in the old language.
@@ -131,6 +142,7 @@ component CategoryItem inherits Rectangle {
         : root.id == Category.appearance ? @tr("Appearance")
         : root.id == Category.preview ? @tr("Preview")
         : root.id == Category.audio ? @tr("Audio")
+        : root.id == Category.folders ? @tr("Folders")
         : root.id == Category.hotkeys ? @tr("Hotkeys")
         : @tr("About");
 
@@ -682,6 +694,107 @@ component HotkeyRow inherits Row {
     }
 }
 
+// A folder of the Folders category (screenshot FR-020; spec #9 adds the recordings one): its name, under it the folder shortened (the full
+// path in a tooltip after 500 ms of hover on it) or why Change did nothing; then **Change** (the
+// system's folder dialog), **Open** (the file manager on it) and **Reset** while a folder other
+// than the default is set. Reset keeps its place when hidden, so the buttons do not move.
+component FolderRow inherits Row {
+    callback change();
+    callback open();
+    callback reset();
+
+    // The token of the tooltip shown, 0 when none.
+    property <int> tip;
+    // Its tooltip still shows: a size change or another control's tooltip hides it without telling.
+    property <bool> tip-shown: root.tip > 0 && root.tip == Tooltips.owner;
+    property <bool> wants-tip: path-area.has-hover && Prefs.screenshot-folder-path != "";
+
+    function show-tip() {
+        root.tip = Tooltips.show(Prefs.screenshot-folder-path, Side.top,
+            path.absolute-position.x, path.absolute-position.y, path.width, path.height);
+    }
+
+    changed wants-tip => {
+        if (!self.wants-tip) {
+            Tooltips.hide(root.tip);
+            root.tip = 0;
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: root.wants-tip && !root.tip-shown;
+        triggered => { root.show-tip(); }
+    }
+
+    height: max(Rows.height, texts.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
+
+    area := TouchArea {
+        texts := VerticalLayout {
+            x: Rows.pad;
+            width: change.x - Rows.pad - Theme.gap-m;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: @tr("Screenshots");
+                color: Theme.c.text;
+                font-size: Rows.text;
+                wrap: word-wrap;
+            }
+
+            path := Text {
+                text: Prefs.screenshot-folder;
+                color: Theme.c.text-muted;
+                font-size: Theme.text-m;
+                overflow: elide;
+                accessible-description: Prefs.screenshot-folder-path;
+
+                path-area := TouchArea { }
+            }
+
+            if Prefs.folder-picker-missing: Text {
+                text: @tr("No folder picker on this desktop");
+                color: Theme.c.warn;
+                font-size: Theme.text-m;
+                wrap: word-wrap;
+            }
+        }
+
+        // Placed by hand: a layout here would hand its fixed width to the row as its maximum.
+        change := ActionButton {
+            x: open.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            width: max(96px, self.preferred-width);
+            label: @tr("Change");
+            clicked => { root.change(); }
+        }
+
+        open := ActionButton {
+            x: reset.x - 4px - self.width;
+            y: (parent.height - self.height) / 2;
+            width: max(96px, self.preferred-width);
+            label: @tr("Open");
+            clicked => { root.open(); }
+        }
+
+        reset := IconButton {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            size: 36px;
+            icon-size: 18px;
+            filled: true;
+            icon: @image-url("../assets/icons/arrow_back_up.svg");
+            tooltip: @tr("Reset to {}", Prefs.screenshot-default-folder);
+            visible: !Prefs.screenshot-folder-is-default;
+            focusable: self.visible;
+            clicked => { root.reset(); }
+        }
+    }
+}
+
 export component SettingsPanel inherits Raised {
     // The compact layout (FR-009): the column keeps only the icons.
     in property <bool> compact;
@@ -700,17 +813,23 @@ export component SettingsPanel inherits Raised {
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
         { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
         { id: Category.audio, icon: @image-url("../assets/icons/volume.svg") },
+        { id: Category.folders, icon: @image-url("../assets/icons/folder.svg") },
         { id: Category.hotkeys, icon: @image-url("../assets/icons/keyboard.svg") },
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ] : [
         { id: Category.general, icon: @image-url("../assets/icons/adjustments_horizontal.svg") },
         { id: Category.appearance, icon: @image-url("../assets/icons/palette.svg") },
         { id: Category.preview, icon: @image-url("../assets/icons/device_tv.svg") },
+        { id: Category.folders, icon: @image-url("../assets/icons/folder.svg") },
         { id: Category.hotkeys, icon: @image-url("../assets/icons/keyboard.svg") },
         { id: Category.about, icon: @image-url("../assets/icons/info_circle.svg") },
     ];
     // A recording ends when its row goes away (FR-016).
-    changed category => { Prefs.hotkey-cancel(); }
+    // The folder dialog's warning belongs to the Change that showed it.
+    changed category => {
+        Prefs.hotkey-cancel();
+        Prefs.folder-picker-missing = false;
+    }
 
     // The category column runs the panel's full height on the base tone (FR-034).
     property <length> nav-pad: 10px;
@@ -916,6 +1035,13 @@ export component SettingsPanel inherits Raised {
                     last: index == (root.audio-tab == 0 ? Prefs.audio-inputs : Prefs.audio-outputs).length - 1;
                     toggled(on) => { Prefs.exclusive-changed(endpoint.id, on); }
                 }
+            }
+
+            if root.category == Category.folders: FolderRow {
+                last: true;
+                change => { Prefs.screenshot-folder-change(); }
+                open => { Prefs.screenshot-folder-open(); }
+                reset => { Prefs.screenshot-folder-reset(); }
             }
 
             // Where global keys cannot work (Wayland without the portal, FR-012).

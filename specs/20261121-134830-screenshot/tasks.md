@@ -135,7 +135,7 @@ edges and shows the notice, inside or outside the window, without a dropped fram
 **Independent Test**: quickstart check 14.
 
 - [x] T033 [P] [US4] Files, part 2 (research R12): `pick_folder(owner, start, done)` in crates/platform/src/files.rs: windows/files.rs `IFileOpenDialog` with `FOS_PICKFOLDERS` on its own STA thread owned by the main window; linux/files.rs portal `FileChooser.OpenFile` with `directory: true`, the answer from the `Request`'s `Response` signal; false at once without the portal
-- [ ] T034 [US4] Folders category (FR-020–FR-022): in app/ui/components/settings-panel.slint add `folders` after `audio` (icon `folder.svg`) with the Screenshots folder row: the folder shortened, the full path in its tooltip, **Change** (T033; the answer saved as an absolute path; "No folder picker on this desktop" when none), **Open** (`open_folder`), **Reset** (only when not `"default"`)
+- [x] T034 [US4] Folders category (FR-020–FR-022): in app/ui/components/settings-panel.slint add `folders` after `audio` (icon `folder.svg`) with the Screenshots folder row: the folder shortened, the full path in its tooltip, **Change** (T033; the answer saved as an absolute path; "No folder picker on this desktop" when none), **Open** (`open_folder`), **Reset** (only when not `"default"`)
 - [ ] T035 [US4] (maintainer) quickstart check 14 on both systems
 
 ---
