@@ -110,6 +110,10 @@ intensity popover. Left in US1: T009's glass-to-glass check and 1080p120. The ez
   gpu.rs `glow_opacity` = ALPHA × video × toggle × intensity. The bulb shows `bulb_off.svg` (no
   rays) while off or at 0 % (maintainer, spec FR-001). pt-BR "Intensidade da luz ambiente".
 - 2026-11-24: T008e on Windows: check 1a passes (measurements/acceptance.md).
+- 2026-11-24: T009 glass to glass on Windows, windowed with bars, ambient on: 28.9 ms median,
+  31.6 ms p95, as spec #3's L2. With MPO off (the maintainer's registry change that day, since
+  removed) on and off both gave 42–43 ms: windows go through the compositor; fullscreen 29.0
+  (measurements/latency.md).
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -123,7 +127,6 @@ intensity popover. Left in US1: T009's glass-to-glass check and 1080p120. The ez
 
 ## Next step
 
-- T009: spec #3's glass-to-glass check once with the ambient light on (maintainer's phone, on
-  Windows only); 1080p120 when a PS5 game with a 120 Hz mode runs.
+- T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
 - Meanwhile US2 (hide the preview) can start: T010 (setting `preview.hidden`), then T011 (the
   state machine) and T012 (the dock button's state).

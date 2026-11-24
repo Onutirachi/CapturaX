@@ -32,10 +32,38 @@ Result: no change in latency. With the 16.6 ms minimum the frames' arrival jitte
 a third of the glow updates (39 a second at 60 fps); the minimum went to 15 ms (research R1) and
 the glow updates with every frame.
 
+### Glass to glass, 2026-11-24
+
+Spec #3's method (tools/latency, `summary.md` and `video-samples.csv` here): the PS5 browser
+showing `flash.html` at 1080p60, the passthrough on the right monitor (LG 27G2, G-SYNC), the
+preview on the left one (Samsung, 143.98 Hz), both filmed at 240 fps (the clips store 29.5 fps:
+`--fps 240`). Release build at 86833d7, `[present] backend=dx12 mode=mailbox`, controls hidden;
+windowed runs at 1720 × 720 with bars at the sides. The maintainer filmed; the agent ran the app
+and the analysis.
+
+The first three runs were made with Windows' multiplane overlays (MPO) turned off: the
+maintainer had set `HKLM\SOFTWARE\Microsoft\Windows\Dwm\OverlayTestMode = 5` that day. The
+last run is after removing it and restarting.
+
+| Variant | MPO | Window | Ambient | n | Median | p95 | Min | Max |
+|---|---|---|---|---|---|---|---|---|
+| L2-off-nompo | off | 1720 × 720 | off | 21 | 43.4 | 48.1 | 36.1 | 56.6 |
+| L2-on-nompo | off | 1720 × 720 | on, 100 % | 24 | 42.2 | 46.2 | 37.1 | 49.2 |
+| L1-nompo | off | fullscreen | off (no bars) | 24 | 29.0 | 32.0 | 26.1 | 32.4 |
+| **L2-on** | on | 1720 × 720 | on, 100 % | 23 | **28.9** | **31.6** | 25.3 | 32.1 |
+
+During every run the app's own numbers were the same: `pres=60`, `repl=0`, `ready_ms` 0.7–1.1,
+`lat_ms` 2.1–3.1, and `glow=60` with the ambient light on.
+
+Result: the ambient light adds no latency (FR-004, SC-001). With MPO on it is within spec #3's
+budget (median ≤ 32, p95 ≤ 35) and matches spec #3's L2 (2026-11-07: 29.7 / 32.3, ambient
+light not built yet). With MPO off, on and off are the same (42–43 ms): without overlays a
+windowed swap chain cannot be scanned out directly and goes through the desktop compositor,
+about 13 ms more; fullscreen still flips directly and matches spec #3's L1 (28.7 / 31.7).
+
 Still to do:
 
 - 1080p120: the PS5 cannot be forced to 120 Hz (its 120 Hz output is Automatic or Off; only a
   game with a 120 Hz mode sends it). Measured when such a game runs, on Windows or here.
 - Run 3 (bubbles pinned, controls hidden, research R9): after US3.
 - Windows: 1080p120 (see above).
-- Spec #3's glass-to-glass check once with the ambient light on (maintainer's phone).
