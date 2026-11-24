@@ -77,6 +77,8 @@ pub enum UserEvent {
     TryAgain,
     /// The right dock's screenshot button (screenshot FR-011).
     Screenshot,
+    /// The preview button (preview extras FR-006): hides the preview, or shows it while hidden.
+    PreviewToggled,
     /// An event notice's button (device FR-027, screenshot FR-008), in the app's balloon or on a
     /// system notification (`system`), which also brings the window back: the action's tag
     /// ([`NoticeAction`]).
@@ -395,6 +397,8 @@ impl App {
         let on = send.clone();
         ui.app.on_screenshot(move || on(UserEvent::Screenshot));
         let on = send.clone();
+        ui.app.on_preview_toggled(move || on(UserEvent::PreviewToggled));
+        let on = send.clone();
         ui.app.on_event_notice_action(move |tag| {
             on(UserEvent::NoticeAction {
                 tag: tag.into(),
@@ -457,6 +461,7 @@ impl App {
         // The Presentation setting reaches the video thread before it starts (FR-022).
         let inbox = Arc::new(Inbox::default());
         inbox.set_presentation(store.get().preview.presentation);
+        let preview_hidden = store.get().preview.hidden;
         Self {
             options,
             process_start,
@@ -473,8 +478,8 @@ impl App {
             window_gone: false,
             reopen_fullscreen: false,
             test_video: None,
-            // Shown at start until the hidden state is wired (preview extras T013).
-            preview: Preview::with_access(camera_access, false),
+            // Hidden by the user before: no device opens until shown (preview extras FR-011).
+            preview: Preview::with_access(camera_access, preview_hidden),
             menus: None,
             audio_menus: None,
             monitor_devices: None,
@@ -655,10 +660,19 @@ impl App {
     /// Shows the device and mode menus when they changed (a device came or left, another one
     /// opened, a stored choice changed); an open menu follows at once (spec edge case).
     fn show_menus(&mut self) {
-        // The Audio menu follows the open video device.
+        // The Audio menu follows the open video device, or while hidden the one showing would
+        // open (preview extras FR-010a).
+        let chosen = self.preview.hidden_device().cloned();
+        if let Some(sound) = &mut self.sound {
+            sound.video_chosen(chosen.as_ref(), &self.store.get());
+        }
         self.show_audio();
         let menus = self.preview.menus(&self.store.get());
         self.ui.app.set_modes_reachable(self.preview.modes_reachable());
+        // The range belongs to the open device, or while hidden to the one showing would open.
+        self.ui
+            .app
+            .set_device_open(self.preview.device().is_some() || chosen.is_some());
         self.ui
             .app
             .set_device_missing(self.preview.missing_name().unwrap_or_default().into());
@@ -682,6 +696,24 @@ impl App {
         app.set_devices(model(&menus.0));
         app.set_modes(model(&menus.1));
         self.menus = Some(menus);
+        if self.preview.preview_hidden() {
+            // The device showing would open changed, and its stored range with it.
+            self.show_range();
+        }
+        self.request_redraw();
+    }
+
+    /// Shows the color range of the toolbar's device.
+    fn show_range(&mut self) {
+        let (choice, in_use) = self.preview.range(&self.store.get());
+        let app = &self.ui.app;
+        app.set_color_range(match choice {
+            capture::RangeChoice::Auto => 0,
+            capture::RangeChoice::Full => 1,
+            capture::RangeChoice::Limited => 2,
+        });
+        app.set_range_full(in_use == Some(capture::Range::Full));
+        app.set_range_known(in_use.is_some());
         self.request_redraw();
     }
 
@@ -906,17 +938,7 @@ impl App {
                 self.store
                     .update(|s| s.touch_device(&id, &name).color_range = preview::color_range(range));
             }
-            Command::ShowRange => {
-                let (choice, in_use) = self.preview.range();
-                let app = &self.ui.app;
-                app.set_color_range(match choice {
-                    capture::RangeChoice::Auto => 0,
-                    capture::RangeChoice::Full => 1,
-                    capture::RangeChoice::Limited => 2,
-                });
-                app.set_range_full(in_use == Some(capture::Range::Full));
-                self.request_redraw();
-            }
+            Command::ShowRange => self.show_range(),
             Command::ShowState => self.show_preview_state(),
             Command::Notice {
                 kind,
@@ -1289,17 +1311,22 @@ impl App {
         };
         let (id, title, detail) =
             crate::ui::state_message(&state, &name, platform::IS_WINDOWS, &Texts::get(&self.ui.app));
-        // Before the monitor's first list the video area waits as when opening (no message).
-        let id = if !self.preview.listed() && self.monitor_devices.is_some() {
+        // Before the monitor's first list the video area waits as when opening (no message),
+        // unless the user hid the preview: that state shows at once (preview extras FR-011).
+        let id = if !self.preview.listed() && self.monitor_devices.is_some() && !self.preview.preview_hidden() {
             "opening"
         } else {
             id
         };
         let app = &self.ui.app;
-        app.set_device_open(self.preview.device().is_some());
+        let button = preview::preview_button(&state, self.preview.preview_hidden());
+        app.set_preview_hidden(button.icon == preview::PreviewIcon::Hidden);
+        app.set_preview_enabled(button.enabled);
         app.set_preview_state(id.into());
         app.set_state_title(title.into());
         app.set_state_detail(detail.into());
+        // The range is named only while video shows (preview extras FR-010b).
+        self.show_range();
         self.show_info();
         // The audio state hides behind a video state (FR-018).
         self.show_audio();
@@ -1413,7 +1440,7 @@ impl App {
         self.preview_event(preview::Event::Session { session, event });
         // The session sends the range in use right after `Playing` and on each change.
         if let (Some(range), true) = (range, self.options.stats) {
-            let auto = self.preview.range().0 == capture::RangeChoice::Auto;
+            let auto = self.preview.range(&self.store.get()).0 == capture::RangeChoice::Auto;
             if let Some(line) = self.source.as_ref().and_then(|s| s.line(range, auto)) {
                 crate::render::print_stats(&line);
             }
@@ -2269,10 +2296,13 @@ impl ApplicationHandler<UserEvent> for App {
                 sound.start();
             }
         }
-        // The test video plays at once; else the video area waits as when opening until the
-        // monitor's first list (main.slint's initial state).
+        // The test video plays at once; a preview hidden by the user shows its state at once
+        // (preview extras FR-011); else the video area waits as when opening until the monitor's
+        // first list (main.slint's initial state).
         if self.test_video.is_some() {
             self.ui.app.set_preview_state("playing".into());
+        } else if self.preview.preview_hidden() {
+            self.show_preview_state();
         }
         self.window = Some(window.clone());
         self.start_hotkeys();
@@ -2313,6 +2343,11 @@ impl ApplicationHandler<UserEvent> for App {
                 log::info!("screenshot: dock button");
                 self.request_screenshot();
             }
+            UserEvent::PreviewToggled => self.preview_event(if self.preview.preview_hidden() {
+                preview::Event::ShowPreview
+            } else {
+                preview::Event::HidePreview
+            }),
             UserEvent::NoticeAction { tag, system } => match NoticeAction::from_tag(&tag) {
                 NoticeAction::Open(device) => {
                     // Chosen before the window shows: while hidden, the preview opens it when shown.

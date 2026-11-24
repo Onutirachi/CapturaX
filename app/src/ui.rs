@@ -33,8 +33,8 @@ pub fn state_message(
     let (id, title, detail) = match state {
         S::Playing => ("playing", Default::default(), Default::default()),
         S::NoSource => ("no-source", Default::default(), Default::default()),
-        // Not reached yet: its own state comes with the dock button (preview extras T013).
-        S::Hidden => ("no-source", Default::default(), Default::default()),
+        // Its title is main.slint's, as the shell's `no-source` (preview extras FR-008).
+        S::Hidden => ("hidden", Default::default(), Default::default()),
         S::NoDevices => (
             "no-devices",
             texts.get_preview_no_devices(),

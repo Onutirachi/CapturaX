@@ -61,8 +61,9 @@ export component AppWindow inherits Window {
 
     // What the video area shows, set by Rust from the preview (app/src/preview.rs): `playing`
     // shows the video; `no-source`, `no-devices`, `opening`, `blocked`, `in-use`, `disconnected`,
-    // `no-signal` and `failed` fill it with their state message (FR-019, FR-035). The title and
-    // detail come from Rust (they name the device), except the shell's `no-source`.
+    // `no-signal`, `failed` and `hidden` fill it with their state message (FR-019, FR-035). The
+    // title and detail come from Rust (they name the device), except the shell's `no-source` and
+    // the user's `hidden` (preview extras FR-008).
     // Starts as `opening`: nothing but the backdrop until the monitor's first list.
     in property <string> preview-state: "opening";
     in property <string> state-title;
@@ -70,6 +71,14 @@ export component AppWindow inherits Window {
     // The video background is black (F56): the states and the progress ring use light tones.
     in property <bool> video-black;
     property <bool> no-source: root.preview-state == "no-source";
+    property <bool> preview-off: root.preview-state == "hidden";
+    // The preview button (preview extras FR-006), set by Rust (`preview::preview_button`):
+    // `preview-hidden` shows `device_tv_off` on the on chip with "Show preview", else `device_tv`
+    // with "Hide preview"; `preview-enabled` is false when there is no device to show. A click asks
+    // Rust to hide or show.
+    in property <bool> preview-hidden;
+    in property <bool> preview-enabled;
+    callback preview-toggled();
     // The toolbar's choices for the open device (components/toolbar.slint), set by Rust.
     in property <bool> device-open;
     in property <bool> modes-reachable;
@@ -82,6 +91,7 @@ export component AppWindow inherits Window {
     callback mode-picked(int);
     in-out property <int> color-range;
     in property <bool> range-full;
+    in property <bool> range-known;
     callback color-range-changed(int);
     // The Audio dropdown (preview audio FR-008, FR-009), set by Rust: its menu, the row the
     // keyboard starts on, the value and the No audio icon.
@@ -153,18 +163,19 @@ export component AppWindow inherits Window {
         height: root.video-height;
         border-radius: root.video-radius;
         // Icons and actions per state (data-model.md "Preview state", research R13).
-        icon: root.preview-state == "no-source" || root.preview-state == "no-devices" ? @image-url("assets/icons/device_tv_off.svg")
+        icon: root.no-source || root.preview-off || root.preview-state == "no-devices" ? @image-url("assets/icons/device_tv_off.svg")
             : root.preview-state == "disconnected" ? @image-url("assets/icons/plug_connected_x.svg")
             : root.preview-state == "blocked" ? @image-url("assets/icons/lock.svg")
             : root.preview-state == "in-use" ? @image-url("assets/icons/player_pause.svg")
             : root.preview-state == "no-signal" ? @image-url("assets/icons/antenna_bars_off.svg")
             : @image-url("assets/icons/alert_triangle.svg");
-        title: root.no-source ? @tr("No source") : root.state-title;
+        title: root.no-source ? @tr("No source") : root.preview-off ? @tr("Preview hidden") : root.state-title;
         detail: root.state-detail;
         // No device open, or the open one disconnected: the action opens the toolbar's device
         // menu (US2 scenario 5); the error states try the device again, Blocked on Windows first
-        // offers the privacy settings.
-        primary: root.preview-state == "no-source" || root.preview-state == "no-devices" || root.preview-state == "disconnected"
+        // offers the privacy settings. Hidden has none: the dock button shows it again (FR-008).
+        primary: root.preview-off ? { id: "", label: "" }
+            : root.preview-state == "no-source" || root.preview-state == "no-devices" || root.preview-state == "disconnected"
             ? { id: "open-devices", label: @tr("Choose device") }
             : root.preview-state == "blocked" && root.privacy-settings
             ? { id: "open-privacy", label: @tr("Open privacy settings") }
@@ -252,7 +263,7 @@ export component AppWindow inherits Window {
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
         || right-area.has-hover || Menus.open || info.engaged || volume-button.open || ambient-button.open
         || ((fullscreen-button.has-focus || ambient-button.has-focus || volume-button.has-focus || settings-button.has-focus
-            || screenshot-button.has-focus || toolbar.has-focus) && Input.keyboard);
+            || preview-button.has-focus || screenshot-button.has-focus || toolbar.has-focus) && Input.keyboard);
     changed engaged => {
         if (self.engaged) {
             self.chrome-shown = true;
@@ -341,6 +352,7 @@ export component AppWindow inherits Window {
                 mode-picked(index) => { root.mode-picked(index); }
                 color-range <=> root.color-range;
                 range-full: root.range-full;
+                range-known: root.range-known;
                 color-range-changed(index) => { root.color-range-changed(index); }
                 audio-items: root.audio-items;
                 audio-current <=> root.audio-current;
@@ -477,9 +489,9 @@ export component AppWindow inherits Window {
             }
         }
 
-        // The right dock holds the features (FR-002a): screenshot first (preview, record and
-        // stream come with their specs). Slides out to the right. The button is disabled while
-        // the video area shows a state, not an image (screenshot FR-004, FR-011).
+        // The right dock holds the features (FR-002a): preview, then screenshot (record and
+        // stream come with their specs). Slides out to the right. The screenshot button is
+        // disabled while the video area shows a state, not an image (screenshot FR-004, FR-011).
         right-area := TouchArea {
             x: chrome.right-x + (chrome.edge + self.width + chrome.away) * root.hidden;
             y: chrome.right-top;
@@ -487,6 +499,17 @@ export component AppWindow inherits Window {
             height: right-dock.height;
 
             right-dock := Dock {
+                preview-button := IconButton {
+                    size: chrome.dock-button;
+                    icon: root.preview-hidden ? @image-url("assets/icons/device_tv_off.svg") : @image-url("assets/icons/device_tv.svg");
+                    tooltip: root.preview-hidden ? @tr("Show preview") : @tr("Hide preview");
+                    tooltip-side: Side.left;
+                    active: root.preview-hidden;
+                    enabled: root.preview-enabled;
+                    focusable: !root.settings-open;
+                    clicked => { root.preview-toggled(); }
+                }
+
                 screenshot-button := IconButton {
                     size: chrome.dock-button;
                     icon: @image-url("assets/icons/camera.svg");

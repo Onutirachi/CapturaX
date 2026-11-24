@@ -5,8 +5,8 @@
 ## State
 
 US1's ambient light is built, tuned and checked on both systems (T001–T008e), with its
-intensity popover. Left in US1: T009's 1080p120 runs. US2 has its setting, state machine and
-button state (T010–T012), not wired to the UI yet. The ezcap, the C920 and the PS5 are on the
+intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hidden" state and the toolbar
+while hidden are built and validated on Windows (T010–T013). The ezcap, the C920 and the PS5 are on the
 Windows PC.
 
 ## Done in the last sessions
@@ -134,6 +134,28 @@ Windows PC.
   access is denied, FR-006); data-model.md's table says so now. Tested.
 - `HidePreview`, `ShowPreview`, `preview_hidden()` and `preview_button` carry
   `#[cfg_attr(not(test), expect(dead_code))]` until T013.
+- 2026-11-24: T013: main.slint `preview-button` first on the right dock (IconButton,
+  `device_tv` / `device_tv_off` on the `active` chip, "Hide preview" / "Show preview",
+  `enabled` from `preview_button`); in properties `preview-hidden`, `preview-enabled`,
+  `callback preview-toggled()`. State `hidden`: `device_tv_off`, title "Preview hidden" from
+  main.slint (like `no-source`), no action. app.rs: `UserEvent::PreviewToggled` sends
+  `ShowPreview` or `HidePreview`; `with_access(.., store preview.hidden)`; the hidden state shows
+  at start before the first list (not the blank "opening"). Screenshot refuses it (not
+  Playing). pt-BR: "Preview oculto", "Ocultar preview", "Mostrar preview". The `expect`s are gone.
+  - The maintainer checked on Windows: button, state, volume while hidden, restart hidden, show,
+    device pick. Empty selects while hidden looked broken, so FR-010a (spec, data-model, folded
+    into T013): the toolbar shows and works for `resume`'s device (`hidden_device()`); mode and
+    range picks save and open nothing; the Audio controller gets `Event::VideoChosen` (menu,
+    value and picks for that device, no session), sent from `show_menus` (link read only on a
+    change); `range(settings)` gives the stored range while hidden. Hidden is one app choice:
+    it lasts through restarts and devices coming or leaving. Tested.
+  - Then (maintainer): hiding only hides, every choice works as when shown. A device picked while
+    hidden keeps it hidden (`SaveChoice` at once, becomes `resume`); only the button and **Open**
+    on a notice show. A device that comes while hidden only joins the menu, as when shown.
+  - FR-010b (maintainer): the Color range's Auto names a range only while video shows
+    (`range()` gives the range in use only while `Playing`; toolbar.slint `range-known`, else
+    "Auto" alone; `show_preview_state` shows the label again). So no Limited while hidden or
+    while opening (the session reports the driver's declared range first).
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -147,7 +169,6 @@ Windows PC.
 
 ## Next step
 
-- T013: the preview button first on the right dock, the "Preview hidden" state, app.rs
-  wiring (pass `store.get().preview.hidden` to `with_access`, map the click, drop the
-  placeholder and the `expect`s), pt-BR texts. Then T014 (bubbles while hidden) and T015.
+- T014 (bubbles while hidden: the source bubble names `resume`'s device, the others empty),
+  then T015 (no glow while hidden), then the manual T016 (Windows) and T017 (CachyOS).
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).

@@ -388,6 +388,21 @@ impl Sound {
         self.handle(Event::VideoOpened { session, device }, settings);
     }
 
+    /// While no video session is open, the device whose audio choices the Audio select shows (the
+    /// one showing the preview would open, preview extras FR-010a); None otherwise. Its link is
+    /// read only when the device changes.
+    pub fn video_chosen(&mut self, device: Option<&capture::Device>, settings: &settings::Settings) {
+        if self.controller.chosen().map(|d| d.id.as_str()) == device.map(|d| d.id.as_str()) {
+            return;
+        }
+        let device = device.map(|device| VideoDevice {
+            id: device.id.clone(),
+            base_name: device.base_name.clone(),
+            link: platform::audio::video_link(&device.id),
+        });
+        self.handle(Event::VideoChosen(device), settings);
+    }
+
     pub fn video_closed(&mut self, session: u64, settings: &settings::Settings) {
         self.handle(Event::VideoClosed { session }, settings);
     }

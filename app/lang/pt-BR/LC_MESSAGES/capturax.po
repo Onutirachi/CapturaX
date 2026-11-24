@@ -131,6 +131,15 @@ msgstr "Nenhuma fonte"
 msgid "Choose device"
 msgstr "Escolher dispositivo"
 
+msgid "Preview hidden"
+msgstr "Preview oculto"
+
+msgid "Hide preview"
+msgstr "Ocultar preview"
+
+msgid "Show preview"
+msgstr "Mostrar preview"
+
 msgid "Color range"
 msgstr "Faixa de cor"
 

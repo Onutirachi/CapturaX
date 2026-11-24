@@ -67,16 +67,8 @@ pub enum Event {
     /// The user pressed **Open** on a "connected" notice: as if the device was picked (FR-027).
     NoticeOpen(String),
     /// The user hid the preview (preview extras FR-007): the device is closed until shown.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "sent by the dock button, preview extras T013")
-    )]
     HidePreview,
     /// The user showed the preview again (preview extras FR-009).
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "sent by the dock button, preview extras T013")
-    )]
     ShowPreview,
 }
 
@@ -265,10 +257,6 @@ impl Preview {
     }
 
     /// The user hid the preview ([`PreviewState::Hidden`]).
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "read by the dock button, preview extras T013")
-    )]
     pub fn preview_hidden(&self) -> bool {
         self.preview_hidden
     }
@@ -348,12 +336,25 @@ impl Preview {
         }
     }
 
-    /// The open device's color range choice and the range in use (once known); Auto with no
-    /// device.
-    pub fn range(&self) -> (RangeChoice, Option<Range>) {
-        self.open
-            .as_ref()
-            .map_or((RangeChoice::Auto, None), |o| (o.range, o.in_use))
+    /// The open device's color range choice and the range in use, named only while video shows
+    /// (preview extras FR-010b); while hidden, the stored choice of the device showing would open
+    /// (FR-010a); Auto with no device.
+    pub fn range(&self, settings: &Settings) -> (RangeChoice, Option<Range>) {
+        if let Some(open) = &self.open {
+            let playing = self.state == Some(PreviewState::Playing);
+            return (open.range, open.in_use.filter(|_| playing));
+        }
+        match self.resume.as_ref().filter(|_| self.preview_hidden) {
+            Some(resume) => (stored_range(settings, &resume.device), None),
+            None => (RangeChoice::Auto, None),
+        }
+    }
+
+    /// While hidden, the listed device showing would open: the toolbar's choices are its own
+    /// (FR-010a).
+    pub fn hidden_device(&self) -> Option<&Device> {
+        let resume = self.resume.as_ref().filter(|_| self.preview_hidden)?;
+        capture::device::find(&resume.device, &self.devices)
     }
 
     /// The devices listed now.
@@ -363,12 +364,19 @@ impl Preview {
     }
 
     /// The device the toolbar shows: the open one, else the device an error or disconnected state
-    /// names (it keeps its place in the Device select, T045).
+    /// names (it keeps its place in the Device select, T045), else while hidden the one showing
+    /// would open (preview extras FR-010a).
     fn shown_device(&self) -> Option<&str> {
         self.open
             .as_ref()
             .map(|o| o.device.as_str())
             .or_else(|| self.state_device())
+            .or_else(|| {
+                self.resume
+                    .as_ref()
+                    .filter(|_| self.preview_hidden)
+                    .map(|r| r.device.as_str())
+            })
     }
 
     /// The listed device whose modes the mode menu offers: the open one, or the one of an error
@@ -459,11 +467,28 @@ impl Preview {
                 }
             }
             Event::Session { session, event } => self.session_event(session, event, &mut out),
+            Event::ChooseDevice(id) if self.preview_hidden => {
+                // Hidden or not, the choice is the same (preview extras FR-010a): it becomes the
+                // device showing opens, and the one remembered at once (no frame comes to wait
+                // for); nothing opens.
+                self.again = None;
+                if let Some(device) = capture::device::find(&id, &self.devices) {
+                    out.push(Command::SaveChoice {
+                        id: device.id.clone(),
+                        name: device.base_name.clone(),
+                    });
+                }
+                self.resume = Some(Again {
+                    device: id,
+                    mode: None,
+                    chosen: false,
+                });
+            }
             Event::ChooseDevice(id) | Event::NoticeOpen(id) => {
                 if self.open.as_ref().is_some_and(|o| o.device == id) {
                     log::info!("preview: {id} is already open");
                 } else if self.preview_hidden {
-                    // Picking a device shows the preview with it (preview extras FR-009).
+                    // Open on a "connected" notice shows the preview with it (FR-009).
                     self.again = None;
                     self.resume = Some(Again {
                         device: id,
@@ -484,6 +509,19 @@ impl Preview {
                 }
             }
             Event::ChooseMode(choice) => self.choose_mode(choice, settings, &mut out),
+            Event::ChooseRange(range) if self.preview_hidden => {
+                // Saved for the device showing would open; nothing opens (FR-010a).
+                if let Some(device) = self.hidden_device()
+                    && stored_range(settings, &device.id) != range
+                {
+                    out.push(Command::SaveRange {
+                        id: device.id.clone(),
+                        name: device.base_name.clone(),
+                        range,
+                    });
+                    out.push(Command::ShowRange);
+                }
+            }
             Event::ChooseRange(range) => {
                 if let Some(open) = self.open.as_mut()
                     && open.range != range
@@ -525,8 +563,7 @@ impl Preview {
                     if self.preview_hidden {
                         // Still hidden by the user: nothing opens (preview extras spec edge case).
                     } else if let Some(again) = self.resume.take() {
-                        let mode = self.offered(&again);
-                        self.open_device(&again.device, again.chosen, mode, settings, &mut out);
+                        self.open_again(&again, settings, &mut out);
                     } else if self.listed && self.none_listed_state() {
                         self.start(settings, &mut out);
                     }
@@ -583,8 +620,7 @@ impl Preview {
             self.state = Some(PreviewState::Opening(again.device.clone()));
             self.resume = Some(again);
         } else {
-            let mode = self.offered(&again);
-            self.open_device(&again.device, again.chosen, mode, settings, out);
+            self.open_again(&again, settings, out);
         }
     }
 
@@ -794,7 +830,12 @@ impl Preview {
             self.resume = Some(again);
             return;
         }
-        let mode = self.offered(&again);
+        self.open_again(&again, settings, out);
+    }
+
+    /// Opens `again`'s device in its mode when still offered.
+    fn open_again(&mut self, again: &Again, settings: &Settings, out: &mut Vec<Command>) {
+        let mode = self.offered(again);
         self.open_device(&again.device, again.chosen, mode, settings, out);
     }
 
@@ -843,6 +884,10 @@ impl Preview {
     /// (a stored mode the device lacks is replaced only here, contracts settings-file.md rule 2),
     /// and the device reopened when it resolves to another mode (FR-009).
     fn choose_mode(&mut self, choice: ModeChoice, settings: &Settings, out: &mut Vec<Command>) {
+        if self.preview_hidden {
+            self.choose_hidden_mode(choice, settings, out);
+            return;
+        }
         if self.closed() {
             return;
         }
@@ -875,6 +920,30 @@ impl Preview {
                 let chosen = self.again.as_ref().is_some_and(|a| a.device == device.id && a.chosen);
                 self.open_device(&device.id, chosen, Some(mode), settings, out);
             }
+        }
+    }
+
+    /// A mode picked while hidden (FR-010a): saved for the device showing would open, which then
+    /// opens in it; nothing opens now.
+    fn choose_hidden_mode(&mut self, choice: ModeChoice, settings: &Settings, out: &mut Vec<Command>) {
+        let Some(device) = self.hidden_device().cloned() else {
+            log::info!("preview: mode {choice} chosen while hidden with no device listed");
+            return;
+        };
+        let Some(mode) = mode::resolve(&choice, &device.modes, device.signal) else {
+            log::warn!("preview: {} cannot open {choice}", device.name);
+            return;
+        };
+        let stored = settings.device(&device.id).and_then(|c| ModeChoice::parse(&c.mode));
+        if stored.as_ref() != Some(&choice) {
+            out.push(Command::SaveMode {
+                id: device.id.clone(),
+                name: device.base_name.clone(),
+                choice,
+            });
+        }
+        if let Some(resume) = self.resume.as_mut() {
+            resume.mode = Some(mode);
         }
     }
 
@@ -997,7 +1066,6 @@ pub enum PreviewTip {
 /// The preview button for a state: hidden, it shows the preview; shown, it hides it, and is
 /// disabled when there is no device to show (FR-006: no devices, no source, or blocked with none
 /// listed).
-#[cfg_attr(not(test), expect(dead_code, reason = "wired by preview extras T013"))]
 pub fn preview_button(state: &PreviewState, preview_hidden: bool) -> PreviewButton {
     if preview_hidden {
         return PreviewButton {
@@ -1185,6 +1253,11 @@ pub fn mode_items(device: &Device, choice: &ModeChoice) -> Vec<Item> {
         items[index].current = true;
     }
     items
+}
+
+/// A device's stored color range choice; Auto when it has none.
+fn stored_range(settings: &Settings, id: &str) -> RangeChoice {
+    range_choice(settings.device(id).map(|c| c.color_range).unwrap_or_default())
 }
 
 pub fn range_choice(stored: ColorRange) -> RangeChoice {
@@ -1993,7 +2066,7 @@ mod tests {
         let mut p = Preview::new();
         let out = p.handle(listed(vec![card()]), &settings);
         let session = opened(&out).unwrap().2;
-        assert_eq!(p.range(), (RangeChoice::Limited, None));
+        assert_eq!(p.range(&settings), (RangeChoice::Limited, None));
         let out = p.handle(
             Event::Session {
                 session,
@@ -2002,7 +2075,10 @@ mod tests {
             &settings,
         );
         assert!(has(&out, |c| matches!(c, Command::ShowRange)));
-        assert_eq!(p.range(), (RangeChoice::Limited, Some(Range::Limited)));
+        // Named only once video shows (FR-010b).
+        assert_eq!(p.range(&settings), (RangeChoice::Limited, None));
+        p.handle(first_frame(session), &settings);
+        assert_eq!(p.range(&settings), (RangeChoice::Limited, Some(Range::Limited)));
 
         let out = p.handle(Event::ChooseRange(RangeChoice::Auto), &settings);
         assert!(opened(&out).is_none(), "no reopen");
@@ -2011,7 +2087,7 @@ mod tests {
             c,
             Command::SaveRange { id, range: RangeChoice::Auto, .. } if id == "card"
         )));
-        assert_eq!(p.range().0, RangeChoice::Auto);
+        assert_eq!(p.range(&settings).0, RangeChoice::Auto);
         // The same choice again does nothing.
         assert!(p.handle(Event::ChooseRange(RangeChoice::Auto), &settings).is_empty());
     }
@@ -2049,12 +2125,12 @@ mod tests {
         let out = p.handle(Event::ChooseDevice("cam".into()), &settings);
         let (id, mode, _) = opened(&out).unwrap();
         assert_eq!((id.as_str(), mode), ("cam", self::mode(640, 480, 30)));
-        assert_eq!(p.range().0, RangeChoice::Limited);
+        assert_eq!(p.range(&settings).0, RangeChoice::Limited);
         assert!(saved_mode(&out).is_none());
         // Without a stored choice: its defaults.
         let out = p.handle(Event::ChooseDevice("card".into()), &settings);
         assert_eq!(opened(&out).unwrap().1, self::mode(1920, 1080, 60));
-        assert_eq!(p.range().0, RangeChoice::Auto);
+        assert_eq!(p.range(&settings).0, RangeChoice::Auto);
     }
 
     #[test]
@@ -2554,6 +2630,87 @@ mod tests {
     }
 
     #[test]
+    fn while_hidden_the_toolbar_follows_the_device_showing_would_open() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card(), webcam()]);
+        p.handle(Event::HidePreview, &settings);
+        assert_eq!(p.hidden_device().map(|d| d.id.as_str()), Some("card"));
+        let (devices, modes) = p.menus(&settings);
+        assert_eq!(current(&devices), [&Label::Plain("ezcap Live GAMER ULTRA".into())]);
+        assert_eq!(modes, mode_items(&card(), &mode_choice(&card(), None)));
+        assert!(p.modes_reachable());
+
+        // A mode is saved for it and kept for showing; nothing opens.
+        let out = p.handle(Event::ChooseMode(choice("1920x1080@60")), &settings);
+        assert!(opened(&out).is_none() && !closes(&out), "{out:?}");
+        assert!(has(&out, |c| matches!(
+            c,
+            Command::SaveMode { id, choice, .. } if id == "card" && choice.to_string() == "1920x1080@60"
+        )));
+        assert_eq!(p.state(), PreviewState::Hidden);
+        let (id, mode, _) = opened(&p.handle(Event::ShowPreview, &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1920, 1080, 60)));
+    }
+
+    #[test]
+    fn a_range_chosen_while_hidden_is_saved_for_that_device() {
+        let mut settings = Settings::default();
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        p.handle(
+            Event::Session {
+                session,
+                event: SessionEvent::Range(Range::Full),
+            },
+            &settings,
+        );
+        assert_eq!(p.range(&settings), (RangeChoice::Auto, Some(Range::Full)));
+        // No video while hidden: no range is named (FR-010b).
+        p.handle(Event::HidePreview, &settings);
+        assert_eq!(p.range(&settings), (RangeChoice::Auto, None));
+
+        let out = p.handle(Event::ChooseRange(RangeChoice::Full), &settings);
+        assert!(opened(&out).is_none(), "{out:?}");
+        assert!(has(&out, |c| matches!(
+            c,
+            Command::SaveRange { id, range: RangeChoice::Full, .. } if id == "card"
+        )));
+        assert!(has(&out, |c| matches!(c, Command::ShowRange)));
+        assert_eq!(p.state(), PreviewState::Hidden);
+        // The app stores it; the toolbar then shows it.
+        settings.touch_device("card", "ezcap Live GAMER ULTRA").color_range = ColorRange::Full;
+        assert_eq!(p.range(&settings), (RangeChoice::Full, None));
+        // The same range again saves nothing.
+        assert!(p.handle(Event::ChooseRange(RangeChoice::Full), &settings).is_empty());
+    }
+
+    #[test]
+    fn started_hidden_without_the_last_device_the_toolbar_shows_the_start_device() {
+        let mut settings = Settings::default();
+        settings.preview.device = Some("card".into());
+        let mut p = started_hidden();
+        let out = p.handle(listed(vec![webcam()]), &settings);
+        assert!(opened(&out).is_none(), "{out:?}");
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert_eq!(p.hidden_device().map(|d| d.id.as_str()), Some("cam"));
+        assert_eq!(
+            current(&p.menus(&settings).0),
+            [&Label::Plain("HD Pro Webcam C920".into())]
+        );
+        // Hidden is not per device: the card coming back changes nothing.
+        let out = p.handle(Event::Monitor(MonitorEvent::Added(card())), &settings);
+        assert!(opened(&out).is_none(), "{out:?}");
+        assert_eq!(p.state(), PreviewState::Hidden);
+        // The shown device leaving is named as missing; showing waits for it.
+        p.handle(removed("cam"), &settings);
+        assert_eq!(p.missing_name().as_deref(), Some("HD Pro Webcam C920"));
+        assert!(p.hidden_device().is_none());
+        p.handle(Event::ShowPreview, &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("cam".into()));
+    }
+
+    #[test]
     fn hiding_while_opening_cancels_and_its_late_events_are_ignored() {
         let settings = Settings::default();
         let mut p = Preview::new();
@@ -2577,12 +2734,10 @@ mod tests {
         let out = p.handle(Event::HidePreview, &settings);
         assert!(!closes(&out), "nothing is open");
         assert_eq!(p.state(), PreviewState::Hidden);
-        // While hidden: Try again, a mode, a wake and the access check open nothing.
+        // While hidden: Try again, a wake and the access check open nothing.
         assert!(opened(&p.handle(Event::TryAgain, &settings)).is_none());
-        assert!(opened(&p.handle(Event::ChooseMode(choice("1920x1080@60")), &settings)).is_none());
         assert!(opened(&p.handle(Event::Resumed, &settings)).is_none());
         assert!(!p.watches_access());
-        assert!(!p.modes_reachable());
         let (id, mode, _) = opened(&p.handle(Event::ShowPreview, &settings)).unwrap();
         assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
     }
@@ -2660,21 +2815,27 @@ mod tests {
     }
 
     #[test]
-    fn picking_a_device_while_hidden_shows_and_opens_it() {
+    fn picking_a_device_while_hidden_keeps_it_hidden_and_opens_it_when_shown() {
         let settings = Settings::default();
         let mut p = Preview::new();
         playing_720(&mut p, &settings, vec![card(), webcam()]);
         p.handle(Event::HidePreview, &settings);
+        // Remembered at once, as a device that played; nothing opens.
         let out = p.handle(Event::ChooseDevice("cam".into()), &settings);
-        assert_eq!(saved_hidden(&out), Some(false));
-        let (id, _, session) = opened(&out).unwrap();
+        assert!(opened(&out).is_none(), "{out:?}");
+        assert!(saves(&out));
+        assert_eq!(saved_hidden(&out), None);
+        assert!(p.preview_hidden());
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert_eq!(p.hidden_device().map(|d| d.id.as_str()), Some("cam"));
+        let (id, _, session) = opened(&p.handle(Event::ShowPreview, &settings)).unwrap();
         assert_eq!(id, "cam");
-        assert!(!p.preview_hidden());
-        assert!(saves(&p.handle(first_frame(session), &settings)));
+        assert!(!saves(&p.handle(first_frame(session), &settings)), "saved already");
 
-        // So does Open on a notice.
+        // Open on a notice shows the preview with its device.
         p.handle(Event::HidePreview, &settings);
         let out = p.handle(Event::NoticeOpen("card".into()), &settings);
+        assert_eq!(saved_hidden(&out), Some(false));
         assert_eq!(opened(&out).map(|o| o.0).as_deref(), Some("card"));
     }
 
@@ -2689,11 +2850,14 @@ mod tests {
         assert!(opened(&out).is_none());
         assert_eq!(p.state(), PreviewState::Hidden);
 
-        // Shown or picked while in the tray: it opens when the window is shown.
+        // Picked while in the tray it stays hidden; shown, it opens when the window is shown.
         p.handle(Event::Hidden, &settings);
         let out = p.handle(Event::ChooseDevice("cam".into()), &settings);
         assert!(opened(&out).is_none());
-        assert_eq!(saved_hidden(&out), Some(false));
+        assert_eq!(saved_hidden(&out), None);
+        assert!(opened(&p.handle(Event::Shown, &settings)).is_none());
+        p.handle(Event::Hidden, &settings);
+        assert!(opened(&p.handle(Event::ShowPreview, &settings)).is_none());
         let (id, ..) = opened(&p.handle(Event::Shown, &settings)).unwrap();
         assert_eq!(id, "cam");
         p.handle(Event::HidePreview, &settings);

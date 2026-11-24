@@ -1,5 +1,6 @@
-// The state message's four variants for `slint-viewer` (not built into the app): no action, one
-// action, two actions, each with or without a detail. Click the window's background to switch the
+// The state message's variants for `slint-viewer` (not built into the app): no action, one
+// action, two actions, each with or without a detail, and the preview hidden (no detail, no
+// action). Click the window's background to switch the
 // theme. Sample texts are plain strings: previews are left out of the translation check.
 import { Theme } from "../theme.slint";
 import { StateMessage, StateAction } from "../components/state-message.slint";
@@ -31,6 +32,12 @@ export component StateMessagePreview inherits Window {
                 detail: "Connect a capture card to start.";
                 primary: { id: "open-source", label: "Open a source" };
                 action(id) => { debug("action", id); }
+            }
+        }
+        Row {
+            StateMessage {
+                icon: @image-url("../assets/icons/device_tv_off.svg");
+                title: "Preview hidden";
             }
         }
         Row {
