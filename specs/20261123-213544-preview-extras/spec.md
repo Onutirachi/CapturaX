@@ -187,8 +187,9 @@ controls hidden.
 
 - **FR-001**: The left dock MUST gain the ambient light button, between fullscreen and volume
   (spec #3 FR-002a order), a toggle with an on state (the soft orange chip of a toggled tool),
-  icon a light bulb (Tabler `bulb`); its tooltip is "Ambient light". It is
-  always clickable: while a state shows (no signal, opening, disconnected, preview hidden) it
+  icon a light bulb (Tabler `bulb`, its rays only while it glows, on and above 0 %, as the
+  volume's icon shows mute at 0 %: maintainer 2026-11-24); its tooltip is "Ambient light". It
+  is always clickable: while a state shows (no signal, opening, disconnected, preview hidden) it
   changes the saved value and nothing glows until video returns. The choice is saved and
   applies to every device.
 - **FR-001a**: The ambient light button MUST have an intensity popover that works as the

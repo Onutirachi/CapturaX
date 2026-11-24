@@ -745,6 +745,13 @@ mod tests {
             }
             assert!(near(texel[3], ALPHA), "{texel:?}");
         }
+        // Half the intensity halves the drawn colour and alpha (FR-001a).
+        for texel in rig.draw(ALPHA / 2.0).expect("a field") {
+            for c in 0..3 {
+                assert!(near(texel[c], shown[c] * ALPHA / 2.0), "{texel:?}");
+            }
+            assert!(near(texel[3], ALPHA / 2.0), "{texel:?}");
+        }
 
         // A dark frame draws its own dark colour, opaque: the glow never fades out (FR-003).
         rig.glow.reset();

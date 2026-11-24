@@ -122,10 +122,13 @@ export component AppWindow inherits Window {
     callback volume-changed(int, bool);
     // The wheel's vertical move over the volume button, in logical pixels (60 per notch).
     callback volume-wheel(length);
-    // The ambient light (preview extras FR-001): on or off, set by Rust at start; the dock button
-    // asks for the other value and Rust saves it and sets this back.
-    in property <bool> ambient;
-    callback ambient-changed(bool);
+    // The ambient light (preview extras FR-001, FR-001a): on or off and its intensity 0–100, set
+    // by Rust at start and changed here by the dock button; Rust saves them and sets them back.
+    in-out property <bool> ambient;
+    in-out property <int> ambient-intensity: 100;
+    callback ambient-changed(int, bool);
+    // The wheel's vertical move over the ambient light button, in logical pixels (60 per notch).
+    callback ambient-wheel(length);
 
     // The screenshot button (screenshot FR-011): its key as shown (`Hotkey::shown`), empty when
     // none, set by Rust; a click asks for a screenshot.
@@ -219,6 +222,7 @@ export component AppWindow inherits Window {
     changed settings-open => {
         if (self.settings-open) {
             volume-button.close();
+            ambient-button.close();
         }
         // A key being recorded is left as it was (screenshot FR-016).
         if (!self.settings-open) {
@@ -246,7 +250,7 @@ export component AppWindow inherits Window {
     // focus after the mouse takes over, and the chrome would never hide.
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
-        || right-area.has-hover || Menus.open || info.engaged || volume-button.open
+        || right-area.has-hover || Menus.open || info.engaged || volume-button.open || ambient-button.open
         || ((fullscreen-button.has-focus || ambient-button.has-focus || volume-button.has-focus || settings-button.has-focus
             || screenshot-button.has-focus || toolbar.has-focus) && Input.keyboard);
     changed engaged => {
@@ -414,14 +418,27 @@ export component AppWindow inherits Window {
 
                 // Always clickable (preview extras FR-001): in a state it only changes the saved
                 // value, and nothing glows until video returns.
-                ambient-button := IconButton {
+                ambient-button := SliderButton {
                     size: chrome.dock-button;
-                    icon: @image-url("assets/icons/bulb.svg");
-                    tooltip: @tr("Ambient light");
-                    tooltip-side: Side.right;
-                    active: root.ambient;
                     focusable: !root.settings-open;
-                    clicked => { root.ambient-changed(!root.ambient); }
+                    active: root.chrome-shown && !root.settings-open;
+                    window-width: root.width;
+                    window-height: root.height;
+                    // The rays show only while it glows: on and above 0 %, as the volume's icon.
+                    icon: root.ambient && root.ambient-intensity > 0 ? @image-url("assets/icons/bulb.svg") : @image-url("assets/icons/bulb_off.svg");
+                    tooltip: @tr("Ambient light");
+                    label: @tr("Ambient light");
+                    slider-label: @tr("Ambient light intensity");
+                    value-text: @tr("{}%", root.ambient-intensity);
+                    chip: root.ambient;
+                    value: root.ambient-intensity;
+                    off: !root.ambient;
+                    value-changed(intensity, off) => {
+                        root.ambient-intensity = intensity;
+                        root.ambient = !off;
+                        root.ambient-changed(intensity, !off);
+                    }
+                    wheel(delta) => { root.ambient-wheel(delta); }
                 }
 
                 volume-button := SliderButton {

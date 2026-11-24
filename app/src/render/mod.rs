@@ -40,6 +40,8 @@ pub struct Scene {
     /// The ambient light is on (preview extras FR-001); the video thread fades the glow towards it
     /// (research R2).
     pub ambient: bool,
+    /// The ambient light's intensity, 0 to 1 (FR-001a): it scales the glow's opacity at once.
+    pub ambient_intensity: f32,
     /// The surface size in physical pixels.
     pub size: (u32, u32),
 }
@@ -1040,6 +1042,7 @@ mod tests {
             shadow: [1.5, 0.5],
             shadow_ambient,
             ambient: true,
+            ambient_intensity: 1.0,
             size: (1280, 720),
         };
         assert_eq!(scene(true).faded(0.0).shadow, [1.5, 0.0]);
@@ -1058,6 +1061,7 @@ mod tests {
             shadow: [1.0, 0.0],
             shadow_ambient: false,
             ambient: false,
+            ambient_intensity: 1.0,
             size,
         };
         let inbox = Inbox::default();
@@ -1136,6 +1140,7 @@ mod tests {
                 shadow: [1.0, 0.0],
                 shadow_ambient: false,
                 ambient: false,
+                ambient_intensity: 1.0,
                 size: (1280, 720),
             },
         );

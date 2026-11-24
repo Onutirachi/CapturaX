@@ -114,6 +114,8 @@ pub enum UserEvent {
     FolderUi(FolderUi),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
+    /// The wheel over the ambient light button, in logical pixels (preview extras FR-001a).
+    AmbientWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
     AudioPicked(i32),
     /// An endpoint's Exclusive box in the settings panel (preview audio FR-014).
@@ -149,6 +151,8 @@ struct Backdrop {
     shadow_ambient: bool,
     /// The ambient light is on (preview extras FR-001).
     ambient: bool,
+    /// The ambient light's intensity in percent (FR-001a).
+    ambient_intensity: u8,
 }
 
 impl From<&settings::Preview> for Backdrop {
@@ -159,6 +163,7 @@ impl From<&settings::Preview> for Backdrop {
             shadow: p.shadow != settings::Shadow::Off,
             shadow_ambient: p.shadow == settings::Shadow::Ambient,
             ambient: p.ambient,
+            ambient_intensity: p.ambient_intensity,
         }
     }
 }
@@ -210,8 +215,12 @@ pub enum SettingChange {
         level: u8,
         muted: bool,
     },
-    /// The ambient light, from its dock button (preview extras FR-001).
-    Ambient(bool),
+    /// The ambient light on or off and its intensity (0–100), from its dock button (preview
+    /// extras FR-001, FR-001a).
+    Ambient {
+        intensity: u8,
+        on: bool,
+    },
 }
 
 /// What the UI asks the window to do.
@@ -336,6 +345,8 @@ pub struct App {
     sound: Option<Sound>,
     /// The wheel's moves over the volume button not yet a whole notch.
     volume_wheel: crate::audio::Wheel,
+    /// The same over the ambient light button (preview extras FR-001a).
+    ambient_wheel: crate::audio::Wheel,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -427,9 +438,17 @@ impl App {
         });
         // The ambient light shows at start; the scene carries it (preview extras FR-001).
         ui.app.set_ambient(store.get().preview.ambient);
-        let on = send.clone();
         ui.app
-            .on_ambient_changed(move |v| on(UserEvent::Setting(SettingChange::Ambient(v))));
+            .set_ambient_intensity(i32::from(store.get().preview.ambient_intensity));
+        let on = send.clone();
+        ui.app.on_ambient_changed(move |intensity, v| {
+            on(UserEvent::Setting(SettingChange::Ambient {
+                intensity: intensity.clamp(0, 100) as u8,
+                on: v,
+            }));
+        });
+        let on = send.clone();
+        ui.app.on_ambient_wheel(move |delta| on(UserEvent::AmbientWheel(delta)));
         let on = send.clone();
         ui.app.on_volume_wheel(move |delta| on(UserEvent::VolumeWheel(delta)));
         let on = send.clone();
@@ -495,6 +514,7 @@ impl App {
             system_theme: None,
             sound,
             volume_wheel: crate::audio::Wheel::default(),
+            ambient_wheel: crate::audio::Wheel::default(),
             proxy: sender,
             exit_code: 0,
         }
@@ -1586,6 +1606,18 @@ impl App {
         self.request_redraw();
     }
 
+    /// Saves and shows the ambient light's state and intensity (FR-001, FR-001a); the next scene
+    /// carries them.
+    fn set_ambient(&mut self, intensity: u8, on: bool) {
+        self.store.update(|s| {
+            s.preview.ambient = on;
+            s.preview.ambient_intensity = intensity;
+        });
+        self.ui.app.set_ambient(on);
+        self.ui.app.set_ambient_intensity(i32::from(intensity));
+        self.apply_backdrop();
+    }
+
     fn request_redraw(&self) {
         if let Some(w) = &self.window {
             w.request_redraw();
@@ -1684,6 +1716,7 @@ impl App {
             shadow: [self.ui.scale(), self.shadow_strength()],
             shadow_ambient: self.backdrop.shadow_ambient,
             ambient: self.backdrop.ambient,
+            ambient_intensity: f32::from(self.backdrop.ambient_intensity) / 100.0,
             size: (size.width, size.height),
         };
         if image.is_some() || self.scene != Some(scene) {
@@ -2326,11 +2359,7 @@ impl ApplicationHandler<UserEvent> for App {
                     self.apply_backdrop();
                 }
                 // The next scene carries it; the video thread fades the glow (FR-001, FR-002).
-                SettingChange::Ambient(on) => {
-                    self.store.update(|s| s.preview.ambient = on);
-                    self.ui.app.set_ambient(on);
-                    self.apply_backdrop();
-                }
+                SettingChange::Ambient { intensity, on } => self.set_ambient(intensity, on),
                 // Applies at once, without reopening the device (FR-022).
                 SettingChange::Presentation(presentation) => {
                     self.store.update(|s| s.preview.presentation = presentation);
@@ -2409,6 +2438,14 @@ impl ApplicationHandler<UserEvent> for App {
                     self.ui.app.set_volume(i32::from(moved));
                     self.ui.app.set_muted(false);
                     self.set_volume(moved, false);
+                }
+            }
+            // ±5 % a notch, turning the light on, as with the slider (FR-001a).
+            UserEvent::AmbientWheel(delta) => {
+                let notches = self.ambient_wheel.notches(delta);
+                if notches != 0 {
+                    let intensity = self.store.get().preview.ambient_intensity;
+                    self.set_ambient(::audio::volume::wheel(intensity, notches), true);
                 }
             }
             UserEvent::ColorRange(index) => {

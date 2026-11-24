@@ -44,6 +44,9 @@ msgstr "Sair da tela cheia (F11)"
 msgid "Ambient light"
 msgstr "Luz ambiente"
 
+msgid "Ambient light intensity"
+msgstr "Intensidade da luz ambiente"
+
 msgid "Settings"
 msgstr "Configurações"
 

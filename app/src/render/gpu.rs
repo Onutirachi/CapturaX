@@ -623,7 +623,7 @@ impl Gpu {
         // The ambient light, only through the bars (research R2, R3): none with no bar, no video
         // layer, a zero fade or no field yet.
         let bars = self.glow_bars(scene);
-        let glow_opacity = glow::ALPHA * video_opacity * ambient;
+        let glow_opacity = glow_opacity(video_opacity, ambient, scene.ambient_intensity);
         let glow = self
             .glow
             .as_ref()
@@ -702,6 +702,12 @@ const WATERMARK_CUT: f32 = 0.12;
 fn watermark_rect(area: [f32; 5]) -> [f32; 4] {
     let [ax, ay, aw, ah, _] = area;
     [ax + aw - ah * (1.0 - WATERMARK_CUT), ay, ah, ah]
+}
+
+/// The ambient light's opacity: the tuned alpha (research R2) times the video's fade, the toggle
+/// fade and the intensity (FR-001a, research R2b). 0 draws nothing.
+fn glow_opacity(video_opacity: f32, ambient: f32, intensity: f32) -> f32 {
+    glow::ALPHA * video_opacity * ambient * intensity
 }
 
 /// The video's shadow in logical pixels (data-model.md "Video backdrop"; softer than the mockup,
@@ -956,6 +962,16 @@ mod tests {
 
     fn forced(backend: Option<Backend>, present: Option<PresentMode>) -> Presentation {
         Presentation { backend, present }
+    }
+
+    #[test]
+    fn the_intensity_scales_the_glow_opacity() {
+        assert_eq!(glow_opacity(1.0, 1.0, 1.0), glow::ALPHA);
+        assert_eq!(glow_opacity(1.0, 1.0, 0.5), glow::ALPHA / 2.0);
+        assert_eq!(glow_opacity(0.5, 0.5, 0.5), glow::ALPHA / 8.0);
+        // 0 % draws nothing, as off does.
+        assert_eq!(glow_opacity(1.0, 1.0, 0.0), 0.0);
+        assert_eq!(glow_opacity(1.0, 0.0, 1.0), 0.0);
     }
 
     #[test]

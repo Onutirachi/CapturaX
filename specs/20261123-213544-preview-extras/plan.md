@@ -84,7 +84,7 @@ with the maintainer in the app (research R2).
 | V. Private and safe | No network and no file access. |
 | VI. Portable | Three new keys in the settings file. Unknown and missing values read leniently. |
 | VII. Spec-driven, tested | Spec approved and clarified on 2026-11-23. Pure logic is unit tested. Manual checks are in the quickstart. No new dependency. |
-| Technology constraints | Rust. Slint over the app's swap chain. Texts in both catalogs. Two new Tabler icons (`bulb`, `pin`). |
+| Technology constraints | Rust. Slint over the app's swap chain. Texts in both catalogs. Two new Tabler icons (`bulb`, `pin`), plus `bulb_off`: `bulb` without its rays. |
 | Workflow | English. Conventional Commits without AI trailers. Commits only after validation. |
 
 ## Design
@@ -198,7 +198,7 @@ app/ui/
 ├── components/{info-bubbles, settings-panel, state-message, dock}.slint
 ├── previews/info-bubbles-preview.slint
 ├── texts.slint
-└── assets/icons/{bulb, pin}.svg # NEW (Tabler, MIT)
+└── assets/icons/{bulb, bulb_off, pin}.svg # NEW (Tabler, MIT)
 app/lang/pt-BR/LC_MESSAGES/capturax.po
 ```
 
