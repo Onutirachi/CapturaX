@@ -34,11 +34,30 @@ pub struct Scene {
     /// The video's shadow: the display scale it is drawn at and its strength, 0 for none
     /// (research R18).
     pub shadow: [f32; 2],
+    /// The shadow is With ambient light: the video thread multiplies its strength by the ambient
+    /// light's toggle fade, so the two come and go together (preview extras FR-005, research R4).
+    /// The glow's luminance gate does not dim it.
+    pub shadow_ambient: bool,
     /// The ambient light is on (preview extras FR-001); the video thread fades the glow towards it
     /// (research R2).
     pub ambient: bool,
     /// The surface size in physical pixels.
     pub size: (u32, u32),
+}
+
+impl Scene {
+    /// The scene as drawn at the ambient light's toggle level `ambient`: a With ambient light
+    /// shadow at that share of its strength (FR-005).
+    fn faded(self, ambient: f32) -> Self {
+        if !self.shadow_ambient {
+            return self;
+        }
+        let [scale, strength] = self.shadow;
+        Self {
+            shadow: [scale, strength * ambient],
+            ..self
+        }
+    }
 }
 
 /// The session the video thread takes frames from (see [`Inbox::set_session`]).
@@ -853,6 +872,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         let opacity = fade.map_or(1.0, |f| f.opacity(now));
         toggle.set(scene.ambient, now);
         let ambient = toggle.step(now);
+        let scene = scene.faded(ambient);
         if let Some(done) = fade.filter(|f| f.done(now)) {
             fade = None;
             if done.to == 0.0 {
@@ -1013,12 +1033,31 @@ mod tests {
     }
 
     #[test]
+    fn an_ambient_shadow_follows_the_toggle_and_others_do_not() {
+        let scene = |shadow_ambient| Scene {
+            video: [0.0; 5],
+            backdrop: [0.0; 3],
+            watermark: [0.0; 4],
+            shadow: [1.5, 0.5],
+            shadow_ambient,
+            ambient: true,
+            size: (1280, 720),
+        };
+        assert_eq!(scene(true).faded(0.0).shadow, [1.5, 0.0]);
+        assert_eq!(scene(true).faded(0.5).shadow, [1.5, 0.25]);
+        assert_eq!(scene(true).faded(1.0), scene(true));
+        // Always (and Off, strength 0) does not fade with the ambient light.
+        assert_eq!(scene(false).faded(0.0), scene(false));
+    }
+
+    #[test]
     fn a_hold_ends_with_a_scene_of_another_size() {
         let scene = |size| Scene {
             video: [0.0; 5],
             backdrop: [0.0; 3],
             watermark: [0.0; 4],
             shadow: [1.0, 0.0],
+            shadow_ambient: false,
             ambient: false,
             size,
         };
@@ -1096,6 +1135,7 @@ mod tests {
                 backdrop: [0.0; 3],
                 watermark: [0.0; 4],
                 shadow: [1.0, 0.0],
+                shadow_ambient: false,
                 ambient: false,
                 size: (1280, 720),
             },

@@ -4,9 +4,9 @@
 
 ## State
 
-Implementation started with US1. T001 to T005 are done and committed. Nothing shows yet:
+Implementation started with US1. T001 to T006 are done and committed. Nothing shows yet:
 `Scene.ambient` is always false in app.rs until T007 wires the setting and the button.
-Next is T006 (the shadow with ambient light).
+Next is T007 (the button and the wiring).
 
 ## Done in the last sessions
 
@@ -61,6 +61,16 @@ Next is T006 (the shadow with ambient light).
 - 2026-11-23: T005: app/src/stats.rs prints `glow=<n>` at the end of the `[loop]` line (reset
   each second); line tests updated, plus `glow_updates_count_for_one_second` (`glow=60`).
 
+- 2026-11-23: T006: the With ambient light shadow.
+  - app.rs: `Backdrop.shadow` is true for Always and With ambient light, and
+    `Backdrop.shadow_ambient` marks the second. `shadow_strength()` gives the full strength for
+    both (half on the light theme's ground, as before).
+  - render/mod.rs: `Scene.shadow_ambient`; `Scene::faded(ambient)` multiplies a With ambient
+    light shadow's strength by the toggle level, in the video thread right after the toggle
+    step. So the shadow fades out too when the ambient light is turned off (the main thread
+    cannot fade it). The luminance gate is not applied. Tested.
+  - settings model: the `Shadow::Ambient` doc no longer says "none until then".
+
 ## Decisions
 
 - All in spec.md, plan.md, research.md and data-model.md.
@@ -74,7 +84,8 @@ Next is T006 (the shadow with ambient light).
 
 ## Next step
 
-T006: `shadow_strength()` in app/src/app.rs treats **With ambient light** as on when
-`preview.ambient` is true, and the video thread multiplies that shadow by the glow's toggle fade
-(FR-005, research R4). Then T007 (button and wiring), after which the glow can be seen in the
-app.
+T007: the ambient light button in app/ui/main.slint (`left-dock`, between `fullscreen-button`
+and the volume button, icon `bulb.svg` from Tabler, tooltip "Ambient light" + pt-BR), and app.rs
+reads `preview.ambient` at start, sets `Scene.ambient` (replacing the `ambient: false`
+placeholder) and flips, saves and sends it on a click. After it the glow and the With ambient
+light shadow can be seen in the app (manual checks T008, T009).

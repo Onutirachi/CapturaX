@@ -206,7 +206,7 @@ pub enum Background {
 pub enum Shadow {
     #[default]
     Always,
-    /// Only over the ambient light (spec #6); none until then.
+    /// Only while the ambient light is on, fading with it (preview extras FR-005).
     Ambient,
     Off,
 }

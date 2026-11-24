@@ -142,8 +142,11 @@ const WATERMARK_OPACITY: f32 = 0.06;
 struct Backdrop {
     black: bool,
     watermark: bool,
-    /// The shadow is drawn (Always; With ambient light draws none until spec #6).
+    /// The shadow is drawn: Always, or With ambient light (the video thread fades it with the
+    /// ambient light, preview extras FR-005).
     shadow: bool,
+    /// The shadow is With ambient light.
+    shadow_ambient: bool,
 }
 
 impl From<&settings::Preview> for Backdrop {
@@ -151,7 +154,8 @@ impl From<&settings::Preview> for Backdrop {
         Self {
             black: p.background == settings::Background::Black,
             watermark: p.watermark,
-            shadow: p.shadow == settings::Shadow::Always,
+            shadow: p.shadow != settings::Shadow::Off,
+            shadow_ambient: p.shadow == settings::Shadow::Ambient,
         }
     }
 }
@@ -1552,7 +1556,8 @@ impl App {
     }
 
     /// The shadow's strength: half on the light theme's ground, where a black shadow looks dirty;
-    /// none when off (With ambient light draws none until the ambient light exists, spec #6).
+    /// none when off. With ambient light it is the full strength: the video thread multiplies it
+    /// by the ambient light's toggle fade (`Scene.shadow_ambient`, preview extras FR-005).
     fn shadow_strength(&self) -> f32 {
         if !self.backdrop.shadow {
             0.0
@@ -1667,6 +1672,7 @@ impl App {
             },
             watermark: self.watermark(),
             shadow: [self.ui.scale(), self.shadow_strength()],
+            shadow_ambient: self.backdrop.shadow_ambient,
             // From the setting and the dock button in preview extras T007.
             ambient: false,
             size: (size.width, size.height),
