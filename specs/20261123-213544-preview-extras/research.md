@@ -89,7 +89,15 @@ then covers.
 **Decision**: `shadow_strength()` treats **With ambient light** as "on" when `preview.ambient`
 is true. The video thread already draws the shadow only while the video layer exists. So the
 glow and the shadow appear together and fade together (the toggle fade multiplies the shadow
-strength too).
+strength too). The luminance gate does not dim the shadow: a dark scene keeps its shadow.
+
+## R4a. A stale history
+
+**Decision**: the update stops while there is no bar, while the ambient light is off and while
+no new frame comes. The first update after a pause longer than 100 ms fills the history
+directly (factor 1), as a new session's first frame does. Easing from the old field would show
+the colors of a scene that may be minutes old for about half a second, after a resize, a toggle
+or a return from fullscreen.
 
 ## R5. Hiding the preview in the state machine
 

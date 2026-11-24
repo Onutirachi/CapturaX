@@ -20,7 +20,7 @@ corner list. Read and write rules are in contracts/settings-file.md.
 | `move_to(kind, corner, index)` | Removes `kind` from its list and inserts it into `corner` at `index`, clamped to the list's length. Within the same corner, an index past the old place is reduced by one (the drop bar's index counts the dragged bubble's old slot). |
 | `toggle_pin(kind)` | Adds `kind` to `pinned` or removes it. |
 | `reset()` | Returns the defaults. Display choices (`overlay.latency`, `overlay.fps`, `overlay.mode`) are left as they are (spec Key Entities). |
-| `slint_arrays()` | Gives `corner: [i32; N]`, `rank: [i32; N]` and `pinned: [bool; N]`, indexed by kind (Source 0, Mode 1, Fps 2, Latency 3). |
+| `slint_arrays()` | Gives `corner: [i32; N]`, `rank: [i32; N]` and `pinned: [bool; N]`, indexed by kind (Source 0, Mode 1, Fps 2, Latency 3), with N the number of kinds that exist (4 now). Slint reads a missing index as a bubble with no value, so specs #9 and #10 only add kinds. |
 
 Every operation keeps the invariant. Unit tests cover moves across and within corners, the
 first and last places, pin, reset, and the read rules.
@@ -61,8 +61,8 @@ latency bubbles get empty texts, so they are not laid out (research R6).
 |---|---|
 | Field | 32 × 18 Rgba16Float history (2 textures used in turn) plus a blurred copy, and 1 × 1 average luminance |
 | Work targets | 512 × 288, 256 × 144, 128 × 72, 64 × 36 (Rgba16Float, made once per GPU) |
-| Update | After a present that showed a new frame, at most every 16.6 ms. `ease_factor(dt) = 1 − exp(−dt / 150 ms)`, with dt clamped to 100 ms. |
-| Reset | A new session's first frame fills the history directly (no easing from the old device). `clear_video` drops it. |
+| Update | After a present that showed a new frame, at most every 16.6 ms, only while the ambient light is on or its fade is above 0, and only when there is a bar. `ease_factor(dt) = 1 − exp(−dt / 150 ms)`, with dt clamped to 100 ms. |
+| Reset | The history is filled directly (factor 1, no easing) by a new session's first frame and by the first update after a pause longer than 100 ms (no bars, ambient light off, no new frame), so a stale field never shows. `clear_video` drops it. |
 | Draw | Layer kind 8, through the bar rectangles only. Alpha `0.7 × gate(L) × video opacity × toggle fade`, with `gate(L) = clamp((L − 0.04) / 0.16, 0, 1)`. |
 | Toggle fade | The video thread eases 0 ↔ 1 over 250 ms towards `Scene.ambient`, as it fades the video. |
 

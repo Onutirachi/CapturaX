@@ -111,8 +111,9 @@ new frame → set_video (upload) → render(scene): ground · glow (bars only) �
 
   Same file and bind layout, with separate pipelines per target format.
 - `Scene` gains `ambient: bool`. The video thread fades the glow in and out over 250 ms
-  towards it. The glow's history resets when a new session's first frame arrives, and is dropped
-  in `clear_video`.
+  towards it. The update runs only while the ambient light is on (or fading) and there is a
+  bar. The glow's history is filled directly by a new session's first frame and by the first
+  update after a pause longer than 100 ms, and is dropped in `clear_video`.
 - The shadow: `shadow_strength()` returns the strength for **With ambient light** when the
   ambient light is on (FR-005). The glow and the shadow are drawn on the same condition: video
   on screen.
@@ -175,7 +176,7 @@ specs/20261123-213544-preview-extras/
 ├── quickstart.md
 ├── contracts/
 │   ├── settings-file.md # additions
-│   └── stats.md         # the header names the ambient light
+│   └── stats.md         # the `glow` field of the [loop] line
 ├── checklists/requirements.md
 ├── handoff.md
 ├── measurements/        # latency.md, acceptance.md (during implementation)

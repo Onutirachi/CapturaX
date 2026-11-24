@@ -199,8 +199,9 @@ controls hidden.
 - **FR-004**: The ambient light MUST NOT add latency or dropped frames to the preview
   (constitution I): the video frame is never held for the glow; the glow may use an older frame.
   Budget in SC-001.
-- **FR-005**: **Video shadow → With ambient light** (spec #3 FR-030) MUST draw the shadow exactly
-  while the glow is drawn.
+- **FR-005**: **Video shadow → With ambient light** (spec #3 FR-030) MUST draw the shadow while
+  the ambient light is on and video shows, fading in and out with the glow's toggle. It does not
+  follow the glow's dimming on dark frames (the shadow stays under a dark scene).
 
 **Hide preview (F10)**
 
@@ -208,8 +209,9 @@ controls hidden.
   order: preview, screenshot, record, stream), a toggle with the settings' Preview category icon
   (`device_tv`) while showing and the same icon struck through (`device_tv_off`) on the toggled
   chip while hidden;
-  tooltips "Hide preview" and "Show preview". It is disabled when no device is open
-  (maintainer, 2026-11-23).
+  tooltips "Hide preview" and "Show preview". It is disabled when there is no device to show
+  (the "no devices" and "no source" states); a device's own states (opening, no signal,
+  disconnected, error) keep it enabled (maintainer, 2026-11-23).
 - **FR-007**: Hiding the preview MUST stop presenting video and, unless recording or streaming
   uses the device, close the device within 1 s (a webcam's light turns off; another app can open
   it).
