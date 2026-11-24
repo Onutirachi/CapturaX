@@ -36,12 +36,25 @@ New fields: `preview_hidden: bool`. New state: `PreviewState::Hidden`. New event
 |---|---|---|
 | `HidePreview` | Set `preview_hidden`. An open session gives `Close` and sets `resume` from it. An error or disconnected state moves `again` to `resume`. State → `Hidden`. `SaveHidden(true)`. | Nothing. |
 | `ShowPreview` | Nothing. | Clear `preview_hidden` and `SaveHidden(false)`. In the tray, the state returns to what `resume` implies and opens on `Shown`. Otherwise `resume` opens (same mode and range), and without `resume`, `start()` picks. |
-| `ChooseDevice(id)` | As today. | As `ShowPreview`, with `resume` set to `id`, chosen. |
+| `ChooseDevice(id)` | As today. | `SaveChoice` at once (no frame to wait for), `resume` set to `id`, `again` cleared. Nothing opens; the state stays `Hidden` (FR-010a). |
+| `NoticeOpen(id)` | As today. | As `ShowPreview`, with `resume` set to `id`, chosen. |
+| `ChooseMode(choice)` | As today. | `resume`'s device, when listed and able to open it: `SaveMode` as today and `resume.mode` set. Nothing opens; the state stays `Hidden` (FR-010a). |
+| `ChooseRange(range)` | As today. | `SaveRange` for `resume`'s device and `ShowRange`. Nothing opens (FR-010a). |
 | `Monitor` / `Relisted` | As today. | The list and `resume` are updated and notices fire as today. The state stays `Hidden`. A `resume` device that left stays in `resume`, and showing then gives `Disconnected` (waiting) as after the tray. |
 | `Session` events | As today. | Only from a session still closing: ignored, as for a closed session. |
 | Monitor's first list | `start()` as today. | `start()` sets `resume` and opens nothing. |
 
 The state before the first list while `preview.hidden` is true is `Hidden`, not `NoSource`.
+
+The toolbar's device (`shown_device`) is the open one, else an error state's, else `resume`'s while
+hidden: the Device and Mode menus, the missing name and the range follow it (FR-010a). The range
+shown while hidden is `resume`'s device's stored range. `range()` gives the range in use only
+while `Playing` (FR-010b); the app shows the label again on each state change.
+
+The Audio controller (`audio.rs`) gets `Event::VideoChosen(Option<VideoDevice>)`: the video
+device the toolbar shows while no session is open (hidden), `None` otherwise. Its menu and value
+read the open video device, else the chosen one; picking an input while only chosen saves the
+choice for that device and opens nothing. `VideoOpened` and `VideoClosed` are unchanged.
 
 The dock button's state:
 

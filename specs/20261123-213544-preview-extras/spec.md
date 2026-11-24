@@ -102,7 +102,8 @@ reopens in the same mode.
 2. **Given** the preview is hidden, **When** the user clicks the preview button again, **Then** the same device reopens in the same mode and range, as when picked in the
    device menu.
 3. **Given** the preview is hidden, **When** the user picks a device in the device menu,
-   **Then** the preview is shown again with that device.
+   **Then** the preview stays hidden and the toolbar shows that device, which opens when the
+   preview is shown (FR-010a); **Open** on a "connected" notice shows the preview with its device.
 4. **Given** the preview is hidden, **When** the user looks at the docks, **Then** the screenshot
    button is disabled (no video), as with any state.
 5. **Given** recording or streaming uses the preview's device (specs #9 and #10), **When** the
@@ -167,6 +168,11 @@ controls hidden.
 - The window is shown again from the tray while the preview is hidden: it stays hidden and no
   device is opened.
 - Hide preview with no device open ("no source" state): the preview button is disabled.
+- Start while hidden and the device hidden last is not connected: it stays hidden, the toolbar
+  shows the start order's device, and showing opens that one; the last used device coming back
+  meanwhile only joins the menu, as when shown (FR-010a).
+- The device the toolbar shows leaves while hidden: the Device select names it as missing, as
+  for a disconnected device; showing waits for it (Disconnected).
 - A screenshot hotkey while the preview is hidden: refused like any state (screenshot spec),
   with its notice.
 - The controls' hide timer runs out while a bubble is being dragged: the controls stay shown
@@ -231,14 +237,30 @@ controls hidden.
   no action: the dock button shows it again (maintainer, 2026-11-23: less on screen; this is a
   state the user chose, not an empty or error state). When recording or streaming uses the device it adds a line saying they continue
   (specs #9 and #10 supply the case).
-- **FR-009**: Showing the preview (the dock button) MUST reopen the same device in its remembered mode
-  and range; picking any device in the device menu MUST also show the preview.
+- **FR-009**: Showing the preview (the dock button) MUST reopen the device the toolbar shows in its
+  remembered mode and range; **Open** on a "connected" notice MUST also show the preview, with that
+  device. Picking a device in the device menu does not show it (FR-010a).
 - **FR-010**: While hidden, the bubbles that read the video (mode, frame rate, latency) MUST show
   nothing (they are hidden); the source bubble keeps the device's name.
+- **FR-010a**: While hidden, the toolbar MUST show and keep working for the device that showing
+  would open (the one hidden; after a start while hidden, the start order's device): **Device**
+  names it, **Mode** offers its modes with its remembered one marked, **Color range** its range,
+  and **Audio** its input choice and the output. Picking a device, a mode, a range or an audio
+  choice saves it as usual, opens nothing and keeps the preview hidden; showing then opens with
+  it. Everything else behaves as when shown, as if the toolbar's device were open: the start
+  order picks it once, a device that comes only joins the menu, the toolbar's device leaving is
+  waited for. Hidden is one switch for the app, not per device: it lasts through restarts and
+  device changes until the user shows the preview (maintainer, 2026-11-24: empty selects looked
+  broken; hiding only hides, all else as before).
+- **FR-010b**: The **Color range** select on Auto MUST name a range ("Auto (Full)", "Auto
+  (Limited)") only while video shows, from the first frame, with the range found in it; with no
+  video (hidden, opening, a device's state) it reads "Auto" alone. This changes spec #3's label,
+  which named the driver's declared range while opening and Limited with no device (maintainer,
+  2026-11-24: no range is known without video).
 - **FR-011**: The hidden state MUST be saved: an app started after the preview was hidden lists
   the devices but opens none (no webcam light, no device taken from another app, no preview
-  sound) and shows the "Preview hidden" state at once. Showing the preview, or picking a device,
-  opens it as usual (maintainer, 2026-11-23: some users only record or stream and should not
+  sound) and shows the "Preview hidden" state at once. Showing the preview opens the toolbar's
+  device as usual (maintainer, 2026-11-23: some users only record or stream and should not
   have to hide the preview at every start).
 - **FR-012**: The preview is video and audio together: hiding it MUST also stop the preview's
   audio (F12–F14) and release its input and output, unless recording or streaming uses that
