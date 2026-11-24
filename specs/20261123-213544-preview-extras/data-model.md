@@ -66,8 +66,8 @@ The dock button's state:
 
 ## Info bubbles while hidden (FR-010)
 
-The source bubble shows `resume`'s device name, or nothing without one. The mode, frame rate and
-latency bubbles get empty texts, so they are not laid out (research R6).
+No bubble shows: every bubble text is empty, so none is laid out (research R6). The bubbles
+already show only while a device plays, so the hidden state needs no rule of its own.
 
 ## Glow (`render/glow.rs`)
 

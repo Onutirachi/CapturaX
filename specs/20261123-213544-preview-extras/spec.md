@@ -240,8 +240,9 @@ controls hidden.
 - **FR-009**: Showing the preview (the dock button) MUST reopen the device the toolbar shows in its
   remembered mode and range; **Open** on a "connected" notice MUST also show the preview, with that
   device. Picking a device in the device menu does not show it (FR-010a).
-- **FR-010**: While hidden, the bubbles that read the video (mode, frame rate, latency) MUST show
-  nothing (they are hidden); the source bubble keeps the device's name.
+- **FR-010**: While hidden, no info bubble MUST show, the source bubble included: the bubbles
+  belong to the video (maintainer, 2026-11-24; a lone source bubble that hid and showed again
+  around each hide or show was not worth its own rule).
 - **FR-010a**: While hidden, the toolbar MUST show and keep working for the device that showing
   would open (the one hidden; after a start while hidden, the start order's device): **Device**
   names it, **Mode** offers its modes with its remembered one marked, **Color range** its range,
