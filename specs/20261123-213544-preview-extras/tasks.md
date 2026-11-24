@@ -58,7 +58,7 @@ needs it.
 ## Phase 3: User Story 1 - Ambient light around the video (Priority: P1) 🎯 MVP
 
 **Goal**: the bulb on the left dock makes the bars around the video glow with the video's
-colors, eased and gated by luminance, with no added latency.
+colors, eased, with no added latency.
 
 **Independent Test**: quickstart checks 1–6 and the first two runs of the latency check
 (ambient off, ambient on), on both systems.
@@ -70,7 +70,8 @@ colors, eased and gated by luminance, with no added latency.
 - [x] T005 [US1] Stats (contracts/stats.md; after T004, which counts): app/src/stats.rs adds `glow=<n>` at the end of the `[loop]` line, the glow updates in that second; update the existing line tests and add one with `glow=60`
 - [x] T006 [US1] Shadow (FR-005, research R4; after T004): `shadow_strength()` in app/src/app.rs treats **With ambient light** as on when `preview.ambient` is true; the video thread multiplies that shadow's strength by the glow's toggle fade, so the two come and go together; the luminance gate does not dim the shadow (FR-005); other shadow choices unchanged
 - [x] T007 [US1] Button and wiring (FR-001; after T001, T004): in app/ui/main.slint (`left-dock`, where the dock buttons live) the ambient light button between `fullscreen-button` and the volume button, a toggle with the soft orange chip while on, icon `bulb.svg` (NEW, Tabler), tooltip "Ambient light" (pt-BR in the catalog), always enabled (also in a state and while the preview is hidden); app/src/app.rs reads `preview.ambient` at start, sets the button and `Scene.ambient`, and on a click flips it, saves through the store and sends the scene; both themes and down to 640 × 360
-- [ ] T008 [US1] (maintainer) Windows with the ezcap and the PS5: quickstart checks 1–4 and 6, and check 5 without the "hide the preview" step (that step waits for US2, T016); tune the five R2 values with the maintainer; if the feel changes the variant, update FR-002 first; record in specs/20261123-213544-preview-extras/measurements/acceptance.md
+- [x] T008 [US1] (maintainer) Windows with the ezcap and the PS5: quickstart checks 1–4 and 6, and check 5 without the "hide the preview" step (that step waits for US2, T016); tune the five R2 values with the maintainer; if the feel changes the variant, update FR-002 first; record in specs/20261123-213544-preview-extras/measurements/acceptance.md
+- [x] T008a [US1] Drop the luminance gate (FR-003, research R1, R2; from T008): in app/src/render/glow.rs remove `gate()`, `GATE_LOW`, `GATE_HIGH`, the average pass and the 1 × 1 luminance target with its tests; in composite.wgsl remove `glow_average` and the gate in kind 8 (alpha is the layer's opacity only); the GPU draw test checks a dark frame draws its own dark color
 - [ ] T009 [US1] (maintainer) Latency (SC-001): quickstart "Latency check" runs 1 and 2 (ambient off, ambient on) at 1080p60 and 1080p120 on Windows and on CachyOS (the agent over SSH), and spec #3's glass-to-glass check once with the ambient light on (maintainer's phone); record in measurements/latency.md with the median and p95 of `ready_ms`, `repl` and `glow`
 
 **Checkpoint**: the MVP: the glow on both systems, within the latency budget.

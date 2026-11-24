@@ -16,7 +16,7 @@ cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && ca
 |---|---|---|
 | 1 | ezcap at 1080p60, window 1720 × 720 (bars at the sides); click the bulb on the left dock | The bars glow with the video's side colors; orange chip; tooltip "Ambient light" (US1 #1) |
 | 2 | Game scene changes (menu → map); Settings → Video shadow → With ambient light, then toggle the bulb | Glow follows within about 0.5 s, smoothly; the shadow comes and goes with the glow (US1 #2, #5) |
-| 3 | Photo-mode flash or a white flash frame; a dark scene; the PS5 boot | No flash in the glow; dark scenes fade to the plain background, with no grey haze (FR-003) |
+| 3 | Photo-mode flash or a white flash frame; a dark scene; the PS5 boot | No flash in the glow; dark scenes show their dark colors and the glow never disappears (FR-003) |
 | 4 | Resize the window, F11 to fullscreen 16:9 (no bars), then a 4:3 mode | Glow follows the bars in the same frame; none when there are no bars; glow at the sides for 4:3 |
 | 5 | Unplug the card; hide the preview; restart the app with the bulb on | No glow in a state; the bulb is still clickable and changes the setting; still on after the restart (US1 #3, #4, Q1) |
 | 6 | Both themes, Background Theme and Black, watermark on | Glow under the watermark (clearer), shadow and video |

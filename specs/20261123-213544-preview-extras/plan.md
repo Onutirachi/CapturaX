@@ -8,11 +8,10 @@
 
 The ambient light is drawn by the video thread's own renderer. After each present that showed
 a new frame (at most 60 times a second), a few tiny GPU passes turn the uploaded video planes
-into a 32 × 18 color field. The field is eased over time (τ = 150 ms), blurred, and averaged
-into one luminance value. On the next present one extra layer draws that field, stretched over
-the video area, only in the bars. It is saturated and dimmed by the average luminance, as the
-mockup's "Fill" variant does. The video frame never waits for the glow, and nothing is read
-back from the GPU.
+into a 32 × 18 color field. The field is eased over time (τ = 150 ms) and blurred. On the next
+present one extra layer draws that field, stretched over the video area, only in the bars. It is
+saturated and brightened, as the mockup's "Fill" variant (without its luminance gate, research
+R2). The video frame never waits for the glow, and nothing is read back from the GPU.
 
 Hiding the preview is a second "closed" reason in the pure preview state machine, beside the
 existing "window in the tray" one. Both share the same resume logic. The video session closes,
@@ -39,7 +38,7 @@ over the app's swap chain), winit 0.30. No new crate.
 - the preview state machine with the new hidden reason (hide or show while opening, playing,
   disconnected or in the tray, a start while hidden, and the device-menu pick);
 - the arrangement model (move, pin, reset, read rules);
-- the glow's pure math (easing factor, luminance gate, bar rectangles, update pacing);
+- the glow's pure math (easing factor, bar rectangles, update pacing);
 - the settings read and write rules.
 
 The glow's look, the drag, the layout at every size and the latency runs are checked by hand
@@ -78,7 +77,7 @@ with the maintainer in the app (research R2).
 
 | Principle | How the plan complies |
 |---|---|
-| I. Preview latency | The glow's update runs after `present`, from planes already on the GPU, at most 60 Hz. The draw is one quad limited to the bars and skipped when there are none (R1, R3). The video is never held. Pinned bubbles redraw the UI once a second. Only the changed rectangle is uploaded, and that is measured (R9). Budget and method in SC-001, on both systems. |
+| I. Preview latency | The glow's update runs after `present`, from planes already on the GPU, at least 15 ms apart. The draw is one quad limited to the bars and skipped when there are none (R1, R3). The video is never held. Pinned bubbles redraw the UI once a second. Only the changed rectangle is uploaded, and that is measured (R9). Budget and method in SC-001, on both systems. |
 | II. Simple by default | One on/off for the glow with a fixed look. One dock button to hide. Drag is the only way to move a bubble, plus one Reset row. Defaults equal today's look. The "Preview hidden" state has no action, by the maintainer's decision (it is a chosen state, not an empty or error one). |
 | III. One native pipeline | The glow is part of the preview's own renderer, which the constitution allows. Hiding closes the same session that every consumer will share (specs #9 and #10 keep it open). |
 | IV. Platform layer | No new platform code. Cursors go through winit, like the resize cursors. |
@@ -95,19 +94,19 @@ with the maintainer in the app (research R2).
 ```text
 new frame → set_video (upload) → render(scene): ground · glow (bars only) · watermark · shadow · video · UI → present
                                                        ▲
-             after present, ≤ 60 Hz: glow.update(video planes, dt) ─┘ (used by the next present)
-             convert 512×288 → 2× box ×4 → 32×18 → ease into history (τ 150 ms) → blur → average (1×1)
+             after present, ≥ 15 ms: glow.update(video planes, dt) ─┘ (used by the next present)
+             convert 512×288 → 2× box ×4 → 32×18 → ease into history (τ 150 ms) → blur
 ```
 
 - `render/glow.rs` (NEW) holds the `Glow`: its textures (Rgba16Float), the passes, the update
-  pacing, and the pure math (`ease_factor(dt)`, `gate(luminance)`, `bars(area, video)`), which
+  pacing, and the pure math (`ease_factor(dt)`, `bars(area, video)`), which
   is unit tested.
 - `composite.wgsl` gains:
   - layer kind 8 (glow): a smooth upscale of the blurred field over the area enlarged by 5 %,
-    saturation × 1.4, alpha 0.9 × gate × the video's opacity × the toggle's fade;
+    saturation × 1.5, lift (power 0.5), alpha 0.9 × the video's opacity × the toggle's fade;
   - a small conversion entry that writes linear RGB into the 512 × 288 target with the
     shader's own `convert`;
-  - box, blend, blur and average entries.
+  - box, blend and blur entries.
 
   Same file and bind layout, with separate pipelines per target format.
 - `Scene` gains `ambient: bool`. The video thread fades the glow in and out over 250 ms

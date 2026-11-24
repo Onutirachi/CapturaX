@@ -152,8 +152,8 @@ controls hidden.
 
 - Ambient light with a video that fills the whole video area (no bars): nothing to light; no
   cost beyond what the plain background costs.
-- Ambient light on a mostly black frame (a console starting, a dark scene): the glow fades to the
-  background instead of drawing a grey haze.
+- Ambient light on a mostly black frame (a console starting, a dark scene): the glow shows the
+  frame's own dark colors; it never fades out to the plain background (maintainer 2026-11-24).
 - Ambient light while the window is resized or enters fullscreen: the glow follows the new bars
   in the same frame as the video.
 - Hide preview while the device is still opening: the opening is cancelled and the device
@@ -194,14 +194,13 @@ controls hidden.
   (variant "Fill" of the mockup page, maintainer 2026-11-23), drawn over the video background (F56) and under the watermark (F57), the shadow (F58)
   and the video. The watermark shows clearer over it (F57). Off by default.
 - **FR-003**: The glow MUST follow the video smoothly: a color change reaches the glow within
-  about 0.5 s, eased, never flashing on a single frame (a camera flash, a scene cut); a dark frame
-  dims it towards the plain background.
+  about 0.5 s, eased, never flashing on a single frame (a camera flash, a scene cut). It always
+  shows the video's colors, bright or dark: no luminance gate.
 - **FR-004**: The ambient light MUST NOT add latency or dropped frames to the preview
   (constitution I): the video frame is never held for the glow; the glow may use an older frame.
   Budget in SC-001.
 - **FR-005**: **Video shadow → With ambient light** (spec #3 FR-030) MUST draw the shadow while
-  the ambient light is on and video shows, fading in and out with the glow's toggle. It does not
-  follow the glow's dimming on dark frames (the shadow stays under a dark scene).
+  the ambient light is on and video shows, fading in and out with the glow's toggle.
 
 **Hide preview (F10)**
 

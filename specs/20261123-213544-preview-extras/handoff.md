@@ -1,12 +1,11 @@
 # Handoff: Preview Extras
 
-**Updated**: 2026-11-23 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261123-213544-preview-extras`
+**Updated**: 2026-11-24 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261123-213544-preview-extras`
 
 ## State
 
-Implementation started with US1. T001 to T007 are done and committed: the ambient light works
-in the app. The glow was tuned with the maintainer on CachyOS (part of T008, see below). Next
-are the rest of T008 (on Windows) and T009 (latency); the ezcap is on the CachyOS PC now.
+US1's ambient light is built, tuned and checked on both systems (T001–T008a). Left in US1:
+T009's glass-to-glass check and 1080p120. The ezcap, the C920 and the PS5 are on the Windows PC.
 
 ## Done in the last sessions
 
@@ -90,23 +89,26 @@ are the rest of T008 (on Windows) and T009 (latency); the ezcap is on the CachyO
   - Over SSH, ydotool's pointer reaches the window only after a click on its title bar
     (`moves=0` until then); the dock shows when the pointer comes from the window's left edge.
 
+- 2026-11-24: T008 on Windows (measurements/acceptance.md): checks 1–6 pass. Tuned live with
+  the maintainer through temporary sliders (removed): saturation 1.5, alpha 0.9. Then the glow
+  must never disappear, so the luminance gate went (T008a: no average pass, no 1 × 1 texture,
+  spec FR-003 changed). A gain × 2 blew out in GTA V's daylight (yellow and white bars), so a
+  square-root lift replaced it (research R2). The maintainer approved the look in both games.
+- 2026-11-24: T009 on Windows at 1080p60 (measurements/latency.md): no latency change. The glow
+  updated only 39 times a second with the 16.6 ms minimum (frame jitter); it is now 15 ms and
+  updates 60 times (research R1). The open question on the pacing is closed.
+- Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
+  ambient light glow on the PS5" (both unmerged).
+
 ## Decisions
 
 - All in spec.md, plan.md, research.md and data-model.md.
 
 ## Open questions
 
-- The pacing's 16.6 ms minimum is exact. With frame arrival jitter at 60 fps some updates may be
-  skipped (the easing stays right because it uses the real `dt`). Check the `glow=` count in
-  T005/T009: if it falls well below 60 at 60 fps, propose a lower threshold (about 15 ms) to the
-  maintainer and update research R1 before the code.
+- None.
 
 ## Next step
 
-- T009 on CachyOS at 1080p60 is done (measurements/latency.md: no change). 1080p120 needs a PS5
-  game with a 120 Hz mode (the console cannot be forced to 120 Hz); nothing else on CachyOS
-  waits for the ezcap, so it can go back to Windows.
-- Then on Windows: T008 (quickstart checks 1–4 and 6, check 5 without the hide step, and the
-  maintainer's last look at the glow's strength) and T009's Windows half.
-- Open question above (the 16.6 ms pacing): explained to the maintainer on 2026-11-24, no
-  decision yet; the agent recommends about 15 ms.
+- T009: spec #3's glass-to-glass check once with the ambient light on (maintainer's phone, on
+  Windows only); 1080p120 when a PS5 game with a 120 Hz mode runs.

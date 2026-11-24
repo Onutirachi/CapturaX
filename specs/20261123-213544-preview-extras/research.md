@@ -7,8 +7,11 @@ alternatives. Tuning values marked **tune** are set with the maintainer in the a
 
 **Decision**: on the GPU, in the video thread, **after** `present`. The glow reads the video
 planes already uploaded for the frame just shown and updates a small color field. The next
-present draws that field. The update runs at most once per 1/60 s: at 120 fps every other frame
-updates, and the easing uses the real time step. The passes are:
+present draws that field. Updates are at least 15 ms apart: at 60 fps every frame updates, at
+120 fps every other frame, and the easing uses the real time step. The interval was 16.6 ms
+until 2026-11-24: on Windows the ezcap's frames arrive with enough jitter that a frame 16.0 ms
+after the last update was skipped, and the glow updated only about 39 times a second at 60 fps
+(T009). 15 ms keeps the rate at about 66 at most and lets the jitter through. The passes are:
 
 1. **Convert**: the video layer's planes go through the shader's own `convert` (any of the 5
    formats) into 512 × 288 RGB. Each output texel takes 4 bilinear taps, which is a box of about
@@ -18,8 +21,8 @@ updates, and the easing uses the real time step. The passes are:
 3. **Ease**: the 32 × 18 field is blended into the history (two Rgba16Float textures used in
    turn): `history = mix(history, field, 1 − exp(−dt / 150 ms))`.
 4. **Blur**: a separable Gaussian (σ ≈ 2 texels, **tune**) on the history at 32 × 18.
-5. **Average**: one fragment reads the 576 history texels into a 1 × 1 luminance (Rec. 709
-   weights), for the gate (R2).
+(Until 2026-11-24 a fifth pass averaged the history into a 1 × 1 luminance for a gate that faded
+the glow out on dark frames; the maintainer dropped the gate, so the pass went with it, R2.)
 
 **Rationale**:
 
@@ -30,8 +33,7 @@ updates, and the easing uses the real time step. The passes are:
   present, while the thread would wait for the next frame anyway.
 - Reading from the uploaded planes needs no copy. Working with Rgba16Float avoids the 8-bit
   stalls of an easing step this small (at 120 fps the factor is about 0.05).
-- The mockup's look comes from these same parameters: 32 × 18, τ 150 ms, and the luminance
-  gate.
+- The mockup's look comes from these same parameters: 32 × 18 and τ 150 ms.
 
 **Alternatives**:
 
@@ -40,7 +42,6 @@ updates, and the easing uses the real time step. The passes are:
   principle I.
 - **Mipmaps of a full-size RGB copy**: a 1080p or 4K render target per frame, about 10× the
   memory traffic.
-- **Reading back the average for the gate**: a map and a wait on the GPU.
 - **A compute shader**: the same work, but a second pipeline type for no gain.
 
 ## R2. How the glow looks ("Fill", D1)
@@ -51,25 +52,32 @@ The draw shader:
 
 - samples the field with a bicubic upscale (4 bilinear taps), so no bilinear diamonds show at
   4K;
-- applies saturation × 1.4;
-- draws it at alpha `0.9 × gate × video opacity × toggle fade` over the background (F56).
+- applies saturation × 1.5 (clamped to 0–1), then a lift: each channel to the power 0.5;
+- draws it at alpha `0.9 × video opacity × toggle fade` over the background (F56).
 
-The gate is `clamp((L − 0.04) / 0.08, 0, 1)`, with `L` the eased average luminance, so
-a dark frame fades to the plain background (FR-003, spec edge case) instead of a grey haze. The
-toggle fades over 250 ms. The watermark (F57) stays drawn over the glow, at its current opacity.
+No luminance gate: the glow always shows the video's colors, dark ones included (FR-003, spec
+edge case). The lift brightens dark colors a lot and bright ones little, and never passes 1, so
+it keeps the hue; black stays black. The toggle fades over 250 ms. The watermark (F57) stays drawn over the glow, at its current opacity.
 
-All five numbers (5 %, σ, 1.4, 0.9, gate 0.04 to 0.12) are **tune** values: they start from the
+All five numbers (5 %, σ, saturation 1.5, lift 0.5, alpha 0.9) are **tune** values: they start from the
 mockup and are set with the maintainer on the ezcap with the PS5. A change in feel goes into the
 spec's FR-002 wording only if the variant changes. Tuned on 2026-11-24 on CachyOS with Astro's
 Playroom (T008): the mockup's alpha 0.7 and gate top 0.20 were too faint on the PS5's dark menus
-and game scenes, so alpha went to 0.9 and the gate opens fully at 0.12; the maintainer checks it
-once more on Windows.
+and game scenes, so alpha went to 0.9 and the gate opens fully at 0.12. On Windows the same day
+the maintainer asked for a stronger glow. Alpha was already near its limit, so a gain (the
+sixth value) brightens the colour, and the maintainer set all five draw values live with
+temporary sliders (not kept): alpha 0.9, saturation 1.5, gain 2. The mockup's gate (the glow
+fading out on dark frames) went too: the maintainer wants the glow never to disappear, dark
+scenes show their dark colors. Then GTA V's bright daylight blew the gain out: a yellow-green
+grass edge clipped to pure yellow, a bright road to near white. The gain went for the lift
+(power 0.5): about as strong as the gain on mid tones, stronger on dark ones, and no clipping.
 
 **Rationale**: these are the mockup's values, which the maintainer chose. The single-frame flash
 check comes from the easing: one white frame moves the history by at most 1 − e^(−16.7/150)
 ≈ 10 %, so it never flashes (FR-003).
 
-**Alternatives**: per-texel gating (dark corners would cut holes in a bright scene); the CSS
+**Alternatives**: the luminance gate (built, then dropped by the maintainer); per-texel gating
+(dark corners would cut holes in a bright scene); the CSS
 `blur(110px)` as a wide screen-space blur at draw time (25 taps per screen pixel in the present
 path).
 
@@ -92,7 +100,7 @@ then covers.
 **Decision**: `shadow_strength()` treats **With ambient light** as "on" when `preview.ambient`
 is true. The video thread already draws the shadow only while the video layer exists. So the
 glow and the shadow appear together and fade together (the toggle fade multiplies the shadow
-strength too). The luminance gate does not dim the shadow: a dark scene keeps its shadow.
+strength too).
 
 ## R4a. A stale history
 

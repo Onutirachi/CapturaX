@@ -59,14 +59,14 @@ latency bubbles get empty texts, so they are not laid out (research R6).
 
 | Item | Value |
 |---|---|
-| Field | 32 × 18 Rgba16Float history (2 textures used in turn) plus a blurred copy, and 1 × 1 average luminance |
+| Field | 32 × 18 Rgba16Float history (2 textures used in turn) plus a blurred copy |
 | Work targets | 512 × 288, 256 × 144, 128 × 72, 64 × 36 (Rgba16Float, made once per GPU) |
-| Update | After a present that showed a new frame, at most every 16.6 ms, only while the ambient light is on or its fade is above 0, and only when there is a bar. `ease_factor(dt) = 1 − exp(−dt / 150 ms)`, with dt clamped to 100 ms. |
+| Update | After a present that showed a new frame, at least 15 ms apart (research R1), only while the ambient light is on or its fade is above 0, and only when there is a bar. `ease_factor(dt) = 1 − exp(−dt / 150 ms)`, with dt clamped to 100 ms. |
 | Reset | The history is filled directly (factor 1, no easing) by a new session's first frame and by the first update after a pause longer than 100 ms (no bars, ambient light off, no new frame), so a stale field never shows. `clear_video` drops it. |
-| Draw | Layer kind 8, through the bar rectangles only. Alpha `0.9 × gate(L) × video opacity × toggle fade`, with `gate(L) = clamp((L − 0.04) / 0.08, 0, 1)` (tuned, research R2). |
+| Draw | Layer kind 8, through the bar rectangles only. Colour `clamp(saturate(c, 1.5), 0, 1)^0.5`, alpha `0.9 × video opacity × toggle fade` (tuned, research R2). |
 | Toggle fade | The video thread eases 0 ↔ 1 over 250 ms towards `Scene.ambient`, as it fades the video. |
 
-Pure functions with unit tests: `ease_factor`, `gate`, `bars(area, video)` (none, two side bars
+Pure functions with unit tests: `ease_factor`, `bars(area, video)` (none, two side bars
 or top and bottom bars, the 1 px threshold) and the update pacing.
 
 ## Scene (`render/mod.rs`, addition)
