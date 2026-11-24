@@ -23,3 +23,14 @@ screenshot), so it became a lift (power 0.5, research R2).
 
 The glow updated only 39 times a second at 60 fps here (latency.md); the pacing's minimum went
 from 16.6 ms to 15 ms (research R1) and it updates 60 times a second.
+
+## T008e: ambient light intensity, Windows, 2026-11-24
+
+Same setup (ezcap 1080p60, PS5), release build; the maintainer looked, the agent ran the app.
+
+| # | Check | Result |
+|---|---|---|
+| 1a | The bulb's popover, slider, wheel, 0 %, a move while off, restart, keyboard | Pass. The volume button was checked again on the shared slider button (T008c): unchanged |
+
+The maintainer asked for the bulb without its rays while it does not glow (off, or on at 0 %, as
+the volume's icon shows mute at 0 %): `bulb_off.svg`, spec FR-001 updated. Checked: pass.

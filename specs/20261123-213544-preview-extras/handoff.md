@@ -4,9 +4,8 @@
 
 ## State
 
-US1's ambient light is built, tuned and checked on both systems (T001–T008a). Left in US1:
-the intensity popover added on 2026-11-24 (T008b–T008e), T009's glass-to-glass check and
-1080p120. The ezcap, the C920 and the PS5 are on the Windows PC.
+US1's ambient light is built, tuned and checked on both systems (T001–T008e), with its
+intensity popover. Left in US1: T009's glass-to-glass check and 1080p120. The ezcap, the C920 and the PS5 are on the Windows PC.
 
 ## Done in the last sessions
 
@@ -98,6 +97,19 @@ the intensity popover added on 2026-11-24 (T008b–T008e), T009's glass-to-glass
 - 2026-11-24: T009 on Windows at 1080p60 (measurements/latency.md): no latency change. The glow
   updated only 39 times a second with the 16.6 ms minimum (frame jitter); it is now 15 ms and
   updates 60 times (research R1). The open question on the pacing is closed.
+- 2026-11-24: T008b: `preview.ambient_intensity` (u8, default 100; missing or non-integer
+  reads 100, outside 0–100 clamped), tested.
+- 2026-11-24: T008c: app/ui/components/slider-button.slint (`SliderButton`, was
+  volume-popover.slint). It keeps no state: `value` and `off` are in-properties and
+  `value-changed(int, bool)` asks the parent, which sets them (main.slint does for the volume and
+  the ambient light). `chip` adds the on chip; the chip also shows while open.
+- 2026-11-24: T008d: the bulb on `SliderButton`; main.slint `ambient` and `ambient-intensity`
+  are in-out, `ambient-changed(int, bool)`, `ambient-wheel(length)`. app.rs `set_ambient`
+  saves both in one update; `UserEvent::AmbientWheel` steps ±5 % with its own `Wheel` (reuses
+  `audio::volume::wheel`) and turns the light on. `Scene.ambient_intensity` (0–1);
+  gpu.rs `glow_opacity` = ALPHA × video × toggle × intensity. The bulb shows `bulb_off.svg` (no
+  rays) while off or at 0 % (maintainer, spec FR-001). pt-BR "Intensidade da luz ambiente".
+- 2026-11-24: T008e on Windows: check 1a passes (measurements/acceptance.md).
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -111,8 +123,7 @@ the intensity popover added on 2026-11-24 (T008b–T008e), T009's glass-to-glass
 
 ## Next step
 
-- The ambient light's intensity (FR-001a, research R2b, spec approved by the maintainer on
-  2026-11-24): T008b (setting), T008c (the volume popover made a shared slider button, the
-  volume unchanged), T008d (the bulb's popover and the draw), then T008e (maintainer check 1a).
 - T009: spec #3's glass-to-glass check once with the ambient light on (maintainer's phone, on
   Windows only); 1080p120 when a PS5 game with a 120 Hz mode runs.
+- Meanwhile US2 (hide the preview) can start: T010 (setting `preview.hidden`), then T011 (the
+  state machine) and T012 (the dock button's state).
