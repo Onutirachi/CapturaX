@@ -3,6 +3,8 @@
 //! source hands it frames directly and the main thread hands it the UI, so the video never waits
 //! for the window's event loop, which Windows holds while the window is moved or resized.
 
+#[expect(dead_code, reason = "wired by preview extras T003 and T004")]
+mod glow;
 mod gpu;
 
 use std::collections::VecDeque;

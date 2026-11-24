@@ -4,27 +4,20 @@
 
 ## State
 
-Spec, plan and tasks are done and analyzed: 32 tasks (US1 ambient light T001–T009, US2 hide
-preview T010–T017, US3 bubbles T018–T029, polish T030–T032). Implementation has not started.
-The tasks and the analysis fixes wait for the maintainer's validation before the commit.
+Implementation started with US1. T001 and T002 are done and committed (pure, not wired yet).
+Next is T003, the glow's GPU passes.
 
 ## Done in the last session
 
-- 2026-11-23: `/speckit-tasks` wrote tasks.md. It has no Setup or Foundational phase: each
-  story carries its own settings key, so the three stories stay independent.
-- 2026-11-23: `/speckit-analyze` found no critical issue. Its fixes are applied:
-  - spec FR-005: the "With ambient light" shadow follows the ambient light being on with video,
-    fading with the toggle; the luminance gate does not dim it;
-  - spec FR-006: the preview button is disabled only with no device to show ("no devices",
-    "no source"); a device's own states keep it enabled;
-  - research R4a and data-model "Glow": the update runs only with the ambient light on (or
-    fading) and a bar; after a pause longer than 100 ms the history is filled directly, so a
-    stale field never shows;
-  - data-model `slint_arrays()`: N is the number of kinds (4); Slint reads a missing index as
-    no value;
-  - quickstart check 15: bubbles stay under the settings panel;
-  - tasks: T002, T004, T005 (no longer [P]), T006, T007 (`left-dock` in main.slint), T012,
-    T021, T023 and the dependencies.
+- 2026-11-23: T001: `preview.ambient` in crates/settings/src/model.rs (default `false`, rule 1:
+  missing or non-boolean reads as `false`), with tests for the rule and a round trip.
+- 2026-11-23: T002: app/src/render/glow.rs with `ease_factor`, `gate`, `bars`, `due` (the
+  update pacing, `Due::{Wait, Ease(dt), Fill}`) and the R2 tune values as named constants, all
+  tested (including the one white frame bound, FR-003). The module carries
+  `#[expect(dead_code)]` in app/src/render/mod.rs until T003/T004 use it: remove it then.
+- `bars(area, video)` takes the video area's scissor rectangle (`gpu::scissor`) and the
+  letterboxed video (`gpu::letterbox`). It picks the axis with the wider gap, so a 1 px rounding
+  gap on the other axis does not hide the real bars.
 
 ## Decisions
 
@@ -32,10 +25,12 @@ The tasks and the analysis fixes wait for the maintainer's validation before the
 
 ## Open questions
 
-- None. The glow's tuning values (R2) are set with the maintainer in the app (T008).
+- The pacing's 16.6 ms minimum is exact. With frame arrival jitter at 60 fps some updates may be
+  skipped (the easing stays right because it uses the real `dt`). Check the `glow=` count in
+  T005/T009: if it falls well below 60 at 60 fps, propose a lower threshold (about 15 ms) to the
+  maintainer and update research R1 before the code.
 
 ## Next step
 
-The maintainer validates, then commit as `docs(preview-extras): add the tasks` (tasks.md,
-spec.md, plan.md, research.md, data-model.md, quickstart.md, handoff.md). After that,
-`/speckit-implement` starting with US1: T001 and T002 (pure, committable after the checks).
+T003 (glow passes in app/src/render/glow.rs, composite.wgsl and gpu.rs), then T004 (draw and
+pacing). Read research R1–R4a and data-model.md "Glow" and "Scene" first.
