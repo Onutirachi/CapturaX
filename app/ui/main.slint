@@ -14,7 +14,7 @@ import { Tooltips, TooltipLayer, Side } from "components/tooltip.slint";
 import { TitleBar } from "components/title-bar.slint";
 import { Dock } from "components/dock.slint";
 import { IconButton } from "components/icon-button.slint";
-import { VolumeButton } from "components/volume-popover.slint";
+import { SliderButton } from "components/slider-button.slint";
 import { SettingsPanel, Prefs, Category, AudioEndpointRow, HotkeyRowData } from "components/settings-panel.slint";
 import { Toolbar } from "components/toolbar.slint";
 import { ProgressRing } from "components/progress-ring.slint";
@@ -424,16 +424,27 @@ export component AppWindow inherits Window {
                     clicked => { root.ambient-changed(!root.ambient); }
                 }
 
-                volume-button := VolumeButton {
+                volume-button := SliderButton {
                     size: chrome.dock-button;
                     focusable: !root.settings-open;
                     active: root.chrome-shown && !root.settings-open;
                     window-width: root.width;
                     window-height: root.height;
-                    volume <=> root.volume;
-                    muted <=> root.muted;
-                    level-icon: root.volume-icon;
-                    volume-changed(volume, muted) => { root.volume-changed(volume, muted); }
+                    icon: root.volume-icon == "off" ? @image-url("assets/icons/volume_off.svg")
+                        : root.volume-icon == "low" ? @image-url("assets/icons/volume_1.svg")
+                        : root.volume-icon == "medium" ? @image-url("assets/icons/volume_2.svg")
+                        : @image-url("assets/icons/volume.svg");
+                    tooltip: self.label;
+                    label: root.muted ? @tr("Muted") : @tr("Volume {}%", root.volume);
+                    slider-label: @tr("Preview volume");
+                    value-text: root.muted ? @tr("Muted") : @tr("{}%", root.volume);
+                    value: root.volume;
+                    off: root.muted;
+                    value-changed(volume, muted) => {
+                        root.volume = volume;
+                        root.muted = muted;
+                        root.volume-changed(volume, muted);
+                    }
                     wheel(delta) => { root.volume-wheel(delta); }
                 }
 
