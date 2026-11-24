@@ -6,7 +6,8 @@
 
 US1's ambient light is built, tuned and checked on both systems (T001–T008e), with its
 intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hidden" state and the toolbar
-while hidden are built and validated on Windows (T010–T013). The ezcap, the C920 and the PS5 are on the
+while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014) and the glow
+check (T015) are done. The ezcap, the C920 and the PS5 are on the
 Windows PC.
 
 ## Done in the last sessions
@@ -156,6 +157,16 @@ Windows PC.
     (`range()` gives the range in use only while `Playing`; toolbar.slint `range-known`, else
     "Auto" alone; `show_preview_state` shows the label again). So no Limited while hidden or
     while opening (the session reports the driver's declared range first).
+- 2026-11-24: T014: no bubble shows while hidden (FR-010 changed by the maintainer after seeing a
+  lone source bubble that stayed on hide and hid and showed again on show). `show_info` already
+  empties every bubble outside `Playing`, so no code changed; spec, data-model and quickstart say so.
+  - The maintainer finds the bubbles appearing and leaving abrupt. Proposed (not yet approved):
+    in FR-017 and T021, a bubble that gains or loses its value fades in or out (quick duration,
+    keeping its last text while fading) while the others slide 220 ms to their places.
+- 2026-11-24: T015, confirmed in code (no change): hiding closes the session, `clear_video` drops
+  the video layer and resets the glow; with no layer `glow_bars` gives no bar (nothing drawn) and
+  `update_glow` runs only after a present with a new frame (none while hidden). The ambient
+  button's `set_ambient` does not depend on the state.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -165,10 +176,10 @@ Windows PC.
 
 ## Open questions
 
-- None.
+- Fading the bubbles in and out (see T014 above): add to FR-017 and T021 once the maintainer
+  approves.
 
 ## Next step
 
-- T014 (bubbles while hidden: the source bubble names `resume`'s device, the others empty),
-  then T015 (no glow while hidden), then the manual T016 (Windows) and T017 (CachyOS).
+- The manual T016 (Windows) and T017 (CachyOS).
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
