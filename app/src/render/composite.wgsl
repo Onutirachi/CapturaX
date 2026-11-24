@@ -25,6 +25,11 @@ struct Rect {
     flash: vec4<f32>,
 };
 
+// The glow's passes (glow.rs, preview extras research R1) use the same uniform: their bounds cover
+// the whole target and `size` is the target's size. `glow_convert` reads the video's planes with
+// the video's kind, picture size and rows; `glow_ease` takes its factor in `to_r.x`; `glow_blur`
+// takes its direction in `to_r.xy` and its deviation in texels in `to_r.z`.
+
 @group(0) @binding(0) var tex0: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var<uniform> rect: Rect;
@@ -143,4 +148,84 @@ fn fs(in: VertexOut) -> @location(0) vec4<f32> {
         color = vec4<f32>(mix(color.rgb, vec3<f32>(1.0), rect.flash.x * max(line, glow)), color.a);
     }
     return color * (clamp(0.5 - d, 0.0, 1.0) * rect.opacity);
+}
+
+// The video's RGB at `uv`, any of the 5 formats. Explicit level samples, so it may branch.
+fn video_rgb(uv: vec2<f32>) -> vec3<f32> {
+    let kind = u32(rect.picture.x + 0.5);
+    switch kind {
+        case 1u: {
+            return textureSampleLevel(tex0, samp, uv, 0.0).rgb;
+        }
+        case 2u: {
+            let y = textureSampleLevel(tex0, samp, uv, 0.0).r;
+            let uv_plane = textureSampleLevel(tex1, samp, uv, 0.0);
+            return convert(vec3<f32>(y, uv_plane.r, uv_plane.g)).rgb;
+        }
+        case 3u: {
+            let y = textureSampleLevel(tex0, samp, uv, 0.0).r;
+            let u = textureSampleLevel(tex1, samp, uv, 0.0).r;
+            let v = textureSampleLevel(tex2, samp, uv, 0.0).r;
+            return convert(vec3<f32>(y, u, v)).rgb;
+        }
+        default: {
+            return convert(packed(uv, kind == 5u)).rgb;
+        }
+    }
+}
+
+// The glow's convert: the video into the first work target, 4 bilinear taps per texel (a box of
+// about 4 × 4 source pixels at 1080p).
+@fragment
+fn glow_convert(in: VertexOut) -> @location(0) vec4<f32> {
+    let d = vec2<f32>(0.25) / rect.size;
+    let sum = video_rgb(in.uv + vec2<f32>(-d.x, -d.y)) + video_rgb(in.uv + vec2<f32>(d.x, -d.y))
+        + video_rgb(in.uv + vec2<f32>(-d.x, d.y)) + video_rgb(in.uv + vec2<f32>(d.x, d.y));
+    return vec4<f32>(sum * 0.25, 1.0);
+}
+
+// A 2× box: the texel center falls on the corner of 4 source texels, so one bilinear tap is their
+// average.
+@fragment
+fn glow_box(in: VertexOut) -> @location(0) vec4<f32> {
+    return textureSampleLevel(tex0, samp, in.uv, 0.0);
+}
+
+// The easing: the history (`tex1`) moves towards the field (`tex0`) by the factor.
+@fragment
+fn glow_ease(in: VertexOut) -> @location(0) vec4<f32> {
+    let p = vec2<i32>(in.position.xy);
+    return mix(textureLoad(tex1, p, 0), textureLoad(tex0, p, 0), rect.to_r.x);
+}
+
+// One direction of the separable Gaussian blur, edges clamped.
+@fragment
+fn glow_blur(in: VertexOut) -> @location(0) vec4<f32> {
+    let p = vec2<i32>(in.position.xy);
+    let dir = vec2<i32>(rect.to_r.xy);
+    let deviation = max(rect.to_r.z, 0.001);
+    let radius = min(i32(ceil(deviation * 3.0)), 16);
+    let last = vec2<i32>(textureDimensions(tex0)) - vec2<i32>(1);
+    var sum = vec4<f32>(0.0);
+    var total = 0.0;
+    for (var i = -radius; i <= radius; i++) {
+        let w = exp(-f32(i * i) / (2.0 * deviation * deviation));
+        sum += w * textureLoad(tex0, clamp(p + dir * i, vec2<i32>(0), last), 0);
+        total += w;
+    }
+    return sum / total;
+}
+
+// The history's average luminance (Rec. 709 weights) into the 1 × 1 target, for the gate.
+@fragment
+fn glow_average(in: VertexOut) -> @location(0) vec4<f32> {
+    let size = vec2<i32>(textureDimensions(tex0));
+    var sum = 0.0;
+    for (var y = 0; y < size.y; y++) {
+        for (var x = 0; x < size.x; x++) {
+            sum += dot(textureLoad(tex0, vec2<i32>(x, y), 0).rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+        }
+    }
+    let l = sum / f32(size.x * size.y);
+    return vec4<f32>(l, l, l, 1.0);
 }

@@ -3,11 +3,13 @@
 
 use std::fmt;
 use std::sync::Arc;
+use std::time::Instant;
 
 use winit::window::Window;
 
 use capture::{Frame, PixelFormat, conversion};
 
+use super::glow::{Glow, Source};
 use super::{Presentation, Scene};
 use crate::cli::{Backend, PresentMode};
 use crate::ui::UiImage;
@@ -197,6 +199,8 @@ struct PlaneTexture {
 /// Textures drawn as one rectangle (video or UI layer).
 struct Layer {
     planes: Vec<PlaneTexture>,
+    /// A view of each plane, for the glow's convert pass.
+    views: Vec<wgpu::TextureView>,
     bind_group: wgpu::BindGroup,
     rect: wgpu::Buffer,
     kind: Kind,
@@ -213,8 +217,9 @@ pub struct Gpu {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
-    layout: wgpu::BindGroupLayout,
-    sampler: wgpu::Sampler,
+    shaders: Shaders,
+    /// The ambient light's passes, made when first updated.
+    glow: Option<Glow>,
     video: Option<Layer>,
     ui: Option<Layer>,
     /// The watermark's mask, uploaded once when first drawn.
@@ -315,89 +320,21 @@ impl Gpu {
         adapter: String,
         mode: PresentMode,
     ) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("composite.wgsl"));
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("layer"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    // Bounds for the vertices; size and radius for the rounded corners; the kind
-                    // and the YUV to RGB rows.
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // The second and third planes (the first one's view again when there are none).
-                plane_entry(3),
-                plane_entry(4),
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("layer"),
-            bind_group_layouts: &[Some(&layout)],
-            ..Default::default()
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("layer"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
+        let shaders = Shaders::new(&device);
+        let pipeline = shaders.pipeline(
+            &device,
+            "fs",
+            config.format,
+            Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+        );
         Self {
             surface,
             device,
             queue,
             config,
             pipeline,
-            layout,
-            sampler,
+            shaders,
+            glow: None,
             video: None,
             ui: None,
             watermark: None,
@@ -484,6 +421,27 @@ impl Gpu {
         if self.video.take().is_some() {
             log::info!("video layer cleared");
         }
+        // The next session starts from its own first frame (research R4a).
+        if let Some(glow) = &mut self.glow {
+            glow.reset();
+        }
+    }
+
+    /// Updates the ambient light from the video frame just presented, when it is due (research
+    /// R1, R4a): true when it ran. The glow is made at the first call.
+    #[expect(dead_code, reason = "called by preview extras T004")]
+    pub fn update_glow(&mut self, now: Instant) -> bool {
+        let Some(video) = &self.video else {
+            return false;
+        };
+        let glow = self.glow.get_or_insert_with(|| Glow::new(&self.device, &self.shaders));
+        let source = Source {
+            views: &video.views,
+            kind: video.kind.code(),
+            size: (video.width, video.height),
+            rows: video.rows,
+        };
+        glow.update(&self.device, &self.queue, &self.shaders, &source, now)
     }
 
     /// Uploads a frame's planes as they come (research R4); the textures are made again when the
@@ -497,6 +455,9 @@ impl Gpu {
         {
             log::info!("video layer: {} {}x{}", frame.format.name(), frame.width, frame.height);
             self.video = Some(self.make_layer(kind, frame.width, frame.height));
+            if let Some(glow) = &mut self.glow {
+                glow.forget_source();
+            }
         }
         let rows = conversion(frame.matrix, frame.range);
         let layer = self.video.as_mut().expect("just made");
@@ -541,35 +502,10 @@ impl Gpu {
             .iter()
             .map(|p| p.texture.create_view(&Default::default()))
             .collect();
-        let view = |i: usize| views.get(i).unwrap_or(&views[0]);
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("layer"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(view(0)),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: rect.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(view(1)),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::TextureView(view(2)),
-                },
-            ],
-        });
+        let bind_group = self.shaders.bind(&self.device, &views, &rect);
         Layer {
             planes,
+            views,
             bind_group,
             rect,
             kind,
@@ -780,6 +716,139 @@ fn letterbox(area: [f32; 5], (vw, vh): (u32, u32)) -> [f32; 4] {
     [(ax + (aw - rw) / 2.0).round(), (ay + (ah - rh) / 2.0).round(), rw, rh]
 }
 
+/// The composite shader with its one bind layout and sampler, shared by the layers and the glow's
+/// passes (composite.wgsl).
+pub(super) struct Shaders {
+    module: wgpu::ShaderModule,
+    layout: wgpu::BindGroupLayout,
+    pipeline_layout: wgpu::PipelineLayout,
+    sampler: wgpu::Sampler,
+}
+
+impl Shaders {
+    pub(super) fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::include_wgsl!("composite.wgsl"));
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("layer"),
+            entries: &[
+                plane_entry(0),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    // Bounds for the vertices; size and radius for the rounded corners; the kind
+                    // and the YUV to RGB rows.
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // The second and third planes (the first one's view again when there are none).
+                plane_entry(3),
+                plane_entry(4),
+            ],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("layer"),
+            bind_group_layouts: &[Some(&layout)],
+            ..Default::default()
+        });
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        Self {
+            module,
+            layout,
+            pipeline_layout,
+            sampler,
+        }
+    }
+
+    /// A pipeline drawing one rectangle with the fragment `entry` into a `format` target.
+    pub(super) fn pipeline(
+        &self,
+        device: &wgpu::Device,
+        entry: &str,
+        format: wgpu::TextureFormat,
+        blend: Option<wgpu::BlendState>,
+    ) -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(entry),
+            layout: Some(&self.pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &self.module,
+                entry_point: Some("vs"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &self.module,
+                entry_point: Some(entry),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        })
+    }
+
+    /// A bind group of up to three texture `views` (the first one again for the missing ones) and
+    /// the `rect` uniform.
+    pub(super) fn bind(
+        &self,
+        device: &wgpu::Device,
+        views: &[wgpu::TextureView],
+        rect: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        let view = |i: usize| views.get(i).unwrap_or(&views[0]);
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("layer"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(view(0)),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: rect.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(view(1)),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(view(2)),
+                },
+            ],
+        })
+    }
+}
+
 /// A texture binding of the fragment stage.
 fn plane_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
@@ -795,7 +864,7 @@ fn plane_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
 }
 
 /// Floats in the shader's `Rect` uniform.
-const UNIFORM_LEN: usize = 28;
+pub(super) const UNIFORM_LEN: usize = 28;
 
 /// Where the layer's opacity is in the uniform.
 const OPACITY: usize = 7;
@@ -820,7 +889,7 @@ fn uniform(rect: [f32; 4], radius: f32, surface: (f32, f32), layer: &Layer) -> [
 }
 
 /// Bounds in clip space, size, corner radius, opacity.
-fn placement([x, y, rw, rh]: [f32; 4], radius: f32, (w, h): (f32, f32)) -> [f32; 8] {
+pub(super) fn placement([x, y, rw, rh]: [f32; 4], radius: f32, (w, h): (f32, f32)) -> [f32; 8] {
     [
         x / w * 2.0 - 1.0,
         1.0 - y / h * 2.0,
