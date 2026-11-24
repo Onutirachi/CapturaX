@@ -16,8 +16,7 @@ struct Rect {
     // (UI), 1 opaque RGB, 2 NV12, 3 I420, 4 YUY2, 5 UYVY, 6 coverage mask tinted with `to_r`'s
     // RGB (the watermark), 7 the video's shadow (`to_r`: margin, then strength, spread, blur of
     // the near shadow; `to_g`: strength, spread, blur of the far one, in pixels), 8 the ambient
-    // light (`tex0` the blurred field, `tex1` its luminance; `to_r`: the gate's low and high
-    // luminance, then the saturation).
+    // light (`tex0` the blurred field; `to_r`: the saturation, then the lift's power).
     picture: vec4<f32>,
     to_r: vec4<f32>,
     to_g: vec4<f32>,
@@ -106,8 +105,8 @@ fn shadow(uv: vec2<f32>) -> vec4<f32> {
 }
 
 // The ambient light (preview extras research R2): the blurred field upscaled with a cubic B-spline
-// in 4 bilinear taps (no bilinear diamonds at 4K), saturated, its alpha from the luminance gate.
-// Premultiplied; the layer's opacity is applied after.
+// in 4 bilinear taps (no bilinear diamonds at 4K), saturated and brightened
+// by the lift, opaque (no luminance gate, research R2); the layer's opacity is applied after.
 fn glow(uv: vec2<f32>) -> vec4<f32> {
     let size = vec2<f32>(textureDimensions(tex0));
     let pos = uv * size - vec2<f32>(0.5);
@@ -130,10 +129,8 @@ fn glow(uv: vec2<f32>) -> vec4<f32> {
         + g1.y * (g0.x * textureSampleLevel(tex0, samp, vec2<f32>(p0.x, p1.y), 0.0).rgb
             + g1.x * textureSampleLevel(tex0, samp, p1, 0.0).rgb);
     let weights = vec3<f32>(0.2126, 0.7152, 0.0722);
-    let rgb = clamp(mix(vec3<f32>(dot(c, weights)), c, rect.to_r.z), vec3<f32>(0.0), vec3<f32>(1.0));
-    let l = textureLoad(tex1, vec2<i32>(0), 0).r;
-    let a = clamp((l - rect.to_r.x) / (rect.to_r.y - rect.to_r.x), 0.0, 1.0);
-    return vec4<f32>(rgb * a, a);
+    let rgb = pow(clamp(mix(vec3<f32>(dot(c, weights)), c, rect.to_r.x), vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(rect.to_r.y));
+    return vec4<f32>(rgb, 1.0);
 }
 
 @fragment
@@ -252,16 +249,3 @@ fn glow_blur(in: VertexOut) -> @location(0) vec4<f32> {
     return sum / total;
 }
 
-// The history's average luminance (Rec. 709 weights) into the 1 × 1 target, for the gate.
-@fragment
-fn glow_average(in: VertexOut) -> @location(0) vec4<f32> {
-    let size = vec2<i32>(textureDimensions(tex0));
-    var sum = 0.0;
-    for (var y = 0; y < size.y; y++) {
-        for (var x = 0; x < size.x; x++) {
-            sum += dot(textureLoad(tex0, vec2<i32>(x, y), 0).rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
-        }
-    }
-    let l = sum / f32(size.x * size.y);
-    return vec4<f32>(l, l, l, 1.0);
-}

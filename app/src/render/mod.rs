@@ -36,7 +36,6 @@ pub struct Scene {
     pub shadow: [f32; 2],
     /// The shadow is With ambient light: the video thread multiplies its strength by the ambient
     /// light's toggle fade, so the two come and go together (preview extras FR-005, research R4).
-    /// The glow's luminance gate does not dim it.
     pub shadow_ambient: bool,
     /// The ambient light is on (preview extras FR-001); the video thread fades the glow towards it
     /// (research R2).

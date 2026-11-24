@@ -4,9 +4,9 @@
 
 ## State
 
-Implementation started with US1. T001 to T006 are done and committed. Nothing shows yet:
-`Scene.ambient` is always false in app.rs until T007 wires the setting and the button.
-Next is T007 (the button and the wiring).
+Implementation started with US1. T001 to T007 are done and committed: the ambient light works
+in the app. The glow was tuned with the maintainer on CachyOS (part of T008, see below). Next
+are the rest of T008 (on Windows) and T009 (latency); the ezcap is on the CachyOS PC now.
 
 ## Done in the last sessions
 
@@ -71,6 +71,25 @@ Next is T007 (the button and the wiring).
     cannot fade it). The luminance gate is not applied. Tested.
   - settings model: the `Shadow::Ambient` doc no longer says "none until then".
 
+- 2026-11-23: T007: the ambient light button.
+  - main.slint: `ambient-button` (IconButton, `bulb.svg` from Tabler, tooltip "Ambient light",
+    `active` = the on chip) between fullscreen and volume, always enabled; its focus keeps the
+    chrome shown like the other dock buttons. `in property ambient` and
+    `callback ambient-changed(bool)` (asks for the other value).
+  - app.rs: `Backdrop.ambient` from `preview.ambient` feeds `Scene.ambient`.
+    `SettingChange::Ambient(on)` saves it, sets the button and calls `apply_backdrop` (the next
+    scene carries it). The start value is set next to the volume's.
+  - pt-BR: "Luz ambiente".
+  - Checked on CachyOS over SSH (screenshots): place, tooltip (pt-BR), on chip in both themes,
+    640 × 360, saved and kept after a restart, off again. The maintainer validated it.
+- 2026-11-24: T008 (CachyOS part): tuned with the maintainer on Astro's Playroom: alpha 0.7 →
+  0.9 and the gate fully open at 0.12 instead of 0.20 (research R2, data-model, plan updated;
+  the GPU test's mid grey is now 20/255). The maintainer liked it and checks it once more on
+  Windows. The loop stays clean with the glow on at 1080p60 (`ready_ms` 0.8, `repl=0`,
+  `glow=56–60`).
+  - Over SSH, ydotool's pointer reaches the window only after a click on its title bar
+    (`moves=0` until then); the dock shows when the pointer comes from the window's left edge.
+
 ## Decisions
 
 - All in spec.md, plan.md, research.md and data-model.md.
@@ -84,8 +103,10 @@ Next is T007 (the button and the wiring).
 
 ## Next step
 
-T007: the ambient light button in app/ui/main.slint (`left-dock`, between `fullscreen-button`
-and the volume button, icon `bulb.svg` from Tabler, tooltip "Ambient light" + pt-BR), and app.rs
-reads `preview.ambient` at start, sets `Scene.ambient` (replacing the `ambient: false`
-placeholder) and flips, saves and sends it on a click. After it the glow and the With ambient
-light shadow can be seen in the app (manual checks T008, T009).
+- While the ezcap is on CachyOS: T009's Linux half (the agent over SSH: 60 s with ambient off and
+  on at 1080p60; 1080p120 needs the PS5's output set to 120 Hz by the maintainer), recorded in
+  measurements/latency.md.
+- Then on Windows: T008 (quickstart checks 1–4 and 6, check 5 without the hide step, and the
+  maintainer's last look at the glow's strength) and T009's Windows half.
+- Open question above (the 16.6 ms pacing): explained to the maintainer on 2026-11-24, no
+  decision yet; the agent recommends about 15 ms.

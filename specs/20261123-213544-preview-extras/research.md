@@ -52,15 +52,18 @@ The draw shader:
 - samples the field with a bicubic upscale (4 bilinear taps), so no bilinear diamonds show at
   4K;
 - applies saturation × 1.4;
-- draws it at alpha `0.7 × gate × video opacity × toggle fade` over the background (F56).
+- draws it at alpha `0.9 × gate × video opacity × toggle fade` over the background (F56).
 
-The gate is `clamp((L − 0.04) / 0.16, 0, 1)`, with `L` the eased average luminance (mockup), so
+The gate is `clamp((L − 0.04) / 0.08, 0, 1)`, with `L` the eased average luminance, so
 a dark frame fades to the plain background (FR-003, spec edge case) instead of a grey haze. The
 toggle fades over 250 ms. The watermark (F57) stays drawn over the glow, at its current opacity.
 
-All five numbers (5 %, σ, 1.4, 0.7, gate 0.04 to 0.20) are **tune** values: they start from the
+All five numbers (5 %, σ, 1.4, 0.9, gate 0.04 to 0.12) are **tune** values: they start from the
 mockup and are set with the maintainer on the ezcap with the PS5. A change in feel goes into the
-spec's FR-002 wording only if the variant changes.
+spec's FR-002 wording only if the variant changes. Tuned on 2026-11-24 on CachyOS with Astro's
+Playroom (T008): the mockup's alpha 0.7 and gate top 0.20 were too faint on the PS5's dark menus
+and game scenes, so alpha went to 0.9 and the gate opens fully at 0.12; the maintainer checks it
+once more on Windows.
 
 **Rationale**: these are the mockup's values, which the maintainer chose. The single-frame flash
 check comes from the easing: one white frame moves the history by at most 1 − e^(−16.7/150)

@@ -104,7 +104,7 @@ new frame → set_video (upload) → render(scene): ground · glow (bars only) �
   is unit tested.
 - `composite.wgsl` gains:
   - layer kind 8 (glow): a smooth upscale of the blurred field over the area enlarged by 5 %,
-    saturation × 1.4, alpha 0.7 × gate × the video's opacity × the toggle's fade;
+    saturation × 1.4, alpha 0.9 × gate × the video's opacity × the toggle's fade;
   - a small conversion entry that writes linear RGB into the 512 × 288 target with the
     shader's own `convert`;
   - box, blend, blur and average entries.
