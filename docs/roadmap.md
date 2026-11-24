@@ -281,11 +281,6 @@ item here when it is found (with the date), instead of fixing it inside an unrel
 - Double click on the video toggles fullscreen (maintainer, 2026-11-23).
 - An open overlay (menu, popover, settings panel) closes when the window is resized
   (maintainer, 2026-11-23).
-- Volume button dimmed when the preview has no sound to play ("No audio", no input, a state
-  shown): the popover, the wheel and the keys do nothing, tooltip "No audio"; the app's one
-  level (preview audio FR-012) is kept for when sound returns. Today it still moves on "No
-  audio" though nothing plays; same idea as the screenshot button dimmed without video.
-  Changes preview audio's FR-011 (maintainer, 2026-11-23).
 
 ```text
 /speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the

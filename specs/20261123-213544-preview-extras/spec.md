@@ -31,6 +31,19 @@ Three additions to the preview built in spec #3 (device preview):
 The docks already plan these buttons (spec #3 FR-002a): the left dock holds fullscreen, ambient
 light, volume and settings; the right dock holds preview, screenshot, record and stream.
 
+## Clarifications
+
+### Session 2026-11-23
+
+- Q: While the video area shows a state (no signal, opening, disconnected, preview hidden), is
+  the ambient light button still clickable? → A: Yes, always clickable; in a state it only
+  changes the saved value and nothing glows until video returns (FR-001).
+- Q: Does the volume button stay usable while there is no sound to play (No audio, no input, a
+  state, preview hidden)? → A: Yes, like the ambient light: always usable, it changes the
+  saved level and mute (FR-012). The roadmap #17 note to dim it is dropped.
+- Q: Should the tray menu gain Show preview / Hide preview? → A: No; hiding matters only with
+  the window open, and closing to the tray already releases the device (spec #3).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Ambient light around the video (Priority: P1)
@@ -67,9 +80,9 @@ light on from the left dock, and compare the per-second statistics with it on an
 
 ### User Story 2 - Hide the preview (Priority: P2)
 
-A user who does not need to see the capture (for example while recording or streaming, or just
-listening) hides the preview from the right dock: the video stops, the device is released (a
-webcam's light turns off) and the app uses almost nothing. The same button brings it back.
+A user who does not need to see the capture (for example while recording or streaming) hides
+the preview from the right dock: the video stops, the device is released (a webcam's light turns
+off) and the app uses almost nothing. The same button brings it back.
 
 **Why this priority**: it saves resources and matters most once recording and streaming exist;
 today it is mostly a way to release the device without closing the app.
@@ -148,9 +161,13 @@ controls hidden.
 - Hide preview while the device is disconnected: the "Preview hidden" state replaces the
   disconnected state; when the device returns it is not reopened until the preview is shown; its
   "reconnected" notice still shows.
+- The window is shown again from the tray while the preview is hidden: it stays hidden and no
+  device is opened.
 - Hide preview with no device open ("no source" state): the preview button is disabled.
 - A screenshot hotkey while the preview is hidden: refused like any state (screenshot spec),
   with its notice.
+- The controls' hide timer runs out while a bubble is being dragged: the controls stay shown
+  until the drag ends.
 - A pinned bubble whose value is unknown (latency before the first frame): it shows its
   placeholder, as today.
 - Bubbles in a top corner next to the toolbar: they never sit under the toolbar; when the toolbar
@@ -168,8 +185,9 @@ controls hidden.
 - **FR-001**: The left dock MUST gain the ambient light button, between fullscreen and volume
   (spec #3 FR-002a order), a toggle with an on state (the soft orange chip of a toggled tool),
   icon a light bulb (Tabler `bulb`); its tooltip is "Ambient light". It is
-  enabled whenever the preview shows video; while a state shows it keeps its value but nothing
-  glows. The choice is saved and applies to every device.
+  always clickable: while a state shows (no signal, opening, disconnected, preview hidden) it
+  changes the saved value and nothing glows until video returns. The choice is saved and
+  applies to every device.
 - **FR-002**: With the ambient light on, the whole video background around the video MUST glow
   with the video's colors: a much reduced, strongly blurred copy of the frame stretched over the
   video area, so each bar takes the colors of the video's nearest side, strong and diffuse
@@ -212,8 +230,8 @@ controls hidden.
 - **FR-012**: The preview is video and audio together: hiding it MUST also stop the preview's
   audio (F12–F14) and release its input and output, unless recording or streaming uses that
   input; showing it again reopens the audio as at start (paired or chosen input, chosen output,
-  volume and mute kept). While hidden the volume button keeps its level and mute but plays
-  nothing (maintainer, 2026-11-23; decides product.md's "Hide preview and its audio").
+  volume and mute kept). While hidden the volume button stays usable (it changes the saved
+  level and mute) but plays nothing (maintainer, 2026-11-23; decides product.md's "Hide preview and its audio").
 
 **Info overlay (F42)**
 
@@ -263,8 +281,10 @@ controls hidden.
   1080p120 on the ezcap card, windowed with bars, 60 s each: the median frame ready → presented
   time grows by at most 0.5 ms and the p95 by at most 1 ms over the same run with it off, and no
   frame is dropped that is not dropped with it off. Measured with the app's per-second statistics
-  (spec #3 FR-018), on Windows and on Linux (CachyOS). The glass-to-glass check of spec #3
-  (SC-007) is repeated once with the ambient light on, within its noise.
+  (spec #3 FR-018), on Windows and on Linux (CachyOS). The same limits hold for a run with the
+  frame rate and latency bubbles pinned and the controls hidden (they update each second). The
+  glass-to-glass check of spec #3 (SC-007) is repeated once with the ambient light on, within
+  its noise.
 - **SC-002**: Hiding the preview releases the device within 1 s (webcam light off; another app
   opens it), and showing the preview again shows video within the device's normal opening time
   (spec #3) plus 0.5 s.
@@ -287,7 +307,9 @@ controls hidden.
 - The recording and live status bubbles and the "recording and streaming continue" line of the
   hidden state are defined here and delivered by specs #9 and #10; until then nothing uses the
   device besides the preview, so hiding always releases it.
-- Hiding the preview has no hotkey; F50 defines only screenshot, record and stream keys.
+- Hiding the preview has no hotkey; F50 defines only screenshot, record and stream keys. It has
+  no tray menu entry either: closing the window to the tray already releases the device
+  (spec #3), and hiding matters only with the window open.
 - The bubbles' arrangement is one for the app, not per device: the bubbles describe the preview,
   whatever device it shows.
 - No bubble can be hidden for good: unpinned bubbles show only with the controls, which is the
