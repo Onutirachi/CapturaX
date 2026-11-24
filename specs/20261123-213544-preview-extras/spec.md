@@ -69,7 +69,7 @@ light on from the left dock, and compare the per-second statistics with it on an
 
 A user who does not need to see the capture (for example while recording or streaming, or just
 listening) hides the preview from the right dock: the video stops, the device is released (a
-webcam's light turns off) and the app uses almost nothing. **Show preview** brings it back.
+webcam's light turns off) and the app uses almost nothing. The same button brings it back.
 
 **Why this priority**: it saves resources and matters most once recording and streaming exist;
 today it is mostly a way to release the device without closing the app.
@@ -81,10 +81,9 @@ reopens in the same mode.
 **Acceptance Scenarios**:
 
 1. **Given** a device is previewing, **When** the user clicks the preview button on the right
-   dock, **Then** the video area shows the "Preview hidden" state (icon `preview_off`) with a
-   **Show preview** action, and the device is released within 1 s.
-2. **Given** the preview is hidden, **When** the user clicks **Show preview** (in the state or on
-   the dock), **Then** the same device reopens in the same mode and range, as when picked in the
+   dock, **Then** the video area shows the "Preview hidden" state (icon and text, no action) and
+   the device is released within 1 s.
+2. **Given** the preview is hidden, **When** the user clicks the preview button again, **Then** the same device reopens in the same mode and range, as when picked in the
    device menu.
 3. **Given** the preview is hidden, **When** the user picks a device in the device menu,
    **Then** the preview is shown again with that device.
@@ -94,8 +93,8 @@ reopens in the same mode.
    preview is hidden, **Then** the device stays open for them, only the preview stops, and the
    state says that recording or streaming continues.
 6. **Given** the preview's audio is playing, **When** the preview is hidden, **Then** the sound
-   stops too and the audio input and output are released (FR-012); **Show preview** brings back
-   both video and sound.
+   stops too and the audio input and output are released (FR-012); showing the preview brings
+   back both video and sound.
 7. **Given** the preview was hidden, **When** the app starts again, **Then** it shows "Preview
    hidden" without opening any device (FR-011).
 
@@ -117,10 +116,11 @@ controls hidden.
 **Acceptance Scenarios**:
 
 1. **Given** the controls are showing, **When** the user pins the latency bubble, **Then** it
-   shows a pinned mark and stays visible after the controls hide, packed against its corner.
-2. **Given** a bubble at the bottom right, **When** the user moves it to the top left, **Then** it
-   shows in that corner, in the order chosen, and the bubbles left behind close the gap.
-3. **Given** three bubbles in one corner, **When** the user moves one before another, **Then** the
+   shows a pin before its text and stays visible after the controls hide, packed against its corner.
+2. **Given** a bubble at the bottom right, **When** the user drags it to the top left, **Then**
+   the corners light up while dragging, a mark shows where it will land, and on release it sits in
+   that corner, in the order chosen, and the bubbles left behind close the gap.
+3. **Given** three bubbles in one corner, **When** the user drags one before another, **Then** the
    order changes at once and is kept after a restart.
 4. **Given** the controls hide, **When** pinned and unpinned bubbles share a corner, **Then** only
    the pinned ones show, packed against the corner without gaps, in their order.
@@ -130,7 +130,8 @@ controls hidden.
 6. **Given** a small window (640 × 360) with bubbles in several corners, **When** the controls
    show, **Then** no bubble covers the toolbar, a dock or another bubble (app shell FR-010).
 7. **Given** the bubbles were arranged, **When** the user wants the default back, **Then** one
-   action restores it (all four at the bottom right, in today's order, none pinned).
+   action restores it: **Reset** in the settings panel's Preview category (all four at the bottom
+   right, in today's order, none pinned).
 
 ---
 
@@ -145,7 +146,7 @@ controls hidden.
 - Hide preview while the device is still opening: the opening is cancelled and the device
   released.
 - Hide preview while the device is disconnected: the "Preview hidden" state replaces the
-  disconnected state; when the device returns it is not reopened until **Show preview**; its
+  disconnected state; when the device returns it is not reopened until the preview is shown; its
   "reconnected" notice still shows.
 - Hide preview with no device open ("no source" state): the preview button is disabled.
 - A screenshot hotkey while the preview is hidden: refused like any state (screenshot spec),
@@ -165,12 +166,14 @@ controls hidden.
 **Ambient light (F9)**
 
 - **FR-001**: The left dock MUST gain the ambient light button, between fullscreen and volume
-  (spec #3 FR-002a order), a toggle with an on state; its tooltip is "Ambient light". It is
+  (spec #3 FR-002a order), a toggle with an on state (the soft orange chip of a toggled tool),
+  icon a light bulb (Tabler `bulb`); its tooltip is "Ambient light". It is
   enabled whenever the preview shows video; while a state shows it keeps its value but nothing
   glows. The choice is saved and applies to every device.
-- **FR-002**: With the ambient light on, the video background around the video MUST glow with
-  the colors near the matching edge of the current frame, blurred and fading towards the window's
-  edges, drawn over the video background (F56) and under the watermark (F57), the shadow (F58)
+- **FR-002**: With the ambient light on, the whole video background around the video MUST glow
+  with the video's colors: a much reduced, strongly blurred copy of the frame stretched over the
+  video area, so each bar takes the colors of the video's nearest side, strong and diffuse
+  (variant "Fill" of the mockup page, maintainer 2026-11-23), drawn over the video background (F56) and under the watermark (F57), the shadow (F58)
   and the video. The watermark shows clearer over it (F57). Off by default.
 - **FR-003**: The glow MUST follow the video smoothly: a color change reaches the glow within
   about 0.5 s, eased, never flashing on a single frame (a camera flash, a scene cut); a dark frame
@@ -184,16 +187,20 @@ controls hidden.
 **Hide preview (F10)**
 
 - **FR-006**: The right dock MUST gain the preview button, first in the dock (spec #3 FR-002a
-  order: preview, screenshot, record, stream), a toggle: "Hide preview" while showing, "Show
-  preview" while hidden (tooltips). It is disabled when no device is open.
+  order: preview, screenshot, record, stream), a toggle with the settings' Preview category icon
+  (`device_tv`) while showing and the same icon struck through (`device_tv_off`) on the toggled
+  chip while hidden;
+  tooltips "Hide preview" and "Show preview". It is disabled when no device is open
+  (maintainer, 2026-11-23).
 - **FR-007**: Hiding the preview MUST stop presenting video and, unless recording or streaming
   uses the device, close the device within 1 s (a webcam's light turns off; another app can open
   it).
 - **FR-008**: While hidden, the video area MUST show the "Preview hidden" state with the app
-  shell's state component: icon `preview_off`, the text "Preview hidden" and a **Show preview**
-  action. When recording or streaming uses the device it adds a line saying they continue
+  shell's state component: icon `device_tv_off` (the dock button's; the "no source" state uses it too, the text tells them apart), the text "Preview hidden" and
+  no action: the dock button shows it again (maintainer, 2026-11-23: less on screen; this is a
+  state the user chose, not an empty or error state). When recording or streaming uses the device it adds a line saying they continue
   (specs #9 and #10 supply the case).
-- **FR-009**: **Show preview** (state or dock) MUST reopen the same device in its remembered mode
+- **FR-009**: Showing the preview (the dock button) MUST reopen the same device in its remembered mode
   and range; picking any device in the device menu MUST also show the preview.
 - **FR-010**: While hidden, the bubbles that read the video (mode, frame rate, latency) MUST show
   nothing (they are hidden); the source bubble keeps the device's name.
@@ -214,15 +221,20 @@ controls hidden.
   live status, specs #9 and #10) MUST have a corner (one of the four of the video area), a place
   in its corner's order, and a pinned flag. Defaults: all at the bottom right, in today's order
   (source, mode, frame rate, latency), none pinned, which is today's look.
-- **FR-014**: While the controls show, all bubbles MUST show in their corners; pinned ones carry
-  a pinned mark. While the controls are hidden, only the pinned ones show, packed against their
-  corner in their order.
-- **FR-015**: The user MUST be able to pin and unpin a bubble, move it to another corner and
-  change its place in the order, with the mouse and with an alternative that needs no dragging
-  (the bubble's menu, spec #3 FR-016's settings button). The exact gestures and the menu's look
-  are decided on the mockup page before the plan.
+- **FR-014**: While the controls show, all bubbles MUST show in their corners; pinned ones show a
+  small pin (Tabler `pin`) before their text. While the controls are hidden, only the pinned ones show, packed against their
+  corner in their order, without the pin.
+- **FR-015**: Moving a bubble is click and drag, the only way (maintainer, 2026-11-23): the
+  pointer shows the grab hand over a bubble and the closed hand while dragging; the bubble
+  follows the pointer, the four corners light up and the one it would land in is marked, an
+  orange bar shows its place in that corner's order, and releasing puts it there. A press without
+  movement is not a drag. The hover controls (spec #3 FR-016) hold a **Pin** toggle (the pin
+  icon, on chip while pinned; tooltip "Pin" / "Unpin") and, for bubbles with display choices, the
+  display button; no corner or order items in any menu.
 - **FR-016**: The arrangement MUST be saved (one for the app, not per device) and applied at once.
-  A **Reset bubbles** action (in the settings panel's Preview category) restores the defaults.
+  The settings panel's Preview category MUST have an **Info bubbles** row with a **Reset**
+  button that restores the defaults (FR-013), with no text about what the default is
+  (maintainer, 2026-11-23).
 - **FR-017**: Bubbles in a corner MUST lay out like today's row (spec #3 FR-002a): a row from
   the corner along the bottom or top edge, fitting between the docks; a column when the row does
   not fit. A top corner's row never goes under the toolbar: when there is no room beside it, the
@@ -231,7 +243,7 @@ controls hidden.
   corner that holds bubbles they join the bubbles' group at the corner while the controls are
   hidden and move past them while the controls show. Only the pinned bubbles count while the
   controls are hidden.
-- **FR-019**: All new texts (button tooltips, state, menu items, **Reset bubbles**) MUST be in
+- **FR-019**: All new texts (button tooltips, the state, **Info bubbles** and **Reset**) MUST be in
   English and Portuguese (Brazil), and every new control MUST work in both themes and down to
   640 × 360.
 
@@ -254,12 +266,12 @@ controls hidden.
   (spec #3 FR-018), on Windows and on Linux (CachyOS). The glass-to-glass check of spec #3
   (SC-007) is repeated once with the ambient light on, within its noise.
 - **SC-002**: Hiding the preview releases the device within 1 s (webcam light off; another app
-  opens it), and **Show preview** shows video again within the device's normal opening time
+  opens it), and showing the preview again shows video within the device's normal opening time
   (spec #3) plus 0.5 s.
 - **SC-003**: With the preview hidden and nothing else running, the app's CPU and GPU use drops
   to that of the "no source" state (within 1 percentage point), measured over 30 s.
 - **SC-004**: A bubble arrangement (one pinned, one in another corner, order changed) is set in
-  under 30 s with the mouse, survives a restart unchanged, and **Reset bubbles** restores the
+  under 30 s with the mouse, survives a restart unchanged, and **Reset** restores the
   default in one action.
 - **SC-005**: At 640 × 360, 800 × 520, 1280 × 720 and fullscreen 1920 × 1080, in both themes and
   both languages, with bubbles in all four corners: no bubble overlaps the toolbar, a dock,
@@ -268,8 +280,7 @@ controls hidden.
 ## Assumptions
 
 - The ambient light is one on/off choice with a fixed look (no intensity or size settings):
-  constitution II, an option only for a demonstrated need. The look (blur, reach, strength) is
-  chosen on the mockup page.
+  constitution II, an option only for a demonstrated need.
 - The ambient light is drawn by the app's own renderer from the presented frame; it is part of
   the preview only, never of screenshots, recordings or streams. The viewer page's ambient light
   (F38) is spec #10's.
@@ -282,6 +293,9 @@ controls hidden.
 - No bubble can be hidden for good: unpinned bubbles show only with the controls, which is the
   way to keep them out of sight. Adding "never show" waits for a demonstrated need.
 - The detached info window considered before the stack spike stays dropped.
-- Visual details (the glow's look, the dock icons, the pinned mark, the move gestures, the
-  hidden state) are decided on an HTML mockup page with the app's palette and both themes before
-  the plan, as in the previous specs.
+- Visual decisions taken on the mockup page (https://claude.ai/artifact/C7uffxbE8YBmFXSGkNNbPz,
+  maintainer 2026-11-23): D1 Fill glow, D2 bulb, D3 the Preview category's `device_tv` icon, D4 no
+  action in the hidden state, D5 drag only with pin and display in the hover controls, D6 pin
+  shown only with the controls, D7 Reset in the Preview category.
+- Moving bubbles has no keyboard alternative (drag only, D5); keyboard users keep pin and the
+  display menu.

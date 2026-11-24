@@ -25,13 +25,13 @@ a mockup page before `/speckit-clarify` and `/speckit-plan`.
 
 ## Open questions
 
-- Visual, for the mockup page: the glow's look (blur, reach, strength, black frames), the dock
-  icons (ambient light, preview), the pinned mark, the gestures to move a bubble (drag to a
-  corner and within a row) and the menu alternative, the "Preview hidden" state, where
-  **Reset bubbles** sits.
+- None. Mockup decisions D1–D7 answered 2026-11-23 and written into the spec (Assumptions lists
+  them; FR-001, FR-002, FR-006, FR-008, FR-014–FR-016). product.md F10 updated (icon
+  `device_tv_off`, no action).
 
 ## Next step
 
-Build the mockup page (Artifact, app palette, both themes, real device data: ezcap 1080p60 and
-1080p120, C920) for the open visual questions; record the choices in the spec; then
-`/speckit-clarify` and `/speckit-plan`. Nothing is committed until the maintainer validates.
+`/speckit-clarify` (quick pass; few open points expected), then `/speckit-plan`. Mockup page:
+https://claude.ai/artifact/C7uffxbE8YBmFXSGkNNbPz. The plan must cover: the glow in the app's
+renderer (reduced, blurred frame copy, eased over ~0.5 s, dimmed on dark frames) within SC-001;
+releasing and reopening video and audio on hide/show; drag in Slint with grab cursors.
