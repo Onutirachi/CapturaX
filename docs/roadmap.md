@@ -13,7 +13,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
 | 4 | [Preview audio](#4-preview-audio) ([spec](../specs/20261113-103922-preview-audio/spec.md)) | F12–F14, F47 | 3 | done |
 | 5 | [Screenshot](#5-screenshot) ([spec](../specs/20261121-134830-screenshot/spec.md)) | F19, F50 (framework, screenshot) | 3 | done |
-| 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
+| 6 | [Preview extras](#6-preview-extras) ([spec](../specs/20261123-213544-preview-extras/spec.md)) | F9, F10, F42 | 3 | in progress |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
 | 8 | [Output audio](#8-output-audio) | F15–F17 | 4 | |
 | 9 | [Recording](#9-recording) | F20–F27, F48 (Record in the tray), F50 (record), F51 (recording) | 7, 8 | |
@@ -24,11 +24,11 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
 | 15 | [Accelerate GPU](#15-accelerate-gpu) | F55 | 10 | |
 | 16 | [Getting started guide](#16-getting-started-guide) | F54 | 15 | |
-| 17 | [UI review](#17-ui-review) | F59 and the small fixes listed there | 5 | |
+| 17 | [UI review](#17-ui-review) | F59 and the small fixes listed there | 9, 10 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
-spec 13 can start any time after spec 2; spec 17 any time after spec 5, when its list is worth
-a spec.
+spec 13 can start any time after spec 2; spec 17 comes after the Record and Stream panels
+(specs 9 and 10), since they will add fixes that belong in it (maintainer, 2026-11-23).
 
 ## Specs
 
@@ -150,6 +150,10 @@ stack spike).
 docs/product.md, on Windows (own list) and Linux (Wayland portal picker, X11 if supported).
 ```
 
+Where the app lists the sources, the picker looks a bit like Discord's screen share picker: a
+**Screens** tab and an **Apps** tab, each item with a preview image (F5; maintainer,
+2026-11-23).
+
 ### 8. Output audio
 
 ```text
@@ -168,6 +172,9 @@ spec 10), and the
 recording status of F51 on the tray icon and the taskbar button. The tray's Record entry and
 Ctrl+Shift+F10 open the Record panel in the main window (the compact window comes in spec 14).
 ```
+
+Decide here how screenshots work with outputs running (product.md, To reconsider: one key for
+everything running, up to 3 files, or one key each).
 
 The recordings folder (default Videos/CapturaX) is a second row in the settings' **Folders**
 category, beside the screenshots folder from spec 5, reusing its row (maintainer, 2026-11-23).
@@ -219,7 +226,7 @@ option "Show in the applications menu" (maintainer, 2026-11-23).
 the Settings entry of F48 from docs/product.md. When the main window is not visible, the tray's
 Live, Record and Settings entries and the Ctrl+Shift+F9 / Ctrl+Shift+F10 hotkeys open that panel as a compact
 window of its own on the desktop (the same panel, same size and look, without the preview and
-without opening the preview device); `--live` and `--record` start the app that way (a running
+without opening the preview device); `--live`, `--record` and `--settings` start the app that way (a running
 instance opens them). Live and Record can be open at the same time. Reuses the panels built in
 specs 9 and 10.
 ```
