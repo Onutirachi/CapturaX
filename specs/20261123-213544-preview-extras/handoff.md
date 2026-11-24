@@ -4,8 +4,9 @@
 
 ## State
 
-Implementation started with US1. T001, T002 and T003 are done and committed (not wired yet).
-Next is T004, the glow's draw and pacing in the video thread.
+Implementation started with US1. T001 to T004 are done and committed. Nothing shows yet:
+`Scene.ambient` is always false in app.rs until T007 wires the setting and the button.
+Next is T005 (`glow=` in the `[loop]` line).
 
 ## Done in the last sessions
 
@@ -36,9 +37,26 @@ Next is T004, the glow's draw and pacing in the video thread.
   - Tests on a real GPU without a surface (skipped with no adapter; only tests read back): fill,
     ease, wait, reset and pause fill; all 5 formats convert (grey and BGRx red); a half white
     frame keeps its sides and blurs symmetrically. They also build the layers' `fs` pipeline.
-- For T004's draw: the blurred field is `Glow.blurred` and the luminance `Glow.luminance` (both
-  private views; add accessors or a bind group there). The `#[expect(dead_code)]` on `mod glow`
-  in app/src/render/mod.rs and on `update_glow` go away when T004 uses them.
+- 2026-11-23: T004: the glow's draw and pacing.
+  - mod.rs: `Scene.ambient`; `Toggle` fades 0 <-> 1 over `glow::FADE` (250 ms) towards it,
+    proportional to the distance (a turn from halfway takes half), and counts as an animation
+    like the video fade. `Fade` gained a `length` (the video's stays `FADE`). After a present
+    that showed a new frame, `gpu.update_glow(&scene, now)` runs when `scene.ambient` or the
+    toggle level is above 0, and `stats.glow_updated()` counts it (printed by T005).
+  - gpu.rs: `glow_bars(scene)` = `bars(scissor(area), letterbox(area, video))`, none without a
+    video layer. `render(.., ambient)` draws the glow first (before watermark and shadow) with
+    the layers' `fs` pipeline, one draw per bar with the bar as scissor, at opacity
+    `ALPHA × video opacity × toggle`; skipped with no bar, zero opacity or no field.
+    `update_glow` with no bar pauses the glow (`Glow::pause`: `last = None`), so the next
+    update fills and nothing is drawn until then (R4a, covers a resize that makes bars appear).
+  - glow.rs: `Glow::draw(queue, area, surface, opacity) -> Option<&BindGroup>` writes the
+    kind 8 uniform (the area grown by `EDGE_GROW` per side; `to_r` = gate low, gate high,
+    saturation) and returns `None` while there is no field (`last` is `None`). `gate()` is now
+    `#[cfg(test)]`: the shader applies it, the function is its test reference.
+  - composite.wgsl: kind 8 `glow(uv)`: cubic B-spline upscale in 4 bilinear taps, saturation,
+    alpha from the 1 × 1 luminance through the gate, premultiplied.
+  - GPU test: the draw saturates a colour, half-opens the gate on a mid grey, closes it on a
+    dark frame, and draws nothing before a field or after a pause.
 
 ## Decisions
 
@@ -53,6 +71,6 @@ Next is T004, the glow's draw and pacing in the video thread.
 
 ## Next step
 
-T004 (layer kind 8 draw through `bars()`, `Scene.ambient` with the 250 ms toggle fade, and the
-call to `update_glow` after a present). Read research R1–R3 and data-model.md "Glow" and
-"Scene" first.
+T005: `glow=<n>` at the end of the `[loop]` line from `Stats.glow` (already counted), line
+tests updated plus one with `glow=60` (contracts/stats.md). Then T006 (shadow) and T007
+(button and wiring), after which the glow can be seen in the app.

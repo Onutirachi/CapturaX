@@ -98,6 +98,8 @@ pub struct Stats {
     latency_ms: Vec<f64>,
     /// Presents that repeated the last frame (Follow the monitor, T047).
     repeated: u32,
+    /// Ambient light updates (preview extras research R1).
+    glow: u32,
     /// The last summary had frames: one more report is due to tell they stopped.
     had_frames: bool,
 }
@@ -119,6 +121,7 @@ impl Stats {
             moves: 0,
             latency_ms: Vec::new(),
             repeated: 0,
+            glow: 0,
             had_frames: false,
         }
     }
@@ -151,6 +154,11 @@ impl Stats {
     /// A present that repeated the last frame (Follow the monitor, research R9).
     pub fn repeated(&mut self) {
         self.repeated += 1;
+    }
+
+    /// An ambient light update ran after a present (preview extras research R1).
+    pub fn glow_updated(&mut self) {
+        self.glow += 1;
     }
 
     /// A UI image handed to the video thread, drawn and copied in `draw_ms`.
@@ -196,6 +204,7 @@ impl Stats {
         self.moves = 0;
         self.latency_ms.clear();
         self.repeated = 0;
+        self.glow = 0;
         Some(Report { summary, line })
     }
 

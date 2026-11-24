@@ -3,7 +3,6 @@
 //! source hands it frames directly and the main thread hands it the UI, so the video never waits
 //! for the window's event loop, which Windows holds while the window is moved or resized.
 
-#[expect(dead_code, reason = "wired by preview extras T003 and T004")]
 mod glow;
 mod gpu;
 
@@ -35,6 +34,9 @@ pub struct Scene {
     /// The video's shadow: the display scale it is drawn at and its strength, 0 for none
     /// (research R18).
     pub shadow: [f32; 2],
+    /// The ambient light is on (preview extras FR-001); the video thread fades the glow towards it
+    /// (research R2).
+    pub ambient: bool,
     /// The surface size in physical pixels.
     pub size: (u32, u32),
 }
@@ -404,26 +406,78 @@ const FLOWING: Duration = Duration::from_millis(50);
 /// (FR-013, research R17).
 const FADE: Duration = Duration::from_millis(150);
 
-/// The video's opacity going from `from` to `to` over [`FADE`] from `start`.
+/// An opacity going from `from` to `to` over `length` from `start`: the video's over [`FADE`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Fade {
     from: f32,
     to: f32,
     start: Instant,
+    length: Duration,
 }
 
 impl Fade {
     fn new(from: f32, to: f32, start: Instant) -> Self {
-        Self { from, to, start }
+        Self::over(from, to, start, FADE)
+    }
+
+    fn over(from: f32, to: f32, start: Instant, length: Duration) -> Self {
+        Self {
+            from,
+            to,
+            start,
+            length,
+        }
     }
 
     fn opacity(&self, now: Instant) -> f32 {
-        let t = now.saturating_duration_since(self.start).as_secs_f32() / FADE.as_secs_f32();
+        if self.done(now) {
+            return self.to;
+        }
+        let t = now.saturating_duration_since(self.start).as_secs_f32() / self.length.as_secs_f32();
         self.from + (self.to - self.from) * t.clamp(0.0, 1.0)
     }
 
     fn done(&self, now: Instant) -> bool {
-        now >= self.start + FADE
+        now >= self.start + self.length
+    }
+}
+
+/// The ambient light's toggle fade (research R2): 0 to 1 and back over [`glow::FADE`], towards
+/// [`Scene::ambient`]. A turn from halfway takes half the time.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct Toggle {
+    on: bool,
+    fade: Option<Fade>,
+}
+
+impl Toggle {
+    fn level(&self, now: Instant) -> f32 {
+        self.fade
+            .map_or(if self.on { 1.0 } else { 0.0 }, |fade| fade.opacity(now))
+    }
+
+    /// Turns towards `on` from where the fade is at `now`.
+    fn set(&mut self, on: bool, now: Instant) {
+        if on == self.on {
+            return;
+        }
+        let from = self.level(now);
+        let to = if on { 1.0 } else { 0.0 };
+        self.on = on;
+        self.fade = Some(Fade::over(from, to, now, glow::FADE.mul_f32((to - from).abs())));
+    }
+
+    /// The level at `now`; a fade that reached its end goes.
+    fn step(&mut self, now: Instant) -> f32 {
+        let level = self.level(now);
+        if self.fade.is_some_and(|fade| fade.done(now)) {
+            self.fade = None;
+        }
+        level
+    }
+
+    fn fading(&self) -> bool {
+        self.fade.is_some()
     }
 }
 
@@ -597,6 +651,8 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
     // The video's fade, the session of the frame on the GPU (a frame of another one fades in) and
     // the last present (fade steps with no video frame come one refresh apart).
     let mut fade: Option<Fade> = None;
+    // The ambient light's toggle fade.
+    let mut toggle = Toggle::default();
     let mut video_session: Option<u64> = None;
     let mut last_present: Option<Instant> = None;
     // A language switch's UI image was uploaded then: its present ends the switch's last stage.
@@ -666,7 +722,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                 }
                 // A fade or flash step is due like a UI change: on the next video frame when one
                 // is near. A flash runs until a present after its end has cleared it.
-                let animating = fade.is_some() || state.flash_at.is_some();
+                let animating = fade.is_some() || state.flash_at.is_some() || toggle.fading();
                 let step = fade_step(state.refresh);
                 let next_step = last_present.map(|at| at + step).filter(|_| animating);
                 let fade_due = animating && next_step.is_none_or(|at| now >= at);
@@ -795,6 +851,8 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
             times
         });
         let opacity = fade.map_or(1.0, |f| f.opacity(now));
+        toggle.set(scene.ambient, now);
+        let ambient = toggle.step(now);
         if let Some(done) = fade.filter(|f| f.done(now)) {
             fade = None;
             if done.to == 0.0 {
@@ -806,7 +864,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         // Read after the frame's hand-off above, so a flash starts on this very present.
         let flash_at = inbox.lock().flash_at;
         let flash = flash_at.map_or(0.0, |at| flash_opacity(now.saturating_duration_since(at)));
-        if gpu.render(acquired, &scene, opacity, flash) {
+        if gpu.render(acquired, &scene, opacity, flash, ambient) {
             if repeat {
                 stats.repeated();
             }
@@ -822,6 +880,11 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
             }
             if let Some((captured, ready)) = times {
                 stats.presented(captured, ready, Instant::now());
+            }
+            // After the present, from the frame it showed (research R1): the next present draws
+            // the result. With the ambient light off and faded out nothing runs.
+            if times.is_some() && (scene.ambient || ambient > 0.0) && gpu.update_glow(&scene, Instant::now()) {
+                stats.glow_updated();
             }
             // After the first frame is on screen, so loading the GPU library does not delay it.
             if times.is_some() && wants_performance && performance.is_none() {
@@ -912,6 +975,31 @@ mod tests {
     }
 
     #[test]
+    fn the_ambient_toggle_fades_in_250_ms_and_turns_from_where_it_is() {
+        let start = Instant::now();
+        let ms = |v: u64| start + Duration::from_millis(v);
+        let mut toggle = Toggle::default();
+        assert_eq!(toggle.step(start), 0.0);
+        // The same setting again starts nothing.
+        toggle.set(false, start);
+        assert!(!toggle.fading());
+        toggle.set(true, start);
+        assert!(toggle.fading());
+        assert!((toggle.step(ms(125)) - 0.5).abs() < 1e-3);
+        // Turned off halfway: back to 0 in half the time.
+        toggle.set(false, ms(125));
+        assert!((toggle.step(ms(125)) - 0.5).abs() < 1e-3);
+        assert!((toggle.step(ms(187)) - 0.252).abs() < 1e-2);
+        assert_eq!(toggle.step(ms(250)), 0.0);
+        assert!(!toggle.fading(), "the ended fade goes");
+        // On again: 1 after the whole fade, and stays there.
+        toggle.set(true, ms(300));
+        assert_eq!(toggle.step(ms(550)), 1.0);
+        assert!(!toggle.fading());
+        assert_eq!(toggle.step(ms(5000)), 1.0);
+    }
+
+    #[test]
     fn the_flash_rises_in_40_ms_and_falls_in_400() {
         let at = |ms| flash_opacity(Duration::from_millis(ms));
         assert_eq!(at(0), 0.0);
@@ -931,6 +1019,7 @@ mod tests {
             backdrop: [0.0; 3],
             watermark: [0.0; 4],
             shadow: [1.0, 0.0],
+            ambient: false,
             size,
         };
         let inbox = Inbox::default();
@@ -1007,6 +1096,7 @@ mod tests {
                 backdrop: [0.0; 3],
                 watermark: [0.0; 4],
                 shadow: [1.0, 0.0],
+                ambient: false,
                 size: (1280, 720),
             },
         );

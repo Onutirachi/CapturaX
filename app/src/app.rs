@@ -1667,6 +1667,8 @@ impl App {
             },
             watermark: self.watermark(),
             shadow: [self.ui.scale(), self.shadow_strength()],
+            // From the setting and the dock button in preview extras T007.
+            ambient: false,
             size: (size.width, size.height),
         };
         if image.is_some() || self.scene != Some(scene) {

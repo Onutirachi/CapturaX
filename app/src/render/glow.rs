@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use wgpu::util::DeviceExt as _;
 
-use super::gpu::{Shaders, UNIFORM_LEN, placement};
+use super::gpu::{OPACITY, Shaders, UNIFORM_LEN, placement};
 
 // The look's tune values (research R2): they start from the mockup and are set with the
 // maintainer on the ezcap with the PS5 (T008). A change in feel goes into the spec's FR-002 only
@@ -44,7 +44,9 @@ pub fn ease_factor(dt: Duration) -> f32 {
 }
 
 /// The luminance gate: 0 at or below [`GATE_LOW`], 1 at or above [`GATE_HIGH`], linear between,
-/// so a dark frame fades to the plain background instead of a grey haze (FR-003).
+/// so a dark frame fades to the plain background instead of a grey haze (FR-003). The draw shader
+/// applies it (composite.wgsl `glow`); this is its reference for the tests.
+#[cfg(test)]
 pub fn gate(luminance: f32) -> f32 {
     ((luminance - GATE_LOW) / (GATE_HIGH - GATE_LOW)).clamp(0.0, 1.0)
 }
@@ -116,6 +118,8 @@ const FIELD: (u32, u32) = CHAIN[CHAIN.len() - 1];
 /// Every glow texture's format: an easing step this small (about 0.05 at 120 fps) would stall in
 /// 8 bits.
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+/// The draw's layer kind in the composite shader (composite.wgsl).
+const KIND_GLOW: f32 = 8.0;
 
 /// The video layer the convert pass reads: its planes' views, the shader's kind, the picture's
 /// size in pixels and its YUV to RGB rows.
@@ -163,6 +167,9 @@ pub struct Glow {
     blur_down: wgpu::BindGroup,
     /// The average of each history.
     average: [wgpu::BindGroup; 2],
+    /// The draw's uniform and its bind group on the blurred field and the luminance.
+    draw_rect: wgpu::Buffer,
+    draw: wgpu::BindGroup,
     /// When the last update ran; `None` until the first, and after a reset, so it fills.
     last: Option<Instant>,
 }
@@ -231,6 +238,8 @@ impl Glow {
         let blur_across = std::array::from_fn(|n| bind(&[&history[n]], &across));
         let blur_down = bind(&[field], &down);
         let average = std::array::from_fn(|n| bind(&[&history[n]], &plain));
+        let draw_rect = rect([0.0; UNIFORM_LEN]);
+        let draw = bind(&[&blurred, &luminance], &draw_rect);
         Self {
             pipelines,
             chain,
@@ -246,6 +255,8 @@ impl Glow {
             blur_across,
             blur_down,
             average,
+            draw_rect,
+            draw,
             last: None,
         }
     }
@@ -258,7 +269,37 @@ impl Glow {
     /// The video is gone: the next update fills the history from its own frame (research R4a).
     pub fn reset(&mut self) {
         self.convert = None;
+        self.pause();
+    }
+
+    /// The updates stop (no bar): the next one fills the history, and nothing is drawn until then,
+    /// so a stale field never shows (research R4a).
+    pub fn pause(&mut self) {
         self.last = None;
+    }
+
+    /// The draw's bind group, its uniform written for the video `area` (x, y, width, height, corner
+    /// radius in physical pixels) on a `surface` of that size, at `opacity` before the luminance
+    /// gate (research R2). The field is stretched over the area enlarged by [`EDGE_GROW`] on each
+    /// side. `None` while there is no field: before the first update, and after a reset or a pause
+    /// until the next one.
+    pub fn draw(
+        &self,
+        queue: &wgpu::Queue,
+        area: [f32; 5],
+        surface: (f32, f32),
+        opacity: f32,
+    ) -> Option<&wgpu::BindGroup> {
+        self.last?;
+        let [x, y, w, h, _] = area;
+        let (gx, gy) = (w * EDGE_GROW, h * EDGE_GROW);
+        let mut values = [0.0; UNIFORM_LEN];
+        values[..8].copy_from_slice(&placement([x - gx, y - gy, w + 2.0 * gx, h + 2.0 * gy], 0.0, surface));
+        values[OPACITY] = opacity;
+        values[KIND..KIND + 3].copy_from_slice(&[KIND_GLOW, FIELD.0 as f32, FIELD.1 as f32]);
+        values[TO_R..TO_R + 3].copy_from_slice(&[GATE_LOW, GATE_HIGH, SATURATION]);
+        queue.write_buffer(&self.draw_rect, 0, bytemuck::cast_slice(&values));
+        Some(&self.draw)
     }
 
     /// Runs the passes on `source` in one command buffer when an update is [`due`] at `now`: true
@@ -597,6 +638,58 @@ mod tests {
         fn luminance(&self) -> f32 {
             self.read(&self.glow.luminance)[0][0]
         }
+
+        /// The glow drawn at `opacity` with the layers' pipeline over a cleared 64 × 36 target
+        /// that is the whole video area; `None` when the glow has no field to draw.
+        fn draw(&self, opacity: f32) -> Option<Vec<[f32; 4]>> {
+            let (w, h) = (64, 36);
+            let pipeline = self.shaders.pipeline(
+                &self.device,
+                "fs",
+                FORMAT,
+                Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+            );
+            let area = [0.0, 0.0, w as f32, h as f32, 0.0];
+            let group = self.glow.draw(&self.queue, area, (w as f32, h as f32), opacity)?;
+            let target = self
+                .device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: None,
+                    size: wgpu::Extent3d {
+                        width: w,
+                        height: h,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: FORMAT,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                    view_formats: &[],
+                })
+                .create_view(&Default::default());
+            let mut encoder = self.device.create_command_encoder(&Default::default());
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &target,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    ..Default::default()
+                });
+                pass.set_pipeline(&pipeline);
+                pass.set_bind_group(0, group, &[]);
+                pass.draw(0..4, 0..1);
+            }
+            self.queue.submit([encoder.finish()]);
+            Some(self.read(&target))
+        }
     }
 
     /// An IEEE half float's value (normal and subnormal numbers).
@@ -653,6 +746,54 @@ mod tests {
         // A pause longer than the longest step fills too.
         assert!(rig.update(&red, RGB, size, start + 2 * step + Duration::from_millis(150)));
         assert!(near(rig.luminance(), WEIGHTS[0]), "{}", rig.luminance());
+    }
+
+    #[test]
+    fn the_draw_saturates_gates_and_waits_for_a_field() {
+        let Some(mut rig) = rig() else { return };
+        use wgpu::TextureFormat::Rgba8Unorm;
+        let size = (64, 36);
+        let solid = |rig: &Rig, c: [u8; 3]| [rig.plane(Rgba8Unorm, 64, 36, &rgba(64, 36, |_| [c[0], c[1], c[2], 255]))];
+        // Nothing to draw before the first update.
+        assert!(rig.draw(1.0).is_none());
+
+        // A bright colour: the gate is open and the saturation pushes it away from its grey.
+        let (color, l) = ([0.8f32, 0.4, 0.4], 0.8 * WEIGHTS[0] + 0.4 * (WEIGHTS[1] + WEIGHTS[2]));
+        let views = solid(&rig, [204, 102, 102]);
+        assert!(rig.update(&views, RGB, size, Instant::now()));
+        let saturated = color.map(|c| (l + SATURATION * (c - l)).clamp(0.0, 1.0));
+        for texel in rig.draw(ALPHA).expect("a field") {
+            for c in 0..3 {
+                assert!(
+                    near(texel[c], saturated[c] * ALPHA),
+                    "{texel:?} != {saturated:?} × {ALPHA}"
+                );
+            }
+            assert!(near(texel[3], ALPHA), "{texel:?}");
+        }
+
+        // A grey halfway through the gate draws at half its alpha.
+        rig.glow.reset();
+        let grey = 31.0 / 255.0;
+        let views = solid(&rig, [31, 31, 31]);
+        assert!(rig.update(&views, RGB, size, Instant::now()));
+        let a = gate(grey);
+        assert!(a > 0.4 && a < 0.6, "{a}");
+        for texel in rig.draw(1.0).expect("a field") {
+            assert!(near(texel[0], grey * a) && near(texel[3], a), "{texel:?}");
+        }
+
+        // A dark frame: the gate is closed, nothing shows.
+        rig.glow.reset();
+        let views = solid(&rig, [5, 5, 5]);
+        assert!(rig.update(&views, RGB, size, Instant::now()));
+        for texel in rig.draw(1.0).expect("a field") {
+            assert_eq!(texel, [0.0; 4]);
+        }
+
+        // Paused (no bar): nothing is drawn until the next update fills.
+        rig.glow.pause();
+        assert!(rig.draw(1.0).is_none());
     }
 
     #[test]

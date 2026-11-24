@@ -9,7 +9,7 @@ use winit::window::Window;
 
 use capture::{Frame, PixelFormat, conversion};
 
-use super::glow::{Glow, Source};
+use super::glow::{self, Glow, Source};
 use super::{Presentation, Scene};
 use crate::cli::{Backend, PresentMode};
 use crate::ui::UiImage;
@@ -144,6 +144,8 @@ enum Kind {
     /// The video's shadow, computed in the shader (its texture is unused).
     Shadow,
 }
+
+// Kind 8, the ambient light, is drawn from the glow's own bind group (glow.rs).
 
 impl Kind {
     fn of(format: PixelFormat) -> Self {
@@ -427,10 +429,28 @@ impl Gpu {
         }
     }
 
+    /// The bars between the letterboxed video and the scene's video area (research R3); none
+    /// without a video layer.
+    fn glow_bars(&self, scene: &Scene) -> [Option<[u32; 4]>; 2] {
+        let Some(video) = &self.video else {
+            return [None, None];
+        };
+        let Some(area) = scissor(scene.video, (self.config.width, self.config.height)) else {
+            return [None, None];
+        };
+        glow::bars(area, letterbox(scene.video, (video.width, video.height)))
+    }
+
     /// Updates the ambient light from the video frame just presented, when it is due (research
-    /// R1, R4a): true when it ran. The glow is made at the first call.
-    #[expect(dead_code, reason = "called by preview extras T004")]
-    pub fn update_glow(&mut self, now: Instant) -> bool {
+    /// R1, R4a): true when it ran. Nothing runs without a bar in `scene`, and the glow pauses
+    /// (its next update fills). The glow is made at the first call.
+    pub fn update_glow(&mut self, scene: &Scene, now: Instant) -> bool {
+        if self.glow_bars(scene) == [None, None] {
+            if let Some(glow) = &mut self.glow {
+                glow.pause();
+            }
+            return false;
+        }
         let Some(video) = &self.video else {
             return false;
         };
@@ -547,15 +567,17 @@ impl Gpu {
         );
     }
 
-    /// Composites the video (letterboxed in the scene's video area, corners rounded, at
-    /// `video_opacity` over the backdrop, with the screenshot flash at `flash`) and the UI layer,
-    /// then presents at once. False when the surface was not ready.
+    /// Composites the ambient light at `ambient` (its toggle fade) in the bars, the video
+    /// (letterboxed in the scene's video area, corners rounded, at `video_opacity` over the
+    /// backdrop, with the screenshot flash at `flash`) and the UI layer, then presents at once.
+    /// False when the surface was not ready.
     pub fn render(
         &mut self,
         acquired: Option<wgpu::SurfaceTexture>,
         scene: &Scene,
         video_opacity: f32,
         flash: f32,
+        ambient: f32,
     ) -> bool {
         // An image acquired at the old size goes unpresented, before the surface is configured.
         let size = (scene.size.0.max(1), scene.size.1.max(1));
@@ -598,6 +620,15 @@ impl Gpu {
                 self.queue.write_buffer(&layer.rect, 0, bytemuck::cast_slice(&values));
             }
         }
+        // The ambient light, only through the bars (research R2, R3): none with no bar, no video
+        // layer, a zero fade or no field yet.
+        let bars = self.glow_bars(scene);
+        let glow_opacity = glow::ALPHA * video_opacity * ambient;
+        let glow = self
+            .glow
+            .as_ref()
+            .filter(|_| glow_opacity > 0.0 && bars.iter().any(Option::is_some))
+            .and_then(|glow| glow.draw(&self.queue, scene.video, (w, h), glow_opacity));
         if let Some(ui) = &self.ui {
             let values = uniform([0.0, 0.0, w, h], 0.0, (w, h), ui);
             self.queue.write_buffer(&ui.rect, 0, bytemuck::cast_slice(&values));
@@ -620,6 +651,15 @@ impl Gpu {
                 ..Default::default()
             });
             pass.set_pipeline(&self.pipeline);
+            let mut scissored = false;
+            if let Some(group) = glow {
+                pass.set_bind_group(0, group, &[]);
+                for [x, y, bw, bh] in bars.into_iter().flatten() {
+                    pass.set_scissor_rect(x, y, bw, bh);
+                    pass.draw(0..4, 0..1);
+                }
+                scissored = true;
+            }
             // The watermark and the shadow stay inside the video area: the watermark's cut side is
             // cut there, and the shadow does not reach under the title bar.
             let backdrop = [watermark, shadow];
@@ -631,6 +671,9 @@ impl Gpu {
                     pass.set_bind_group(0, &layer.bind_group, &[]);
                     pass.draw(0..4, 0..1);
                 }
+                scissored = true;
+            }
+            if scissored {
                 pass.set_scissor_rect(0, 0, self.config.width, self.config.height);
             }
             for layer in [self.video.as_ref(), self.ui.as_ref()].into_iter().flatten() {
@@ -867,7 +910,7 @@ fn plane_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
 pub(super) const UNIFORM_LEN: usize = 28;
 
 /// Where the layer's opacity is in the uniform.
-const OPACITY: usize = 7;
+pub(super) const OPACITY: usize = 7;
 
 /// Where the screenshot flash is in the uniform (`flash`: opacity, line width, glow deviation).
 const FLASH: usize = 24;
