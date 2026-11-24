@@ -122,6 +122,10 @@ export component AppWindow inherits Window {
     callback volume-changed(int, bool);
     // The wheel's vertical move over the volume button, in logical pixels (60 per notch).
     callback volume-wheel(length);
+    // The ambient light (preview extras FR-001): on or off, set by Rust at start; the dock button
+    // asks for the other value and Rust saves it and sets this back.
+    in property <bool> ambient;
+    callback ambient-changed(bool);
 
     // The screenshot button (screenshot FR-011): its key as shown (`Hotkey::shown`), empty when
     // none, set by Rust; a click asks for a screenshot.
@@ -243,7 +247,7 @@ export component AppWindow inherits Window {
     out property <bool> chrome-shown: true;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
         || right-area.has-hover || Menus.open || info.engaged || volume-button.open
-        || ((fullscreen-button.has-focus || volume-button.has-focus || settings-button.has-focus
+        || ((fullscreen-button.has-focus || ambient-button.has-focus || volume-button.has-focus || settings-button.has-focus
             || screenshot-button.has-focus || toolbar.has-focus) && Input.keyboard);
     changed engaged => {
         if (self.engaged) {
@@ -389,8 +393,8 @@ export component AppWindow inherits Window {
             mode-display-changed(display) => { root.mode-display-changed(display); }
         }
 
-        // The left dock holds the adjustments (FR-002a): fullscreen, volume, then settings (ambient
-        // light comes before volume with its spec). Slides out to the left.
+        // The left dock holds the adjustments (FR-002a): fullscreen, ambient light, volume, then
+        // settings. Slides out to the left.
         left-area := TouchArea {
             x: chrome.edge - (chrome.edge + self.width + chrome.away) * root.hidden;
             y: chrome.left-top;
@@ -406,6 +410,18 @@ export component AppWindow inherits Window {
                     tooltip-side: Side.right;
                     focusable: !root.settings-open;
                     clicked => { WindowState.toggle-fullscreen(); }
+                }
+
+                // Always clickable (preview extras FR-001): in a state it only changes the saved
+                // value, and nothing glows until video returns.
+                ambient-button := IconButton {
+                    size: chrome.dock-button;
+                    icon: @image-url("assets/icons/bulb.svg");
+                    tooltip: @tr("Ambient light");
+                    tooltip-side: Side.right;
+                    active: root.ambient;
+                    focusable: !root.settings-open;
+                    clicked => { root.ambient-changed(!root.ambient); }
                 }
 
                 volume-button := VolumeButton {

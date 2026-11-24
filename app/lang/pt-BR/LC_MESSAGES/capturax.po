@@ -41,6 +41,9 @@ msgstr "Tela cheia (F11)"
 msgid "Exit fullscreen (F11)"
 msgstr "Sair da tela cheia (F11)"
 
+msgid "Ambient light"
+msgstr "Luz ambiente"
+
 msgid "Settings"
 msgstr "Configurações"
 

@@ -147,6 +147,8 @@ struct Backdrop {
     shadow: bool,
     /// The shadow is With ambient light.
     shadow_ambient: bool,
+    /// The ambient light is on (preview extras FR-001).
+    ambient: bool,
 }
 
 impl From<&settings::Preview> for Backdrop {
@@ -156,6 +158,7 @@ impl From<&settings::Preview> for Backdrop {
             watermark: p.watermark,
             shadow: p.shadow != settings::Shadow::Off,
             shadow_ambient: p.shadow == settings::Shadow::Ambient,
+            ambient: p.ambient,
         }
     }
 }
@@ -207,6 +210,8 @@ pub enum SettingChange {
         level: u8,
         muted: bool,
     },
+    /// The ambient light, from its dock button (preview extras FR-001).
+    Ambient(bool),
 }
 
 /// What the UI asks the window to do.
@@ -420,6 +425,11 @@ impl App {
                 muted,
             }));
         });
+        // The ambient light shows at start; the scene carries it (preview extras FR-001).
+        ui.app.set_ambient(store.get().preview.ambient);
+        let on = send.clone();
+        ui.app
+            .on_ambient_changed(move |v| on(UserEvent::Setting(SettingChange::Ambient(v))));
         let on = send.clone();
         ui.app.on_volume_wheel(move |delta| on(UserEvent::VolumeWheel(delta)));
         let on = send.clone();
@@ -1673,8 +1683,7 @@ impl App {
             watermark: self.watermark(),
             shadow: [self.ui.scale(), self.shadow_strength()],
             shadow_ambient: self.backdrop.shadow_ambient,
-            // From the setting and the dock button in preview extras T007.
-            ambient: false,
+            ambient: self.backdrop.ambient,
             size: (size.width, size.height),
         };
         if image.is_some() || self.scene != Some(scene) {
@@ -2314,6 +2323,12 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 SettingChange::Shadow(shadow) => {
                     self.store.update(|s| s.preview.shadow = shadow);
+                    self.apply_backdrop();
+                }
+                // The next scene carries it; the video thread fades the glow (FR-001, FR-002).
+                SettingChange::Ambient(on) => {
+                    self.store.update(|s| s.preview.ambient = on);
+                    self.ui.app.set_ambient(on);
                     self.apply_backdrop();
                 }
                 // Applies at once, without reopening the device (FR-022).
