@@ -181,6 +181,8 @@ pub struct Preview {
     pub ambient: bool,
     /// The ambient light's intensity in percent, 0 to 100 (preview extras FR-001a).
     pub ambient_intensity: u8,
+    /// The preview is hidden and no device is opened (preview extras FR-011).
+    pub hidden: bool,
 }
 
 impl Default for Preview {
@@ -194,6 +196,7 @@ impl Default for Preview {
             shadow: Shadow::default(),
             ambient: false,
             ambient_intensity: DEFAULT_AMBIENT_INTENSITY,
+            hidden: false,
         }
     }
 }
@@ -454,6 +457,8 @@ impl Settings {
                 // Rule 1 (preview extras): missing or not a boolean reads as off.
                 ambient: flag(preview, "ambient", false),
                 ambient_intensity: read_ambient_intensity(get(preview, "ambient_intensity")),
+                // Rule 1 (preview extras): missing or not a boolean reads as shown.
+                hidden: flag(preview, "hidden", false),
             },
             overlay: Overlay {
                 latency: LatencyDisplay::parse(get(overlay, "latency").and_then(Value::as_str)),
@@ -533,6 +538,7 @@ impl Settings {
             "ambient_intensity".into(),
             Value::Integer(p.ambient_intensity.min(100).into()),
         );
+        preview.insert("hidden".into(), Value::Boolean(p.hidden));
 
         let overlay = category(table, "overlay");
         overlay.insert("latency".into(), Value::String(self.overlay.latency.as_str().into()));
@@ -1101,6 +1107,71 @@ mod tests {
         s.preview.ambient = false;
         s.write_into(&mut table);
         assert_eq!(table["preview"]["ambient"].as_bool(), Some(false));
+        assert_eq!(Settings::read(&table, LANGUAGES), s);
+    }
+
+    #[test]
+    fn hidden_reads_false_unless_a_boolean() {
+        assert!(!Preview::default().hidden);
+        assert!(!read("").preview.hidden);
+        assert!(!read("[preview]").preview.hidden);
+        assert!(
+            read(
+                "[preview]
+hidden = true"
+            )
+            .preview
+            .hidden
+        );
+        assert!(
+            !read(
+                "[preview]
+hidden = false"
+            )
+            .preview
+            .hidden
+        );
+        for value in ["\"true\"", "1", "\"yes\"", "[true]"] {
+            assert!(
+                !read(&format!(
+                    "[preview]
+hidden = {value}"
+                ))
+                .preview
+                .hidden,
+                "{value}"
+            );
+        }
+        // A wrong value leaves the other preview keys alone.
+        let s = read(
+            "[preview]
+hidden = 1
+ambient = true",
+        );
+        assert!(!s.preview.hidden);
+        assert!(s.preview.ambient);
+    }
+
+    #[test]
+    fn hidden_round_trips_with_unknown_keys() {
+        let mut s = Settings::default();
+        s.preview.hidden = true;
+        let mut table = parse(
+            "[preview]
+later = true
+[future]
+key = 1",
+        );
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        assert_eq!(written["preview"]["hidden"].as_bool(), Some(true));
+        assert_eq!(written["preview"]["later"].as_bool(), Some(true));
+        assert_eq!(written["future"]["key"].as_integer(), Some(1));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+
+        s.preview.hidden = false;
+        s.write_into(&mut table);
+        assert_eq!(table["preview"]["hidden"].as_bool(), Some(false));
         assert_eq!(Settings::read(&table, LANGUAGES), s);
     }
 
