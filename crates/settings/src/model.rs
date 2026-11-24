@@ -15,6 +15,9 @@ pub const DEVICES_LIMIT: usize = 32;
 pub const AUDIO_DEVICES_LIMIT: usize = 32;
 /// The preview's volume when none is stored or it is not a number (preview audio FR-012).
 pub const DEFAULT_VOLUME: u8 = 80;
+/// The ambient light's intensity in percent when none is stored or it is not an integer
+/// (preview extras FR-001a).
+pub const DEFAULT_AMBIENT_INTENSITY: u8 = 100;
 /// `[screenshot] folder` for the system's Pictures folder plus `CapturaX` (screenshot FR-020).
 pub const DEFAULT_FOLDER: &str = "default";
 /// The screenshot key when none is stored (screenshot FR-012).
@@ -176,6 +179,8 @@ pub struct Preview {
     pub shadow: Shadow,
     /// The ambient light around the video (preview extras FR-001); applies to every device.
     pub ambient: bool,
+    /// The ambient light's intensity in percent, 0 to 100 (preview extras FR-001a).
+    pub ambient_intensity: u8,
 }
 
 impl Default for Preview {
@@ -188,6 +193,7 @@ impl Default for Preview {
             watermark: true,
             shadow: Shadow::default(),
             ambient: false,
+            ambient_intensity: DEFAULT_AMBIENT_INTENSITY,
         }
     }
 }
@@ -447,6 +453,7 @@ impl Settings {
                 shadow: Shadow::parse(get(preview, "shadow").and_then(Value::as_str)),
                 // Rule 1 (preview extras): missing or not a boolean reads as off.
                 ambient: flag(preview, "ambient", false),
+                ambient_intensity: read_ambient_intensity(get(preview, "ambient_intensity")),
             },
             overlay: Overlay {
                 latency: LatencyDisplay::parse(get(overlay, "latency").and_then(Value::as_str)),
@@ -522,6 +529,10 @@ impl Settings {
         preview.insert("watermark".into(), Value::Boolean(p.watermark));
         preview.insert("shadow".into(), Value::String(p.shadow.as_str().into()));
         preview.insert("ambient".into(), Value::Boolean(p.ambient));
+        preview.insert(
+            "ambient_intensity".into(),
+            Value::Integer(p.ambient_intensity.min(100).into()),
+        );
 
         let overlay = category(table, "overlay");
         overlay.insert("latency".into(), Value::String(self.overlay.latency.as_str().into()));
@@ -638,6 +649,15 @@ fn read_volume(value: Option<&Value>) -> u8 {
         _ => return DEFAULT_VOLUME,
     };
     u8::try_from(volume).unwrap_or(DEFAULT_VOLUME)
+}
+
+/// `[preview] ambient_intensity`: clamped to 0–100; a missing or non-integer value takes
+/// [`DEFAULT_AMBIENT_INTENSITY`] (preview extras rule 2).
+fn read_ambient_intensity(value: Option<&Value>) -> u8 {
+    match value {
+        Some(Value::Integer(v)) => u8::try_from((*v).clamp(0, 100)).unwrap_or(DEFAULT_AMBIENT_INTENSITY),
+        _ => DEFAULT_AMBIENT_INTENSITY,
+    }
 }
 
 /// The `[audio_devices."<id>"]` entries in file order (most recently used first); entries that
@@ -1081,6 +1101,58 @@ mod tests {
         s.preview.ambient = false;
         s.write_into(&mut table);
         assert_eq!(table["preview"]["ambient"].as_bool(), Some(false));
+        assert_eq!(Settings::read(&table, LANGUAGES), s);
+    }
+
+    #[test]
+    fn ambient_intensity_reads_an_integer_clamped() {
+        let intensity = |text: &str| {
+            read(&format!(
+                "[preview]
+ambient_intensity = {text}"
+            ))
+            .preview
+            .ambient_intensity
+        };
+        assert_eq!(Preview::default().ambient_intensity, DEFAULT_AMBIENT_INTENSITY);
+        assert_eq!(read("").preview.ambient_intensity, 100);
+        assert_eq!(read("[preview]").preview.ambient_intensity, 100);
+        assert_eq!(intensity("0"), 0);
+        assert_eq!(intensity("35"), 35);
+        assert_eq!(intensity("100"), 100);
+        assert_eq!(intensity("-5"), 0);
+        assert_eq!(intensity("250"), 100);
+        assert_eq!(intensity("99999999999"), 100);
+        for value in ["42.6", "nan", "true", "\"50\"", "[50]"] {
+            assert_eq!(intensity(value), 100, "{value}");
+        }
+        // A wrong value leaves the other preview keys alone.
+        let s = read(
+            "[preview]
+ambient_intensity = \"x\"
+ambient = true",
+        );
+        assert_eq!(s.preview.ambient_intensity, 100);
+        assert!(s.preview.ambient);
+    }
+
+    #[test]
+    fn ambient_intensity_round_trips() {
+        let mut s = Settings::default();
+        s.preview.ambient_intensity = 40;
+        let mut table = parse(
+            "[preview]
+later = true",
+        );
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        assert_eq!(written["preview"]["ambient_intensity"].as_integer(), Some(40));
+        assert_eq!(written["preview"]["later"].as_bool(), Some(true));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+
+        s.preview.ambient_intensity = 0;
+        s.write_into(&mut table);
+        assert_eq!(table["preview"]["ambient_intensity"].as_integer(), Some(0));
         assert_eq!(Settings::read(&table, LANGUAGES), s);
     }
 
