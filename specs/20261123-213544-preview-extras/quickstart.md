@@ -15,6 +15,7 @@ cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && ca
 | # | Steps | Expected |
 |---|---|---|
 | 1 | ezcap at 1080p60, window 1720 × 720 (bars at the sides); click the bulb on the left dock | The bars glow with the video's side colors; orange chip; tooltip "Ambient light" (US1 #1) |
+| 1a | Rest the pointer on the bulb; move the slider, then the wheel over the bulb; set 0 %; turn the light off and move the slider; restart; Tab to the bulb and use the arrows | The popover opens like the volume's; the glow weakens and strengthens at once; 0 % shows no glow; moving it while off turns the light on; the intensity is kept after the restart; the keyboard works as the volume's (FR-001a) |
 | 2 | Game scene changes (menu → map); Settings → Video shadow → With ambient light, then toggle the bulb | Glow follows within about 0.5 s, smoothly; the shadow comes and goes with the glow (US1 #2, #5) |
 | 3 | Photo-mode flash or a white flash frame; a dark scene; the PS5 boot | No flash in the glow; dark scenes show their dark colors and the glow never disappears (FR-003) |
 | 4 | Resize the window, F11 to fullscreen 16:9 (no bars), then a 4:3 mode | Glow follows the bars in the same frame; none when there are no bars; glow at the sides for 4:3 |

@@ -5,6 +5,7 @@
 | Field | Type | Default | Spec |
 |---|---|---|---|
 | `preview.ambient` | bool | false | FR-001 |
+| `preview.ambient_intensity` | u8, 0–100 | 100 | FR-001a |
 | `preview.hidden` | bool | false | FR-011 |
 | `overlay.bubbles` | `Arrangement` | all four at the bottom right, in order, none pinned | FR-013, FR-016 |
 
@@ -63,7 +64,7 @@ latency bubbles get empty texts, so they are not laid out (research R6).
 | Work targets | 512 × 288, 256 × 144, 128 × 72, 64 × 36 (Rgba16Float, made once per GPU) |
 | Update | After a present that showed a new frame, at least 15 ms apart (research R1), only while the ambient light is on or its fade is above 0, and only when there is a bar. `ease_factor(dt) = 1 − exp(−dt / 150 ms)`, with dt clamped to 100 ms. |
 | Reset | The history is filled directly (factor 1, no easing) by a new session's first frame and by the first update after a pause longer than 100 ms (no bars, ambient light off, no new frame), so a stale field never shows. `clear_video` drops it. |
-| Draw | Layer kind 8, through the bar rectangles only. Colour `clamp(saturate(c, 1.5), 0, 1)^0.5`, alpha `0.9 × video opacity × toggle fade` (tuned, research R2). |
+| Draw | Layer kind 8, through the bar rectangles only. Colour `clamp(saturate(c, 1.5), 0, 1)^0.5`, alpha `0.9 × intensity × video opacity × toggle fade` (tuned, research R2). |
 | Toggle fade | The video thread eases 0 ↔ 1 over 250 ms towards `Scene.ambient`, as it fades the video. |
 
 Pure functions with unit tests: `ease_factor`, `bars(area, video)` (none, two side bars
@@ -72,7 +73,9 @@ or top and bottom bars, the 1 px threshold) and the update pacing.
 ## Scene (`render/mod.rs`, addition)
 
 `ambient: bool` is the ambient light setting. It is sent with the scene, and the video thread
-fades the glow (and a **With ambient light** shadow) towards it.
+fades the glow (and a **With ambient light** shadow) towards it. `ambient_intensity: f32`
+(0–1, the setting / 100) multiplies the glow's opacity at draw time, with no fade: the slider
+already moves smoothly. It does not dim the shadow.
 
 ## UI image (`ui.rs`, addition)
 

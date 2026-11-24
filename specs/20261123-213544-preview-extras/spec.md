@@ -72,7 +72,10 @@ light on from the left dock, and compare the per-second statistics with it on an
    the watermark) shows.
 5. **Given** **Video shadow** is **With ambient light**, **When** the ambient light is turned on
    and off, **Then** the shadow appears and disappears with it.
-6. **Given** the ambient light is on at 1080p60 and at 1080p120, **When** the statistics are
+6. **Given** the ambient light is on, **When** the user rests the pointer on its button and
+   moves the slider in the popover, **Then** the glow gets weaker or stronger at once, and the
+   intensity is the same after a restart.
+7. **Given** the ambient light is on at 1080p60 and at 1080p120, **When** the statistics are
    compared with it off, **Then** the frame ready → presented time and the dropped frames are
    within the limits of SC-001.
 
@@ -188,6 +191,14 @@ controls hidden.
   always clickable: while a state shows (no signal, opening, disconnected, preview hidden) it
   changes the saved value and nothing glows until video returns. The choice is saved and
   applies to every device.
+- **FR-001a**: The ambient light button MUST have an intensity popover that works as the
+  volume button's (spec #4 FR-011: mouse, touch and keyboard alike): a slider from 0 to 100 %
+  with its value and nothing else; a click still turns the light on and off, resting the
+  pointer opens the popover, and the wheel over the button changes the intensity by 5 %. The
+  intensity scales the glow's opacity (100 % is the tuned look, 0 % draws nothing). Default
+  100 %. Moving the slider or the wheel while the light is off turns it on, so the change shows.
+  Saved, applies to every device (maintainer 2026-11-24: one fixed look was right in one game
+  and too bright in another).
 - **FR-002**: With the ambient light on, the whole video background around the video MUST glow
   with the video's colors: a much reduced, strongly blurred copy of the frame stretched over the
   video area, so each bar takes the colors of the video's nearest side, strong and diffuse
@@ -300,8 +311,9 @@ controls hidden.
 
 ## Assumptions
 
-- The ambient light is one on/off choice with a fixed look (no intensity or size settings):
-  constitution II, an option only for a demonstrated need.
+- The ambient light has an on/off choice and one intensity (FR-001a); its look is otherwise
+  fixed (no size, color or blur settings): constitution II, an option only for a demonstrated
+  need. The intensity's need was shown on 2026-11-24 (Astro's Playroom and GTA V).
 - The ambient light is drawn by the app's own renderer from the presented frame; it is part of
   the preview only, never of screenshots, recordings or streams. The viewer page's ambient light
   (F38) is spec #10's.

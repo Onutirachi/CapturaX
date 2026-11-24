@@ -5,7 +5,8 @@
 ## State
 
 US1's ambient light is built, tuned and checked on both systems (T001–T008a). Left in US1:
-T009's glass-to-glass check and 1080p120. The ezcap, the C920 and the PS5 are on the Windows PC.
+the intensity popover added on 2026-11-24 (T008b–T008e), T009's glass-to-glass check and
+1080p120. The ezcap, the C920 and the PS5 are on the Windows PC.
 
 ## Done in the last sessions
 
@@ -110,5 +111,8 @@ T009's glass-to-glass check and 1080p120. The ezcap, the C920 and the PS5 are on
 
 ## Next step
 
+- The ambient light's intensity (FR-001a, research R2b, spec approved by the maintainer on
+  2026-11-24): T008b (setting), T008c (the volume popover made a shared slider button, the
+  volume unchanged), T008d (the bulb's popover and the draw), then T008e (maintainer check 1a).
 - T009: spec #3's glass-to-glass check once with the ambient light on (maintainer's phone, on
   Windows only); 1080p120 when a PS5 game with a 120 Hz mode runs.

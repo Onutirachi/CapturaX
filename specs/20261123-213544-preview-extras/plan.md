@@ -109,7 +109,8 @@ new frame → set_video (upload) → render(scene): ground · glow (bars only) �
   - box, blend and blur entries.
 
   Same file and bind layout, with separate pipelines per target format.
-- `Scene` gains `ambient: bool`. The video thread fades the glow in and out over 250 ms
+- `Scene` gains `ambient: bool` and `ambient_intensity: f32` (FR-001a, research R2b; the
+  intensity multiplies the glow's opacity at draw time). The video thread fades the glow in and out over 250 ms
   towards it. The update runs only while the ambient light is on (or fading) and there is a
   bar. The glow's history is filled directly by a new session's first frame and by the first
   update after a pause longer than 100 ms, and is dropped in `clear_video`.

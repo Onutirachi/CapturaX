@@ -81,6 +81,23 @@ check comes from the easing: one white frame moves the history by at most 1 − 
 `blur(110px)` as a wide screen-space blur at draw time (25 taps per screen pixel in the present
 path).
 
+## R2b. The intensity popover (FR-001a)
+
+**Decision**: the ambient light button becomes a twin of the volume button: the volume button's
+popover, timers and touch and keyboard handling are moved into a shared slider button component
+(icon, chip, value, `changed`, `toggled`, `wheel`), and both buttons use it. The intensity is a
+whole percent saved as `preview.ambient_intensity`; the scene carries it as 0–1 and the draw
+multiplies the glow's opacity by it, so 100 % is R2's look and 0 % draws nothing. A slider or
+wheel change while the light is off also turns it on (one setting change, one save each).
+
+**Rationale**: the maintainer asked for "a popup like the volume"; one component keeps the two
+buttons alike and leaves one place to fix. Scaling the opacity (not the lift) fades towards the
+plain background, so 0 % is the same as off and no setting gives grey bars.
+
+**Alternatives**: a row in the settings panel (far from the glow while adjusting); scaling the
+lift or the saturation (0 % would still cover the background); a second copy of the volume
+popover (two places to keep in step).
+
 ## R3. Drawing only in the bars
 
 **Decision**: the glow layer is drawn inside the video area's scissor, as the watermark and the
