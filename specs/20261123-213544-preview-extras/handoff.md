@@ -4,9 +4,9 @@
 
 ## State
 
-Implementation started with US1. T001 to T004 are done and committed. Nothing shows yet:
+Implementation started with US1. T001 to T005 are done and committed. Nothing shows yet:
 `Scene.ambient` is always false in app.rs until T007 wires the setting and the button.
-Next is T005 (`glow=` in the `[loop]` line).
+Next is T006 (the shadow with ambient light).
 
 ## Done in the last sessions
 
@@ -58,6 +58,9 @@ Next is T005 (`glow=` in the `[loop]` line).
   - GPU test: the draw saturates a colour, half-opens the gate on a mid grey, closes it on a
     dark frame, and draws nothing before a field or after a pause.
 
+- 2026-11-23: T005: app/src/stats.rs prints `glow=<n>` at the end of the `[loop]` line (reset
+  each second); line tests updated, plus `glow_updates_count_for_one_second` (`glow=60`).
+
 ## Decisions
 
 - All in spec.md, plan.md, research.md and data-model.md.
@@ -71,6 +74,7 @@ Next is T005 (`glow=` in the `[loop]` line).
 
 ## Next step
 
-T005: `glow=<n>` at the end of the `[loop]` line from `Stats.glow` (already counted), line
-tests updated plus one with `glow=60` (contracts/stats.md). Then T006 (shadow) and T007
-(button and wiring), after which the glow can be seen in the app.
+T006: `shadow_strength()` in app/src/app.rs treats **With ambient light** as on when
+`preview.ambient` is true, and the video thread multiplies that shadow by the glow's toggle fade
+(FR-005, research R4). Then T007 (button and wiring), after which the glow can be seen in the
+app.

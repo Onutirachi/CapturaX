@@ -209,11 +209,11 @@ impl Stats {
     }
 
     fn line(&mut self, now: Instant, latency: Option<(f64, f64)>) -> String {
-        let mut line = String::with_capacity(112);
+        let mut line = String::with_capacity(120);
         let _ = write!(
             line,
             "[loop] t={} recv={} pres={} repl={} ready_ms={} gap_ms={} ui={} ui_ms={} moves={} \
-             lat_ms={} rep={}",
+             lat_ms={} rep={} glow={}",
             now.saturating_duration_since(self.start).as_secs(),
             self.received,
             self.presented,
@@ -225,6 +225,7 @@ impl Stats {
             self.moves,
             median_max_text(latency),
             self.repeated,
+            self.glow,
         );
         line
     }
@@ -352,7 +353,7 @@ mod tests {
         assert_eq!(report.summary, Summary::EMPTY);
         assert_eq!(
             report.line.unwrap(),
-            "[loop] t=1 recv=0 pres=0 repl=0 ready_ms=-/- gap_ms=- ui=0 ui_ms=-/- moves=0 lat_ms=-/- rep=0"
+            "[loop] t=1 recv=0 pres=0 repl=0 ready_ms=-/- gap_ms=- ui=0 ui_ms=-/- moves=0 lat_ms=-/- rep=0 glow=0"
         );
     }
 
@@ -365,8 +366,20 @@ mod tests {
         stats.repeated();
         let first = line(stats.report(at(start, 1000)));
         assert!(first.contains(" pres=1 "), "{first}");
-        assert!(first.ends_with(" rep=2"), "{first}");
-        assert!(line(stats.report(at(start, 2000))).ends_with(" rep=0"));
+        assert!(first.ends_with(" rep=2 glow=0"), "{first}");
+        assert!(line(stats.report(at(start, 2000))).ends_with(" rep=0 glow=0"));
+    }
+
+    #[test]
+    fn glow_updates_count_for_one_second() {
+        let start = Instant::now();
+        let mut stats = Stats::new(start, true);
+        for _ in 0..60 {
+            stats.glow_updated();
+        }
+        let first = line(stats.report(at(start, 1000)));
+        assert!(first.ends_with(" rep=0 glow=60"), "{first}");
+        assert!(line(stats.report(at(start, 2000))).ends_with(" glow=0"));
     }
 
     #[test]
@@ -403,7 +416,7 @@ mod tests {
         );
         assert_eq!(
             report.line.unwrap(),
-            "[loop] t=1 recv=4 pres=3 repl=1 ready_ms=2.0/3.0 gap_ms=20.0 ui=2 ui_ms=1.0/1.5 moves=3 lat_ms=6.0/10.0 rep=0"
+            "[loop] t=1 recv=4 pres=3 repl=1 ready_ms=2.0/3.0 gap_ms=20.0 ui=2 ui_ms=1.0/1.5 moves=3 lat_ms=6.0/10.0 rep=0 glow=0"
         );
     }
 
@@ -426,7 +439,7 @@ mod tests {
         stats.presented(at(start, 1037), at(start, 1040), at(start, 1040));
         assert_eq!(
             line(stats.report(at(start, 2000))),
-            "[loop] t=2 recv=0 pres=1 repl=0 ready_ms=0.0/0.0 gap_ms=50.0 ui=0 ui_ms=-/- moves=0 lat_ms=3.0/3.0 rep=0"
+            "[loop] t=2 recv=0 pres=1 repl=0 ready_ms=0.0/0.0 gap_ms=50.0 ui=0 ui_ms=-/- moves=0 lat_ms=3.0/3.0 rep=0 glow=0"
         );
     }
 
