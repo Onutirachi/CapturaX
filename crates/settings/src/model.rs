@@ -174,6 +174,8 @@ pub struct Preview {
     pub watermark: bool,
     /// The shadow around the video (F58).
     pub shadow: Shadow,
+    /// The ambient light around the video (preview extras FR-001); applies to every device.
+    pub ambient: bool,
 }
 
 impl Default for Preview {
@@ -185,6 +187,7 @@ impl Default for Preview {
             background: Background::default(),
             watermark: true,
             shadow: Shadow::default(),
+            ambient: false,
         }
     }
 }
@@ -442,6 +445,8 @@ impl Settings {
                 background: Background::parse(get(preview, "background").and_then(Value::as_str)),
                 watermark: flag(preview, "watermark", defaults.preview.watermark),
                 shadow: Shadow::parse(get(preview, "shadow").and_then(Value::as_str)),
+                // Rule 1 (preview extras): missing or not a boolean reads as off.
+                ambient: flag(preview, "ambient", false),
             },
             overlay: Overlay {
                 latency: LatencyDisplay::parse(get(overlay, "latency").and_then(Value::as_str)),
@@ -516,6 +521,7 @@ impl Settings {
         preview.insert("background".into(), Value::String(p.background.as_str().into()));
         preview.insert("watermark".into(), Value::Boolean(p.watermark));
         preview.insert("shadow".into(), Value::String(p.shadow.as_str().into()));
+        preview.insert("ambient".into(), Value::Boolean(p.ambient));
 
         let overlay = category(table, "overlay");
         overlay.insert("latency".into(), Value::String(self.overlay.latency.as_str().into()));
@@ -1039,6 +1045,43 @@ mod tests {
         let again = Settings::read(&written, LANGUAGES);
         assert_eq!(again, s);
         assert_eq!(again.device(C920).unwrap().mode, "1920x1080@30");
+    }
+
+    #[test]
+    fn ambient_reads_false_unless_a_boolean() {
+        assert!(!Preview::default().ambient);
+        assert!(!read("").preview.ambient);
+        assert!(!read("[preview]").preview.ambient);
+        assert!(read("[preview]\nambient = true").preview.ambient);
+        assert!(!read("[preview]\nambient = false").preview.ambient);
+        for value in ["\"true\"", "1", "\"yes\"", "[true]"] {
+            assert!(
+                !read(&format!("[preview]\nambient = {value}")).preview.ambient,
+                "{value}"
+            );
+        }
+        // A wrong value leaves the other preview keys alone.
+        let s = read("[preview]\nambient = 1\nwatermark = false");
+        assert!(!s.preview.ambient);
+        assert!(!s.preview.watermark);
+    }
+
+    #[test]
+    fn ambient_round_trips_with_unknown_keys() {
+        let mut s = Settings::default();
+        s.preview.ambient = true;
+        let mut table = parse("[preview]\nlater = true\n[future]\nkey = 1");
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        assert_eq!(written["preview"]["ambient"].as_bool(), Some(true));
+        assert_eq!(written["preview"]["later"].as_bool(), Some(true));
+        assert_eq!(written["future"]["key"].as_integer(), Some(1));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+
+        s.preview.ambient = false;
+        s.write_into(&mut table);
+        assert_eq!(table["preview"]["ambient"].as_bool(), Some(false));
+        assert_eq!(Settings::read(&table, LANGUAGES), s);
     }
 
     #[test]
