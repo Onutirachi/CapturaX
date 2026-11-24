@@ -103,9 +103,9 @@ are the rest of T008 (on Windows) and T009 (latency); the ezcap is on the CachyO
 
 ## Next step
 
-- While the ezcap is on CachyOS: T009's Linux half (the agent over SSH: 60 s with ambient off and
-  on at 1080p60; 1080p120 needs the PS5's output set to 120 Hz by the maintainer), recorded in
-  measurements/latency.md.
+- T009 on CachyOS at 1080p60 is done (measurements/latency.md: no change). 1080p120 needs a PS5
+  game with a 120 Hz mode (the console cannot be forced to 120 Hz); nothing else on CachyOS
+  waits for the ezcap, so it can go back to Windows.
 - Then on Windows: T008 (quickstart checks 1–4 and 6, check 5 without the hide step, and the
   maintainer's last look at the glow's strength) and T009's Windows half.
 - Open question above (the 16.6 ms pacing): explained to the maintainer on 2026-11-24, no
