@@ -253,7 +253,9 @@ Last, so its screenshots show the finished app.
 /speckit-specify Getting started guide (see docs/roadmap.md #16): covers F54 from docs/product.md.
 A short illustrated guide with screenshots of the app: moving the info bubbles, the color range
 setting, the mode chosen against the resolution of the signal the device receives, and HDCP (a
-black image from a console with HDCP on, and how to turn it off). Reopened from the settings.
+black image from a console with HDCP on, and how to turn it off), and a Windows latency tip: keep
+MPO on, as turning it off adds about 13 ms to the windowed preview (preview extras
+measurements/latency.md). Reopened from the settings.
 Decide when it is first shown. Also tooltips on the more complex settings (Accelerate GPU, color
 range, presentation), a few words of detail each. Texts in both languages; screenshots per
 language and theme if needed.
