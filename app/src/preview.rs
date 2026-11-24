@@ -26,6 +26,8 @@ pub enum PreviewState {
     Failed(String),
     /// Devices exist but none is open (the shell's "No source"); not reached at start.
     NoSource,
+    /// The user hid the preview: no device is open (preview extras FR-008).
+    Hidden,
 }
 
 /// What goes into [`Preview::handle`].
@@ -64,6 +66,18 @@ pub enum Event {
     Shown,
     /// The user pressed **Open** on a "connected" notice: as if the device was picked (FR-027).
     NoticeOpen(String),
+    /// The user hid the preview (preview extras FR-007): the device is closed until shown.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "sent by the dock button, preview extras T013")
+    )]
+    HidePreview,
+    /// The user showed the preview again (preview extras FR-009).
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "sent by the dock button, preview extras T013")
+    )]
+    ShowPreview,
 }
 
 impl Event {
@@ -88,6 +102,8 @@ impl Event {
             Self::Hidden => "window hidden".into(),
             Self::Shown => "window shown".into(),
             Self::NoticeOpen(id) => format!("{id} opened from a notice"),
+            Self::HidePreview => "preview hidden".into(),
+            Self::ShowPreview => "preview shown".into(),
         }
     }
 }
@@ -127,6 +143,8 @@ pub enum Command {
     ShowRange,
     /// The state changed: show [`Preview::state`].
     ShowState,
+    /// Store whether the preview is hidden (`preview.hidden`, preview extras FR-011).
+    SaveHidden(bool),
     /// A device joined or left the list after the first list: tell the user (FR-027).
     Notice {
         kind: NoticeKind,
@@ -208,8 +226,12 @@ pub struct Preview {
     open: Option<Open>,
     /// Session numbers handed out so far.
     sessions: u64,
+    /// The window is in the tray.
     hidden: bool,
-    /// The device to open again when the window is shown.
+    /// The user hid the preview (preview extras research R5); the state is
+    /// [`PreviewState::Hidden`] while it is set.
+    preview_hidden: bool,
+    /// The device to open again when the window is shown and the preview is shown.
     resume: Option<Again>,
     /// The device of an error or disconnected state: Try again, or its return, opens it again.
     again: Option<Again>,
@@ -226,12 +248,29 @@ impl Preview {
         Self::default()
     }
 
-    /// A preview that reads camera access with `access` (only when a state depends on it).
-    pub fn with_access(access: impl Fn() -> Access + Send + 'static) -> Self {
+    /// A preview that reads camera access with `access` (only when a state depends on it), hidden
+    /// from the start when `preview_hidden` (`preview.hidden`, preview extras FR-011).
+    pub fn with_access(access: impl Fn() -> Access + Send + 'static, preview_hidden: bool) -> Self {
         Self {
             access: AccessReader(Box::new(access)),
+            preview_hidden,
+            state: preview_hidden.then_some(PreviewState::Hidden),
             ..Self::default()
         }
+    }
+
+    /// The device stays closed: the window is in the tray or the user hid the preview.
+    fn closed(&self) -> bool {
+        self.hidden || self.preview_hidden
+    }
+
+    /// The user hid the preview ([`PreviewState::Hidden`]).
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "read by the dock button, preview extras T013")
+    )]
+    pub fn preview_hidden(&self) -> bool {
+        self.preview_hidden
     }
 
     /// Waiting for a device to come (no devices, the open one disconnected, or blocked while it
@@ -242,7 +281,7 @@ impl Preview {
         match self.state.as_ref() {
             Some(PreviewState::NoDevices) => true,
             Some(PreviewState::Disconnected(id)) => {
-                !(self.hidden && capture::device::find(id, &self.devices).is_some())
+                !(self.closed() && capture::device::find(id, &self.devices).is_some())
             }
             Some(PreviewState::Blocked { device, .. }) => device
                 .as_ref()
@@ -254,7 +293,7 @@ impl Preview {
     /// The blocked state of a listed device (Windows' privacy switch, not a Linux node): the app
     /// sends [`Event::AccessCheck`] every 3 s (FR-021).
     pub fn watches_access(&self) -> bool {
-        !self.hidden
+        !self.closed()
             && matches!(
                 self.state.as_ref(),
                 Some(PreviewState::Blocked { device: Some(id), node: None })
@@ -402,7 +441,7 @@ impl Preview {
                     self.again = Some(Again::of(open));
                     self.woke = true;
                     self.reopen(settings, &mut out);
-                } else if !self.hidden
+                } else if !self.closed()
                     && matches!(
                         self.state,
                         Some(PreviewState::InUse(_) | PreviewState::NoSignal(_) | PreviewState::Failed(_))
@@ -423,6 +462,15 @@ impl Preview {
             Event::ChooseDevice(id) | Event::NoticeOpen(id) => {
                 if self.open.as_ref().is_some_and(|o| o.device == id) {
                     log::info!("preview: {id} is already open");
+                } else if self.preview_hidden {
+                    // Picking a device shows the preview with it (preview extras FR-009).
+                    self.again = None;
+                    self.resume = Some(Again {
+                        device: id,
+                        mode: None,
+                        chosen: true,
+                    });
+                    self.show(settings, &mut out);
                 } else if self.hidden {
                     // No longer waiting for another device either.
                     self.again = None;
@@ -474,7 +522,9 @@ impl Preview {
             Event::Shown => {
                 if self.hidden {
                     self.hidden = false;
-                    if let Some(again) = self.resume.take() {
+                    if self.preview_hidden {
+                        // Still hidden by the user: nothing opens (preview extras spec edge case).
+                    } else if let Some(again) = self.resume.take() {
                         let mode = self.offered(&again);
                         self.open_device(&again.device, again.chosen, mode, settings, &mut out);
                     } else if self.listed && self.none_listed_state() {
@@ -482,6 +532,9 @@ impl Preview {
                     }
                 }
             }
+            Event::HidePreview if !self.preview_hidden => self.hide(&mut out),
+            Event::ShowPreview if self.preview_hidden => self.show(settings, &mut out),
+            Event::HidePreview | Event::ShowPreview => {}
         }
         self.learn_names();
         if self.state != before {
@@ -493,6 +546,48 @@ impl Preview {
         out
     }
 
+    /// Hides the preview (preview extras research R5): the open or opening device closes and is
+    /// opened again when shown, as is the device of an error or disconnected state.
+    fn hide(&mut self, out: &mut Vec<Command>) {
+        self.preview_hidden = true;
+        self.woke = false;
+        if let Some(open) = self.open.take() {
+            self.resume = Some(Again::of(&open));
+            out.push(Command::Close);
+            out.push(Command::ShowRange);
+        } else if let Some(again) = self.again.take() {
+            self.resume = Some(again);
+        }
+        self.state = Some(PreviewState::Hidden);
+        out.push(Command::SaveHidden(true));
+    }
+
+    /// Shows the preview again: `resume` opens in its mode and range, or `start()` picks without
+    /// one; a `resume` device that left meanwhile is waited for. In the tray it opens when shown.
+    fn show(&mut self, settings: &Settings, out: &mut Vec<Command>) {
+        self.preview_hidden = false;
+        out.push(Command::SaveHidden(false));
+        let Some(again) = self.resume.take() else {
+            // As before the first list, then the start order.
+            self.state = None;
+            if self.listed {
+                self.start(settings, out);
+            }
+            return;
+        };
+        if capture::device::find(&again.device, &self.devices).is_none() {
+            let id = again.device.clone();
+            self.again = Some(again);
+            self.state = Some(self.lost(&id));
+        } else if self.hidden {
+            self.state = Some(PreviewState::Opening(again.device.clone()));
+            self.resume = Some(again);
+        } else {
+            let mode = self.offered(&again);
+            self.open_device(&again.device, again.chosen, mode, settings, out);
+        }
+    }
+
     /// Opens the start device (FR-005), or shows that there is none.
     fn start(&mut self, settings: &Settings, out: &mut Vec<Command>) {
         let chosen = capture::device::start_order(
@@ -502,8 +597,10 @@ impl Preview {
         )
         .map(|d| d.id.clone());
         match chosen {
+            // Hidden by the user, the state stays Hidden.
+            None if self.preview_hidden => {}
             None => self.none_listed(),
-            Some(id) if self.hidden => {
+            Some(id) if self.closed() => {
                 self.resume = Some(Again {
                     device: id,
                     mode: None,
@@ -554,10 +651,11 @@ impl Preview {
         if !self.listed {
             return;
         }
+        // Hidden by the user, the device to open when shown is the one waited for.
         let waited = matches!(
             &self.state,
             Some(PreviewState::Disconnected(w) | PreviewState::Blocked { device: Some(w), .. }) if w == id
-        );
+        ) || (self.preview_hidden && self.resume.as_ref().is_some_and(|r| r.device == id));
         if new {
             let kind = if waited {
                 NoticeKind::Reconnected
@@ -568,7 +666,9 @@ impl Preview {
             let open = kind == NoticeKind::Connected && !self.none_listed_state();
             self.notice(kind, id, open, out);
         }
-        if waited {
+        if self.preview_hidden {
+            // Nothing opens and the state stays Hidden; showing opens `resume` or the start order.
+        } else if waited {
             log::info!("preview: {id} is back");
             self.reopen(settings, out);
         } else if self.none_listed_state() {
@@ -583,6 +683,10 @@ impl Preview {
     fn left(&mut self, id: &str, known: bool, out: &mut Vec<Command>) {
         if known && self.listed {
             self.notice(NoticeKind::Disconnected, id, false, out);
+        }
+        if self.preview_hidden {
+            // The state stays Hidden and `resume` is kept: showing waits for it.
+            return;
         }
         if let Some(open) = self.open.take_if(|o| o.device == id) {
             out.push(Command::Close);
@@ -686,7 +790,7 @@ impl Preview {
         let Some(again) = self.again.clone() else {
             return;
         };
-        if self.hidden {
+        if self.closed() {
             self.resume = Some(again);
             return;
         }
@@ -704,7 +808,7 @@ impl Preview {
     /// listed disconnects (or stays Blocked while access is denied); Blocked without a device
     /// goes through the start order again (list and access read again).
     fn try_again(&mut self, settings: &Settings, out: &mut Vec<Command>) {
-        if self.hidden {
+        if self.closed() {
             return;
         }
         let id = match self.state.as_ref() {
@@ -739,7 +843,7 @@ impl Preview {
     /// (a stored mode the device lacks is replaced only here, contracts settings-file.md rule 2),
     /// and the device reopened when it resolves to another mode (FR-009).
     fn choose_mode(&mut self, choice: ModeChoice, settings: &Settings, out: &mut Vec<Command>) {
-        if self.hidden {
+        if self.closed() {
             return;
         }
         let Some(device) = self.mode_device().cloned() else {
@@ -861,6 +965,56 @@ impl Preview {
             }
             SessionEvent::Playing { .. } => {}
         }
+    }
+}
+
+/// The preview button's look (preview extras data-model.md "The dock button's state").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreviewButton {
+    pub icon: PreviewIcon,
+    /// The soft orange chip of an active toggle.
+    pub chip: bool,
+    pub tooltip: PreviewTip,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreviewIcon {
+    /// `device_tv`.
+    Shown,
+    /// `device_tv_off`.
+    Hidden,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreviewTip {
+    /// "Hide preview".
+    Hide,
+    /// "Show preview".
+    Show,
+}
+
+/// The preview button for a state: hidden, it shows the preview; shown, it hides it, and is
+/// disabled when there is no device to show (FR-006: no devices, no source, or blocked with none
+/// listed).
+#[cfg_attr(not(test), expect(dead_code, reason = "wired by preview extras T013"))]
+pub fn preview_button(state: &PreviewState, preview_hidden: bool) -> PreviewButton {
+    if preview_hidden {
+        return PreviewButton {
+            icon: PreviewIcon::Hidden,
+            chip: true,
+            tooltip: PreviewTip::Show,
+            enabled: true,
+        };
+    }
+    PreviewButton {
+        icon: PreviewIcon::Shown,
+        chip: false,
+        tooltip: PreviewTip::Hide,
+        enabled: !matches!(
+            state,
+            PreviewState::NoDevices | PreviewState::NoSource | PreviewState::Blocked { device: None, .. }
+        ),
     }
 }
 
@@ -1413,7 +1567,7 @@ mod tests {
     fn with_access(access: Access) -> (Preview, std::sync::Arc<std::sync::Mutex<Access>>) {
         let cell = std::sync::Arc::new(std::sync::Mutex::new(access));
         let read = std::sync::Arc::clone(&cell);
-        (Preview::with_access(move || *read.lock().unwrap()), cell)
+        (Preview::with_access(move || *read.lock().unwrap(), false), cell)
     }
 
     /// The card playing in 1280 × 720 (not its default mode); returns its session.
@@ -2336,5 +2490,318 @@ mod tests {
         // A device gone meanwhile opens nothing.
         p.handle(removed("cam"), &settings);
         assert!(opened(&p.handle(Event::NoticeOpen("cam".into()), &settings)).is_none());
+    }
+
+    // Hiding the preview (preview extras research R5, data-model.md "Preview state").
+
+    /// A preview started with `preview.hidden` true.
+    fn started_hidden() -> Preview {
+        Preview::with_access(|| Access::Unknown, true)
+    }
+
+    /// The value of the commands' `SaveHidden`, if any.
+    fn saved_hidden(commands: &[Command]) -> Option<bool> {
+        commands.iter().find_map(|c| match c {
+            Command::SaveHidden(hidden) => Some(*hidden),
+            _ => None,
+        })
+    }
+
+    fn shows_state(commands: &[Command]) -> bool {
+        has(commands, |c| matches!(c, Command::ShowState))
+    }
+
+    #[test]
+    fn hiding_a_playing_device_closes_it_and_showing_reopens_it_alike() {
+        // A range chosen before is stored (SaveRange), so it opens with it again.
+        let mut settings = Settings::default();
+        settings.touch_device("card", "ezcap Live GAMER ULTRA").color_range = ColorRange::Full;
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+
+        let out = p.handle(Event::HidePreview, &settings);
+        assert!(closes(&out));
+        assert!(shows_state(&out));
+        assert_eq!(saved_hidden(&out), Some(true));
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert!(p.preview_hidden());
+        assert_eq!(p.session(), None);
+        assert!(p.device().is_none());
+        assert!(!p.waiting());
+        // Hidden twice does nothing more.
+        assert!(p.handle(Event::HidePreview, &settings).is_empty());
+
+        let out = p.handle(Event::ShowPreview, &settings);
+        assert_eq!(saved_hidden(&out), Some(false));
+        let Some(Command::Open {
+            device,
+            mode,
+            range,
+            session: new,
+        }) = out.iter().find(|c| matches!(c, Command::Open { .. }))
+        else {
+            panic!("no open: {out:?}");
+        };
+        assert_eq!(
+            (device.id.as_str(), mode, *range),
+            ("card", &self::mode(1280, 720, 60), RangeChoice::Full)
+        );
+        assert!(*new > session);
+        assert_eq!(p.state(), PreviewState::Opening("card".into()));
+        assert!(!p.preview_hidden());
+        // Shown twice does nothing more.
+        assert!(p.handle(Event::ShowPreview, &settings).is_empty());
+    }
+
+    #[test]
+    fn hiding_while_opening_cancels_and_its_late_events_are_ignored() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = opened(&p.handle(listed(vec![card()]), &settings)).unwrap().2;
+        assert!(closes(&p.handle(Event::HidePreview, &settings)));
+        assert!(p.handle(first_frame(session), &settings).is_empty());
+        assert!(p.handle(error(session, DeviceError::Gone), &settings).is_empty());
+        assert_eq!(p.state(), PreviewState::Hidden);
+        // Shown, it opens in the mode it was opening in.
+        let (id, mode, _) = opened(&p.handle(Event::ShowPreview, &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1920, 1080, 60)));
+    }
+
+    #[test]
+    fn hiding_an_error_state_reopens_its_device_when_shown() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        let session = playing_720(&mut p, &settings, vec![card()]);
+        p.handle(error(session, DeviceError::NoSignal), &settings);
+        assert_eq!(p.state(), PreviewState::NoSignal("card".into()));
+        let out = p.handle(Event::HidePreview, &settings);
+        assert!(!closes(&out), "nothing is open");
+        assert_eq!(p.state(), PreviewState::Hidden);
+        // While hidden: Try again, a mode, a wake and the access check open nothing.
+        assert!(opened(&p.handle(Event::TryAgain, &settings)).is_none());
+        assert!(opened(&p.handle(Event::ChooseMode(choice("1920x1080@60")), &settings)).is_none());
+        assert!(opened(&p.handle(Event::Resumed, &settings)).is_none());
+        assert!(!p.watches_access());
+        assert!(!p.modes_reachable());
+        let (id, mode, _) = opened(&p.handle(Event::ShowPreview, &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+    }
+
+    #[test]
+    fn hiding_while_disconnected_waits_again_when_shown() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(removed("card"), &settings);
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        p.handle(Event::HidePreview, &settings);
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert!(!p.waiting(), "no 3 s re-read while hidden");
+        let out = p.handle(Event::ShowPreview, &settings);
+        assert!(opened(&out).is_none());
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(p.waiting());
+        let (id, mode, _) = opened(&p.handle(added(card()), &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+    }
+
+    #[test]
+    fn a_device_that_leaves_while_hidden_is_waited_for_when_shown() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card(), webcam()]);
+        p.handle(Event::HidePreview, &settings);
+        let out = p.handle(removed("card"), &settings);
+        assert_eq!(
+            notices(&out),
+            [(NoticeKind::Disconnected, "card", "ezcap Live GAMER ULTRA")]
+        );
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert!(!shows_state(&out));
+        let out = p.handle(Event::ShowPreview, &settings);
+        assert!(opened(&out).is_none(), "not another device");
+        assert_eq!(p.state(), PreviewState::Disconnected("card".into()));
+        assert!(p.waiting());
+        let (id, mode, _) = opened(&p.handle(added(card()), &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+    }
+
+    #[test]
+    fn devices_come_and_go_while_hidden_with_notices_and_nothing_opens() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(Event::HidePreview, &settings);
+
+        // Another device: a notice that offers Open.
+        let out = p.handle(added(webcam()), &settings);
+        assert!(has(&out, |c| matches!(
+            c,
+            Command::Notice { kind: NoticeKind::Connected, device_id, open: true, .. } if device_id == "cam"
+        )));
+        assert!(opened(&out).is_none());
+        // The device to show leaves and comes back: Reconnected, opened only when shown.
+        p.handle(removed("card"), &settings);
+        let out = p.handle(relisted(vec![webcam(), card()], true), &settings);
+        assert!(has(&out, |c| matches!(
+            c,
+            Command::Notice { kind: NoticeKind::Reconnected, device_id, open: false, .. } if device_id == "card"
+        )));
+        assert!(opened(&out).is_none());
+        assert_eq!(p.state(), PreviewState::Hidden);
+        // Every device leaves: still Hidden, not "No devices".
+        p.handle(removed("cam"), &settings);
+        p.handle(removed("card"), &settings);
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert!(p.devices().is_empty());
+        p.handle(added(card()), &settings);
+        let (id, mode, _) = opened(&p.handle(Event::ShowPreview, &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+    }
+
+    #[test]
+    fn picking_a_device_while_hidden_shows_and_opens_it() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card(), webcam()]);
+        p.handle(Event::HidePreview, &settings);
+        let out = p.handle(Event::ChooseDevice("cam".into()), &settings);
+        assert_eq!(saved_hidden(&out), Some(false));
+        let (id, _, session) = opened(&out).unwrap();
+        assert_eq!(id, "cam");
+        assert!(!p.preview_hidden());
+        assert!(saves(&p.handle(first_frame(session), &settings)));
+
+        // So does Open on a notice.
+        p.handle(Event::HidePreview, &settings);
+        let out = p.handle(Event::NoticeOpen("card".into()), &settings);
+        assert_eq!(opened(&out).map(|o| o.0).as_deref(), Some("card"));
+    }
+
+    #[test]
+    fn hidden_survives_the_tray() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card(), webcam()]);
+        p.handle(Event::HidePreview, &settings);
+        p.handle(Event::Hidden, &settings);
+        let out = p.handle(Event::Shown, &settings);
+        assert!(opened(&out).is_none());
+        assert_eq!(p.state(), PreviewState::Hidden);
+
+        // Shown or picked while in the tray: it opens when the window is shown.
+        p.handle(Event::Hidden, &settings);
+        let out = p.handle(Event::ChooseDevice("cam".into()), &settings);
+        assert!(opened(&out).is_none());
+        assert_eq!(saved_hidden(&out), Some(false));
+        let (id, ..) = opened(&p.handle(Event::Shown, &settings)).unwrap();
+        assert_eq!(id, "cam");
+        p.handle(Event::HidePreview, &settings);
+        p.handle(Event::Hidden, &settings);
+        assert!(opened(&p.handle(Event::ShowPreview, &settings)).is_none());
+        let (id, ..) = opened(&p.handle(Event::Shown, &settings)).unwrap();
+        assert_eq!(id, "cam");
+    }
+
+    #[test]
+    fn hiding_in_the_tray_keeps_the_device_to_resume() {
+        let settings = Settings::default();
+        let mut p = Preview::new();
+        playing_720(&mut p, &settings, vec![card()]);
+        p.handle(Event::Hidden, &settings);
+        let out = p.handle(Event::HidePreview, &settings);
+        assert!(!closes(&out), "closed by the tray already");
+        assert!(opened(&p.handle(Event::Shown, &settings)).is_none());
+        let (id, mode, _) = opened(&p.handle(Event::ShowPreview, &settings)).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1280, 720, 60)));
+    }
+
+    #[test]
+    fn a_start_while_hidden_opens_nothing_until_shown() {
+        let settings = Settings::default();
+        let mut p = started_hidden();
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert!(p.preview_hidden());
+        let out = p.handle(listed(vec![webcam(), card()]), &settings);
+        assert!(opened(&out).is_none());
+        assert!(!shows_state(&out));
+        assert!(p.listed());
+        assert_eq!(p.state(), PreviewState::Hidden);
+        // The start order picks when shown.
+        let out = p.handle(Event::ShowPreview, &settings);
+        let (id, mode, session) = opened(&out).unwrap();
+        assert_eq!((id.as_str(), mode), ("card", self::mode(1920, 1080, 60)));
+        assert!(!saves(&p.handle(first_frame(session), &settings)), "not a choice");
+    }
+
+    #[test]
+    fn a_start_while_hidden_with_no_device_shows_no_devices_when_shown() {
+        let settings = Settings::default();
+        let mut p = started_hidden();
+        p.handle(listed(vec![]), &settings);
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert!(!p.waiting());
+        p.handle(Event::ShowPreview, &settings);
+        assert_eq!(p.state(), PreviewState::NoDevices);
+
+        // Shown before the first list: as at start, the list then opens the start device.
+        let mut p = started_hidden();
+        p.handle(Event::ShowPreview, &settings);
+        assert_eq!(p.state(), PreviewState::NoSource);
+        assert!(opened(&p.handle(listed(vec![card()]), &settings)).is_some());
+    }
+
+    #[test]
+    fn a_device_that_comes_while_hidden_with_none_is_shown_from_the_start_order() {
+        let settings = Settings::default();
+        let mut p = started_hidden();
+        p.handle(listed(vec![]), &settings);
+        let out = p.handle(added(webcam()), &settings);
+        assert!(opened(&out).is_none());
+        assert_eq!(p.state(), PreviewState::Hidden);
+        assert_eq!(opened(&p.handle(Event::ShowPreview, &settings)).unwrap().0, "cam");
+    }
+
+    #[test]
+    fn the_preview_button_hides_a_device_and_shows_a_hidden_preview() {
+        let hide = |enabled| PreviewButton {
+            icon: PreviewIcon::Shown,
+            chip: false,
+            tooltip: PreviewTip::Hide,
+            enabled,
+        };
+        let device = "card".to_string();
+        for state in [
+            PreviewState::Playing,
+            PreviewState::Opening(device.clone()),
+            PreviewState::InUse(device.clone()),
+            PreviewState::Disconnected(device.clone()),
+            PreviewState::NoSignal(device.clone()),
+            PreviewState::Failed(device.clone()),
+            blocked(Some("card"), None),
+            blocked(Some("card"), Some("/dev/video0")),
+        ] {
+            assert_eq!(preview_button(&state, false), hide(true), "{state:?}");
+        }
+        // No device to show (FR-006).
+        for state in [PreviewState::NoDevices, PreviewState::NoSource, blocked(None, None)] {
+            assert_eq!(preview_button(&state, false), hide(false), "{state:?}");
+        }
+        assert_eq!(
+            preview_button(&PreviewState::Hidden, true),
+            PreviewButton {
+                icon: PreviewIcon::Hidden,
+                chip: true,
+                tooltip: PreviewTip::Show,
+                enabled: true,
+            }
+        );
+        // From a preview: started hidden, then shown with no device.
+        let settings = Settings::default();
+        let mut p = started_hidden();
+        p.handle(listed(vec![]), &settings);
+        assert!(preview_button(&p.state(), p.preview_hidden()).enabled);
+        p.handle(Event::ShowPreview, &settings);
+        assert!(!preview_button(&p.state(), p.preview_hidden()).enabled);
     }
 }

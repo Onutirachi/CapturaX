@@ -48,7 +48,7 @@ The dock button's state:
 | Preview | Icon | Chip | Tooltip | Enabled |
 |---|---|---|---|---|
 | Shown, a device open or in a state of a device | `device_tv` | off | Hide preview | yes |
-| Shown, `NoDevices` or `NoSource` | `device_tv` | off | Hide preview | no |
+| Shown, `NoDevices`, `NoSource` or `Blocked` with no device (none listed) | `device_tv` | off | Hide preview | no |
 | Hidden | `device_tv_off` | on | Show preview | yes |
 
 ## Info bubbles while hidden (FR-010)

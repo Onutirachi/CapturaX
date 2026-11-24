@@ -473,7 +473,8 @@ impl App {
             window_gone: false,
             reopen_fullscreen: false,
             test_video: None,
-            preview: Preview::with_access(camera_access),
+            // Shown at start until the hidden state is wired (preview extras T013).
+            preview: Preview::with_access(camera_access, false),
             menus: None,
             audio_menus: None,
             monitor_devices: None,
@@ -895,6 +896,7 @@ impl App {
                 self.store
                     .update(|s| s.touch_device(&id, &name).mode = choice.to_string());
             }
+            Command::SaveHidden(hidden) => self.store.update(|s| s.preview.hidden = hidden),
             Command::SetRange(range) => {
                 if let Some((session, _)) = &self.session {
                     session.set_range(range);
@@ -1281,7 +1283,9 @@ impl App {
             | PreviewState::Disconnected(id)
             | PreviewState::NoSignal(id)
             | PreviewState::Failed(id) => self.preview.name(id),
-            PreviewState::NoDevices | PreviewState::Playing | PreviewState::NoSource => String::new(),
+            PreviewState::NoDevices | PreviewState::Playing | PreviewState::NoSource | PreviewState::Hidden => {
+                String::new()
+            }
         };
         let (id, title, detail) =
             crate::ui::state_message(&state, &name, platform::IS_WINDOWS, &Texts::get(&self.ui.app));

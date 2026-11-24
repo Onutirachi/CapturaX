@@ -5,7 +5,9 @@
 ## State
 
 US1's ambient light is built, tuned and checked on both systems (T001–T008e), with its
-intensity popover. Left in US1: T009's glass-to-glass check and 1080p120. The ezcap, the C920 and the PS5 are on the Windows PC.
+intensity popover. Left in US1: T009's 1080p120 runs. US2 has its setting, state machine and
+button state (T010–T012), not wired to the UI yet. The ezcap, the C920 and the PS5 are on the
+Windows PC.
 
 ## Done in the last sessions
 
@@ -114,6 +116,24 @@ intensity popover. Left in US1: T009's glass-to-glass check and 1080p120. The ez
   31.6 ms p95, as spec #3's L2. With MPO off (the maintainer's registry change that day, since
   removed) on and off both gave 42–43 ms: windows go through the compositor; fullscreen 29.0
   (measurements/latency.md).
+- 2026-11-24: T010: `preview.hidden` (default `false`, rule 1), tested.
+- 2026-11-24: T011 (app/src/preview.rs): `preview_hidden` beside the tray's `hidden`, and
+  `closed()` = either, used where the tray flag decided (waiting, access watch, wake, Try again,
+  mode, reopen, start). `with_access(access, preview_hidden)` starts in `Hidden`; app.rs passes
+  `false` until T013. `hide()`: Close + `resume` from the open session (plus `ShowRange`), or
+  `again` → `resume`; `SaveHidden(true)`. `show()`: `SaveHidden(false)`; `resume` opens, or
+  waits (`Disconnected`) when not listed, or in the tray sets `Opening` and keeps `resume` for
+  `Shown`; no `resume` → state `None` and `start()` once listed. While hidden `left()` keeps
+  `resume` and the state (only the notice); `came()` gives the notice (Reconnected for the
+  `resume` device) and opens nothing; `start()` with no device keeps `Hidden`. `ChooseDevice` /
+  `NoticeOpen` while hidden set `resume` (chosen) and show. `Shown` from the tray while hidden
+  opens nothing. `woke` is cleared on hide. app.rs saves `SaveHidden` through the store;
+  ui.rs maps `Hidden` to "no-source" as a placeholder (T013 replaces it). 12 tests.
+- 2026-11-24: T012: `preview_button(state, preview_hidden) -> PreviewButton { icon, chip,
+  tooltip, enabled }`. Also disabled for `Blocked` with no device (none listed while camera
+  access is denied, FR-006); data-model.md's table says so now. Tested.
+- `HidePreview`, `ShowPreview`, `preview_hidden()` and `preview_button` carry
+  `#[cfg_attr(not(test), expect(dead_code))]` until T013.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -127,6 +147,7 @@ intensity popover. Left in US1: T009's glass-to-glass check and 1080p120. The ez
 
 ## Next step
 
+- T013: the preview button first on the right dock, the "Preview hidden" state, app.rs
+  wiring (pass `store.get().preview.hidden` to `with_access`, map the click, drop the
+  placeholder and the `expect`s), pt-BR texts. Then T014 (bubbles while hidden) and T015.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
-- Meanwhile US2 (hide the preview) can start: T010 (setting `preview.hidden`), then T011 (the
-  state machine) and T012 (the dock button's state).
