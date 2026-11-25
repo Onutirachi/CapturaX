@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020) and the layout per corner (T021) are built. The ezcap and
+(T020), the layout per corner (T021) and the Pin (T022) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -235,6 +235,25 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   - The maintainer checked on Windows (ezcap, release): the preview's buttons, default corner,
     hide/show preview and chrome slides, and four corners with a pinned fps (a test
     `[overlay.bubbles]` in target/release/capturax.toml, restored after).
+- 2026-11-25: T022: every bubble has hover controls (the source's hold only Pin): the Pin toggle
+  (`pin.svg`, chip while pinned, "Pin" / "Unpin", pt-BR "Fixar" / "Desafixar") and the display
+  button beside it for mode, frame rate and latency. A pinned bubble shows a 10 px orange
+  `pin_filled.svg` in its top right corner while the controls show, as the spike (maintainer),
+  gone as the pinned bubbles close up. app.rs `bubble-pin-toggled(kind)` → `bubbles::kind_at` →
+  `toggle_pin` → store → `show_arrangement`.
+  - Keyboard (maintainer, FR-015): the same controls as the pointer. Every bubble takes the
+    focus; Enter, Space, Up or Down opens its controls with the focus on Pin
+    (`BubbleControls.show-for-keys`, `wants-focus`); Tab / Right and Shift+Tab / Left move; Esc
+    or Tab past an end calls `give-back` and the bubble takes the focus again (`backs`). A display
+    menu opened from the keyboard gives the focus back to its button when it closes.
+  - Slint pitfall: a `changed` handler does not run when its property is first read already at
+    the new value (here `focused`, read after `pin.focus()` in the layer's `init`), so
+    `take-focus` sets `BubbleControls.focused` itself; without it the 250 ms timer hid them.
+  - Slint's `debug()` goes to stderr, lost in the Windows GUI app; for a trace, add a temporary
+    `debug_log` to `ui.rs`'s `Platform` that logs it.
+  - The maintainer checked on Windows: pointer, keyboard, the source's controls and the mark.
+  - Tab order (maintainer): the bubbles come last, after the docks (main.slint's `info` moved after
+    the right dock, still under the notices and the settings panel).
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -248,7 +267,6 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T022 (Pin toggle in the hover controls; call `show_arrangement` after saving),
-  then T023 (drag), T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
+- US3 (bubbles): T023 (drag), T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
   (Reset row). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
