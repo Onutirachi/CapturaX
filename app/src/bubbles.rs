@@ -2,9 +2,6 @@
 //! bubble to a corner, pinning, resetting, and the arrays the Slint layout reads. Pure; every
 //! operation keeps the invariant that each kind is in exactly one corner list.
 
-// T021 (layout), T022 (pin), T023 (drag) and T027 (reset) call these.
-#![cfg_attr(not(test), expect(dead_code))]
-
 use settings::{Arrangement, BubbleKind, Overlay};
 
 /// The number of bubble kinds; the Slint arrays have one entry per kind.
@@ -33,6 +30,8 @@ fn index(kind: BubbleKind) -> usize {
 /// Removes `kind` from its list and inserts it into `corner` at `index`, clamped to the list's
 /// length. Within the same corner, an index past the old place is reduced by one (the drop
 /// bar's index counts the dragged bubble's old slot). A corner past the last is ignored.
+// T023 (drag) calls it.
+#[cfg_attr(not(test), expect(dead_code))]
 pub fn move_to(arrangement: &mut Arrangement, kind: BubbleKind, corner: usize, index: usize) {
     if corner >= arrangement.corners.len() {
         log::warn!("bubble moved to corner {corner}, which does not exist; ignored");
@@ -52,6 +51,8 @@ pub fn move_to(arrangement: &mut Arrangement, kind: BubbleKind, corner: usize, i
 }
 
 /// Adds `kind` to the pinned kinds or removes it; the list stays in kind order.
+// T022 (pin) calls it.
+#[cfg_attr(not(test), expect(dead_code))]
 pub fn toggle_pin(arrangement: &mut Arrangement, kind: BubbleKind) {
     if let Some(at) = arrangement.pinned.iter().position(|k| *k == kind) {
         arrangement.pinned.remove(at);
@@ -62,6 +63,8 @@ pub fn toggle_pin(arrangement: &mut Arrangement, kind: BubbleKind) {
 }
 
 /// Returns the bubbles to the defaults; the display choices (`latency`, `fps`, `mode`) stay.
+// T027 (reset) calls it.
+#[cfg_attr(not(test), expect(dead_code))]
 pub fn reset(overlay: &mut Overlay) {
     overlay.bubbles = Arrangement::default();
 }

@@ -429,7 +429,7 @@ const FLOWING: Duration = Duration::from_millis(50);
 
 /// How long the video fades out when its source closes and in on a new source's first frame
 /// (FR-013, research R17).
-const FADE: Duration = Duration::from_millis(150);
+pub const FADE: Duration = Duration::from_millis(150);
 
 /// An opacity going from `from` to `to` over `length` from `start`: the video's over [`FADE`].
 #[derive(Debug, Clone, Copy, PartialEq)]

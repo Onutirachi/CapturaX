@@ -13,6 +13,7 @@ use winit::keyboard::{Key, NamedKey};
 use winit::monitor::MonitorHandle;
 use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
 
+use crate::bubbles;
 use crate::cli::StartupOptions;
 use crate::frame::{self, Escape};
 use crate::i18n;
@@ -270,6 +271,10 @@ pub struct App {
     /// The next tick, and the wall clock at the last one (a wake from sleep); `None` before the
     /// first, so a slow start is not taken for a sleep.
     tick_at: Instant,
+    /// When a new source's bubbles may show: after the video's fade-in (preview extras FR-017).
+    info_at: Option<Instant>,
+    /// The source's first second with frames came: its bubbles show, all four together.
+    info_ready: bool,
     tick_wall: Option<SystemTime>,
     /// The screenshots under way (data-model.md "Screenshot request").
     screenshots: crate::screenshot::Screenshots,
@@ -409,6 +414,7 @@ impl App {
         ui.app.set_latency_display(latency::latency_index(overlay.latency));
         ui.app.set_fps_display(latency::fps_index(overlay.fps));
         ui.app.set_mode_display(latency::mode_index(overlay.mode));
+        show_arrangement(&ui.app, &overlay.bubbles);
         let on = send.clone();
         ui.app.on_latency_display_changed(move |index| {
             on(UserEvent::Setting(SettingChange::LatencyDisplay(
@@ -487,6 +493,8 @@ impl App {
             relisting: None,
             relist_queued: None,
             tick_at: Instant::now(),
+            info_at: None,
+            info_ready: false,
             screenshots: Default::default(),
             screenshot_at,
             screenshot_worker: None,
@@ -581,6 +589,7 @@ impl App {
         let after = self.preview.state();
         if after != before {
             log::info!("preview state {before:?} -> {after:?} ({reason})");
+            self.info_at = (after == PreviewState::Playing).then(|| Instant::now() + crate::render::FADE);
         }
         if self.preview.waiting() && !was_waiting {
             // The first re-read comes a full period after the state's own (no reopen loop faster
@@ -1338,8 +1347,11 @@ impl App {
     fn show_info(&mut self) {
         let app = &self.ui.app;
         let texts = Texts::get(app);
-        let playing = self.preview.state() == PreviewState::Playing;
-        let source = self.source.as_ref().filter(|_| playing);
+        // After the video's fade-in, and with the first second's frame rate and latency, so the
+        // four bubbles slide in together (preview extras FR-017).
+        let playing = self.preview.state() == PreviewState::Playing && self.info_at.is_none();
+        self.info_ready |= playing && self.second.latency_ms.is_some();
+        let source = self.source.as_ref().filter(|_| playing && self.info_ready);
         let (name, size, tag, tag_kind, aspect) = source.map_or_else(Default::default, |s| {
             let tags = s.mode.tags();
             let (tag, kind) = match tags.name {
@@ -1404,6 +1416,7 @@ impl App {
         self.source = None;
         // The next device's bubbles wait for its own first second.
         self.second = crate::stats::Summary::EMPTY;
+        self.info_ready = false;
         if let Some((session, _)) = self.session.take() {
             let number = session.id();
             session.close();
@@ -2713,6 +2726,15 @@ impl ApplicationHandler<UserEvent> for App {
             wake = Some(wake.map_or(at, |w| w.min(at)));
         }
         let now = Instant::now();
+        if let Some(at) = self.info_at {
+            if now >= at {
+                self.info_at = None;
+                self.ui.update_timers();
+                self.show_info();
+            } else {
+                wake = Some(wake.map_or(at, |w| w.min(at)));
+            }
+        }
         if now >= self.tick_at {
             self.ui.update_timers();
             self.tick(now);
@@ -2782,4 +2804,13 @@ fn camera_access() -> capture::Access {
         platform::Access::Denied => capture::Access::Denied,
         platform::Access::Unknown => capture::Access::Unknown,
     }
+}
+
+/// Hands the bubbles' arrangement to the layout (preview extras research R6), at start and after
+/// each change.
+fn show_arrangement(app: &crate::ui::AppWindow, arrangement: &settings::Arrangement) {
+    let arrays = bubbles::slint_arrays(arrangement);
+    app.set_bubble_corner(slint::ModelRc::new(slint::VecModel::from_slice(&arrays.corner)));
+    app.set_bubble_rank(slint::ModelRc::new(slint::VecModel::from_slice(&arrays.rank)));
+    app.set_bubble_pinned(slint::ModelRc::new(slint::VecModel::from_slice(&arrays.pinned)));
 }
