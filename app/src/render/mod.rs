@@ -295,8 +295,13 @@ impl Inbox {
     /// From the main thread: the UI image when it was redrawn, and the scene.
     pub fn send_ui(&self, ui: Option<UiImage>, scene: Scene) {
         let mut state = self.lock();
-        if ui.is_some() {
-            state.ui = ui;
+        if let Some(mut ui) = ui {
+            // An image not yet uploaded is replaced: its region must still go up (research R9).
+            if let Some(old) = &state.ui {
+                let both = crate::ui::merge(old.dirty, ui.dirty).map(i64::from);
+                ui.dirty = crate::ui::clamp(both, ui.width, ui.height);
+            }
+            state.ui = Some(ui);
         }
         if state.hold.is_some_and(|hold| hold.size != scene.size) {
             state.hold = None;
@@ -1078,6 +1083,45 @@ mod tests {
         assert!(inbox.lock().hold.is_some());
         inbox.send_ui(None, scene((1280, 720)));
         assert!(inbox.lock().hold.is_none());
+    }
+
+    #[test]
+    fn a_ui_image_not_yet_uploaded_hands_its_region_to_the_next() {
+        let image = |(width, height), dirty| UiImage {
+            pixels: Arc::from(vec![0u8; (width * height * 4) as usize]),
+            width,
+            height,
+            dirty,
+            draw_ms: 0.0,
+            language: false,
+        };
+        let scene = |size| Scene {
+            video: [0.0; 5],
+            backdrop: [0.0; 3],
+            watermark: [0.0; 4],
+            shadow: [1.0, 0.0],
+            shadow_ambient: false,
+            ambient: false,
+            ambient_intensity: 1.0,
+            size,
+        };
+        let dirty = |inbox: &Inbox| inbox.lock().ui.as_ref().map(|ui| ui.dirty);
+        let inbox = Inbox::default();
+        inbox.send_ui(Some(image((100, 50), [10, 10, 20, 5])), scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([10, 10, 20, 5]));
+        // Replaced before the upload: both regions go up.
+        inbox.send_ui(Some(image((100, 50), [60, 40, 30, 10])), scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([10, 10, 80, 40]));
+        // A scene alone keeps the waiting image.
+        inbox.send_ui(None, scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([10, 10, 80, 40]));
+        // Taken (uploaded): the next image keeps its own region.
+        inbox.lock().ui.take();
+        inbox.send_ui(Some(image((100, 50), [0, 0, 1, 1])), scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([0, 0, 1, 1]));
+        // A smaller image: the merged region stays inside it.
+        inbox.send_ui(Some(image((40, 30), [0, 0, 40, 30])), scene((40, 30)));
+        assert_eq!(dirty(&inbox), Some([0, 0, 40, 30]));
     }
 
     fn feed(session: u64, fps: f64) -> Feed {

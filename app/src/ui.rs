@@ -349,11 +349,48 @@ pub fn next_selectable(selectable: &[bool], from: i32, step: i32) -> i32 {
     from
 }
 
+/// A rectangle of the UI image: x, y, width and height in physical pixels. Empty when the width or
+/// the height is 0.
+pub type Rect = [u32; 4];
+
+/// The smallest rectangle that holds `a` and `b` (research R9); an empty one adds nothing.
+pub fn merge(a: Rect, b: Rect) -> Rect {
+    let empty = |r: Rect| r[2] == 0 || r[3] == 0;
+    if empty(a) {
+        return b;
+    }
+    if empty(b) {
+        return a;
+    }
+    let (x, y) = (a[0].min(b[0]), a[1].min(b[1]));
+    let right = (a[0] + a[2]).max(b[0] + b[2]);
+    let bottom = (a[1] + a[3]).max(b[1] + b[3]);
+    [x, y, right - x, bottom - y]
+}
+
+/// The part of `rect` (x, y, width, height, possibly outside) inside an image of `width` ×
+/// `height`; `[0; 4]` when none is.
+pub fn clamp(rect: [i64; 4], width: u32, height: u32) -> Rect {
+    let x0 = rect[0].clamp(0, width.into());
+    let y0 = rect[1].clamp(0, height.into());
+    let x1 = rect[0].saturating_add(rect[2]).clamp(0, width.into());
+    let y1 = rect[1].saturating_add(rect[3]).clamp(0, height.into());
+    if x1 <= x0 || y1 <= y0 {
+        return [0; 4];
+    }
+    // Every value lies in 0..=width or 0..=height, so it fits.
+    [x0, y0, x1 - x0, y1 - y0].map(|v| v as u32)
+}
+
 /// A finished UI image: premultiplied RGBA, rows packed, the size of the surface it was drawn for.
 pub struct UiImage {
     pub pixels: Arc<[u8]>,
     pub width: u32,
     pub height: u32,
+    /// The region repainted since the image before (research R9): the video thread uploads only
+    /// this part. The whole image after a resize, a scale change and for the first image. Every
+    /// pixel of `pixels` is current, so a larger region is always safe.
+    pub dirty: Rect,
     /// Draw and copy time on the main thread, for the stats.
     pub draw_ms: f64,
     /// The first image after a language switch whose stages are timed (FR-024): the video
@@ -669,6 +706,7 @@ impl Ui {
         if full {
             self.window.request_redraw();
         }
+        let mut dirty = [0; 4];
         let drawn = self.window.draw_if_needed(|renderer| {
             if full {
                 // A new buffer is repainted whole; going back to a reused buffer clears Slint's
@@ -676,14 +714,20 @@ impl Ui {
                 renderer.set_repaint_buffer_type(RepaintBufferType::NewBuffer);
                 renderer.render(buffer, w as usize);
                 renderer.set_repaint_buffer_type(RepaintBufferType::ReusedBuffer);
+                dirty = [0, 0, w, h];
             } else {
-                renderer.render(buffer, w as usize);
+                let region = renderer.render(buffer, w as usize);
+                let (origin, size) = (region.bounding_box_origin(), region.bounding_box_size());
+                let rect = [origin.x, origin.y].map(i64::from);
+                let extent = [size.width, size.height].map(i64::from);
+                dirty = clamp([rect[0], rect[1], extent[0], extent[1]], w, h);
             }
         });
         drawn.then(|| UiImage {
             pixels: Arc::from(bytemuck::cast_slice::<_, u8>(&self.buffer)),
             width: w,
             height: h,
+            dirty,
             draw_ms: started.elapsed().as_secs_f64() * 1e3,
             language: false,
         })
@@ -754,6 +798,36 @@ fn slint_key(event: &KeyEvent) -> Option<slint::SharedString> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merge_gives_the_bounding_rectangle() {
+        assert_eq!(merge([10, 20, 30, 40], [10, 20, 30, 40]), [10, 20, 30, 40]);
+        // Apart, in either order.
+        assert_eq!(merge([0, 0, 10, 10], [50, 60, 5, 5]), [0, 0, 55, 65]);
+        assert_eq!(merge([50, 60, 5, 5], [0, 0, 10, 10]), [0, 0, 55, 65]);
+        // One inside the other, overlapping.
+        assert_eq!(merge([0, 0, 100, 100], [10, 10, 5, 5]), [0, 0, 100, 100]);
+        assert_eq!(merge([0, 0, 20, 20], [10, 15, 20, 20]), [0, 0, 30, 35]);
+        // An empty one adds nothing, even far away.
+        assert_eq!(merge([0; 4], [7, 8, 9, 10]), [7, 8, 9, 10]);
+        assert_eq!(merge([7, 8, 9, 10], [500, 500, 0, 3]), [7, 8, 9, 10]);
+        assert_eq!(merge([0; 4], [0; 4])[2..], [0, 0]);
+    }
+
+    #[test]
+    fn clamp_keeps_the_part_inside_the_image() {
+        assert_eq!(clamp([10, 20, 30, 40], 100, 100), [10, 20, 30, 40]);
+        assert_eq!(clamp([0, 0, 100, 50], 100, 50), [0, 0, 100, 50]);
+        // Past an edge or before the origin.
+        assert_eq!(clamp([90, 40, 30, 30], 100, 50), [90, 40, 10, 10]);
+        assert_eq!(clamp([-5, -10, 20, 30], 100, 50), [0, 0, 15, 20]);
+        assert_eq!(clamp([-5, -5, 1000, 1000], 100, 50), [0, 0, 100, 50]);
+        // Wholly outside or empty: nothing.
+        assert_eq!(clamp([100, 0, 10, 10], 100, 50), [0; 4]);
+        assert_eq!(clamp([-20, 0, 10, 10], 100, 50), [0; 4]);
+        assert_eq!(clamp([10, 10, 0, 5], 100, 50), [0; 4]);
+        assert_eq!(clamp([i64::MAX, 0, i64::MAX, 1], 100, 50), [0; 4]);
+    }
 
     #[test]
     fn menu_rows_stack_with_their_heights() {

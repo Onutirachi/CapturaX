@@ -402,15 +402,20 @@ impl Gpu {
     }
 
     pub fn set_ui(&mut self, ui: &UiImage) {
-        if self
+        let new = self
             .ui
             .as_ref()
-            .is_none_or(|l| (l.width, l.height) != (ui.width, ui.height))
-        {
+            .is_none_or(|l| (l.width, l.height) != (ui.width, ui.height));
+        if new {
             self.ui = Some(self.make_layer(Kind::Ui, ui.width, ui.height));
         }
         let layer = self.ui.as_ref().expect("just made");
-        self.upload(&layer.planes[0], &ui.pixels);
+        // A new texture is uploaded whole, otherwise only the repainted region (research R9).
+        if new {
+            self.upload(&layer.planes[0], &ui.pixels);
+        } else {
+            self.upload_rect(&layer.planes[0], &ui.pixels, ui.dirty);
+        }
     }
 
     /// A video frame is on the GPU.
@@ -533,6 +538,44 @@ impl Gpu {
             height,
             rows: [[0.0; 4]; 3],
         }
+    }
+
+    /// Uploads `rect` (x, y, width, height, inside the plane) of `data`, a whole plane with packed
+    /// rows; nothing when it is empty.
+    fn upload_rect(&self, plane: &PlaneTexture, data: &[u8], rect: crate::ui::Rect) {
+        let [x, y, width, height] = rect;
+        if width == 0 || height == 0 {
+            return;
+        }
+        let row = plane.width * plane.texel;
+        if x + width > plane.width || y + height > plane.height || data.len() < (row * plane.height) as usize {
+            log::warn!(
+                "a region {rect:?} of {} bytes does not fit {}x{}",
+                data.len(),
+                plane.width,
+                plane.height
+            );
+            return;
+        }
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &plane.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::TexelCopyBufferLayout {
+                offset: u64::from(y * row + x * plane.texel),
+                bytes_per_row: Some(row),
+                rows_per_image: None,
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 
     fn upload(&self, plane: &PlaneTexture, data: &[u8]) {
