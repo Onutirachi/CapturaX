@@ -34,3 +34,34 @@ Same setup (ezcap 1080p60, PS5), release build; the maintainer looked, the agent
 
 The maintainer asked for the bulb without its rays while it does not glow (off, or on at 0 %, as
 the volume's icon shows mute at 0 %): `bulb_off.svg`, spec FR-001 updated. Checked: pass.
+
+## T016: hide the preview, Windows, 2026-11-24
+
+The C920 and the ezcap (PS5) on the Windows PC, release build. The maintainer clicked and
+looked; the agent ran the app, restarted it and read `capturax.log`.
+
+| # | Check | Result |
+|---|---|---|
+| 5 | Hidden step: ambient on, hide; toggle the bulb while hidden | Pass: no glow while hidden; the bulb changes the setting |
+| 7 | Hide the C920 | Pass: "Preview hidden", webcam light off, the Windows Camera app opens it, sound stops, no bubble, screenshot button disabled, the hotkey refused with its notice |
+| 8 | Show again; device, mode and range picks while hidden; **Open** on a "connected" notice | Pass: same device and mode; picks open nothing and the shown preview opens the picked device; **Open** shows the preview with its device |
+| 9 | Hidden: unplug and replug the card; tray and back; quit and start | Pass: notices only, nothing reopens, still hidden; after the restart the devices are listed and no session opens (no webcam light) |
+| 10 | Hide while opening; no device | Pass: hidden 131 ms into the opening, the session closed in 457 ms. With both devices unplugged and the preview shown, the C920 is waited for ("disconnected") |
+| 11 | CPU and GPU, 30 s each | Pass (SC-003), below |
+
+SC-002 (from the log): hiding released the device in 23 ms (ezcap) and 301–457 ms (C920, the
+longest while it was opening); showing again gave the first frame in 423–471 ms, as a pick from
+the menu (447–493 ms). Once the state became Playing 486 ms after its first frame (a busy main
+thread while the window came back from the tray); the video itself shows from the first frame.
+
+SC-003: capturax.exe's CPU (its processor time over the whole machine) and the busiest GPU engine
+type (Windows' GPU Engine counters, summed over its engines), 30 one-second samples each:
+
+| State | CPU | GPU |
+|---|---|---|
+| Preview hidden | 0.00 % | 0.00 % |
+| Shown, no device (waiting for the C920) | 0.00 % | 0.00 % |
+| Reference: the C920 playing (10 s) | 0.21 % | 0.43 % |
+
+With both cameras unplugged the app waits for the C920 rather than showing "no source" (a third
+camera, NVIDIA Broadcast, stays listed), so the waiting state stands for it: no session in both.

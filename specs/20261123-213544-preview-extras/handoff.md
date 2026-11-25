@@ -6,8 +6,8 @@
 
 US1's ambient light is built, tuned and checked on both systems (T001–T008e), with its
 intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hidden" state and the toolbar
-while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014) and the glow
-check (T015) are done. The ezcap, the C920 and the PS5 are on the
+while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
+check (T015) and the Windows acceptance (T016) are done. Left in US2: T017 on CachyOS. The ezcap, the C920 and the PS5 are on the
 Windows PC.
 
 ## Done in the last sessions
@@ -167,6 +167,12 @@ Windows PC.
   the video layer and resets the glow; with no layer `glow_bars` gives no bar (nothing drawn) and
   `update_glow` runs only after a present with a new frame (none while hidden). The ambient
   button's `set_ambient` does not depend on the state.
+- 2026-11-24: T016 on Windows (measurements/acceptance.md): checks 5 (hidden step), 7–11 pass.
+  SC-002 from the log (released in 23–457 ms; first frame on show 423–471 ms); SC-003 with
+  Windows counters (CPU from the process's processor time, GPU from the GPU Engine
+  counters): 0.00 % hidden and 0.00 % shown with no device, 0.21 % / 0.43 % playing the C920.
+  Quickstart check 8 rewritten for FR-010a (picks while hidden open nothing). The agent could
+  not capture the screen (permission refused), so the maintainer clicked.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -181,5 +187,5 @@ Windows PC.
 
 ## Next step
 
-- The manual T016 (Windows) and T017 (CachyOS).
+- The manual T017 (CachyOS, the C920 there; the agent over SSH).
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
