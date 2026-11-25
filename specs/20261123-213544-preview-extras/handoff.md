@@ -8,8 +8,8 @@ US1's ambient light is built, tuned and checked on both systems (T001–T008e), 
 intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hidden" state and the toolbar
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
-begun: the arrangement setting (T018), the partial UI upload (T019) and the arrangement logic
-(T020) are built. The ezcap and
+begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
+(T020) and the layout per corner (T021) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -209,6 +209,32 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   an invariant check after each move.
 - 2026-11-25: the maintainer chose sliding over the proposed fade (T014's note): FR-017, R6 and
   T021 now say how, after the stack spike.
+- 2026-11-25: T021: app/ui/components/info-bubbles.slint `InfoBubbles` now covers the video area
+  and lays each kind in its corner from `bubble-corner`, `bubble-rank`, `bubble-pinned` (main.slint
+  in properties, pushed by app.rs `show_arrangement` at start; T022, T023 and T027 call it after
+  their changes). It takes `toolbar-box`, `left-dock-box`, `right-dock-box` (main.slint's
+  notice boxes) and computes rows, columns, beside or under the toolbar (research R6) with
+  functions unrolled over six kinds. Out: `boxes` / `pinned-boxes` (each corner's extent with the
+  controls shown / hidden, for T025) and `notice-fits` (main.slint's `notice-joins`);
+  `bubbles-box` is `info.boxes[3]` until T025. Bubbles slide (no opacity): two steps on hide and
+  show as the spike (`spread`, `arrived`); a bubble glides on `sx, ox, sy, oy` (side + offset, so a
+  resize moves it at once); past the edge its x snaps (`outside`), so it enters straight up or
+  down; one that loses its value keeps its text (`*-held`) and its x (`held-x`). The shown texts
+  are bindings (value, else held) so the width is right from the first frame. Bubbles are always
+  `visible` (offscreen when not laid). `BubbleControlsLayer` opens below a bubble in the window's
+  top half. bubbles.rs: per-item `expect(dead_code)` on `move_to`, `toggle_pin`, `reset`.
+  - FR-017 (maintainer): a new source's bubbles slide in together after the video's fade-in
+    (`render::FADE`, now `pub`; app.rs `info_at`) and once its first second has frames
+    (`info_ready`; the video thread's seconds come 0–1 s after the first frame).
+  - Slint starts an animation at its clock's time when the property changed (properties_animations
+    "Anchor timing to when the change was first signalled"); the clock moves only in
+    `update_timers`, so after idle a change from Rust started an animation partly or fully over
+    (random pops). app.rs `window_event`, `user_event`, and `about_to_wait` before `tick` and the
+    delayed `show_info` now call `ui.update_timers()` first. Confirmed with a temporary trace
+    (removed): every entry then animated 212–585 ms.
+  - The maintainer checked on Windows (ezcap, release): the preview's buttons, default corner,
+    hide/show preview and chrome slides, and four corners with a pinned fps (a test
+    `[overlay.bubbles]` in target/release/capturax.toml, restored after).
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -222,7 +248,7 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T021 (layout per corner, info-bubbles.slint; arrays from `slint_arrays()`);
-  bubbles slide out and in, never fade (FR-017, R6, approved 2026-11-25; the spike's code is in
-  the tag `spike/stack-20261026`, `spike/layered-preview/ui/components/info-overlay.slint`).
+- US3 (bubbles): T022 (Pin toggle in the hover controls; call `show_arrangement` after saving),
+  then T023 (drag), T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
+  (Reset row). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).

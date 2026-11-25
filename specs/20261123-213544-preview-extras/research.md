@@ -191,7 +191,11 @@ bottom one), so it slides out and in vertically. Hiding and showing the controls
 steps, as in the spike: on hide the unpinned bubbles leave first, still counted in their corner's
 offsets, and only after the slide (about 300 ms) the pinned ones close up; on show the pinned ones
 spread first and the others slide in after it (at once when none is pinned). A bubble with no
-value is not laid and sits outside the same way.
+value is not laid and sits outside the same way. A new source's bubbles get their values only
+after the video's fade-in (`render::FADE`) and with its first second's statistics (the video
+thread's seconds are not the session's, so they come 0 to 1 s after the first frame): all four
+slide in together, never while the image appears. A bubble past the edge takes its place along
+the edge at once (no sideways glide), so it slides straight in.
 
 **Rationale**: moving widths to Rust would need a measure-and-report round trip (a frame late,
 plus a feedback loop). Four, and later six, kinds unroll fine.

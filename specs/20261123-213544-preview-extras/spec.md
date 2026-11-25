@@ -297,7 +297,10 @@ controls hidden.
   corner's up, a bottom corner's down), each keeping its place along the edge, and then the pinned
   ones close up against their corner; when the controls show, the pinned ones make room first and
   then the others slide in (at once when none is pinned). A bubble that gains or loses its value
-  slides in or out the same way, and the others of its corner slide to their new places.
+  slides in or out the same way, and the others of its corner slide to their new places. A new
+  source's bubbles slide in together once the video's fade-in (spec #3, 150 ms) is over and its
+  first second's frame rate and latency are known, so the slide is seen and nothing enters twice
+  (maintainer, 2026-11-25).
 - **FR-018**: The notices (spec #3 FR-027, FR-033) MUST keep their rules in every corner: in a
   corner that holds bubbles they join the bubbles' group at the corner while the controls are
   hidden and move past them while the controls show. Only the pinned bubbles count while the
