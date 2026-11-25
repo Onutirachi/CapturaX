@@ -30,8 +30,6 @@ fn index(kind: BubbleKind) -> usize {
 /// Removes `kind` from its list and inserts it into `corner` at `index`, clamped to the list's
 /// length. Within the same corner, an index past the old place is reduced by one (the drop
 /// bar's index counts the dragged bubble's old slot). A corner past the last is ignored.
-// T023 (drag) calls it.
-#[cfg_attr(not(test), expect(dead_code))]
 pub fn move_to(arrangement: &mut Arrangement, kind: BubbleKind, corner: usize, index: usize) {
     if corner >= arrangement.corners.len() {
         log::warn!("bubble moved to corner {corner}, which does not exist; ignored");

@@ -215,6 +215,12 @@ pub enum SettingChange {
     ModeDisplay(settings::ModeDisplay),
     /// A bubble pinned or unpinned (preview extras FR-015), from its Pin toggle or menu item.
     BubblePin(settings::BubbleKind),
+    /// A bubble dragged to a corner, at an index of that corner's list (preview extras FR-015).
+    BubbleMoved {
+        kind: settings::BubbleKind,
+        corner: usize,
+        index: usize,
+    },
     /// The preview's volume (0–100) and mute, from the volume button (preview audio FR-011).
     Volume {
         level: u8,
@@ -422,6 +428,16 @@ impl App {
             if let Some(kind) = bubbles::kind_at(index) {
                 on(UserEvent::Setting(SettingChange::BubblePin(kind)));
             }
+        });
+        let on = send.clone();
+        ui.app.on_bubble_moved(move |kind, corner, index| {
+            let (Some(kind), Ok(corner), Ok(index)) =
+                (bubbles::kind_at(kind), usize::try_from(corner), usize::try_from(index))
+            else {
+                log::warn!("bubble move to corner {corner} at {index} ignored");
+                return;
+            };
+            on(UserEvent::Setting(SettingChange::BubbleMoved { kind, corner, index }));
         });
         let on = send.clone();
         ui.app.on_latency_display_changed(move |index| {
@@ -2442,6 +2458,11 @@ impl ApplicationHandler<UserEvent> for App {
                 // Saved at once; the layout takes the new arrays (FR-016).
                 SettingChange::BubblePin(kind) => {
                     self.store.update(|s| bubbles::toggle_pin(&mut s.overlay.bubbles, kind));
+                    show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
+                }
+                SettingChange::BubbleMoved { kind, corner, index } => {
+                    self.store
+                        .update(|s| bubbles::move_to(&mut s.overlay.bubbles, kind, corner, index));
                     show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
                 }
                 SettingChange::Volume { level, muted } => self.set_volume(level, muted),

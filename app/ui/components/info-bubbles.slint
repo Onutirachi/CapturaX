@@ -2,7 +2,8 @@
 // `info-overlay.slint`: source, mode, frame rate and latency, in the spike's shape (black at 55%,
 // opaque white text, the same in both themes). Each sits in its corner of the video area at its
 // place in that corner's list (preview extras FR-013, research R6): a row packed against the
-// corner, or a column when the rows do not fit. They slide, never fade (FR-017).
+// corner, or a column when the rows do not fit. They slide, never fade (FR-017). Dragging a
+// bubble moves it to another corner or place (FR-015, research R7; `BubbleDragLayer`).
 // Every bubble shows its hover controls after a short hover, drawn in the top layer above the
 // bubble (`BubbleControlsLayer` in main.slint): the Pin toggle (FR-015) and, for a bubble with
 // display choices (mode, frame rate, latency), a button opening a menu of its displays (FR-016a,
@@ -17,6 +18,7 @@ import { Tooltips, Side } from "tooltip.slint";
 import { FocusRing, Input } from "focus-ring.slint";
 import { Tag } from "tag.slint";
 import { NoticeBox } from "notice.slint";
+import { WindowState } from "../window-state.slint";
 
 // The hover controls of one bubble, shown by the top layer (as `Tooltips` and `Menus`): the bubble
 // asks for them with its rectangle in window coordinates and its display menu.
@@ -153,10 +155,56 @@ component Bubble inherits Rectangle {
     in property <length> room-width;
     in property <length> room-height;
     in property <duration> slide: 220ms;
-    // The pointer or the keyboard is on the bubble, its controls or its menu: the chrome stays.
-    out property <bool> engaged: root.pointed || (focus.has-focus && Input.keyboard);
+    // The pointer or the keyboard is on the bubble, its controls or its menu, or the bubble is
+    // being dragged: the chrome stays.
+    out property <bool> engaged: root.pointed || root.dragging || (focus.has-focus && Input.keyboard);
     callback picked(int);
     callback pin-toggled();
+
+    // The drag (FR-015, research R7): a press that moves 4 px starts it, a press without movement
+    // does nothing. The bubble then follows the pointer, `drag-x` and `drag-y` off its place in
+    // the layout. On release `dropped` runs while `dragging` still holds, and the offset glides
+    // back to 0 as the layout moves the place (both ease out over the same slide), so the bubble
+    // slides from where it was dropped to where it lands. The pointer leaving the window, the
+    // window going inactive or the chrome hiding cancel it: the bubble slides back.
+    out property <bool> dragging;
+    // The pointer in the parent's coordinates, set on each move while dragging (a binding to the
+    // bubble's place would loop: the place follows the drop target, which follows the pointer).
+    out property <length> pointer-x;
+    out property <length> pointer-y;
+    callback dropped();
+    // The drag started, and the pointer moved while dragging: the parent finds the drop target.
+    callback started();
+    callback aimed();
+    property <length> drag-x;
+    property <length> drag-y;
+    animate drag-x, drag-y { duration: root.dragging ? 0ms : root.slide; easing: ease-out; }
+    // Moving 4 px from the press starts the drag.
+    property <length> threshold: 4px;
+
+    function follow() {
+        root.pointer-x = root.x + area.mouse-x;
+        root.pointer-y = root.y + area.mouse-y;
+        root.drag-x += area.mouse-x - area.pressed-x;
+        root.drag-y += area.mouse-y - area.pressed-y;
+        root.aimed();
+    }
+    function end-drag() {
+        root.dragging = false;
+        root.drag-x = 0;
+        root.drag-y = 0;
+    }
+    function cancel-drag() {
+        if (root.dragging) {
+            root.end-drag();
+        }
+    }
+    property <bool> window-active: WindowState.active;
+    changed window-active => {
+        if (!self.window-active) {
+            root.cancel-drag();
+        }
+    }
 
     property <int> id;
     init => { self.id = Menus.new-id(); }
@@ -191,6 +239,7 @@ component Bubble inherits Rectangle {
     changed pinned => { BubbleControls.update(root.id, root.choices, root.choice, root.pinned); }
     changed active => {
         if (!self.active) {
+            root.cancel-drag();
             BubbleControls.hide(root.id);
             root.hide-tip();
             if (root.menu-open) {
@@ -239,8 +288,10 @@ component Bubble inherits Rectangle {
     property <bool> outside: self.y >= root.room-height || self.y + self.height <= 0;
     animate sx, ox { duration: self.outside ? 0ms : root.slide; easing: ease-out; }
     animate sy, oy { duration: root.slide; easing: ease-out; }
-    x: self.sx * root.room-width + self.ox;
-    y: self.sy * root.room-height + self.oy;
+    x: self.sx * root.room-width + self.ox + self.drag-x;
+    y: self.sy * root.room-height + self.oy + self.drag-y;
+    // Over the other bubbles while dragged and while it settles.
+    z: self.dragging || self.drag-x != 0 || self.drag-y != 0 ? 1 : 0;
     height: 44px;
     width: min(row.preferred-width, root.widest);
     border-radius: Theme.radius-m;
@@ -258,6 +309,29 @@ component Bubble inherits Rectangle {
         changed has-hover => {
             if (!self.has-hover) {
                 root.hide-tip();
+            }
+        }
+        moved => {
+            if (root.dragging) {
+                root.follow();
+            } else if (self.pressed && sqrt(pow((self.mouse-x - self.pressed-x) / 1px, 2)
+                + pow((self.mouse-y - self.pressed-y) / 1px, 2)) >= root.threshold / 1px) {
+                root.dragging = true;
+                root.started();
+                root.hide-tip();
+                BubbleControls.hide(root.id);
+                if (root.menu-open) {
+                    Menus.close();
+                }
+                root.follow();
+            }
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up && root.dragging) {
+                root.dropped();
+                root.end-drag();
+            } else if (event.kind == PointerEventKind.cancel) {
+                root.cancel-drag();
             }
         }
     }
@@ -285,7 +359,7 @@ component Bubble inherits Rectangle {
     // The controls open after a short hover, so sweeping the pointer across the bubbles opens none.
     Timer {
         interval: 120ms;
-        running: root.active && area.has-hover && !root.controls;
+        running: root.active && area.has-hover && !area.pressed && !root.dragging && !root.controls;
         triggered => {
             BubbleControls.show(root.id, root.choices, root.choice, root.pinned, root.absolute-position.x,
                 root.absolute-position.y, root.width, root.height);
@@ -302,7 +376,8 @@ component Bubble inherits Rectangle {
 
     Timer {
         interval: 500ms;
-        running: root.active && area.has-hover && !root.tip-shown && !root.menu-open && root.tip != "";
+        running: root.active && area.has-hover && !area.pressed && !root.dragging && !root.tip-shown && !root.menu-open
+            && root.tip != "";
         triggered => { root.show-tip(); }
     }
 
@@ -325,6 +400,45 @@ component Bubble inherits Rectangle {
     FocusRing {
         focused: focus.has-focus;
         radius: root.border-radius;
+    }
+}
+
+// What a drag shows (FR-015, research R7, variant F of the drop zones mockup), under the bubbles
+// and over the video and the docks: an orange glow from the corner under the pointer, fading
+// towards the middle, and the solid orange slot where the bubble would land. Fills the video area.
+export component BubbleDragLayer {
+    in property <bool> shown;
+    // The corner under the pointer: 0 top left, 1 top right, 2 bottom left, 3 bottom right.
+    in property <int> hot;
+    // The slot: where the dragged bubble would land, and its width.
+    in property <length> slot-x;
+    in property <length> slot-y;
+    in property <length> slot-width;
+    // The glow is a circle centered on the corner; it fades out 300 px from it.
+    property <length> reach: 400px;
+
+    for corner in 4: Rectangle {
+        x: (mod(corner, 2) == 1 ? root.width : 0) - root.reach;
+        y: (corner >= 2 ? root.height : 0) - root.reach;
+        width: 2 * root.reach;
+        height: 2 * root.reach;
+        // The default radius is half the diagonal, 566 px here.
+        background: @radial-gradient(circle, Theme.c.accent.with-alpha(0.4) 0%, Theme.c.accent.with-alpha(0.13) 30%,
+            Theme.c.accent.with-alpha(0) 53%);
+        opacity: root.shown && corner == root.hot ? 1 : 0;
+        animate opacity { duration: Theme.quick; easing: ease-out; }
+        visible: self.opacity > 0;
+    }
+
+    // Made when the drag starts, so it appears in place and only then follows the target.
+    if root.shown: Rectangle {
+        x: root.slot-x;
+        y: root.slot-y;
+        width: root.slot-width;
+        height: 44px;
+        animate x, y, width { duration: 220ms; easing: ease-out; }
+        border-radius: Theme.radius-m;
+        background: Theme.c.accent.with-alpha(0.35);
     }
 }
 
@@ -394,20 +508,24 @@ export component InfoBubbles inherits Rectangle {
     // The Pin toggle or the Pin item of bubble kind k (FR-015); Rust saves it and sends the arrays
     // back.
     callback pin-toggled(int);
+    // Bubble kind k was dropped in `corner` at `index` of that corner's list, the index counting
+    // its old place when it stays in its corner (`bubbles::move_to`); Rust saves it and sends the
+    // arrays back (FR-015).
+    callback bubble-moved(int /* kind */, int /* corner */, int /* index */);
     out property <bool> engaged: source-bubble.engaged || mode-bubble.engaged || fps-bubble.engaged
         || latency-bubble.engaged;
     // What each corner's bubbles cover while the controls show (`boxes`) and while they are
     // hidden (`pinned-boxes`, the pinned ones only); a zero size for none.
-    out property <[NoticeBox]> boxes: [root.extent(0, true), root.extent(1, true), root.extent(2, true),
-        root.extent(3, true)];
-    out property <[NoticeBox]> pinned-boxes: [root.extent(0, false), root.extent(1, false),
-        root.extent(2, false), root.extent(3, false)];
+    out property <[NoticeBox]> boxes: [root.extent(0, 1), root.extent(1, 1), root.extent(2, 1),
+        root.extent(3, 1)];
+    out property <[NoticeBox]> pinned-boxes: [root.extent(0, 0), root.extent(1, 0),
+        root.extent(2, 0), root.extent(3, 0)];
     // The event notice fits at the end of the bottom row, beside both bottom corners' rows, with
     // the controls shown (spec #3 FR-027).
     out property <bool> notice-fits: !root.meets(root.right-dock-box, root.bottom-y)
-        && root.row-width(2, true) + (root.row-width(2, true) > 0 ? root.gap : 0) + root.row-width(3, true)
+        && root.row-width(2, 1) + (root.row-width(2, 1) > 0 ? root.gap : 0) + root.row-width(3, 1)
             + root.gap + root.notice-width
-            <= root.width - root.margin - root.band-start(root.bottom-y, true);
+            <= root.width - root.margin - root.band-start(root.bottom-y, 1);
 
     property <length> gap: Theme.gap-m;
     property <length> margin: Theme.gap-l;
@@ -557,39 +675,49 @@ export component InfoBubbles inherits Rectangle {
             : k == 3 ? latency-bubble.width : 0
     }
 
-    // The layout with every bubble that has a value (`all`, the controls show) or with the pinned
-    // ones only.
-    pure function counted(k: int, c: int, all: bool) -> bool {
-        root.has(k) && (all || root.pinned(k)) && root.corner-of(k) == c
+    // The layout modes: 0 the pinned bubbles only (the controls are hidden), 1 every bubble that
+    // has a value (the controls show), 2 the same with the moving bubble at the drop target (its
+    // corner and, half a step before the drop's index, its rank; research R7), 3 every bubble
+    // but the dragged one (where the drag aims when it enters a corner).
+    pure function corner-in(k: int, m: int) -> int {
+        m == 2 && k == root.moving ? root.target-corner : root.corner-of(k)
     }
-    // Bubble k's share of corner c's row (its width and a gap) before place `r`.
-    pure function row-part(k: int, c: int, r: int, all: bool) -> length {
-        root.counted(k, c, all) && root.bubble-rank[k] < r ? root.w(k) + root.gap : 0
+    // Ranks are doubled so the moving bubble's half step stays an integer (a float rank in a
+    // conditional with an int was truncated, and the slot tied with its neighbour).
+    pure function rank-in(k: int, m: int) -> int {
+        m == 2 && k == root.moving ? 2 * root.target-index - 1 : 2 * root.bubble-rank[k]
     }
-    pure function row-before(c: int, r: int, all: bool) -> length {
-        root.row-part(0, c, r, all) + root.row-part(1, c, r, all) + root.row-part(2, c, r, all)
-            + root.row-part(3, c, r, all) + root.row-part(4, c, r, all) + root.row-part(5, c, r, all)
+    pure function counted(k: int, c: int, m: int) -> bool {
+        root.has(k) && !(m == 3 && k == root.dragged) && (m > 0 || root.pinned(k)) && root.corner-in(k, m) == c
+    }
+    // Bubble k's share of corner c's row (its width and a gap) before doubled rank `r`.
+    pure function row-part(k: int, c: int, r: int, m: int) -> length {
+        root.counted(k, c, m) && root.rank-in(k, m) < r ? root.w(k) + root.gap : 0
+    }
+    pure function row-before(c: int, r: int, m: int) -> length {
+        root.row-part(0, c, r, m) + root.row-part(1, c, r, m) + root.row-part(2, c, r, m)
+            + root.row-part(3, c, r, m) + root.row-part(4, c, r, m) + root.row-part(5, c, r, m)
     }
     // The same down a column: its height and a gap.
-    pure function column-part(k: int, c: int, r: int, all: bool) -> length {
-        root.counted(k, c, all) && root.bubble-rank[k] < r ? root.high + root.gap : 0
+    pure function column-part(k: int, c: int, r: int, m: int) -> length {
+        root.counted(k, c, m) && root.rank-in(k, m) < r ? root.high + root.gap : 0
     }
-    pure function column-before(c: int, r: int, all: bool) -> length {
-        root.column-part(0, c, r, all) + root.column-part(1, c, r, all) + root.column-part(2, c, r, all)
-            + root.column-part(3, c, r, all) + root.column-part(4, c, r, all) + root.column-part(5, c, r, all)
+    pure function column-before(c: int, r: int, m: int) -> length {
+        root.column-part(0, c, r, m) + root.column-part(1, c, r, m) + root.column-part(2, c, r, m)
+            + root.column-part(3, c, r, m) + root.column-part(4, c, r, m) + root.column-part(5, c, r, m)
     }
-    pure function row-width(c: int, all: bool) -> length {
-        max(0, root.row-before(c, 1000, all) - root.gap)
+    pure function row-width(c: int, m: int) -> length {
+        max(0, root.row-before(c, 10000, m) - root.gap)
     }
-    pure function column-height(c: int, all: bool) -> length {
-        max(0, root.column-before(c, 1000, all) - root.gap)
+    pure function column-height(c: int, m: int) -> length {
+        max(0, root.column-before(c, 10000, m) - root.gap)
     }
-    pure function wide(k: int, c: int, all: bool) -> length {
-        root.counted(k, c, all) ? root.w(k) : 0
+    pure function wide(k: int, c: int, m: int) -> length {
+        root.counted(k, c, m) ? root.w(k) : 0
     }
-    pure function widest(c: int, all: bool) -> length {
-        max(max(max(root.wide(0, c, all), root.wide(1, c, all)), max(root.wide(2, c, all), root.wide(3, c, all))),
-            max(root.wide(4, c, all), root.wide(5, c, all)))
+    pure function widest(c: int, m: int) -> length {
+        max(max(max(root.wide(0, c, m), root.wide(1, c, m)), max(root.wide(2, c, m), root.wide(3, c, m))),
+            max(root.wide(4, c, m), root.wide(5, c, m)))
     }
 
     // The docks and the toolbar, only while the controls show.
@@ -598,81 +726,86 @@ export component InfoBubbles inherits Rectangle {
         d.w > 0 && d.h > 0 && d.y < y + root.high && y < d.y + d.h
     }
     // Where a row at `y` may start and end: between the side docks it meets.
-    pure function band-start(y: length, all: bool) -> length {
-        all && root.meets(root.left-dock-box, y) ? root.left-dock-box.x + root.left-dock-box.w + root.clear : root.margin
+    pure function band-start(y: length, m: int) -> length {
+        m > 0 && root.meets(root.left-dock-box, y) ? root.left-dock-box.x + root.left-dock-box.w + root.clear : root.margin
     }
-    pure function band-end(y: length, all: bool) -> length {
-        all && root.meets(root.right-dock-box, y) ? root.right-dock-box.x - root.clear : root.width - root.margin
+    pure function band-end(y: length, m: int) -> length {
+        m > 0 && root.meets(root.right-dock-box, y) ? root.right-dock-box.x - root.clear : root.width - root.margin
     }
     // A column, taller, always stands clear of the side docks.
-    pure function column-start(all: bool) -> length {
-        all && root.left-dock-box.w > 0 ? root.left-dock-box.x + root.left-dock-box.w + root.clear : root.margin
+    pure function column-start(m: int) -> length {
+        m > 0 && root.left-dock-box.w > 0 ? root.left-dock-box.x + root.left-dock-box.w + root.clear : root.margin
     }
-    pure function column-end(all: bool) -> length {
-        all && root.right-dock-box.w > 0 ? root.right-dock-box.x - root.clear : root.width - root.margin
+    pure function column-end(m: int) -> length {
+        m > 0 && root.right-dock-box.w > 0 ? root.right-dock-box.x - root.clear : root.width - root.margin
     }
     // A top corner's row fits beside the toolbar, clear of it.
-    pure function beside(c: int) -> bool {
+    pure function beside(c: int, m: int) -> bool {
         root.toolbar-box.w <= 0 || (c == 0
-            ? root.row-width(0, true) <= root.toolbar-box.x - root.clear - root.band-start(root.top-y, true)
-            : root.row-width(1, true) <= root.band-end(root.top-y, true)
+            ? root.row-width(0, m) <= root.toolbar-box.x - root.clear - root.band-start(root.top-y, m)
+            : root.row-width(1, m) <= root.band-end(root.top-y, m)
                 - (root.toolbar-box.x + root.toolbar-box.w + root.clear))
     }
-    pure function beside-toolbar(c: int, all: bool) -> bool {
-        all && root.top(c) && root.beside(c)
+    pure function beside-toolbar(c: int, m: int) -> bool {
+        m > 0 && root.top(c) && root.beside(c, m)
     }
     // The row's top edge: beside the toolbar or the top edge, under the toolbar, or the bottom.
-    pure function band-y(c: int, all: bool) -> length {
-        !root.top(c) ? root.bottom-y : !all || root.beside(c) ? root.top-y : root.under-y
+    pure function band-y(c: int, m: int) -> length {
+        !root.top(c) ? root.bottom-y : m == 0 || root.beside(c, m) ? root.top-y : root.under-y
     }
     // The row shares its room with the other corner of its edge (not beside the toolbar, where
     // each side has its own).
-    pure function shares(c: int, all: bool) -> bool {
-        !root.beside-toolbar(c, all) && !root.beside-toolbar(root.partner(c), all)
+    pure function shares(c: int, m: int) -> bool {
+        !root.beside-toolbar(c, m) && !root.beside-toolbar(root.partner(c), m)
     }
-    pure function band-s(c: int, all: bool) -> length {
-        root.beside-toolbar(c, all) && c == 1 ? root.toolbar-box.x + root.toolbar-box.w + root.clear
-            : root.band-start(root.band-y(c, all), all)
+    pure function band-s(c: int, m: int) -> length {
+        root.beside-toolbar(c, m) && c == 1 ? root.toolbar-box.x + root.toolbar-box.w + root.clear
+            : root.band-start(root.band-y(c, m), m)
     }
-    pure function band-e(c: int, all: bool) -> length {
-        root.beside-toolbar(c, all) && c == 0 ? root.toolbar-box.x - root.clear
-            : root.band-end(root.band-y(c, all), all) - (root.top(c) ? 0 : root.notice-reserve)
+    pure function band-e(c: int, m: int) -> length {
+        root.beside-toolbar(c, m) && c == 0 ? root.toolbar-box.x - root.clear
+            : root.band-end(root.band-y(c, m), m) - (root.top(c) ? 0 : root.notice-reserve)
     }
     // Corner c's bubbles stand in a column: its row does not fit beside the other row of its edge
     // and it is the wider, or even the other one as a column leaves it no room.
-    pure function column(c: int, all: bool) -> bool {
-        let mine = root.row-width(c, all);
-        let other = root.shares(c, all) ? root.row-width(root.partner(c), all) : 0;
-        let room = root.band-e(c, all) - root.band-s(c, all);
+    pure function column(c: int, m: int) -> bool {
+        let mine = root.row-width(c, m);
+        let other = root.shares(c, m) ? root.row-width(root.partner(c), m) : 0;
+        let room = root.band-e(c, m) - root.band-s(c, m);
         let wider = mine > other || (mine == other && root.right(c));
         mine > 0 && mine + other + (other > 0 ? root.gap : 0) > room
-            && (wider || root.widest(root.partner(c), all) + root.gap + mine > room)
+            && (wider || root.widest(root.partner(c), m) + root.gap + mine > room)
     }
 
     // Bubble k's place in the layout.
-    pure function lay-x(k: int, all: bool) -> length {
-        let c = root.corner-of(k);
-        let before = root.row-before(c, root.bubble-rank[k], all);
-        root.column(c, all) ? (root.right(c) ? root.column-end(all) - root.w(k) : root.column-start(all))
-            : root.right(c) ? root.band-e(c, all) - root.row-width(c, all) + before
-            : root.band-s(c, all) + before
+    pure function lay-x(k: int, m: int) -> length {
+        let c = root.corner-in(k, m);
+        let before = root.row-before(c, root.rank-in(k, m), m);
+        root.column(c, m) ? (root.right(c) ? root.column-end(m) - root.w(k) : root.column-start(m))
+            : root.right(c) ? root.band-e(c, m) - root.row-width(c, m) + before
+            : root.band-s(c, m) + before
     }
-    pure function lay-y(k: int, all: bool) -> length {
-        let c = root.corner-of(k);
-        let before = root.column-before(c, root.bubble-rank[k], all);
-        !root.column(c, all) ? root.band-y(c, all)
-            : root.top(c) ? root.band-y(c, all) + before
-            : root.bottom-y + root.high - root.column-height(c, all) + before
+    pure function lay-y(k: int, m: int) -> length {
+        let c = root.corner-in(k, m);
+        let before = root.column-before(c, root.rank-in(k, m), m);
+        !root.column(c, m) ? root.band-y(c, m)
+            : root.top(c) ? root.band-y(c, m) + before
+            : root.bottom-y + root.high - root.column-height(c, m) + before
     }
     // Where bubble k goes along its edge: an unpinned bubble keeps its place with every bubble, so
     // it only slides up or down; a pinned one closes up once the others are gone. A bubble that
     // lost its value is left out of its corner, so it keeps the place it had (`held-x`, kept by
     // each bubble below) and slides straight out.
+    // While a bubble moves, the others make room for it (mode 2); it keeps its own place while
+    // dragged (its drag offset is from there) and takes its slot once dropped.
+    pure function mode-of(k: int) -> int {
+        !(root.spread || !root.pinned(k)) ? 0 : root.moving >= 0 && (k != root.moving || root.dragged < 0) ? 2 : 1
+    }
     pure function lay-x-now(k: int) -> length {
-        root.lay-x(k, root.spread || !root.pinned(k))
+        root.lay-x(k, root.mode-of(k))
     }
     pure function to-y(k: int) -> length {
-        root.laid(k) ? root.lay-y(k, root.spread || !root.pinned(k))
+        root.laid(k) ? root.lay-y(k, root.mode-of(k))
             : root.top(root.corner-of(k)) ? -root.high - root.away : root.height + root.away
     }
     pure function side-x(k: int) -> float {
@@ -686,23 +819,109 @@ export component InfoBubbles inherits Rectangle {
     }
 
     // What corner c's bubbles cover.
-    pure function extent(c: int, all: bool) -> NoticeBox {
-        let in-column = root.column(c, all);
-        let w = in-column ? root.widest(c, all) : root.row-width(c, all);
-        let h = w <= 0 ? 0 : in-column ? root.column-height(c, all) : root.high;
+    pure function extent(c: int, m: int) -> NoticeBox {
+        let in-column = root.column(c, m);
+        let w = in-column ? root.widest(c, m) : root.row-width(c, m);
+        let h = w <= 0 ? 0 : in-column ? root.column-height(c, m) : root.high;
         {
-            x: in-column ? (root.right(c) ? root.column-end(all) - w : root.column-start(all))
-                : root.right(c) ? root.band-e(c, all) - w : root.band-s(c, all),
-            y: in-column && !root.top(c) ? root.bottom-y + root.high - h : root.band-y(c, all),
+            x: in-column ? (root.right(c) ? root.column-end(m) - w : root.column-start(m))
+                : root.right(c) ? root.band-e(c, m) - w : root.band-s(c, m),
+            y: in-column && !root.top(c) ? root.bottom-y + root.high - h : root.band-y(c, m),
             w: w,
             h: h,
         }
     }
 
+    // The drag (FR-015, research R7): the kind being dragged (-1 for none) and the pointer.
+    property <int> dragged: source-bubble.dragging ? 0 : mode-bubble.dragging ? 1 : fps-bubble.dragging ? 2
+        : latency-bubble.dragging ? 3 : -1;
+    property <length> drag-px: root.dragged == 0 ? source-bubble.pointer-x : root.dragged == 1 ? mode-bubble.pointer-x
+        : root.dragged == 2 ? fps-bubble.pointer-x : latency-bubble.pointer-x;
+    property <length> drag-py: root.dragged == 0 ? source-bubble.pointer-y : root.dragged == 1 ? mode-bubble.pointer-y
+        : root.dragged == 2 ? fps-bubble.pointer-y : latency-bubble.pointer-y;
+    // The corner it would land in (the pointer's quadrant of the video area) and its index in
+    // that corner's list (the place of the first other bubble past the pointer, else the list's
+    // end). Set on each move, not bound: the layout follows them, and a binding would loop.
+    // Entering a corner (or starting), the index comes from the corner without the dragged bubble
+    // (mode 3). Within it, from the bubbles as they stand around the slot (mode 2): over the slot
+    // nothing changes, and passing a neighbour's center swaps it with the slot, which leaves the
+    // pointer past it, so the slot never flickers.
+    property <int> drop-corner: -1;
+    property <int> drop-index;
+    function aim-start() {
+        root.drop-corner = -1;
+    }
+    function aim() {
+        let c = (root.drag-py < root.height / 2 ? 0 : 2) + (root.drag-px < root.width / 2 ? 0 : 1);
+        let first = root.first-past(c, c == root.drop-corner ? 2 : 3);
+        root.drop-corner = c;
+        root.drop-index = first < 1000 ? first : root.list-length(c);
+    }
+    // Another bubble of corner c in layout mode m.
+    pure function other(k: int, c: int, m: int) -> bool {
+        k != root.dragged && root.counted(k, c, m)
+    }
+    // It lies past the pointer: its center is right of it in a row, below it in a column.
+    pure function past(k: int, c: int, m: int) -> bool {
+        root.other(k, c, m) && (root.column(c, m) ? root.lay-y(k, m) + root.high / 2 >= root.drag-py
+            : root.lay-x(k, m) + root.w(k) / 2 >= root.drag-px)
+    }
+    pure function past-rank(k: int, c: int, m: int) -> int {
+        root.past(k, c, m) ? root.bubble-rank[k] : 1000
+    }
+    // The first bubble past the pointer, by its place; 1000 for none.
+    pure function first-past(c: int, m: int) -> int {
+        min(min(min(root.past-rank(0, c, m), root.past-rank(1, c, m)), min(root.past-rank(2, c, m), root.past-rank(3, c, m))),
+            min(root.past-rank(4, c, m), root.past-rank(5, c, m)))
+    }
+    pure function in-corner(k: int, c: int) -> int {
+        k < root.bubble-corner.length && root.bubble-corner[k] == c ? 1 : 0
+    }
+    // The length of corner c's list, bubbles with no value included.
+    pure function list-length(c: int) -> int {
+        root.in-corner(0, c) + root.in-corner(1, c) + root.in-corner(2, c) + root.in-corner(3, c) + root.in-corner(4, c)
+            + root.in-corner(5, c)
+    }
+    // The drop waiting for Rust's arrays: until they come back the layout keeps the drop's
+    // arrangement, so nothing slides back and forth (-1 for none).
+    property <int> pending: -1;
+    property <int> pending-corner;
+    property <int> pending-index;
+    changed bubble-corner => { root.pending = -1; }
+    changed bubble-rank => { root.pending = -1; }
+    // The arrays come back at once; this only covers a move Rust refused.
+    Timer {
+        interval: 300ms;
+        running: root.pending >= 0;
+        triggered => { root.pending = -1; }
+    }
+    function drop(k: int) {
+        root.pending = k;
+        root.pending-corner = root.drop-corner;
+        root.pending-index = root.drop-index;
+        root.bubble-moved(k, root.drop-corner, root.drop-index);
+    }
+    // The kind laid at the drop target (layout mode 2): while it is dragged, the other bubbles
+    // make room for it; after the drop it slides into its slot too.
+    property <int> moving: root.dragged >= 0 ? root.dragged : root.pending;
+    property <int> target-corner: root.dragged >= 0 ? root.drop-corner : root.pending-corner;
+    property <int> target-index: root.dragged >= 0 ? root.drop-index : root.pending-index;
+
+    // Under the bubbles: the dragged one passes over it.
+    BubbleDragLayer {
+        width: root.width;
+        height: root.height;
+        shown: root.dragged >= 0;
+        hot: root.drop-corner;
+        slot-x: root.dragged >= 0 ? root.lay-x(root.dragged, 2) : 0;
+        slot-y: root.dragged >= 0 ? root.lay-y(root.dragged, 2) : 0;
+        slot-width: root.dragged >= 0 ? root.w(root.dragged) : 0;
+    }
+
     // The bubbles are never invisible: one with no text yet waits past the edge, so Slint knows
     // its place and its first entry slides like any other.
     // A bubble is never wider than the room between the side docks.
-    property <length> room: root.column-end(true) - root.column-start(true);
+    property <length> room: root.column-end(1) - root.column-start(1);
 
     source-bubble := Bubble {
         side-x: root.side-x(0);
@@ -726,6 +945,9 @@ export component InfoBubbles inherits Rectangle {
         pinned: root.pinned(0);
         marked: root.marked(0);
         pin-toggled => { root.pin-toggled(0); }
+        dropped => { root.drop(0); }
+        started => { root.aim-start(); }
+        aimed => { root.aim(); }
         widest: min(360px, root.room);
         accessible-role: button;
         accessible-label: root.source-text;
@@ -754,6 +976,9 @@ export component InfoBubbles inherits Rectangle {
         pinned: root.pinned(1);
         marked: root.marked(1);
         pin-toggled => { root.pin-toggled(1); }
+        dropped => { root.drop(1); }
+        started => { root.aim-start(); }
+        aimed => { root.aim(); }
         widest: root.room;
         choices: root.mode-items;
         accessible-role: button;
@@ -796,6 +1021,9 @@ export component InfoBubbles inherits Rectangle {
         pinned: root.pinned(2);
         marked: root.marked(2);
         pin-toggled => { root.pin-toggled(2); }
+        dropped => { root.drop(2); }
+        started => { root.aim-start(); }
+        aimed => { root.aim(); }
         widest: root.room;
         choices: root.fps-items;
         accessible-role: button;
@@ -830,6 +1058,9 @@ export component InfoBubbles inherits Rectangle {
         pinned: root.pinned(3);
         marked: root.marked(3);
         pin-toggled => { root.pin-toggled(3); }
+        dropped => { root.drop(3); }
+        started => { root.aim-start(); }
+        aimed => { root.aim(); }
         widest: root.room;
         choices: root.latency-items;
         accessible-role: button;

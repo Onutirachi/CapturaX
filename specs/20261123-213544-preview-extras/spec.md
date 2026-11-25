@@ -135,7 +135,7 @@ controls hidden.
 1. **Given** the controls are showing, **When** the user pins the latency bubble, **Then** it
    shows a pin before its text and stays visible after the controls hide, packed against its corner.
 2. **Given** a bubble at the bottom right, **When** the user drags it to the top left, **Then**
-   the corners light up while dragging, a mark shows where it will land, and on release it sits in
+   the target corner glows while dragging, an orange slot shows where it will land, and on release it sits in
    that corner, in the order chosen, and the bubbles left behind close the gap.
 3. **Given** three bubbles in one corner, **When** the user drags one before another, **Then** the
    order changes at once and is kept after a restart.
@@ -281,8 +281,11 @@ controls hidden.
   corner in their order, without the pin.
 - **FR-015**: Moving a bubble is click and drag, the only way (maintainer, 2026-11-23): the
   pointer shows the grab hand over a bubble and the closed hand while dragging; the bubble
-  follows the pointer, the four corners light up and the one it would land in is marked, an
-  orange bar shows its place in that corner's order, and releasing puts it there. A press without
+  follows the pointer, the corner it would land in (the pointer's quadrant) glows orange, fading
+  towards the middle, the bubbles there make room and a solid orange slot the bubble's size
+  shows its place in that corner's order, and releasing puts it there (maintainer, 2026-11-25:
+  variant F, "slot + glow", of the drop zones mockup
+  https://claude.ai/artifact/D4WycMtijeV9PbFtqTgEkC, slot without a dashed border). A press without
   movement is not a drag. The hover controls (spec #3 FR-016) hold a **Pin** toggle (the pin
   icon, on chip while pinned; tooltip "Pin" / "Unpin") and, for bubbles with display choices, the
   display button; no corner or order items in any menu. The pointer and the keyboard use the

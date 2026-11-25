@@ -211,16 +211,28 @@ press without movement does nothing, FR-015).
 
 - **While dragging**: the bubble follows the pointer, out of the layout. The hover controls are
   dismissed and the controls do not auto-hide, since the drag counts as `engaged`.
-  `BubbleDragLayer` draws the four corner zones (dashed, as in the mockup) and lights the zone of
-  the pointer's quadrant of the video area. The orange 3 × 44 px bar marks the insertion point,
-  which is the count of that corner's other laid bubbles whose center lies before the pointer
-  (x in a row, y in a column).
+  `BubbleDragLayer` lights the corner under the pointer (its quadrant of the video area) with an
+  orange radial glow that fades towards the middle; the other corners show nothing. The
+  insertion point is the count of that corner's other laid bubbles whose center lies before the
+  pointer (x in a row, y in a column). Entering a corner (or starting the drag) it is measured on
+  that corner without the dragged bubble; within the corner, on the bubbles as they stand around
+  the slot, so over the slot nothing changes and passing a neighbour's center swaps it with the
+  slot (which leaves the pointer past it: no flicker). The layout then lays
+  the other bubbles as if the dragged one were already there (it leaves its corner and takes the
+  insertion point in the target one, at a rank half a step before that index), so they slide to
+  make room, and a solid orange slot (accent at 35 %, no border, the bubble's size and radius)
+  stands where it would land. Maintainer, 2026-11-25: variant F of the drop zones mockup
+  (https://claude.ai/artifact/D4WycMtijeV9PbFtqTgEkC), replacing the first build's four dashed
+  corner zones and the 3 × 44 px insertion bar.
 - **Release**: `bubble-moved(kind, corner, index)` goes to Rust, which applies `move_to`, saves,
-  and pushes the arrays back.
-- **Cancelled**: losing the pointer (window deactivated) cancels the drag and nothing moves.
+  and pushes the arrays back. Until they come back the layout keeps the drop's arrangement, so
+  nothing slides back and forth. The bubble slides from where it was dropped into the slot (its
+  drag offset glides back to 0 while the layout moves it, both over the same 220 ms ease-out).
+- **Cancelled**: losing the pointer (window deactivated) cancels the drag and nothing moves; the
+  bubble slides back to its place.
 
-**Rationale**: the mockup's behavior, which the maintainer validated (D5). Moving only on
-release keeps a single save per drag.
+**Rationale**: the mockup's behavior, which the maintainer validated (D5, then variant F).
+Moving only on release keeps a single save per drag.
 
 ## R8. Grab cursors
 

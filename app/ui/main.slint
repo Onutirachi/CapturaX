@@ -129,6 +129,9 @@ export component AppWindow inherits Window {
     in property <[bool]> bubble-pinned: [false, false, false, false];
     // Pin or unpin bubble kind k (preview extras FR-015).
     callback bubble-pin-toggled(int);
+    // Bubble kind k dragged to a corner at an index of its list (preview extras FR-015,
+    // `bubbles::move_to`).
+    callback bubble-moved(int /* kind */, int /* corner */, int /* index */);
 
     // The preview's volume (preview audio FR-011, FR-012): the level 0–100 and the mute, set by
     // Rust at start and changed here by the volume button; the icon's level from Rust
@@ -532,6 +535,7 @@ export component AppWindow inherits Window {
             fps-display-changed(display) => { root.fps-display-changed(display); }
             mode-display-changed(display) => { root.mode-display-changed(display); }
             pin-toggled(kind) => { root.bubble-pin-toggled(kind); }
+            bubble-moved(kind, corner, index) => { root.bubble-moved(kind, corner, index); }
         }
     }
 
