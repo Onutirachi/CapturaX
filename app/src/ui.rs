@@ -680,7 +680,8 @@ impl Ui {
         self.full_repaint = true;
     }
 
-    /// Advances Slint's timers and animations.
+    /// Advances Slint's timers and animations, and its clock: also before each event's changes
+    /// (app.rs), since an animation counts from the clock's time when its property changed.
     pub fn update_timers(&self) {
         slint::platform::update_timers_and_animations();
     }

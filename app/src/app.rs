@@ -2336,6 +2336,10 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+        // Slint starts an animation at its clock's time when a property changes, and the clock
+        // moves only when timers are updated: after the app was idle it is old, so a change made
+        // here would start an animation already partly or fully over. Move it to now first.
+        self.ui.update_timers();
         match event {
             UserEvent::Window(action) => self.act(event_loop, action),
             UserEvent::TryAgain => self.preview_event(preview::Event::TryAgain),
@@ -2557,6 +2561,10 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // Slint starts an animation at its clock's time when a property changes, and the clock
+        // moves only when timers are updated: after the app was idle it is old, so a change made
+        // here would start an animation already partly or fully over. Move it to now first.
+        self.ui.update_timers();
         match event {
             WindowEvent::CloseRequested => self.close(event_loop),
             WindowEvent::Focused(focused) => {
@@ -2706,6 +2714,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
         let now = Instant::now();
         if now >= self.tick_at {
+            self.ui.update_timers();
             self.tick(now);
         }
         if let (Some(at), Some(every)) = (self.screenshot_at, self.options.screenshot_every)
