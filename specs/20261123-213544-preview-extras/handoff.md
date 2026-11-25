@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021) and the Pin (T022) are built. The ezcap and
+(T020), the layout per corner (T021), the Pin (T022) and the drag (T023) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -254,6 +254,30 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   - The maintainer checked on Windows: pointer, keyboard, the source's controls and the mark.
   - Tab order (maintainer): the bubbles come last, after the docks (main.slint's `info` moved after
     the right dock, still under the notices and the settings panel).
+- 2026-11-25: T023: the drag (info-bubbles.slint). A press that moves 4 px starts it (`Bubble`'s
+  `moved`; `pointer-event` up drops, cancel cancels; `WindowState.active` false or the chrome
+  hiding cancel too). The bubble follows the pointer by `drag-x`, `drag-y` (offset from its
+  layout place, animated back to 0 on release while the layout moves it, so it slides from the
+  drop point). `BubbleDragLayer` (inside `InfoBubbles`, under the bubbles): an orange radial
+  glow from the corner under the pointer (circle centered on the corner, gone ~300 px out) and a
+  solid orange slot (accent 35 %, no border). app.rs `bubble-moved(kind, corner, index)` →
+  `SettingChange::BubbleMoved` → `move_to` → store → `show_arrangement`.
+  - Look (maintainer): the first build's four dashed zones and 3 × 44 bar were replaced by
+    variant F of the drop zones mockup (https://claude.ai/artifact/D4WycMtijeV9PbFtqTgEkC),
+    slot without a dashed border; spec FR-015, US3 #2, research R7, quickstart 13 updated.
+  - The layout functions take a mode `m` (was `all: bool`): 0 pinned only, 1 all, 2 all with the
+    moving bubble at the target (`corner-in`, `rank-in`; the others make room), 3 all but the
+    dragged one. Ranks are doubled in `rank-in` (the slot is `2 × index − 1`): a float rank in a
+    conditional with an int was truncated and the slot tied with its neighbour.
+  - The target (`drop-corner`, `drop-index`) is set in `aim()` on each move, not bound: a binding
+    loops through the layout (Slint's check is static). Entering a corner it is measured on mode
+    3; within the corner on mode 2 (the bubbles around the slot), so it never flickers. The
+    pointer (`pointer-x`, `pointer-y`) is likewise assigned, not bound to the bubble's place.
+  - After the drop, `pending` keeps the drop's arrangement until Rust's arrays come back
+    (`changed bubble-corner` / `bubble-rank`, 300 ms fallback), so nothing slides back and forth.
+  - The maintainer checked on Windows (ezcap, release): moves across and within corners, press
+    without movement, Alt+Tab cancel, kept after a restart. Settings backup from before the test:
+    target/release/capturax.toml.before-t023.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -267,6 +291,6 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T023 (drag), T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
+- US3 (bubbles): T024 (grab cursors), T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
   (Reset row). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
