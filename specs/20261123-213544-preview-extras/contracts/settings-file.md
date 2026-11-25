@@ -28,8 +28,8 @@ Rules:
 4. In the corner lists:
    - an unknown kind is dropped (logged);
    - a kind listed twice keeps its first place;
-   - a kind in no list is appended to `bottom-right`, in the order of rule 2.
+   - a kind in no list is appended to `bottom-right`, in the order of rule 3.
 5. `pinned` keeps only known kinds. Order does not matter, and duplicates collapse.
 6. A missing `[overlay.bubbles]` table reads as the defaults above, which is today's layout.
    **Reset** (FR-016) writes the defaults.
-6. The existing `[overlay]` keys (`latency`, `fps`, `mode`) are unchanged.
+7. The existing `[overlay]` keys (`latency`, `fps`, `mode`) are unchanged.
