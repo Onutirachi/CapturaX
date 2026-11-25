@@ -7,7 +7,8 @@
 US1's ambient light is built, tuned and checked on both systems (T001–T008e), with its
 intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hidden" state and the toolbar
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
-check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. The ezcap and
+check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
+begun: the arrangement setting (T018) and the partial UI upload (T019) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -181,6 +182,24 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   - The CachyOS clone is on a detached HEAD at d624e61 (its local branch still holds the commits
     from before they were amended); its `capturax.toml` was restored from
     `~/capx/capturax.toml.before-t017`.
+- 2026-11-25: T018: crates/settings/src/model.rs `BubbleKind` (`ALL`, `as_str`, `parse`),
+  `Arrangement { corners, pinned }` as `Overlay.bubbles` (`Overlay` is no longer `Copy`;
+  `store.get()` returns by value, so app.rs did not change), `CORNER_KEYS`, `BOTTOM_RIGHT`, all
+  exported. `read_arrangement`: a missing or non-table `[overlay.bubbles]` is the default; a key
+  that is not an array reads as empty (logged); `pinned` is kept in kind order. Tests for each
+  rule and a round trip. contracts/settings-file.md: "rule 2" was a slip for rule 3 (kind order)
+  and the second "6." is now 7.
+- 2026-11-25: T019: app/src/ui.rs `Rect`, pure `merge` and `clamp` (tested); `UiImage.dirty` from
+  the bounding box of Slint's `PhysicalRegion` (`render` returns it), the whole image on a full
+  repaint. render/mod.rs `send_ui` merges the region of an image not yet uploaded into the next
+  (tested). gpu.rs `set_ui` uploads only `dirty` (`upload_rect`, offset into the packed rows) and
+  a new texture (first, new size, new video thread) whole. The maintainer looked on Windows with
+  the test video and the ezcap: normal; the logs had no region warning.
+  - Bubbles never show with `--test-video`: `show_info` fills them only while a device plays
+    (since device-preview). Use a device to look at bubbles.
+  - `up_ms` (maintainer, 2026-11-25): a new last field of the `[loop]` line, the `set_ui` time on
+    the video thread; `ui_ms` stays the main thread's draw + copy. contracts/stats.md, research
+    R9, quickstart and T029 use `up_ms` for the partial upload's cost.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -195,5 +214,6 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T018 and T019 first; the bubble fade question above comes with T021.
+- US3 (bubbles): T020 (arrangement logic, app/src/bubbles.rs, pure). Then T021; the bubble fade
+  question above comes with it.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
