@@ -1,7 +1,8 @@
 Icons in this folder are Tabler Icons (https://tabler.io/icons), outline style, 24 px, except
 the corner_*.svg files, drawn for CapturaX (the notification position, device preview FR-032).
 volume_1.svg is Tabler's volume-2 without its wave (Tabler has no low volume icon), and
-volume_off.svg is Tabler's volume-3 (preview audio FR-011).
+volume_off.svg is Tabler's volume-3 (preview audio FR-011). pin_filled.svg is Tabler's pin in the
+filled style (preview extras FR-014).
 
 MIT License
 

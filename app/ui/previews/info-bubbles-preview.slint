@@ -1,9 +1,9 @@
 // The info bubbles for `slint-viewer` (not built into the app), over a video stand-in half white,
 // half black, with stand-ins for the toolbar and the side docks. The first arrangement puts a
 // bubble in each corner; the buttons switch to all four in one corner, toggle the controls (the
-// pinned frame rate stays) and clear the values, so the slides show. Hover the frame rate or
-// latency bubble for its controls (the menu and the tooltip need the app's top layer, so only the
-// controls show here). Sample texts are plain strings: previews are left out of the translation
+// pinned frame rate stays) and clear the values, so the slides show. Hover a bubble for its
+// controls; their Pin toggle pins it here too (the menu and the tooltip need the app's top layer,
+// so only the controls show here). Sample texts are plain strings: previews are left out of the translation
 // check.
 import { Theme } from "../theme.slint";
 import { InfoBubbles, BubbleControlsLayer } from "../components/info-bubbles.slint";
@@ -46,6 +46,7 @@ export component InfoBubblesPreview inherits Window {
     property <bool> spread: true;
     property <bool> controls: true;
     property <bool> values: true;
+    property <[bool]> pinned: [false, false, true, false];
     property <NoticeBox> toolbar: { x: (root.width - 420px) / 2, y: 12px, w: 420px, h: 56px };
     property <NoticeBox> left-dock: { x: 12px, y: (root.height - 232px) / 2, w: 64px, h: 232px };
     property <NoticeBox> right-dock: { x: root.width - 76px, y: (root.height - 128px) / 2, w: 64px, h: 128px };
@@ -67,7 +68,13 @@ export component InfoBubblesPreview inherits Window {
         controls-shown: root.controls;
         bubble-corner: root.spread ? [0, 1, 2, 3] : [3, 3, 3, 3];
         bubble-rank: root.spread ? [0, 0, 0, 0] : [0, 1, 2, 3];
-        bubble-pinned: [false, false, true, false];
+        bubble-pinned: root.pinned;
+        pin-toggled(kind) => {
+            root.pinned = [
+                kind == 0 ? !root.pinned[0] : root.pinned[0], kind == 1 ? !root.pinned[1] : root.pinned[1],
+                kind == 2 ? !root.pinned[2] : root.pinned[2], kind == 3 ? !root.pinned[3] : root.pinned[3],
+            ];
+        }
         toolbar-box: root.toolbar;
         left-dock-box: root.left-dock;
         right-dock-box: root.right-dock;

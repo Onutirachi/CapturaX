@@ -276,7 +276,8 @@ controls hidden.
   in its corner's order, and a pinned flag. Defaults: all at the bottom right, in today's order
   (source, mode, frame rate, latency), none pinned, which is today's look.
 - **FR-014**: While the controls show, all bubbles MUST show in their corners; pinned ones show a
-  small pin (Tabler `pin`) before their text. While the controls are hidden, only the pinned ones show, packed against their
+  small orange pin (Tabler `pin`, filled) in their top right corner, as the stack spike
+  (maintainer, 2026-11-25). While the controls are hidden, only the pinned ones show, packed against their
   corner in their order, without the pin.
 - **FR-015**: Moving a bubble is click and drag, the only way (maintainer, 2026-11-23): the
   pointer shows the grab hand over a bubble and the closed hand while dragging; the bubble
@@ -284,7 +285,11 @@ controls hidden.
   orange bar shows its place in that corner's order, and releasing puts it there. A press without
   movement is not a drag. The hover controls (spec #3 FR-016) hold a **Pin** toggle (the pin
   icon, on chip while pinned; tooltip "Pin" / "Unpin") and, for bubbles with display choices, the
-  display button; no corner or order items in any menu.
+  display button; no corner or order items in any menu. The pointer and the keyboard use the
+  same controls (maintainer, 2026-11-25): every bubble takes the focus, and Enter, Space, Up or
+  Down opens its hover controls with the focus on **Pin**; Tab, Shift+Tab, Left and Right move
+  between the controls, Enter or Space presses one, and Esc, or Tab past the last control (Shift+Tab
+  before the first), closes them and gives the focus back to the bubble.
 - **FR-016**: The arrangement MUST be saved (one for the app, not per device) and applied at once.
   The settings panel's Preview category MUST have an **Info bubbles** row with a **Reset**
   button that restores the defaults (FR-013), with no text about what the default is

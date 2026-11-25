@@ -50,9 +50,18 @@ pub fn move_to(arrangement: &mut Arrangement, kind: BubbleKind, corner: usize, i
     list.insert(index.min(list.len()), kind);
 }
 
+/// The kind at `index` in the Slint arrays, `None` past the last (logged).
+pub fn kind_at(index: i32) -> Option<BubbleKind> {
+    let kind = usize::try_from(index)
+        .ok()
+        .and_then(|i| BubbleKind::ALL.get(i).copied());
+    if kind.is_none() {
+        log::warn!("bubble kind {index} does not exist; ignored");
+    }
+    kind
+}
+
 /// Adds `kind` to the pinned kinds or removes it; the list stays in kind order.
-// T022 (pin) calls it.
-#[cfg_attr(not(test), expect(dead_code))]
 pub fn toggle_pin(arrangement: &mut Arrangement, kind: BubbleKind) {
     if let Some(at) = arrangement.pinned.iter().position(|k| *k == kind) {
         arrangement.pinned.remove(at);
@@ -201,6 +210,16 @@ mod tests {
             (overlay.latency, overlay.fps, overlay.mode),
             (before.latency, before.fps, before.mode)
         );
+    }
+
+    #[test]
+    fn kind_at_follows_the_arrays() {
+        assert_eq!(kind_at(0), Some(Source));
+        assert_eq!(kind_at(1), Some(Mode));
+        assert_eq!(kind_at(2), Some(Fps));
+        assert_eq!(kind_at(3), Some(Latency));
+        assert_eq!(kind_at(4), None);
+        assert_eq!(kind_at(-1), None);
     }
 
     #[test]

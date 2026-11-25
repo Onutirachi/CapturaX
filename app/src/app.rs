@@ -213,6 +213,8 @@ pub enum SettingChange {
     LatencyDisplay(settings::LatencyDisplay),
     FpsDisplay(settings::FpsDisplay),
     ModeDisplay(settings::ModeDisplay),
+    /// A bubble pinned or unpinned (preview extras FR-015), from its Pin toggle or menu item.
+    BubblePin(settings::BubbleKind),
     /// The preview's volume (0–100) and mute, from the volume button (preview audio FR-011).
     Volume {
         level: u8,
@@ -415,6 +417,12 @@ impl App {
         ui.app.set_fps_display(latency::fps_index(overlay.fps));
         ui.app.set_mode_display(latency::mode_index(overlay.mode));
         show_arrangement(&ui.app, &overlay.bubbles);
+        let on = send.clone();
+        ui.app.on_bubble_pin_toggled(move |index| {
+            if let Some(kind) = bubbles::kind_at(index) {
+                on(UserEvent::Setting(SettingChange::BubblePin(kind)));
+            }
+        });
         let on = send.clone();
         ui.app.on_latency_display_changed(move |index| {
             on(UserEvent::Setting(SettingChange::LatencyDisplay(
@@ -2431,6 +2439,11 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 // The bubble shows its tags itself; only the setting is stored.
                 SettingChange::ModeDisplay(display) => self.store.update(|s| s.overlay.mode = display),
+                // Saved at once; the layout takes the new arrays (FR-016).
+                SettingChange::BubblePin(kind) => {
+                    self.store.update(|s| bubbles::toggle_pin(&mut s.overlay.bubbles, kind));
+                    show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
+                }
                 SettingChange::Volume { level, muted } => self.set_volume(level, muted),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);

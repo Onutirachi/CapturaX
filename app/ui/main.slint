@@ -127,6 +127,8 @@ export component AppWindow inherits Window {
     in property <[int]> bubble-corner: [3, 3, 3, 3];
     in property <[int]> bubble-rank: [0, 1, 2, 3];
     in property <[bool]> bubble-pinned: [false, false, false, false];
+    // Pin or unpin bubble kind k (preview extras FR-015).
+    callback bubble-pin-toggled(int);
 
     // The preview's volume (preview audio FR-011, FR-012): the level 0–100 and the mute, set by
     // Rust at start and changed here by the volume button; the icon's level from Rust
@@ -378,45 +380,6 @@ export component AppWindow inherits Window {
             : (chrome.height - right-dock.height) / 2;
         property <length> right-x: chrome.width - chrome.edge - right-dock.width;
 
-        // The info bubbles over the video area, each in its corner (preview extras FR-013 to
-        // FR-017); they slide with the chrome and stay under the settings panel. The keyboard
-        // reaches them after the toolbar. Their rows keep between the docks and beside or under
-        // the toolbar (8 px clear); their columns always stand clear of the side docks (FR-002a).
-        info := InfoBubbles {
-            x: 0;
-            y: 0;
-            width: parent.width;
-            height: parent.height;
-            controls-shown: root.chrome-shown;
-            instant: root.instant;
-            active: root.chrome-shown && !root.settings-open;
-            focusable: !root.settings-open;
-            bubble-corner: root.bubble-corner;
-            bubble-rank: root.bubble-rank;
-            bubble-pinned: root.bubble-pinned;
-            toolbar-box: root.toolbar-box;
-            left-dock-box: root.dock-box;
-            right-dock-box: root.right-dock-box;
-            notice-width: root.notification-position == "bottom-right" ? event-notice.width : 0;
-            notice-reserve: root.notice-reserve;
-            source: root.info-source;
-            mode: root.info-mode;
-            mode-tag: root.info-mode-tag;
-            mode-tag-kind: root.info-mode-tag-kind;
-            mode-aspect: root.info-mode-aspect;
-            fps: root.info-fps;
-            latency: root.info-latency;
-            latency-measured: root.info-latency-measured;
-            latency-estimated: root.info-latency-estimated;
-            latency-total: root.info-latency-total;
-            latency-display <=> root.latency-display;
-            fps-display <=> root.fps-display;
-            mode-display <=> root.mode-display;
-            latency-display-changed(display) => { root.latency-display-changed(display); }
-            fps-display-changed(display) => { root.fps-display-changed(display); }
-            mode-display-changed(display) => { root.mode-display-changed(display); }
-        }
-
         // The left dock holds the adjustments (FR-002a): fullscreen, ambient light, volume, then
         // settings. Slides out to the left.
         left-area := TouchArea {
@@ -528,6 +491,47 @@ export component AppWindow inherits Window {
                     clicked => { root.screenshot(); }
                 }
             }
+        }
+
+        // The info bubbles over the video area, each in its corner (preview extras FR-013 to
+        // FR-017); they slide with the chrome and stay under the settings panel. The keyboard
+        // reaches them last, after the docks (maintainer, 2026-11-25). Their rows keep between the
+        // docks and beside or under the toolbar (8 px clear); their columns always stand clear of
+        // the side docks (FR-002a).
+        info := InfoBubbles {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: parent.height;
+            controls-shown: root.chrome-shown;
+            instant: root.instant;
+            active: root.chrome-shown && !root.settings-open;
+            focusable: !root.settings-open;
+            bubble-corner: root.bubble-corner;
+            bubble-rank: root.bubble-rank;
+            bubble-pinned: root.bubble-pinned;
+            toolbar-box: root.toolbar-box;
+            left-dock-box: root.dock-box;
+            right-dock-box: root.right-dock-box;
+            notice-width: root.notification-position == "bottom-right" ? event-notice.width : 0;
+            notice-reserve: root.notice-reserve;
+            source: root.info-source;
+            mode: root.info-mode;
+            mode-tag: root.info-mode-tag;
+            mode-tag-kind: root.info-mode-tag-kind;
+            mode-aspect: root.info-mode-aspect;
+            fps: root.info-fps;
+            latency: root.info-latency;
+            latency-measured: root.info-latency-measured;
+            latency-estimated: root.info-latency-estimated;
+            latency-total: root.info-latency-total;
+            latency-display <=> root.latency-display;
+            fps-display <=> root.fps-display;
+            mode-display <=> root.mode-display;
+            latency-display-changed(display) => { root.latency-display-changed(display); }
+            fps-display-changed(display) => { root.fps-display-changed(display); }
+            mode-display-changed(display) => { root.mode-display-changed(display); }
+            pin-toggled(kind) => { root.bubble-pin-toggled(kind); }
         }
     }
 

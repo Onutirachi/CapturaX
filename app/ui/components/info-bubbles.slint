@@ -3,10 +3,12 @@
 // opaque white text, the same in both themes). Each sits in its corner of the video area at its
 // place in that corner's list (preview extras FR-013, research R6): a row packed against the
 // corner, or a column when the rows do not fit. They slide, never fade (FR-017).
-// A bubble with display choices (frame rate, latency) shows its hover controls after a short hover:
-// for now one settings button, drawn in the top layer above the bubble (`BubbleControlsLayer` in
-// main.slint), opening a menu of its displays (FR-016a, FR-017) with the current one marked. From
-// the keyboard the bubble itself takes the focus, and Enter, Space, Up or Down opens that menu.
+// Every bubble shows its hover controls after a short hover, drawn in the top layer above the
+// bubble (`BubbleControlsLayer` in main.slint): the Pin toggle (FR-015) and, for a bubble with
+// display choices (mode, frame rate, latency), a button opening a menu of its displays (FR-016a,
+// FR-017) with the current one marked. The keyboard uses the same controls (FR-015): the bubble
+// takes the focus, and Enter, Space, Up or Down opens its controls with the focus on Pin; Tab and
+// the arrows move between them, and Esc, or Tab past the last, gives the focus back to the bubble.
 import { Theme } from "../theme.slint";
 import { Raised } from "raised.slint";
 import { IconButton } from "icon-button.slint";
@@ -28,13 +30,29 @@ export global BubbleControls {
     out property <length> anchor-y;
     out property <length> anchor-width;
     out property <length> anchor-height;
+    // The bubble is pinned: the Pin toggle shows its chip.
+    out property <bool> pinned;
+    // The last press of the Pin toggle: its bubble, and a count that changes on every press.
+    out property <int> pin-owner;
+    out property <int> pin-presses;
     // The pointer is on the controls or the gap between them and the bubble (set by the layer).
     in-out property <bool> pointed;
+    // One of the controls has the keyboard focus (set by the layer).
+    in-out property <bool> focused;
+    // Changes when the keyboard opens the controls: the layer puts the focus on Pin, and clears
+    // `wants-focus` (also read when the controls are made).
+    out property <int> focus-requests;
+    in-out property <bool> wants-focus;
+    // The last time the keyboard left the controls: its bubble, and a count that changes each
+    // time; that bubble takes the focus back.
+    out property <int> back-owner;
+    out property <int> backs;
 
-    public function show(owner: int, items: [MenuItem], current: int, x: length, y: length, width: length,
-        height: length) {
+    public function show(owner: int, items: [MenuItem], current: int, pinned: bool, x: length, y: length,
+        width: length, height: length) {
         self.items = items;
         self.current = current;
+        self.pinned = pinned;
         self.anchor-x = x;
         self.anchor-y = y;
         self.anchor-width = width;
@@ -43,11 +61,39 @@ export global BubbleControls {
         self.owner = owner;
     }
 
-    // The bubble's display changed while its controls show.
-    public function update(owner: int, items: [MenuItem], current: int) {
+    // The keyboard opened them: shown as by the pointer, with the focus on Pin.
+    public function show-for-keys(owner: int, items: [MenuItem], current: int, pinned: bool, x: length,
+        y: length, width: length, height: length) {
+        if (owner != self.owner) {
+            self.show(owner, items, current, pinned, x, y, width, height);
+        }
+        self.wants-focus = true;
+        self.focus-requests += 1;
+    }
+
+    // The keyboard leaves the controls: they close and their bubble takes the focus back.
+    public function give-back() {
+        if (self.owner != 0) {
+            self.back-owner = self.owner;
+            self.backs += 1;
+            self.dismiss();
+        }
+    }
+
+    // The bubble's display or pin changed while its controls show.
+    public function update(owner: int, items: [MenuItem], current: int, pinned: bool) {
         if (owner == self.owner) {
             self.items = items;
             self.current = current;
+            self.pinned = pinned;
+        }
+    }
+
+    // The Pin toggle was pressed; the bubble that owns the controls asks Rust to pin or unpin it.
+    public function toggle-pin() {
+        if (self.owner != 0) {
+            self.pin-owner = self.owner;
+            self.pin-presses += 1;
         }
     }
 
@@ -62,6 +108,8 @@ export global BubbleControls {
     public function dismiss() {
         self.owner = 0;
         self.pointed = false;
+        self.focused = false;
+        self.wants-focus = false;
     }
 
     // Opens the display menu under the control at this rectangle.
@@ -88,6 +136,9 @@ component Bubble inherits Rectangle {
     // Its display menu, empty for none, and the row marked in it.
     in property <[MenuItem]> choices;
     in property <int> choice;
+    in property <bool> pinned;
+    // The small orange pin in its top right corner (FR-014).
+    in property <bool> marked;
     // Shown after 500 ms of hover, or at once on keyboard focus.
     in property <string> tip;
     in property <Side> tip-side: Side.left;
@@ -105,13 +156,14 @@ component Bubble inherits Rectangle {
     // The pointer or the keyboard is on the bubble, its controls or its menu: the chrome stays.
     out property <bool> engaged: root.pointed || (focus.has-focus && Input.keyboard);
     callback picked(int);
+    callback pin-toggled();
 
-    property <bool> has-menu: root.choices.length > 0;
     property <int> id;
     init => { self.id = Menus.new-id(); }
     property <bool> controls: root.id != 0 && BubbleControls.owner == root.id;
     property <bool> menu-open: root.id != 0 && Menus.owner == root.id;
-    property <bool> pointed: area.has-hover || (root.controls && BubbleControls.pointed) || root.menu-open;
+    property <bool> pointed: area.has-hover || (root.controls && (BubbleControls.pointed || BubbleControls.focused))
+        || root.menu-open;
 
     // Changes on each pick from this bubble's menu.
     property <int> picks: Menus.picked-owner == root.id ? Menus.picks : 0;
@@ -120,8 +172,23 @@ component Bubble inherits Rectangle {
             self.picked(Menus.picked-index);
         }
     }
-    changed choice => { BubbleControls.update(root.id, root.choices, root.choice); }
-    changed choices => { BubbleControls.update(root.id, root.choices, root.choice); }
+    // Changes each time the keyboard leaves this bubble's controls: the focus comes back here.
+    property <int> backs: BubbleControls.back-owner == root.id ? BubbleControls.backs : 0;
+    changed backs => {
+        if (self.backs != 0) {
+            focus.focus();
+        }
+    }
+    // Changes on each press of the Pin toggle in this bubble's controls.
+    property <int> pin-presses: BubbleControls.pin-owner == root.id ? BubbleControls.pin-presses : 0;
+    changed pin-presses => {
+        if (self.pin-presses != 0) {
+            self.pin-toggled();
+        }
+    }
+    changed choice => { BubbleControls.update(root.id, root.choices, root.choice, root.pinned); }
+    changed choices => { BubbleControls.update(root.id, root.choices, root.choice, root.pinned); }
+    changed pinned => { BubbleControls.update(root.id, root.choices, root.choice, root.pinned); }
     changed active => {
         if (!self.active) {
             BubbleControls.hide(root.id);
@@ -150,12 +217,11 @@ component Bubble inherits Rectangle {
         root.tip-token = 0;
     }
 
-    function open-menu() {
-        if (root.has-menu) {
-            root.hide-tip();
-            Menus.show(root.id, root.choices, root.choice, root.absolute-position.x, root.absolute-position.y,
-                root.width, root.height, 160px);
-        }
+    // The keyboard opens the same controls as the pointer, with the focus in them.
+    function open-controls() {
+        root.hide-tip();
+        BubbleControls.show-for-keys(root.id, root.choices, root.choice, root.pinned, root.absolute-position.x,
+            root.absolute-position.y, root.width, root.height);
     }
 
     // A language switch changes the text of a tooltip that shows (FR-024).
@@ -180,10 +246,10 @@ component Bubble inherits Rectangle {
     border-radius: Theme.radius-m;
     background: Theme.c.info-bubble;
 
-    // A bubble with a display menu is a button (set where it is used: the role must be constant).
+    // A bubble with a menu is a button (set where it is used: the role must be constant).
     accessible-role: text;
     accessible-description: root.tip;
-    accessible-action-default => { root.open-menu(); }
+    accessible-action-default => { root.open-controls(); }
 
     forward-focus: focus;
 
@@ -197,12 +263,12 @@ component Bubble inherits Rectangle {
     }
 
     focus := FocusScope {
-        enabled: root.active && root.focusable && root.has-menu;
+        enabled: root.active && root.focusable;
         focus-on-click: false;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow
                 || event.text == Key.UpArrow) {
-                root.open-menu();
+                root.open-controls();
                 return accept;
             }
             reject
@@ -219,9 +285,9 @@ component Bubble inherits Rectangle {
     // The controls open after a short hover, so sweeping the pointer across the bubbles opens none.
     Timer {
         interval: 120ms;
-        running: root.has-menu && root.active && area.has-hover && !root.controls;
+        running: root.active && area.has-hover && !root.controls;
         triggered => {
-            BubbleControls.show(root.id, root.choices, root.choice, root.absolute-position.x,
+            BubbleControls.show(root.id, root.choices, root.choice, root.pinned, root.absolute-position.x,
                 root.absolute-position.y, root.width, root.height);
         }
     }
@@ -245,6 +311,15 @@ component Bubble inherits Rectangle {
         padding-right: 12px;
         spacing: 8px;
         @children
+    }
+
+    if root.marked: Image {
+        x: parent.width - 15px;
+        y: 5px;
+        width: 10px;
+        height: 10px;
+        source: @image-url("../assets/icons/pin_filled.svg");
+        colorize: Theme.c.accent;
     }
 
     FocusRing {
@@ -316,6 +391,9 @@ export component InfoBubbles inherits Rectangle {
     callback latency-display-changed(int);
     callback fps-display-changed(int);
     callback mode-display-changed(int);
+    // The Pin toggle or the Pin item of bubble kind k (FR-015); Rust saves it and sends the arrays
+    // back.
+    callback pin-toggled(int);
     out property <bool> engaged: source-bubble.engaged || mode-bubble.engaged || fps-bubble.engaged
         || latency-bubble.engaged;
     // What each corner's bubbles cover while the controls show (`boxes`) and while they are
@@ -465,6 +543,10 @@ export component InfoBubbles inherits Rectangle {
     }
     pure function laid(k: int) -> bool {
         root.has(k) && ((root.controls-shown && root.arrived) || root.pinned(k))
+    }
+    // The pin mark shows while the controls show, and goes as the pinned bubbles close up (FR-014).
+    pure function marked(k: int) -> bool {
+        root.pinned(k) && (root.controls-shown || root.spread)
     }
     pure function any-pinned() -> bool {
         (root.has(0) && root.pinned(0)) || (root.has(1) && root.pinned(1)) || (root.has(2) && root.pinned(2))
@@ -641,7 +723,11 @@ export component InfoBubbles inherits Rectangle {
         active: root.active;
         focusable: root.focusable && root.laid(0);
         tip-side: root.tip-side(0);
+        pinned: root.pinned(0);
+        marked: root.marked(0);
+        pin-toggled => { root.pin-toggled(0); }
         widest: min(360px, root.room);
+        accessible-role: button;
         accessible-label: root.source-text;
         BubbleText { text: root.source-text; }
     }
@@ -665,6 +751,9 @@ export component InfoBubbles inherits Rectangle {
         active: root.active;
         focusable: root.focusable && root.laid(1);
         tip-side: root.tip-side(1);
+        pinned: root.pinned(1);
+        marked: root.marked(1);
+        pin-toggled => { root.pin-toggled(1); }
         widest: root.room;
         choices: root.mode-items;
         accessible-role: button;
@@ -704,6 +793,9 @@ export component InfoBubbles inherits Rectangle {
         active: root.active;
         focusable: root.focusable && root.laid(2);
         tip-side: root.tip-side(2);
+        pinned: root.pinned(2);
+        marked: root.marked(2);
+        pin-toggled => { root.pin-toggled(2); }
         widest: root.room;
         choices: root.fps-items;
         accessible-role: button;
@@ -735,6 +827,9 @@ export component InfoBubbles inherits Rectangle {
         active: root.active;
         focusable: root.focusable && root.laid(3);
         tip-side: root.tip-side(3);
+        pinned: root.pinned(3);
+        marked: root.marked(3);
+        pin-toggled => { root.pin-toggled(3); }
         widest: root.room;
         choices: root.latency-items;
         accessible-role: button;
@@ -774,30 +869,96 @@ export component BubbleControlsLayer inherits Rectangle {
 
         property <float> appear: 0;
         animate appear { duration: Theme.quick; easing: ease-out; }
-        init => { self.appear = 1; }
+        init => {
+            self.appear = 1;
+            self.take-focus();
+        }
+
+        // The Pin toggle, then the display button for a bubble with display choices (FR-015).
+        property <bool> has-display: BubbleControls.items.length > 0;
+        // The keyboard: opened by it, the focus goes to Pin; a control with the focus keeps them.
+        property <int> requests: BubbleControls.focus-requests;
+        changed requests => { self.take-focus(); }
+        function take-focus() {
+            if (BubbleControls.wants-focus) {
+                BubbleControls.wants-focus = false;
+                pin.focus();
+                // `focused` may first be read already true, and then its change handler never
+                // runs: the controls would hide on their timer.
+                BubbleControls.focused = pin.has-focus;
+            }
+        }
+        property <bool> focused: pin.has-focus || display.has-focus;
+        changed focused => { BubbleControls.focused = self.focused; }
+        // The display menu that the keyboard opened gives the focus back to its button when it
+        // closes (not replaced by another menu).
+        property <bool> menu-shown: Menus.open && Menus.owner == BubbleControls.owner;
+        property <bool> menu-by-keys;
+        changed menu-shown => {
+            if (!self.menu-shown && self.menu-by-keys && !Menus.open) {
+                display.focus();
+            }
+            if (!self.menu-shown) {
+                self.menu-by-keys = false;
+            }
+        }
+
+        // Tab and Right go forward, Shift+Tab and Left back; past either end, and Esc, the focus
+        // goes back to the bubble.
+        function keys(event: KeyEvent, first: bool, last: bool) -> EventResult {
+            if (event.text == Key.Escape || (last && (event.text == Key.Tab || event.text == Key.RightArrow))
+                || (first && (event.text == Key.Backtab || event.text == Key.LeftArrow))) {
+                BubbleControls.give-back();
+                return accept;
+            }
+            if (!last && (event.text == Key.Tab || event.text == Key.RightArrow)) {
+                display.focus();
+                return accept;
+            }
+            if (!first && (event.text == Key.Backtab || event.text == Key.LeftArrow)) {
+                pin.focus();
+                return accept;
+            }
+            reject
+        }
 
         panel := Raised {
             fill: Theme.c.top;
             y: root.below ? root.space : 0;
-            width: 48px;
+            width: controls.has-display ? 90px : 48px;
             height: 48px;
             opacity: controls.appear;
 
-            settings := IconButton {
+            pin := IconButton {
                 x: 4px;
                 y: 4px;
                 size: 40px;
                 icon-size: 20px;
+                icon: @image-url("../assets/icons/pin.svg");
+                tooltip: BubbleControls.pinned ? @tr("Unpin") : @tr("Pin");
+                tooltip-side: Side.left;
+                active: BubbleControls.pinned;
+                clicked => { BubbleControls.toggle-pin(); }
+                key(event) => { controls.keys(event, true, !controls.has-display) }
+            }
+
+            display := IconButton {
+                x: 46px;
+                y: 4px;
+                size: 40px;
+                icon-size: 20px;
+                visible: controls.has-display;
+                focusable: controls.has-display;
                 icon: @image-url("../assets/icons/adjustments_horizontal.svg");
                 tooltip: @tr("Display");
-                tooltip-side: Side.left;
-                active: Menus.open && Menus.owner == BubbleControls.owner;
-                // The bubble itself opens the menu from the keyboard.
-                focusable: false;
+                tooltip-side: Side.right;
+                active: controls.menu-shown;
                 clicked => {
+                    controls.menu-by-keys = self.has-focus;
                     BubbleControls.open-menu(self.absolute-position.x, self.absolute-position.y, self.width,
                         self.height);
                 }
+                key(event) => { controls.keys(event, false, true) }
             }
         }
     }

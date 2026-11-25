@@ -299,6 +299,12 @@ msgstr "Nominal"
 msgid "Display"
 msgstr "Exibição"
 
+msgid "Pin"
+msgstr "Fixar"
+
+msgid "Unpin"
+msgstr "Desafixar"
+
 msgid "Resolution"
 msgstr "Resolução"
 
