@@ -8,7 +8,8 @@ US1's ambient light is built, tuned and checked on both systems (T001–T008e), 
 intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hidden" state and the toolbar
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
-begun: the arrangement setting (T018) and the partial UI upload (T019) are built. The ezcap and
+begun: the arrangement setting (T018), the partial UI upload (T019) and the arrangement logic
+(T020) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -200,6 +201,12 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   - `up_ms` (maintainer, 2026-11-25): a new last field of the `[loop]` line, the `set_ui` time on
     the video thread; `ui_ms` stays the main thread's draw + copy. contracts/stats.md, research
     R9, quickstart and T029 use `up_ms` for the partial upload's cost.
+- 2026-11-25: T020: app/src/bubbles.rs (pure, module-level `expect(dead_code)` until T021–T023
+  and T027 call it): free functions over `settings::Arrangement` (the type lives in the settings
+  crate): `move_to(&mut, kind, corner, index)` (a corner past 3 is ignored, logged),
+  `toggle_pin(&mut, kind)` (kept in kind order), `reset(&mut Overlay)` (only `bubbles`) and
+  `slint_arrays(&) -> SlintArrays { corner, rank: [i32; 4], pinned: [bool; 4] }`. 6 tests, with
+  an invariant check after each move.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -214,6 +221,6 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T020 (arrangement logic, app/src/bubbles.rs, pure). Then T021; the bubble fade
-  question above comes with it.
+- US3 (bubbles): T021 (layout per corner, info-bubbles.slint; arrays from `slint_arrays()`);
+  the bubble fade question above comes with it: ask the maintainer before starting.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
