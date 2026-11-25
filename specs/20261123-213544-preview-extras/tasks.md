@@ -127,7 +127,7 @@ hidden at no latency cost.
 - [ ] T026 [US3] Pinned texts keep updating (research R9; after T019, T021): in app/src/app.rs the per-second frame rate and latency texts update while the controls show or that bubble is pinned (today only while active), so a pinned bubble updates once a second with the controls hidden and nothing redraws when none is pinned
 - [ ] T027 [US3] Reset row (FR-016; after T020): in app/ui/components/settings-panel.slint the Preview category gains the **Info bubbles** row with a **Reset** button and no text about the default; the callback goes to app/src/app.rs → `reset` → save → arrays; texts in the pt-BR catalog (with the catalog's existing term for Reset)
 - [ ] T028 [US3] (maintainer) Windows: quickstart checks 12–16 (check 15's sizes set by the agent, the maintainer looks), and the partial upload's look from T019; record in measurements/acceptance.md
-- [ ] T029 [US3] (maintainer) Latency (SC-001): quickstart "Latency check" run 3 (ambient on, frame rate and latency pinned, controls hidden) at 1080p60 and 1080p120 on Windows and on CachyOS (the agent over SSH), compared with run 1; `ui` about 1 per second, `ui_ms` well below today's full uploads; record in measurements/latency.md
+- [ ] T029 [US3] (maintainer) Latency (SC-001): quickstart "Latency check" run 3 (ambient on, frame rate and latency pinned, controls hidden) at 1080p60 and 1080p120 on Windows and on CachyOS (the agent over SSH), compared with run 1; `ui` about 1 per second, `up_ms` well below a whole upload; record in measurements/latency.md
 
 **Checkpoint**: arrangement, pin, drag and reset on both systems; the pinned run within the
 latency budget.

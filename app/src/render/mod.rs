@@ -845,9 +845,9 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         if let Some(ui) = ui {
             let start = Instant::now();
             gpu.set_ui(&ui);
-            stats.ui_image(ui.draw_ms);
+            let ms = start.elapsed().as_secs_f64() * 1e3;
+            stats.ui_image(ui.draw_ms, ms);
             if ui.language {
-                let ms = start.elapsed().as_secs_f64() * 1e3;
                 crate::present_log::stage(Stage::Upload, ms, lines);
                 language_upload = Some(Instant::now());
             }

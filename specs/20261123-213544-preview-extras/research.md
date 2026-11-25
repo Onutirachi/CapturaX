@@ -253,7 +253,8 @@ Building it now saves a round of measuring on both PCs only to then build it any
 (maintainer, 2026-11-23).
 
 **Measured**: SC-001's runs include one with the frame rate and latency bubbles pinned and the
-controls hidden. The `ui_ms` and `ui` fields of the stats show the uploads.
+controls hidden. The `ui` field counts the uploads and `up_ms` times them on the video
+thread (added 2026-11-25: `ui_ms` times only the draw and copy on the main thread).
 
 **Alternative**: measure first and build only on failure. This was rejected for the reason
 above.

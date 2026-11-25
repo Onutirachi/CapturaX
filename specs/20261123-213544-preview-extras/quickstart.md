@@ -46,4 +46,4 @@ capturax --stats          # ambient on, fps and latency bubbles pinned, controls
 Compare the median and p95 of `ready_ms` and the `repl` count (contracts/stats.md). Then repeat
 spec #3's glass-to-glass check (SC-007) once with the ambient light on. Record everything in
 `measurements/latency.md`. In the pinned run, `ui` shows about 1 upload per second, and
-`ui_ms` stays well below today's full uploads (research R9).
+`up_ms` stays well below a whole upload (research R9).

@@ -93,6 +93,8 @@ pub struct Stats {
     gap_ms: Option<f64>,
     ui: u32,
     ui_ms: Vec<f64>,
+    /// Each UI image's upload on the video thread (preview extras research R9).
+    up_ms: Vec<f64>,
     moves: u32,
     /// Captured → presented, in ms, for the presents of this second.
     latency_ms: Vec<f64>,
@@ -118,6 +120,7 @@ impl Stats {
             gap_ms: None,
             ui: 0,
             ui_ms: Vec::new(),
+            up_ms: Vec::new(),
             moves: 0,
             latency_ms: Vec::new(),
             repeated: 0,
@@ -161,11 +164,13 @@ impl Stats {
         self.glow += 1;
     }
 
-    /// A UI image handed to the video thread, drawn and copied in `draw_ms`.
-    pub fn ui_image(&mut self, draw_ms: f64) {
+    /// A UI image handed to the video thread, drawn and copied in `draw_ms`, uploaded in
+    /// `upload_ms`.
+    pub fn ui_image(&mut self, draw_ms: f64, upload_ms: f64) {
         if self.lines {
             self.ui += 1;
             self.ui_ms.push(draw_ms);
+            self.up_ms.push(upload_ms);
         }
     }
 
@@ -201,6 +206,7 @@ impl Stats {
         self.gap_ms = None;
         self.ui = 0;
         self.ui_ms.clear();
+        self.up_ms.clear();
         self.moves = 0;
         self.latency_ms.clear();
         self.repeated = 0;
@@ -213,7 +219,7 @@ impl Stats {
         let _ = write!(
             line,
             "[loop] t={} recv={} pres={} repl={} ready_ms={} gap_ms={} ui={} ui_ms={} moves={} \
-             lat_ms={} rep={} glow={}",
+             lat_ms={} rep={} glow={} up_ms={}",
             now.saturating_duration_since(self.start).as_secs(),
             self.received,
             self.presented,
@@ -226,6 +232,7 @@ impl Stats {
             median_max_text(latency),
             self.repeated,
             self.glow,
+            median_max_text(median_max(&mut self.up_ms)),
         );
         line
     }
@@ -353,7 +360,7 @@ mod tests {
         assert_eq!(report.summary, Summary::EMPTY);
         assert_eq!(
             report.line.unwrap(),
-            "[loop] t=1 recv=0 pres=0 repl=0 ready_ms=-/- gap_ms=- ui=0 ui_ms=-/- moves=0 lat_ms=-/- rep=0 glow=0"
+            "[loop] t=1 recv=0 pres=0 repl=0 ready_ms=-/- gap_ms=- ui=0 ui_ms=-/- moves=0 lat_ms=-/- rep=0 glow=0 up_ms=-/-"
         );
     }
 
@@ -366,8 +373,8 @@ mod tests {
         stats.repeated();
         let first = line(stats.report(at(start, 1000)));
         assert!(first.contains(" pres=1 "), "{first}");
-        assert!(first.ends_with(" rep=2 glow=0"), "{first}");
-        assert!(line(stats.report(at(start, 2000))).ends_with(" rep=0 glow=0"));
+        assert!(first.ends_with(" rep=2 glow=0 up_ms=-/-"), "{first}");
+        assert!(line(stats.report(at(start, 2000))).ends_with(" rep=0 glow=0 up_ms=-/-"));
     }
 
     #[test]
@@ -378,8 +385,8 @@ mod tests {
             stats.glow_updated();
         }
         let first = line(stats.report(at(start, 1000)));
-        assert!(first.ends_with(" rep=0 glow=60"), "{first}");
-        assert!(line(stats.report(at(start, 2000))).ends_with(" glow=0"));
+        assert!(first.ends_with(" rep=0 glow=60 up_ms=-/-"), "{first}");
+        assert!(line(stats.report(at(start, 2000))).ends_with(" glow=0 up_ms=-/-"));
     }
 
     #[test]
@@ -403,8 +410,8 @@ mod tests {
         stats.presented(at(start, 6), at(start, 9), at(start, 10));
         stats.presented(at(start, 20), at(start, 27), at(start, 30));
         stats.presented(at(start, 41), at(start, 45), at(start, 47));
-        stats.ui_image(0.5);
-        stats.ui_image(1.5);
+        stats.ui_image(0.5, 0.1);
+        stats.ui_image(1.5, 0.3);
         stats.window_moved(3);
         let report = stats.report(at(start, 1000)).unwrap();
         assert_eq!(
@@ -416,7 +423,7 @@ mod tests {
         );
         assert_eq!(
             report.line.unwrap(),
-            "[loop] t=1 recv=4 pres=3 repl=1 ready_ms=2.0/3.0 gap_ms=20.0 ui=2 ui_ms=1.0/1.5 moves=3 lat_ms=6.0/10.0 rep=0 glow=0"
+            "[loop] t=1 recv=4 pres=3 repl=1 ready_ms=2.0/3.0 gap_ms=20.0 ui=2 ui_ms=1.0/1.5 moves=3 lat_ms=6.0/10.0 rep=0 glow=0 up_ms=0.2/0.3"
         );
     }
 
@@ -439,7 +446,7 @@ mod tests {
         stats.presented(at(start, 1037), at(start, 1040), at(start, 1040));
         assert_eq!(
             line(stats.report(at(start, 2000))),
-            "[loop] t=2 recv=0 pres=1 repl=0 ready_ms=0.0/0.0 gap_ms=50.0 ui=0 ui_ms=-/- moves=0 lat_ms=3.0/3.0 rep=0 glow=0"
+            "[loop] t=2 recv=0 pres=1 repl=0 ready_ms=0.0/0.0 gap_ms=50.0 ui=0 ui_ms=-/- moves=0 lat_ms=3.0/3.0 rep=0 glow=0 up_ms=-/-"
         );
     }
 
