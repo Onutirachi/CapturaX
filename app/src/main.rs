@@ -2,6 +2,7 @@
 
 mod app;
 mod audio;
+mod bubbles;
 mod cli;
 mod frame;
 mod hotkeys;
