@@ -292,7 +292,12 @@ controls hidden.
 - **FR-017**: Bubbles in a corner MUST lay out like today's row (spec #3 FR-002a): a row from
   the corner along the bottom or top edge, fitting between the docks; a column when the row does
   not fit. A top corner's row never goes under the toolbar: when there is no room beside it, the
-  row goes below the toolbar.
+  row goes below the toolbar. Bubbles slide, never fade, as in the stack spike (maintainer,
+  2026-11-25): when the controls hide, the unpinned bubbles slide out past the nearest edge (a top
+  corner's up, a bottom corner's down), each keeping its place along the edge, and then the pinned
+  ones close up against their corner; when the controls show, the pinned ones make room first and
+  then the others slide in (at once when none is pinned). A bubble that gains or loses its value
+  slides in or out the same way, and the others of its corner slide to their new places.
 - **FR-018**: The notices (spec #3 FR-027, FR-033) MUST keep their rules in every corner: in a
   corner that holds bubbles they join the bubbles' group at the corner while the controls are
   hidden and move past them while the controls show. Only the pinned bubbles count while the

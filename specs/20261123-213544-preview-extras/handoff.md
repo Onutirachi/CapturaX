@@ -207,6 +207,8 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   `toggle_pin(&mut, kind)` (kept in kind order), `reset(&mut Overlay)` (only `bubbles`) and
   `slint_arrays(&) -> SlintArrays { corner, rank: [i32; 4], pinned: [bool; 4] }`. 6 tests, with
   an invariant check after each move.
+- 2026-11-25: the maintainer chose sliding over the proposed fade (T014's note): FR-017, R6 and
+  T021 now say how, after the stack spike.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -216,11 +218,11 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Open questions
 
-- Fading the bubbles in and out (see T014 above): add to FR-017 and T021 once the maintainer
-  approves.
+- None.
 
 ## Next step
 
 - US3 (bubbles): T021 (layout per corner, info-bubbles.slint; arrays from `slint_arrays()`);
-  the bubble fade question above comes with it: ask the maintainer before starting.
+  bubbles slide out and in, never fade (FR-017, R6, approved 2026-11-25; the spike's code is in
+  the tag `spike/stack-20261026`, `spike/layered-preview/ui/components/info-overlay.slint`).
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).

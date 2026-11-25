@@ -184,8 +184,14 @@ Per edge (top or bottom):
   it goes under the toolbar (FR-017). While the controls are hidden, pinned top bubbles pack to
   the top edge.
 
-Positions animate (`animate x, y` 220 ms) as the mockup. Opacity is `1` for pinned bubbles and
-`1 − hidden` for the others.
+Positions animate (`animate x, y` 220 ms) as the mockup. Bubbles never fade (FR-017, maintainer
+2026-11-25, the stack spike's `info-overlay.slint`): a bubble that is not laid keeps its place
+along the edge and sits past the nearest edge (above the window for a top corner, below it for a
+bottom one), so it slides out and in vertically. Hiding and showing the controls run in two
+steps, as in the spike: on hide the unpinned bubbles leave first, still counted in their corner's
+offsets, and only after the slide (about 300 ms) the pinned ones close up; on show the pinned ones
+spread first and the others slide in after it (at once when none is pinned). A bubble with no
+value is not laid and sits outside the same way.
 
 **Rationale**: moving widths to Rust would need a measure-and-report round trip (a frame late,
 plus a feedback loop). Four, and later six, kinds unroll fine.
