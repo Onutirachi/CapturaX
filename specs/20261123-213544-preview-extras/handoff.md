@@ -1,14 +1,14 @@
 # Handoff: Preview Extras
 
-**Updated**: 2026-11-24 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261123-213544-preview-extras`
+**Updated**: 2026-11-25 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261123-213544-preview-extras`
 
 ## State
 
 US1's ambient light is built, tuned and checked on both systems (T001–T008e), with its
 intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hidden" state and the toolbar
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
-check (T015) and the Windows acceptance (T016) are done. Left in US2: T017 on CachyOS. The ezcap, the C920 and the PS5 are on the
-Windows PC.
+check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. The ezcap and
+the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
 
@@ -173,6 +173,14 @@ Windows PC.
   counters): 0.00 % hidden and 0.00 % shown with no device, 0.21 % / 0.43 % playing the C920.
   Quickstart check 8 rewritten for FR-010a (picks while hidden open nothing). The agent could
   not capture the screen (permission refused), so the maintainer clicked.
+- 2026-11-25: T017 on CachyOS (measurements/acceptance.md): checks 7–11 pass, run by the agent
+  over SSH; the maintainer watched the webcam light. Released in 88–144 ms, first frame on show
+  428–561 ms; SC-003 hidden 0.17 % CPU / 0.00 % GPU against 0.20 % / 0.93 % waiting with no
+  device. The **Open** check used a `v4l2loopback` Virtual Cam as the second device (made before a
+  restart: one made while the app runs is not listed, known since device-preview).
+  - The CachyOS clone is on a detached HEAD at d624e61 (its local branch still holds the commits
+    from before they were amended); its `capturax.toml` was restored from
+    `~/capx/capturax.toml.before-t017`.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -187,5 +195,5 @@ Windows PC.
 
 ## Next step
 
-- The manual T017 (CachyOS, the C920 there; the agent over SSH).
+- US3 (bubbles): T018 and T019 first; the bubble fade question above comes with T021.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).

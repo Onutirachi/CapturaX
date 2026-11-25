@@ -65,3 +65,30 @@ type (Windows' GPU Engine counters, summed over its engines), 30 one-second samp
 
 With both cameras unplugged the app waits for the C920 rather than showing "no source" (a third
 camera, NVIDIA Broadcast, stays listed), so the waiting state stands for it: no session in both.
+
+## T017: hide the preview, CachyOS (RTX 3050, KDE Plasma Wayland), 2026-11-25
+
+The C920 (and a `v4l2loopback` "Virtual Cam" as the second device) on the CachyOS PC, release
+build, window 1720 × 720. The agent ran everything over SSH (ydotool, screenshots, `fuser`,
+`pactl`, `capturax.log`); the maintainer watched the webcam light.
+
+| # | Check | Result |
+|---|---|---|
+| 7 | Hide the C920 | Pass: "Preview oculto" with `device_tv_off`, `/dev/video0` free (session closed in 144 ms), another app opened it (ffmpeg; Cheese is not installed), the app's PipeWire streams gone, no bubble, screenshot button disabled, the hotkey refused (logged `NoImage`); the light went off within 1 s (maintainer) |
+| 8 | Show again; mode and range picks while hidden; device pick while hidden; **Open** on a "connected" notice | Pass: same device; picks (1600 × 896 at 30, Limited) saved and opened nothing, the shown preview opened in them (`range=limited`); picking the Virtual Cam kept it hidden; **Open** on "HD Pro Webcam C920 conectado" showed the preview with the C920 |
+| 9 | Hidden: unplug and replug (USB unbind/bind); close to the tray and reopen; quit and start | Pass: notices only ("desconectado", "reconectado"), nothing reopened; from the tray and back nothing opened; after the restart both devices listed, no session, `/dev/video0` free |
+| 10 | Hide while opening; no device | Pass: hidden 74 ms into the opening, the session closed in 78 ms. With no device (C920 unbound, loopback removed) and the preview shown, the C920 is waited for ("desconectado", as on Windows) |
+| 11 | CPU and GPU, 30 s each | Pass (SC-003), below |
+
+SC-002 (from the log): hiding released the device in 88–144 ms; showing gave the first frame in
+428–561 ms after the click.
+
+SC-003: `top` (capturax's CPU, one-second samples) and `nvidia-smi pmon` (the process's SM use):
+
+| State | CPU | GPU |
+|---|---|---|
+| Shown, no device (waiting for the C920) | 0.20 % | 0.93 % |
+| Preview hidden | 0.17 % | 0.00 % |
+
+A `v4l2loopback` camera made while the app runs is not listed (known since device-preview), so
+the Virtual Cam was made before a restart; the restart doubled as check 9's.

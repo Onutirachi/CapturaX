@@ -102,7 +102,7 @@ audio, and is remembered across restarts.
 - [x] T014 [US2] Bubbles while hidden (FR-010, data-model.md "Info bubbles while hidden"; after T011): no bubble shows while hidden; app/src/app.rs `show_info` already empties every bubble outside `Playing`, so only the spec and data-model say so (maintainer, 2026-11-24: no lone source bubble)
 - [x] T015 [US2] Glow in the hidden state: confirm in app/src/render/mod.rs that the hidden state draws no glow and runs no glow update (no video layer), and that the ambient light button still flips the setting (quickstart check 5's hidden step)
 - [x] T016 [US2] (maintainer) Windows with the C920 and the ezcap: quickstart checks 7–11 and check 5's hidden step; SC-002 (release within 1 s, video back within the opening time + 0.5 s) and SC-003 (Task Manager, 30 s hidden vs 30 s "no source"); record in measurements/acceptance.md
-- [ ] T017 [US2] (maintainer) CachyOS with the C920: checks 7–10 by the agent over SSH (the device released checked with `fuser /dev/video*`, Cheese opening it, the log), the webcam light by the maintainer; check 11 with `top` and the GPU's usage; record in measurements/acceptance.md
+- [x] T017 [US2] (maintainer) CachyOS with the C920: checks 7–10 by the agent over SSH (the device released checked with `fuser /dev/video*`, Cheese opening it, the log), the webcam light by the maintainer; check 11 with `top` and the GPU's usage; record in measurements/acceptance.md
 
 **Checkpoint**: hiding and showing on both systems; the state survives a restart.
 
