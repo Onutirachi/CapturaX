@@ -222,6 +222,8 @@ pub enum SettingChange {
         corner: usize,
         index: usize,
     },
+    /// The Info bubbles row's Reset (preview extras FR-016).
+    BubblesReset,
     /// The preview's volume (0–100) and mute, from the volume button (preview audio FR-011).
     Volume {
         level: u8,
@@ -2195,6 +2197,8 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     let on = send.clone();
     prefs.on_watermark_changed(move |v| on(UserEvent::Setting(SettingChange::Watermark(v))));
     let on = send.clone();
+    prefs.on_bubbles_reset(move || on(UserEvent::Setting(SettingChange::BubblesReset)));
+    let on = send.clone();
     prefs.on_shadow_changed(move |index| {
         let shadow = match index {
             0 => settings::Shadow::Always,
@@ -2497,6 +2501,10 @@ impl ApplicationHandler<UserEvent> for App {
                 SettingChange::BubbleMoved { kind, corner, index } => {
                     self.store
                         .update(|s| bubbles::move_to(&mut s.overlay.bubbles, kind, corner, index));
+                    show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
+                }
+                SettingChange::BubblesReset => {
+                    self.store.update(|s| bubbles::reset(&mut s.overlay));
                     show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
                 }
                 SettingChange::Volume { level, muted } => self.set_volume(level, muted),

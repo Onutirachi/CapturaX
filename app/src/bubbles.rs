@@ -70,8 +70,6 @@ pub fn toggle_pin(arrangement: &mut Arrangement, kind: BubbleKind) {
 }
 
 /// Returns the bubbles to the defaults; the display choices (`latency`, `fps`, `mode`) stay.
-// T027 (reset) calls it.
-#[cfg_attr(not(test), expect(dead_code))]
 pub fn reset(overlay: &mut Overlay) {
     overlay.bubbles = Arrangement::default();
 }
