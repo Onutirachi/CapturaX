@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025) and the pinned texts updating (T026) are built. The ezcap and
+(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025), the pinned texts updating (T026) and the Reset row (T027) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -319,6 +319,12 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   each second with the controls hidden (`ui=2`), nothing redraws with none pinned (`ui=0`).
   - The maintainer turned `keep_in_tray` off in target/release/capturax.toml on purpose: closing
     the window then quits, so a rebuild does not fail on an app left in the tray.
+- 2026-11-26: T027: settings-panel.slint `ButtonRow` (name and an `ActionButton`; only the button
+  acts, so a stray click on the row resets nothing) and the Preview category's last row **Info
+  bubbles** / **Reset**, no text about the default. `Prefs.bubbles-reset()` →
+  `SettingChange::BubblesReset` → `bubbles::reset` → store → `show_arrangement`. pt-BR "Bolhas de
+  informação" (Reset was already "Restaurar"). The maintainer checked on Windows (ezcap, release):
+  moved and pinned bubbles, Reset brought the default, kept after a restart (quickstart check 16).
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -332,5 +338,5 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T027 (Reset row), then T028 (maintainer). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
+- US3 (bubbles): T028 (maintainer: quickstart checks 12–16 on Windows), then T029. An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
