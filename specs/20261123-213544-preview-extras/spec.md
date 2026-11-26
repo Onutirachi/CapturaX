@@ -311,10 +311,12 @@ controls hidden.
   source's bubbles slide in together once the video's fade-in (spec #3, 150 ms) is over and its
   first second's frame rate and latency are known, so the slide is seen and nothing enters twice
   (maintainer, 2026-11-25).
-- **FR-018**: The notices (spec #3 FR-027, FR-033) MUST keep their rules in every corner: in a
-  corner that holds bubbles they join the bubbles' group at the corner while the controls are
-  hidden and move past them while the controls show. Only the pinned bubbles count while the
-  controls are hidden.
+- **FR-018**: The notices (spec #3 FR-027, FR-033) MUST keep spec #3's bottom right rules in every
+  corner: the event notice joins the bubble row of its edge at the corner when the row reaches the
+  corner and has room for it (the bubbles slide aside); else it moves past the bubbles of its edge
+  (above them at the bottom, below them at the top), or covers them when that would leave the video
+  area. The settings notice stacks past the event notice and moves past the bubbles likewise. Only
+  the pinned bubbles count while the controls are hidden.
 - **FR-019**: All new texts (button tooltips, the state, **Info bubbles** and **Reset**) MUST be in
   English and Portuguese (Brazil), and every new control MUST work in both themes and down to
   640 × 360.

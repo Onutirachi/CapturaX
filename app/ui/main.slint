@@ -519,8 +519,9 @@ export component AppWindow inherits Window {
             toolbar-box: root.toolbar-box;
             left-dock-box: root.dock-box;
             right-dock-box: root.right-dock-box;
-            notice-width: root.notification-position == "bottom-right" ? event-notice.width : 0;
-            notice-reserve: root.notice-reserve;
+            notice-corner: root.notice-index;
+            notice-width: event-notice.width;
+            notice-appear: event-notice.appear;
             source: root.info-source;
             mode: root.info-mode;
             mode-tag: root.info-mode-tag;
@@ -546,8 +547,8 @@ export component AppWindow inherits Window {
     // before the settings panel: while the panel is open the balloon stays under it and its
     // backdrop (FR-027, maintainer, 2026-11-10).
     event-notice := EventNotice {
-        x: root.video-x + root.notice-corner.x + (root.notice-clear-of.x - root.notice-corner.x) * (1 - root.hidden);
-        y: root.video-y + root.notice-corner.y + (root.notice-clear-of.y - root.notice-corner.y) * (1 - root.hidden);
+        x: root.video-x + root.notice-hidden-at.x + (root.notice-clear-of.x - root.notice-hidden-at.x) * (1 - root.hidden);
+        y: root.video-y + root.notice-hidden-at.y + (root.notice-clear-of.y - root.notice-hidden-at.y) * (1 - root.hidden);
         room: root.video-width - 2 * root.notice-edge;
         top: root.notice-top;
         left: root.notice-left;
@@ -561,8 +562,8 @@ export component AppWindow inherits Window {
 
     // The settings notice balloon (FR-033), stacked past the event notice in the same corner.
     settings-notice := SettingsNotice {
-        x: root.video-x + root.settings-notice-corner.x + (root.settings-notice-clear-of.x - root.settings-notice-corner.x) * (1 - root.hidden);
-        y: root.video-y + root.settings-notice-corner.y + (root.settings-notice-clear-of.y - root.settings-notice-corner.y) * (1 - root.hidden);
+        x: root.video-x + root.settings-notice-hidden-at.x + (root.settings-notice-clear-of.x - root.settings-notice-hidden-at.x) * (1 - root.hidden);
+        y: root.video-y + root.settings-notice-hidden-at.y + (root.settings-notice-clear-of.y - root.settings-notice-hidden-at.y) * (1 - root.hidden);
         room: root.video-width - 2 * root.notice-edge;
         top: root.notice-top;
         left: root.notice-left;
@@ -604,10 +605,11 @@ export component AppWindow inherits Window {
     // Where the notice balloons stand (FR-027, FR-033, research R15 "In-app balloon"; they are
     // drawn under the settings panel, above): in their corner, 20 px from the video area's edges,
     // shown also with the controls hidden. While the controls show they keep clear of them: below
-    // the toolbar dock, beside the side docks (8 px), above the bubbles (12 px; over them when that
-    // would leave the video area); in the bottom right
-    // the event notice joins the bubble row at the corner when the row has room for it, and the
-    // bubbles slide aside. They move with the chrome's slide. With both on screen the event
+    // the toolbar dock, beside the side docks (8 px), past the bubbles of their edge (12 px, above
+    // them at the bottom, below them at the top; over them when that would leave the video area).
+    // In every corner (preview extras FR-018) the event notice joins the bubble row at the corner
+    // when the row has room for it, and the bubbles slide aside. With the controls hidden only the
+    // pinned bubbles count. They move with the chrome's slide. With both on screen the event
     // notice is nearest the corner and the settings notice stacks past it (12 px), sliding as the
     // event notice comes and goes.
     property <bool> notice-top: root.notification-position == "top-left" || root.notification-position == "top-right";
@@ -619,15 +621,14 @@ export component AppWindow inherits Window {
         w: event-notice.width,
         h: event-notice.height,
     };
-    // In the bottom right, at the end of the bubble row.
-    property <bool> notice-joins: root.notification-position == "bottom-right" && info.notice-fits;
-    // The bubbles leave the notice its place at the row's end as it grows in.
-    property <length> notice-reserve: root.notice-joins ? (event-notice.width + Theme.gap-m) * event-notice.appear : 0;
+    // The corner's index in the bubble arrays (0 top left, 1 top right, 2 bottom left, 3 bottom
+    // right) and the other corner of its edge.
+    property <int> notice-index: root.notice-top ? (root.notice-left ? 0 : 1) : (root.notice-left ? 2 : 3);
+    property <int> notice-partner: root.notice-left ? root.notice-index + 1 : root.notice-index - 1;
     // What the notice keeps clear of, in the video area, where it stands when shown.
     property <NoticeBox> toolbar-box: { x: toolbar-area.x, y: chrome.edge, w: toolbar.width, h: toolbar.height };
     property <NoticeBox> dock-box: { x: chrome.edge, y: chrome.left-top, w: left-dock.width, h: left-dock.height };
     property <NoticeBox> right-dock-box: { x: chrome.right-x, y: chrome.right-top, w: right-dock.width, h: right-dock.height };
-    property <NoticeBox> bubbles-box: info.boxes[3];
 
     pure function notice-hits(a: NoticeBox, b: NoticeBox) -> bool {
         b.w > 0 && b.h > 0 && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
@@ -663,15 +664,34 @@ export component AppWindow inherits Window {
             && !root.notice-hits(r, root.right-dock-box)
     }
 
-    // Clear of the toolbar and the docks, then above the bubbles when it fits there; else it
+    // `r` past the bubbles of its corner `a`, then of the other corner of its edge `b`.
+    pure function notice-past-bubbles(r: NoticeBox, a: NoticeBox, b: NoticeBox) -> NoticeBox {
+        root.notice-past(root.notice-past(r, a, false), b, false)
+    }
+
+    // Clear of the toolbar and the docks, then past the bubbles when it fits there; else it
     // covers them (a small window, where they stand in a column; FR-027).
     pure function notice-clear(r: NoticeBox) -> NoticeBox {
-        root.notice-fits(root.notice-past(root.notice-clear-chrome(r), root.bubbles-box, false))
-            ? root.notice-past(root.notice-clear-chrome(r), root.bubbles-box, false)
+        root.notice-fits(root.notice-past-bubbles(root.notice-clear-chrome(r), info.boxes[root.notice-index],
+                info.boxes[root.notice-partner]))
+            ? root.notice-past-bubbles(root.notice-clear-chrome(r), info.boxes[root.notice-index],
+                info.boxes[root.notice-partner])
             : root.notice-clear-chrome(r)
     }
 
-    property <NoticeBox> notice-clear-of: root.notice-joins ? root.notice-corner : root.notice-clear(root.notice-corner);
+    // With the controls hidden: past the pinned bubbles when that stays in the video area, else
+    // over them.
+    pure function notice-clear-pinned(r: NoticeBox) -> NoticeBox {
+        root.notice-inside(root.notice-past-bubbles(r, info.pinned-boxes[root.notice-index],
+                info.pinned-boxes[root.notice-partner]))
+            ? root.notice-past-bubbles(r, info.pinned-boxes[root.notice-index], info.pinned-boxes[root.notice-partner])
+            : r
+    }
+
+    // Where the event notice stands with the controls shown and hidden.
+    property <NoticeBox> notice-clear-of: info.notice-joins ? root.notice-corner : root.notice-clear(root.notice-corner);
+    property <NoticeBox> notice-hidden-at: info.notice-joins-pinned ? root.notice-corner
+        : root.notice-clear-pinned(root.notice-corner);
 
     // The settings notice in the corner, moved past the event notice `d` while that one shows.
     pure function settings-notice-from(d: NoticeBox) -> NoticeBox {
@@ -686,7 +706,7 @@ export component AppWindow inherits Window {
         }
     }
 
-    property <NoticeBox> settings-notice-corner: root.settings-notice-from(root.notice-corner);
+    property <NoticeBox> settings-notice-hidden-at: root.notice-clear-pinned(root.settings-notice-from(root.notice-hidden-at));
     property <NoticeBox> settings-notice-clear-of: root.notice-clear(root.settings-notice-from(root.notice-clear-of));
 
     BubbleControlsLayer {

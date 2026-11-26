@@ -483,10 +483,11 @@ export component InfoBubbles inherits Rectangle {
     in property <NoticeBox> toolbar-box;
     in property <NoticeBox> left-dock-box;
     in property <NoticeBox> right-dock-box;
-    // The event notice's width when it stands in the bottom right (main.slint), and the room the
-    // bottom row leaves it at its end as it grows in.
+    // The event notice (main.slint): its corner (0 top left, 1 top right, 2 bottom left, 3 bottom
+    // right), its width, and how far it has grown in (0 to 1).
+    in property <int> notice-corner: 3;
     in property <length> notice-width;
-    in property <length> notice-reserve;
+    in property <float> notice-appear;
     in property <string> source;
     // The mode's size ("1920 × 1080"), its name tag with the tag's ratio family, and its aspect
     // ratio tag.
@@ -527,12 +528,11 @@ export component InfoBubbles inherits Rectangle {
         root.extent(3, 1)];
     out property <[NoticeBox]> pinned-boxes: [root.extent(0, 0), root.extent(1, 0),
         root.extent(2, 0), root.extent(3, 0)];
-    // The event notice fits at the end of the bottom row, beside both bottom corners' rows, with
-    // the controls shown (spec #3 FR-027).
-    out property <bool> notice-fits: !root.meets(root.right-dock-box, root.bottom-y)
-        && root.row-width(2, 1) + (root.row-width(2, 1) > 0 ? root.gap : 0) + root.row-width(3, 1)
-            + root.gap + root.notice-width
-            <= root.width - root.margin - root.band-start(root.bottom-y, 1);
+    // The event notice joins its corner's row at the corner, the bubbles of its edge sliding
+    // aside, with the controls shown (`notice-joins`) and hidden (`notice-joins-pinned`, the
+    // pinned bubbles only) (spec #3 FR-027, in every corner: FR-018).
+    out property <bool> notice-joins: root.joins(1);
+    out property <bool> notice-joins-pinned: root.joins(0);
 
     property <length> gap: Theme.gap-m;
     property <length> margin: Theme.gap-l;
@@ -765,13 +765,38 @@ export component InfoBubbles inherits Rectangle {
     pure function shares(c: int, m: int) -> bool {
         !root.beside-toolbar(c, m) && !root.beside-toolbar(root.partner(c), m)
     }
-    pure function band-s(c: int, m: int) -> length {
+    // Where corner c's row may start and end, before the room left to the notice.
+    pure function band-s0(c: int, m: int) -> length {
         root.beside-toolbar(c, m) && c == 1 ? root.toolbar-box.x + root.toolbar-box.w + root.clear
             : root.band-start(root.band-y(c, m), m)
     }
-    pure function band-e(c: int, m: int) -> length {
+    pure function band-e0(c: int, m: int) -> length {
         root.beside-toolbar(c, m) && c == 0 ? root.toolbar-box.x - root.clear
-            : root.band-end(root.band-y(c, m), m) - (root.top(c) ? 0 : root.notice-reserve)
+            : root.band-end(root.band-y(c, m), m)
+    }
+    // The notice joins the row at its corner when the row reaches the corner (no dock and, at the
+    // top, no toolbar in the way) and has room for it beside the bubbles of its edge.
+    pure function joins(m: int) -> bool {
+        let c = root.notice-corner;
+        let mine = root.row-width(c, m);
+        let other = root.shares(c, m) ? root.row-width(root.partner(c), m) : 0;
+        root.band-y(c, m) == (root.top(c) ? root.top-y : root.bottom-y)
+            && (root.right(c) ? root.band-e0(c, m) == root.width - root.margin : root.band-s0(c, m) == root.margin)
+            && root.notice-width + (mine > 0 ? mine + root.gap : 0) + (other > 0 ? other + root.gap : 0)
+                <= root.band-e0(c, m) - root.band-s0(c, m)
+    }
+    // The room corner c's row leaves the joined notice at the notice's end of the band, as it
+    // grows in: in the notice's corner, and in the other corner of its edge when they share it.
+    pure function reserve(c: int, m: int) -> length {
+        (m == 0 ? root.notice-joins-pinned : root.notice-joins) && root.top(c) == root.top(root.notice-corner)
+            && (c == root.notice-corner || root.shares(c, m))
+            ? (root.notice-width + root.gap) * root.notice-appear : 0
+    }
+    pure function band-s(c: int, m: int) -> length {
+        root.band-s0(c, m) + (root.right(root.notice-corner) ? 0 : root.reserve(c, m))
+    }
+    pure function band-e(c: int, m: int) -> length {
+        root.band-e0(c, m) - (root.right(root.notice-corner) ? root.reserve(c, m) : 0)
     }
     // Corner c's bubbles stand in a column: its row does not fit beside the other row of its edge
     // and it is the wider, or even the other one as a column leaves it no room.
