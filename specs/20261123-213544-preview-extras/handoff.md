@@ -338,6 +338,11 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   texts (`60/60`, latency in whole ms) did not change, and Slint redraws only on a change, so
   "about 1 a second" is an upper bound. The agent set `width = 1720`, ambient on and
   `pinned = ["fps", "latency"]` in target/release/capturax.toml for the run and restored it after.
+- 2026-11-26: T031 on Windows (measurements/acceptance.md): checks 17 and 6 pass. The bulb (like the
+  volume) shows no tooltip to the pointer: the popover opens at 300 ms, before the tooltip's
+  500 ms, and replaces it; "Ambient light intensity" is the slider's accessible label only. The
+  maintainer keeps it so; quickstart checks 1 and 17 now say it. Settings restored from
+  target/release/capturax.toml.before-t031.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -351,6 +356,8 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
+- T031 on CachyOS: screenshots of checks 17 (both languages) and 6 (both themes, Background Theme
+  and Black, watermark on) by the agent for the maintainer to look at.
 - US3 (bubbles): T029 on CachyOS at 1080p60 (latency run 3, ambient on, fps and latency pinned,
   controls hidden; Windows is done), when the ezcap moves there; 1080p120 with T009. An arrangement can be tried by editing `[overlay.bubbles]` in
   the settings file (with the app closed: it rewrites the file).

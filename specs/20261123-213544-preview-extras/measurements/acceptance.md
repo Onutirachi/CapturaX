@@ -114,3 +114,14 @@ A first run of the resize script asked for a 43-million-pixel height (a PowerShe
 clash in the script, `$h` and `$H`); Slint's software renderer panicked casting that size
 (`euclid` `Size2D::cast` in `render_buffer_impl`, from `ui.rs` `draw_if_needed`). No real resize
 reaches such a size, so it is not a defect of this spec.
+
+## T031: languages and themes, Windows, 2026-11-26
+
+The ezcap (PS5) on the Windows PC, release build. The maintainer switched and looked; the agent
+checked the translation file (every new text translated, no empty `msgstr`) and restored the
+settings file after.
+
+| # | Check | Result |
+|---|---|---|
+| 17 | Both languages | Pass: Hide / Show preview, Preview hidden, Pin, Unpin, Info bubbles, Reset in English and pt-BR. The bulb shows no tooltip to the pointer: its popover opens at 300 ms, before the 500 ms tooltip, and replaces it, as the volume's since spec #5. "Ambient light" and "Ambient light intensity" are accessible labels only; the maintainer keeps it so (quickstart checks 1 and 17 now say it) |
+| 6 | Both themes, Background Theme and Black, watermark on | Pass in the four combinations: the glow under the watermark, the shadow and the video |

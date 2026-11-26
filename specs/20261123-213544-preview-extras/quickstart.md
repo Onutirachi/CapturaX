@@ -14,7 +14,7 @@ cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && ca
 
 | # | Steps | Expected |
 |---|---|---|
-| 1 | ezcap at 1080p60, window 1720 × 720 (bars at the sides); click the bulb on the left dock | The bars glow with the video's side colors; orange chip; tooltip "Ambient light" (US1 #1) |
+| 1 | ezcap at 1080p60, window 1720 × 720 (bars at the sides); click the bulb on the left dock | The bars glow with the video's side colors; orange chip (US1 #1). The bulb and the volume show no tooltip to the pointer: their popover opens first (300 ms) and replaces it; "Ambient light" stays the button's accessible label |
 | 1a | Rest the pointer on the bulb; move the slider, then the wheel over the bulb; set 0 %; turn the light off and move the slider; restart; Tab to the bulb and use the arrows | The popover opens like the volume's; the glow weakens and strengthens at once; 0 % shows no glow; moving it while off turns the light on; the intensity is kept after the restart; the keyboard works as the volume's (FR-001a) |
 | 2 | Game scene changes (menu → map); Settings → Video shadow → With ambient light, then toggle the bulb | Glow follows within about 0.5 s, smoothly; the shadow comes and goes with the glow (US1 #2, #5) |
 | 3 | Photo-mode flash or a white flash frame; a dark scene; the PS5 boot | No flash in the glow; dark scenes show their dark colors and the glow never disappears (FR-003) |
@@ -31,7 +31,7 @@ cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && ca
 | 14 | Press a bubble without moving; drag and press Alt+Tab mid-drag | Nothing moves; the drag is cancelled |
 | 15 | Bubbles in all four corners at 640 × 360, 800 × 520, 1280 × 720 and fullscreen 1920 × 1080, both themes and languages; a device notice in each corner (Settings → Notification position); open the settings panel with bubbles in every corner | No overlap with the toolbar, docks, other bubbles or the notice while the controls show; top rows go under the toolbar when there is no room beside it; the bubbles stay under the settings panel and its backdrop (US3 #5, #6, SC-005, edge case) |
 | 16 | Settings → Preview → Info bubbles → Reset | All four at the bottom right, today's order, none pinned; display choices unchanged (US3 #7) |
-| 17 | Both languages | Every new text: Ambient light, Hide preview, Show preview, Preview hidden, Pin, Unpin, Info bubbles, Reset |
+| 17 | Both languages | Every new text: Hide preview, Show preview, Preview hidden, Pin, Unpin, Info bubbles, Reset on screen; Ambient light and Ambient light intensity are accessible labels only (the bulb's popover replaces its tooltip, as the volume's), so they are checked in the translation file |
 
 ## Latency check (SC-001)
 
