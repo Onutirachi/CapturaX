@@ -140,3 +140,44 @@ was restored after.
 
 The theme's open grab hand (T024) shows over a bubble; the closed hand while dragging is still to
 look at during T029's CachyOS run.
+
+## Summary (T032)
+
+Every quickstart check by system, with the section that records it. "Agent" checks were run over
+the log, PowerShell (Windows) or `ydotool`, screenshots and SSH (CachyOS).
+
+| # | Windows 11 | CachyOS KDE Wayland |
+|---|---|---|
+| 1 | pass (T008) | pass: place, on chip in both themes, kept after a restart (agent screenshots, handoff 2026-11-23) |
+| 1a | pass (T008e) | not run (the popover is shared with the volume, checked there in spec #5) |
+| 2 | pass (T008) | seen while tuning on the PS5 (handoff, T008 CachyOS part); not run as a check |
+| 3 | pass (T008, again after T008a) | not run after T008a (the gate drop is shader code shared by both systems) |
+| 4 | pass (T008) | not run |
+| 5 | pass (T008; hidden step in T016) | hidden step covered by T017's runs with the light on; not run as a check |
+| 6 | pass (T008, T031) | pass (T031 screenshots) |
+| 7 | pass (T016) | pass (T017) |
+| 8 | pass (T016) | pass (T017) |
+| 9 | pass (T016) | pass (T017) |
+| 10 | pass (T016) | pass (T017) |
+| 11 | pass (T016) | pass (T017) |
+| 12 | pass (T028) | not run |
+| 13 | pass (T028) | open grab hand seen over a bubble (T031); drag and closed hand not run |
+| 14 | pass (T028) | not run |
+| 15 | pass at every size (T028) | not run |
+| 16 | pass (T028) | not run |
+| 17 | pass (T031) | pass (T031 screenshots) |
+
+Success criteria:
+
+| SC | Result | Where |
+|---|---|---|
+| SC-001 | pass at 1080p60: ambient on adds nothing to the `ready_ms` median and at most 0.1 ms to the p95, `repl=0`, on both systems (runs 1 and 2); run 3 (bubbles pinned) on Windows within the budget; glass to glass with the light on 28.9 / 31.6 ms, same as off. Not yet: run 3 on CachyOS, and every 1080p120 run (moved to the roadmap's combined 1080p120 test) | latency.md |
+| SC-002 | pass: released in 23–457 ms (Windows), 88–144 ms (CachyOS); video back in 423–561 ms | T016, T017 |
+| SC-003 | pass: hidden 0.00 % / 0.00 % (Windows), 0.17 % / 0.00 % (CachyOS), within 1 point of the "no source" state | T016, T017 |
+| SC-004 | pass: arrangement set with the mouse, kept after the restart, Reset in one action; the 30 s not timed with a clock | checks 13, 16 (T028) |
+| SC-005 | pass on Windows at the four sizes, both themes and languages, a notice in each corner | check 15 (T028) |
+
+Not covered: the 1080p120 runs (no 120 Hz PS5 game; the roadmap's combined test after the last
+spec), latency run 3 and the bubble checks 12–16 on CachyOS (they wait for the ezcap to move
+there; the layout and drag code is the same on both systems, only the cursor differs), and
+checks 1a–5 as formal runs on CachyOS (the glow is the same shader on both).

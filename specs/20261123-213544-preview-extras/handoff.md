@@ -9,7 +9,7 @@ intensity popover. US1's 1080p120 runs (T009) wait for the roadmap's combined 10
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025), the pinned texts updating (T026) and the Reset row (T027) are built, and checked on Windows (T028). Checks 17 and 6 pass on both systems (T031). The docs are updated (T030). The ezcap and
+(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025), the pinned texts updating (T026) and the Reset row (T027) are built, and checked on Windows (T028). Checks 17 and 6 pass on both systems (T031). The docs are updated (T030). The acceptance summary is written (T032). The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -355,6 +355,9 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 - 2026-11-26: the 1080p120 runs of T009 and T029 move to one combined 1080p120 test after the
   roadmap's last spec (maintainer: no PS5 game with 120 Hz in sight, and the roadmap goes on);
   noted in docs/roadmap.md and tasks.md. Spec #6 is done once T029 runs on CachyOS at 1080p60.
+- 2026-11-26: T032: the acceptance summary at the end of measurements/acceptance.md (every
+  check by system, the five success criteria, what is not covered). `cargo fmt --check`, clippy
+  and the workspace tests pass on Windows.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -368,8 +371,9 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- T032: the acceptance summary in measurements/acceptance.md and the handoff; the maintainer
-  validates; then the pull request. Roadmap #6 turns "done" after T029 on CachyOS at 1080p60.
+- T032: the maintainer validates the summary (measurements/acceptance.md, "Summary (T032)");
+  then T032 is checked off and the pull request opened (the maintainer decides whether before or
+  after T029 on CachyOS). Roadmap #6 turns "done" after T029 on CachyOS at 1080p60.
 - US3 (bubbles): T029 on CachyOS at 1080p60 (latency run 3, ambient on, fps and latency pinned,
   controls hidden; Windows is done), when the ezcap moves there; its 1080p120 runs wait for the
   roadmap's combined test. An arrangement can be tried by editing `[overlay.bubbles]` in
