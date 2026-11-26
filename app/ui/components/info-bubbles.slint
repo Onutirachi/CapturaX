@@ -549,15 +549,18 @@ export component InfoBubbles inherits Rectangle {
     // The texts on screen: the value while there is one, so a bubble has its width from the first
     // frame it is laid; else the last one held, so a bubble that loses its value keeps its text
     // while it slides out. The frame rate and latency show the held text while the bubbles do not
-    // take the pointer: the bindings then do not read the values, so the changes of each second
-    // do not redraw the UI while the chrome is hidden.
+    // take the pointer and that bubble is not pinned: the bindings then do not read the values, so
+    // the changes of each second redraw the UI with the chrome hidden only for a pinned bubble
+    // (research R9).
     property <string> source-text: root.source != "" ? root.source : root.source-held;
     property <string> mode-text: root.mode != "" ? root.mode : root.mode-held;
     property <string> mode-tag-text: root.mode != "" ? root.mode-tag : root.mode-tag-held;
     property <string> mode-tag-kind-text: root.mode != "" ? root.mode-tag-kind : root.mode-tag-kind-held;
     property <string> mode-aspect-text: root.mode != "" ? root.mode-aspect : root.mode-aspect-held;
-    property <string> fps-text: root.active && root.fps != "" ? root.fps : root.fps-held;
-    property <string> latency-text: root.active && root.latency != "" ? root.latency : root.latency-held;
+    property <bool> fps-live: root.active || root.pinned(2);
+    property <bool> latency-live: root.active || root.pinned(3);
+    property <string> fps-text: root.fps-live && root.fps != "" ? root.fps : root.fps-held;
+    property <string> latency-text: root.latency-live && root.latency != "" ? root.latency : root.latency-held;
     property <string> source-held;
     property <string> mode-held;
     property <string> mode-tag-held;
@@ -573,10 +576,14 @@ export component InfoBubbles inherits Rectangle {
             root.mode-aspect-held = root.mode-aspect;
         }
     }
-    function hold-counters(always: bool) {
+    // While live, the held text follows the value, so it is current when the bubble stops being
+    // live; else it is set only once.
+    function hold-fps(always: bool) {
         if (root.fps != "" && (always || root.fps-held == "")) {
             root.fps-held = root.fps;
         }
+    }
+    function hold-latency(always: bool) {
         if (root.latency != "" && (always || root.latency-held == "")) {
             root.latency-held = root.latency;
         }
@@ -590,13 +597,15 @@ export component InfoBubbles inherits Rectangle {
     changed mode-tag => { root.hold-mode(); }
     changed mode-tag-kind => { root.hold-mode(); }
     changed mode-aspect => { root.hold-mode(); }
-    changed fps => { root.hold-counters(self.active); }
-    changed latency => { root.hold-counters(self.active); }
-    changed active => { root.hold-counters(self.active); }
+    changed fps => { root.hold-fps(self.fps-live); }
+    changed latency => { root.hold-latency(self.latency-live); }
+    changed fps-live => { root.hold-fps(self.fps-live); }
+    changed latency-live => { root.hold-latency(self.latency-live); }
     init => {
         self.source-held = self.source;
         root.hold-mode();
-        root.hold-counters(true);
+        root.hold-fps(true);
+        root.hold-latency(true);
     }
 
     // The two steps (as the spike): `spread` keeps the pinned bubbles where they stand with every
