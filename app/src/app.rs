@@ -11,10 +11,11 @@ use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{Key, NamedKey};
 use winit::monitor::MonitorHandle;
-use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
+use winit::window::{CursorIcon, Fullscreen, ResizeDirection, Window, WindowId};
 
 use crate::bubbles;
 use crate::cli::StartupOptions;
+use crate::cursor::GrabCursors;
 use crate::frame::{self, Escape};
 use crate::i18n;
 use crate::icon;
@@ -321,6 +322,10 @@ pub struct App {
     monitor: Option<MonitorHandle>,
     /// The edge or corner under the pointer, where a press resizes the window.
     resize: Option<ResizeDirection>,
+    /// The pointer's shape last set on the window; None after the window or the hands changed.
+    cursor: Option<CursorIcon>,
+    /// The app's own grab hands for the window's scale, where the system has none.
+    grab_cursors: Option<GrabCursors>,
     /// The window moved or resized since the placement was last saved.
     placement_changed: bool,
     /// The video thread holds its presents until the next size reaches it
@@ -538,6 +543,8 @@ impl App {
             monitor_refresh: None,
             monitor: None,
             resize: None,
+            cursor: None,
+            grab_cursors: None,
             placement_changed: false,
             awaiting_size: false,
             leave_fullscreen_at: None,
@@ -1798,6 +1805,9 @@ impl App {
             self.last_ui = Instant::now();
         }
         self.sync_snap_button();
+        if let Some(w) = self.window.clone() {
+            self.update_cursor(&w);
+        }
     }
 
     /// Hands the maximize button's rectangle, as just laid out, to the snap layouts flyout
@@ -1891,10 +1901,32 @@ impl App {
     }
 
     fn set_resize(&mut self, w: &Window, direction: Option<ResizeDirection>) {
-        if direction != self.resize {
-            self.resize = direction;
-            w.set_cursor(frame::cursor(direction));
+        self.resize = direction;
+        self.update_cursor(w);
+    }
+
+    /// Sets the pointer's shape from the resize edge and the UI's `pointer-cursor` (the bubbles'
+    /// grab hands, research R8), which Slint does not pass to the window. After each pointer event
+    /// and each UI update, so a change from a timer (the chrome hiding) is seen too.
+    fn update_cursor(&mut self, w: &Window) {
+        let cursor = frame::cursor(self.resize, self.ui.app.get_pointer_cursor());
+        if Some(cursor) != self.cursor {
+            self.cursor = Some(cursor);
+            match self.grab_cursors.as_ref().and_then(|c| c.pick(cursor)) {
+                Some(own) => w.set_cursor(own),
+                None => w.set_cursor(cursor),
+            }
         }
+    }
+
+    /// Makes the app's grab hands for the window's scale when it changed (none where the system
+    /// draws its own), so the next `update_cursor` sets the shape again.
+    fn make_grab_cursors(&mut self, event_loop: &ActiveEventLoop, scale: f64) {
+        if self.grab_cursors.as_ref().is_some_and(|c| c.scale() == scale) {
+            return;
+        }
+        self.grab_cursors = GrabCursors::new(event_loop, scale);
+        self.cursor = None;
     }
 
     /// The window's own keys, before Slint sees them: F11 and Esc (FR-007). Returns true when the
@@ -1989,6 +2021,8 @@ impl App {
         self.ui.set_scale(window.scale_factor() as f32);
         self.ui.set_size(platform::drawn_size(&window));
         platform::follow_dpi_rect(&window);
+        self.cursor = None;
+        self.make_grab_cursors(event_loop, window.scale_factor());
         let proxy = self.proxy.clone();
         self.snap = Some(snap::attach(&window, move |event| {
             let _ = proxy.send_event(UserEvent::Snap(event));
@@ -2647,6 +2681,7 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::ThemeChanged(theme) => self.system_theme_changed(Some(theme.into())),
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.ui.set_scale(scale_factor as f32);
+                self.make_grab_cursors(event_loop, scale_factor);
                 self.request_redraw();
             }
             WindowEvent::Moved(_) => {
@@ -2696,13 +2731,13 @@ impl ApplicationHandler<UserEvent> for App {
                 self.request_redraw();
             }
             WindowEvent::CursorMoved { position, .. } => {
+                if self.ui.window_event(&event) {
+                    self.request_redraw();
+                }
                 if let Some(w) = self.window.clone() {
                     let resizable = !w.is_maximized() && w.fullscreen().is_none();
                     let direction = frame::resize_direction(self.ui.size(), w.scale_factor(), position, resizable);
                     self.set_resize(&w, direction);
-                }
-                if self.ui.window_event(&event) {
-                    self.request_redraw();
                 }
             }
             WindowEvent::MouseInput {
@@ -2717,8 +2752,15 @@ impl ApplicationHandler<UserEvent> for App {
                 }
             }
             other => {
+                let pointer = matches!(
+                    other,
+                    WindowEvent::MouseInput { .. } | WindowEvent::CursorLeft { .. } | WindowEvent::MouseWheel { .. }
+                );
                 if self.ui.window_event(&other) {
                     self.request_redraw();
+                }
+                if pointer && let Some(w) = self.window.clone() {
+                    self.update_cursor(&w);
                 }
             }
         }

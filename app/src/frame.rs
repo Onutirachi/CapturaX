@@ -35,14 +35,19 @@ pub fn resize_direction(
     })
 }
 
-/// The pointer's shape over an edge or corner, the default elsewhere.
-pub fn cursor(direction: Option<ResizeDirection>) -> CursorIcon {
-    match direction {
-        Some(ResizeDirection::North | ResizeDirection::South) => CursorIcon::NsResize,
-        Some(ResizeDirection::East | ResizeDirection::West) => CursorIcon::EwResize,
-        Some(ResizeDirection::NorthWest | ResizeDirection::SouthEast) => CursorIcon::NwseResize,
-        Some(ResizeDirection::NorthEast | ResizeDirection::SouthWest) => CursorIcon::NeswResize,
-        None => CursorIcon::Default,
+/// The pointer's shape: the UI's own (`ui`, main.slint's `pointer-cursor`: 1 grab, 2 grabbing,
+/// else none) and the edge or corner under the pointer (research R8). An edge's shape wins over
+/// the grab hand, since a press there resizes; the closed hand wins over the edge, since a bubble
+/// is being dragged and its release is not a resize.
+pub fn cursor(direction: Option<ResizeDirection>, ui: i32) -> CursorIcon {
+    match (direction, ui) {
+        (_, 2) => CursorIcon::Grabbing,
+        (Some(ResizeDirection::North | ResizeDirection::South), _) => CursorIcon::NsResize,
+        (Some(ResizeDirection::East | ResizeDirection::West), _) => CursorIcon::EwResize,
+        (Some(ResizeDirection::NorthWest | ResizeDirection::SouthEast), _) => CursorIcon::NwseResize,
+        (Some(ResizeDirection::NorthEast | ResizeDirection::SouthWest), _) => CursorIcon::NeswResize,
+        (None, 1) => CursorIcon::Grab,
+        (None, _) => CursorIcon::Default,
     }
 }
 
@@ -134,11 +139,22 @@ mod tests {
 
     #[test]
     fn cursors() {
-        assert_eq!(cursor(None), CursorIcon::Default);
-        assert_eq!(cursor(Some(ResizeDirection::North)), CursorIcon::NsResize);
-        assert_eq!(cursor(Some(ResizeDirection::West)), CursorIcon::EwResize);
-        assert_eq!(cursor(Some(ResizeDirection::SouthEast)), CursorIcon::NwseResize);
-        assert_eq!(cursor(Some(ResizeDirection::NorthEast)), CursorIcon::NeswResize);
+        assert_eq!(cursor(None, 0), CursorIcon::Default);
+        assert_eq!(cursor(Some(ResizeDirection::North), 0), CursorIcon::NsResize);
+        assert_eq!(cursor(Some(ResizeDirection::West), 0), CursorIcon::EwResize);
+        assert_eq!(cursor(Some(ResizeDirection::SouthEast), 0), CursorIcon::NwseResize);
+        assert_eq!(cursor(Some(ResizeDirection::NorthEast), 0), CursorIcon::NeswResize);
+    }
+
+    #[test]
+    fn grab_cursors() {
+        assert_eq!(cursor(None, 1), CursorIcon::Grab);
+        assert_eq!(cursor(None, 2), CursorIcon::Grabbing);
+        // An unknown value is no shape of the UI's own.
+        assert_eq!(cursor(None, 7), CursorIcon::Default);
+        // The edge wins over the open hand, the closed hand over the edge.
+        assert_eq!(cursor(Some(ResizeDirection::South), 1), CursorIcon::NsResize);
+        assert_eq!(cursor(Some(ResizeDirection::South), 2), CursorIcon::Grabbing);
     }
 
     #[test]

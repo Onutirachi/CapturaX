@@ -158,6 +158,10 @@ component Bubble inherits Rectangle {
     // The pointer or the keyboard is on the bubble, its controls or its menu, or the bubble is
     // being dragged: the chrome stays.
     out property <bool> engaged: root.pointed || root.dragging || (focus.has-focus && Input.keyboard);
+    // The pointer's shape over it (FR-015, research R8): 0 none of its own, 1 the grab hand while
+    // the pointer is over it, 2 the closed hand from the press on, before it moves (maintainer).
+    out property <int> cursor: root.dragging || (root.active && area.pressed) ? 2
+        : root.active && area.has-hover ? 1 : 0;
     callback picked(int);
     callback pin-toggled();
 
@@ -514,6 +518,9 @@ export component InfoBubbles inherits Rectangle {
     callback bubble-moved(int /* kind */, int /* corner */, int /* index */);
     out property <bool> engaged: source-bubble.engaged || mode-bubble.engaged || fps-bubble.engaged
         || latency-bubble.engaged;
+    // The pointer's shape from the bubble under it or being dragged (`Bubble.cursor`).
+    out property <int> cursor: max(source-bubble.cursor, mode-bubble.cursor, fps-bubble.cursor,
+        latency-bubble.cursor);
     // What each corner's bubbles cover while the controls show (`boxes`) and while they are
     // hidden (`pinned-boxes`, the pinned ones only); a zero size for none.
     out property <[NoticeBox]> boxes: [root.extent(0, 1), root.extent(1, 1), root.extent(2, 1),

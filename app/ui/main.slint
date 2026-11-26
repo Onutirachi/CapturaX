@@ -270,6 +270,9 @@ export component AppWindow inherits Window {
     // The focus counts only while the keyboard is in use (its ring shows): a dock button keeps the
     // focus after the mouse takes over, and the chrome would never hide.
     out property <bool> chrome-shown: true;
+    // The pointer's shape asked by the UI (research R8), which Slint does not pass to the window:
+    // 0 default, 1 grab, 2 grabbing. Rust sets it unless a resize edge's shape applies.
+    out property <int> pointer-cursor: info.cursor;
     property <bool> engaged: top-zone.has-hover || toolbar-area.has-hover || left-area.has-hover
         || right-area.has-hover || Menus.open || info.engaged || volume-button.open || ambient-button.open
         || ((fullscreen-button.has-focus || ambient-button.has-focus || volume-button.has-focus || settings-button.has-focus
