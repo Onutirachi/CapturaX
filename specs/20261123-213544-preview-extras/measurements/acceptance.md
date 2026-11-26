@@ -92,3 +92,25 @@ SC-003: `top` (capturax's CPU, one-second samples) and `nvidia-smi pmon` (the pr
 
 A `v4l2loopback` camera made while the app runs is not listed (known since device-preview), so
 the Virtual Cam was made before a restart; the restart doubled as check 9's.
+
+## T028: info bubbles, Windows, 2026-11-26
+
+The ezcap (PS5) on the Windows PC, release build with `--stats`. The maintainer moved, pinned,
+dragged and looked; the agent ran and restarted the app, set the arrangement for check 15 in
+the settings file (one bubble per corner) and the window sizes through `SetWindowPos` (logical
+size, DPI-aware).
+
+| # | Check | Result |
+|---|---|---|
+| 12 | Pin latency, hide the controls | Pass: pin mark with the controls; only latency shows when they hide, at its corner, updating each second |
+| 13 | Drag latency to the top left; mode before source; restart | Pass: hands, corner glow, slot; kept after the restart (`top-left = ["latency"]`, pinned, saved) |
+| 14 | Press without moving; Alt+Tab mid-drag | Pass: nothing moves; the drag is cancelled |
+| 15 | One bubble per corner at 640 × 360, 800 × 520, 1280 × 720 and fullscreen 1920 × 1080; both themes and languages; a notice in each corner; the settings panel open | Pass at every size |
+| 16 | Settings → Preview → Info bubbles → Reset | Pass: all four at the bottom right in the default order, none pinned; the display choices unchanged in the file |
+
+The partial upload (T019) looked normal throughout: no stale or torn parts around the bubbles.
+
+A first run of the resize script asked for a 43-million-pixel height (a PowerShell variable
+clash in the script, `$h` and `$H`); Slint's software renderer panicked casting that size
+(`euclid` `Size2D::cast` in `render_buffer_impl`, from `ui.rs` `draw_if_needed`). No real resize
+reaches such a size, so it is not a defect of this spec.

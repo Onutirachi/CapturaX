@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025), the pinned texts updating (T026) and the Reset row (T027) are built. The ezcap and
+(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025), the pinned texts updating (T026) and the Reset row (T027) are built, and checked on Windows (T028). The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -292,7 +292,7 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
     point at the palm, (17, 19) at 32 px. `platform::has_grab_cursors()` is true on Linux, where
     the cursor theme's hands are used. Spec FR-015 and research R8 updated.
   - The maintainer checked on Windows (ezcap, release): hover, press, drag across the edge,
-    release, edges, chrome hidden. Not yet looked at on CachyOS (theme hands; T028's run).
+    release, edges, chrome hidden. Not yet looked at on CachyOS (theme hands; at T029's CachyOS run).
   - The formatting `cargo fmt` wanted in T023's `on_bubble_moved` is folded into its commit.
 - 2026-11-26: T025: the notices in every corner (FR-018). info-bubbles.slint: in properties
   `notice-corner` (0–3, main.slint's `notice-index`), `notice-width` (always the event notice's
@@ -325,6 +325,14 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   `SettingChange::BubblesReset` → `bubbles::reset` → store → `show_arrangement`. pt-BR "Bolhas de
   informação" (Reset was already "Restaurar"). The maintainer checked on Windows (ezcap, release):
   moved and pinned bubbles, Reset brought the default, kept after a restart (quickstart check 16).
+- 2026-11-26: T028 on Windows (measurements/acceptance.md): quickstart checks 12–16 pass, and the
+  partial upload looked normal. Check 15's arrangement was set in the settings file (one bubble
+  per corner) and the sizes by the agent with
+  a PowerShell `SetWindowPos` script (logical size × the window's DPI; mind that PowerShell
+  variables ignore case: a `$h` handle overwrote `$H` and asked for a 43-million-pixel height, which
+  made Slint's software renderer panic in `euclid` `Size2D::cast`; not reachable by a real resize).
+  target/release/capturax.toml.before-t028 is the backup from before; the file now differs only in
+  the window's size and place.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -338,5 +346,8 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T028 (maintainer: quickstart checks 12–16 on Windows), then T029. An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
+- US3 (bubbles): T029 (latency run 3, ambient on, fps and latency pinned, controls hidden, at 1080p60
+  and 1080p120 on Windows and CachyOS). An arrangement can be tried by editing `[overlay.bubbles]` in
+  the settings file (with the app closed: it rewrites the file).
+- The grab cursors (T024) on CachyOS (theme hands) are still to look at, during T029's run there.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
