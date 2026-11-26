@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021), the Pin (T022), the drag (T023) and the grab cursors (T024) are built. The ezcap and
+(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024) and the notices per corner (T025) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -294,6 +294,23 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   - The maintainer checked on Windows (ezcap, release): hover, press, drag across the edge,
     release, edges, chrome hidden. Not yet looked at on CachyOS (theme hands; T028's run).
   - The formatting `cargo fmt` wanted in T023's `on_bubble_moved` is folded into its commit.
+- 2026-11-26: T025: the notices in every corner (FR-018). info-bubbles.slint: in properties
+  `notice-corner` (0–3, main.slint's `notice-index`), `notice-width` (always the event notice's
+  now), `notice-appear`; out `notice-joins` / `notice-joins-pinned` (`joins(m)` for modes 1 / 0)
+  replace `notice-fits`. The notice joins its corner's row when the row reaches the corner
+  (`band-s0` / `band-e0` at the margin, row at `top-y` / `bottom-y`: no dock and no toolbar in
+  the way) and the notice fits beside both rows of its edge (only its own row beside the
+  toolbar). `reserve(c, m)` leaves it room on its side, in its corner and in the partner when they
+  share the band (`band-s` / `band-e` = the `0` versions with the reserve). main.slint:
+  `notice-hidden-at` (controls hidden: joined at the corner, else past `info.pinned-boxes`, else
+  over them) replaces `notice-corner` as the slide's hidden end; `notice-clear` moves past the
+  notice's corner box and its partner's (`notice-past-bubbles`); the settings notice likewise.
+  `bubbles-box` is gone. Spec FR-018's wording was ambiguous (join only while hidden) and now says
+  spec #3's bottom right rules hold in every corner.
+  - The maintainer checked on Windows (ezcap, release): one bubble per corner, two pinned, all four
+    notice positions, controls shown and hidden, 640 × 360. A notice comes from Ctrl+Shift+F8.
+  - Found: closing the settings panel while a control's tooltip shows leaves it on screen (old,
+    not this spec); recorded in docs/roadmap.md #17 UI review with the tested fix.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -307,6 +324,5 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
-  (Reset row). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
+- US3 (bubbles): T026 (pinned texts keep updating), T027 (Reset row), then T028 (maintainer). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).

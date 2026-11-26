@@ -283,6 +283,12 @@ item here when it is found (with the date), instead of fixing it inside an unrel
 - Double click on the video toggles fullscreen (maintainer, 2026-11-23).
 - An open overlay (menu, popover, settings panel) closes when the window is resized
   (maintainer, 2026-11-23).
+- Settings panel: closing it while one of its controls' tooltips shows (for example
+  **Notification position**'s) leaves the tooltip on screen, since the control is gone and never
+  hides it. Calling `Tooltips.dismiss()` in main.slint's `changed settings-open` when it closes
+  fixed it in a test (maintainer, 2026-11-26).
+- Fullscreen: the pointer hides together with the controls and comes back when the mouse moves,
+  as in YouTube's fullscreen (maintainer, 2026-11-26).
 
 ```text
 /speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the
