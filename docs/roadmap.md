@@ -30,6 +30,10 @@ Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in a
 spec 13 can start any time after spec 2; spec 17 comes after the Record and Stream panels
 (specs 9 and 10), since they will add fixes that belong in it (maintainer, 2026-11-23).
 
+The 1080p120 runs a spec could not make, for want of a PS5 game with a 120 Hz mode, wait for one
+combined test after the last spec, so they do not hold the roadmap back (maintainer,
+2026-11-26). Waiting: spec #6's T009 and T029 at 1080p120 on both systems.
+
 ## Specs
 
 ### 1. Stack spike
@@ -135,6 +139,16 @@ Its capture sound plays on the output chosen for the preview audio; later specs 
 for their events the same way (maintainer idea, 2026-11-22).
 
 ### 6. Preview extras
+
+Built: [handoff](../specs/20261123-213544-preview-extras/handoff.md),
+[latency](../specs/20261123-213544-preview-extras/measurements/latency.md) and
+[acceptance](../specs/20261123-213544-preview-extras/measurements/acceptance.md). The ambient light
+is a blurred copy of an older frame drawn under the video, so it adds no latency (Windows 1080p60
+windowed: 28.9 ms median glass to glass with it on, 29.7 ms in spec #3 without it); hiding the
+preview releases the device and the preview's audio and is kept across restarts (product.md's
+"Hide preview and its audio" decided: FR-012); the bubbles are dragged to any corner and pinned,
+one arrangement for the app. Left before done: the latency run with pinned bubbles on CachyOS at
+1080p60 (T029). The 1080p120 runs go to the combined test after the last spec (see above).
 
 ```text
 /speckit-specify Preview extras (see docs/roadmap.md #6): covers F9, F10 and F42 from

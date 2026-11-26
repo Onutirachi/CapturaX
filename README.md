@@ -5,9 +5,9 @@ console through it. Capture screens and windows, take screenshots, record, and s
 stream with friends by link. A simple alternative for these tasks, not a replacement for OBS.
 
 > **Status:** early rewrite. The app shows a capture card or webcam in its native mode and
-> plays its sound with low latency, takes screenshots with a global key, with settings, tray
-> and device notices. The previous version is in
-> [CapturaX-old](https://github.com/Onutirachi/CapturaX-old).
+> plays its sound with low latency, takes screenshots with a global key, with ambient light,
+> a hideable preview and movable info bubbles, settings, tray and device notices. The previous
+> version is in [CapturaX-old](https://github.com/Onutirachi/CapturaX-old).
 
 ## Planned
 
@@ -61,6 +61,33 @@ On Windows the settings' **Audio** category has an **Exclusive** switch per inpu
 an exclusive device skips the Windows mixer for the lowest delay, and no other app can use it
 while the preview does. On Linux the app plays through PipeWire with a 128-frame quantum
 (about 2.7 ms at 48 kHz) and has no exclusive mode.
+
+### Ambient light
+
+The bulb button in the left dock lights the area around the video (the bars of a capture that
+does not fill the window) with the video's colors, as a strongly blurred copy of the frame that
+follows the picture smoothly, without flashing on a single frame. Off by default. Resting the
+pointer on the button shows an intensity slider (0 to 100 %), and the wheel over it changes the
+intensity by 5 %. The choice applies to every device. The glow never holds a video frame back,
+so it adds no latency. **Video shadow → With ambient light** in the settings draws the shadow
+only while the light is on.
+
+### Hiding the preview
+
+The first button in the right dock hides the preview to save resources: the video and its sound
+stop, the device is released (a webcam's light turns off, another app can open it) and the
+video area says "Preview hidden". The toolbar keeps working: a device, mode, range or audio
+choice made while hidden is saved and used when the preview shows again. Hidden lasts through
+restarts, so an app started hidden opens no device until the button shows the preview again.
+
+### Info bubbles
+
+The bubbles over the video (source, mode, frame rate, latency) can each sit in any of the four
+corners. Drag a bubble to move it: the corner it would land in glows and a slot shows its place
+in that corner's order. Its hover controls (or Enter on a focused bubble) hold a **Pin** toggle:
+pinned bubbles stay on screen while the controls are hidden, packed against their corner. The
+arrangement is one for the app; the settings' **Preview** category has an **Info bubbles** row
+whose **Reset** puts them all back at the bottom right, unpinned.
 
 ### Screenshots
 

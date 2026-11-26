@@ -76,7 +76,7 @@ colors, eased, with no added latency.
 - [x] T008c [US1] Shared slider button (research R2b; before T008d): move the volume button's popover, timers, touch and keyboard handling out of app/ui/components/volume-popover.slint into a shared slider button component, with the volume button built on it and behaving exactly as today (spec #4 FR-011); check the volume button by hand on Windows
 - [x] T008d [US1] Intensity popover and wiring (FR-001a; after T008b, T008c): the ambient light button in app/ui/main.slint on the shared slider button (0–100 % with its value, wheel ±5 %); app/src/app.rs saves `preview.ambient_intensity` through the store, turns the light on when it changes while off, and sends it in `Scene.ambient_intensity` (0–1); app/src/render/gpu.rs multiplies the glow's opacity by it; a test that 0 draws nothing and 50 % halves the alpha; new texts in the pt-BR catalog if any
 - [x] T008e [US1] (maintainer) Windows: quickstart check 1a; record in measurements/acceptance.md
-- [ ] T009 [US1] (maintainer) Latency (SC-001): quickstart "Latency check" runs 1 and 2 (ambient off, ambient on) at 1080p60 and 1080p120 on Windows and on CachyOS (the agent over SSH), and spec #3's glass-to-glass check once with the ambient light on (maintainer's phone); record in measurements/latency.md with the median and p95 of `ready_ms`, `repl` and `glow`
+- [ ] T009 [US1] (maintainer) Latency (SC-001): quickstart "Latency check" runs 1 and 2 (ambient off, ambient on) at 1080p60 and 1080p120 on Windows and on CachyOS (the agent over SSH), and spec #3's glass-to-glass check once with the ambient light on (maintainer's phone); record in measurements/latency.md with the median and p95 of `ready_ms`, `repl` and `glow`. The 1080p120 runs move to the roadmap's combined 1080p120 test after the last spec (maintainer, 2026-11-26)
 
 **Checkpoint**: the MVP: the glow on both systems, within the latency budget.
 
@@ -127,7 +127,7 @@ hidden at no latency cost.
 - [X] T026 [US3] Pinned texts keep updating (research R9; after T019, T021): in app/ui/components/info-bubbles.slint the per-second frame rate and latency texts update while the controls show or that bubble is pinned (today only while active; app.rs already sends them each second), so a pinned bubble updates once a second with the controls hidden and nothing redraws when none is pinned
 - [X] T027 [US3] Reset row (FR-016; after T020): in app/ui/components/settings-panel.slint the Preview category gains the **Info bubbles** row with a **Reset** button and no text about the default; the callback goes to app/src/app.rs → `reset` → save → arrays; texts in the pt-BR catalog (with the catalog's existing term for Reset)
 - [x] T028 [US3] (maintainer) Windows: quickstart checks 12–16 (check 15's sizes set by the agent, the maintainer looks), and the partial upload's look from T019; record in measurements/acceptance.md
-- [ ] T029 [US3] (maintainer) Latency (SC-001): quickstart "Latency check" run 3 (ambient on, frame rate and latency pinned, controls hidden) at 1080p60 and 1080p120 on Windows and on CachyOS (the agent over SSH), compared with run 1; `ui` about 1 per second, `up_ms` well below a whole upload; record in measurements/latency.md
+- [ ] T029 [US3] (maintainer) Latency (SC-001): quickstart "Latency check" run 3 (ambient on, frame rate and latency pinned, controls hidden) at 1080p60 and 1080p120 on Windows and on CachyOS (the agent over SSH), compared with run 1; `ui` about 1 per second, `up_ms` well below a whole upload; record in measurements/latency.md. The 1080p120 runs move to the roadmap's combined 1080p120 test after the last spec (maintainer, 2026-11-26)
 
 **Checkpoint**: arrangement, pin, drag and reset on both systems; the pinned run within the
 latency budget.
@@ -136,7 +136,7 @@ latency budget.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T030 [P] Docs: README (ambient light, hide preview, arranging the bubbles), AGENTS.md "Status", docs/product.md Spec column for F9, F10 and F42 and the "Hide preview and its audio" question moved out of "To reconsider" as decided (FR-012), docs/roadmap.md #6 done with its links
+- [x] T030 [P] Docs: README (ambient light, hide preview, arranging the bubbles), AGENTS.md "Status", docs/product.md Spec column for F9, F10 and F42 and the "Hide preview and its audio" question moved out of "To reconsider" as decided (FR-012), docs/roadmap.md #6 done with its links
 - [x] T031 (maintainer) quickstart check 17 (both languages) and check 6 (both themes, Background Theme and Black, watermark on) on Windows; CachyOS screenshots of the same by the agent for the maintainer to look at
 - [ ] T032 Handoff and acceptance summary in measurements/acceptance.md; the maintainer validates; the branch is ready for the pull request
 
