@@ -333,6 +333,11 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   made Slint's software renderer panic in `euclid` `Size2D::cast`; not reachable by a real resize).
   target/release/capturax.toml.before-t028 is the backup from before; the file now differs only in
   the window's size and place.
+- 2026-11-26: T029 on Windows, 1080p60 (measurements/latency.md, "Run 3"): within the budget,
+  `ready_ms` 0.60 / p95 1.00, `repl=0`, `glow=60`. With the controls hidden `ui=0`: the pinned
+  texts (`60/60`, latency in whole ms) did not change, and Slint redraws only on a change, so
+  "about 1 a second" is an upper bound. The agent set `width = 1720`, ambient on and
+  `pinned = ["fps", "latency"]` in target/release/capturax.toml for the run and restored it after.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -346,8 +351,8 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T029 (latency run 3, ambient on, fps and latency pinned, controls hidden, at 1080p60
-  and 1080p120 on Windows and CachyOS). An arrangement can be tried by editing `[overlay.bubbles]` in
+- US3 (bubbles): T029 on CachyOS at 1080p60 (latency run 3, ambient on, fps and latency pinned,
+  controls hidden; Windows is done), when the ezcap moves there; 1080p120 with T009. An arrangement can be tried by editing `[overlay.bubbles]` in
   the settings file (with the app closed: it rewrites the file).
 - The grab cursors (T024) on CachyOS (theme hands) are still to look at, during T029's run there.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).

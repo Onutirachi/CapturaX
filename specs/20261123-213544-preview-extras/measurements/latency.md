@@ -32,6 +32,24 @@ Result: no change in latency. With the 16.6 ms minimum the frames' arrival jitte
 a third of the glow updates (39 a second at 60 fps); the minimum went to 15 ms (research R1) and
 the glow updates with every frame.
 
+### Run 3: bubbles pinned, 2026-11-26
+
+Release build at c14b820, the PS5 in Astro's Playroom, windowed 1720 × 720, ambient light on
+(100 %), the frame rate and latency bubbles pinned (`pinned = ["fps", "latency"]`), the pointer
+outside the window so the controls were hidden. The agent ran it on the PC (research R9).
+
+| Mode | Ambient | Pinned | `ready_ms` median | per-second max, p95 | max | `repl` | `pres` min | `glow` median (min) | `lat_ms` median | `ui` |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1080p60 | on | fps, latency | 0.60 | 1.00 | 1.4 | 0 | 60 | 60 (60) | 1.9 | 0 |
+
+Result: within the budget and no worse than run 1 (0.70 / 1.30 / 1.6, `repl=0`). The UI did not
+redraw at all with the controls hidden (`ui=0` from second 5 on): both pinned texts stayed the
+same every second (`60/60` and the latency rounded to whole milliseconds), and Slint redraws
+only when a text changes. So the "about 1 per second" of the quickstart is an upper bound; a
+pinned bubble costs a redraw only in a second when its text changes. While the controls still
+showed (seconds 3 and 4, 31 partial uploads a second), `up_ms` was 0.0 / 0.1, well below a
+whole upload.
+
 ### Glass to glass, 2026-11-24
 
 Spec #3's method (tools/latency, `summary.md` and `video-samples.csv` here): the PS5 browser
@@ -65,5 +83,5 @@ Still to do:
 
 - 1080p120: the PS5 cannot be forced to 120 Hz (its 120 Hz output is Automatic or Off; only a
   game with a 120 Hz mode sends it). Measured when such a game runs, on Windows or here.
-- Run 3 (bubbles pinned, controls hidden, research R9): after US3.
+- Run 3 (bubbles pinned, controls hidden, research R9): done on Windows at 1080p60; CachyOS still to do.
 - Windows: 1080p120 (see above).
