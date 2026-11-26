@@ -280,7 +280,9 @@ controls hidden.
   (maintainer, 2026-11-25). While the controls are hidden, only the pinned ones show, packed against their
   corner in their order, without the pin.
 - **FR-015**: Moving a bubble is click and drag, the only way (maintainer, 2026-11-23): the
-  pointer shows the grab hand over a bubble and the closed hand while dragging; the bubble
+  pointer shows the grab hand over a bubble and the closed hand from the press on, before it moves (Linux: the
+  cursor theme's own; Windows, which has none: the maintainer's drawings in
+  app/ui/assets/cursors, 22 px in a 32 px cursor at 100 %, maintainer 2026-11-26); the bubble
   follows the pointer, the corner it would land in (the pointer's quadrant) glows orange, fading
   towards the middle, the bubbles there make room and a solid orange slot the bubble's size
   shows its place in that corner's order, and releasing puts it there (maintainer, 2026-11-25:

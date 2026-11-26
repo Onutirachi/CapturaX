@@ -238,11 +238,27 @@ Moving only on release keeps a single save per drag.
 
 **Decision**: Slint's `MinimalSoftwareWindow` does not forward `mouse-cursor` to the window, so
 the app does it. `main.slint` exposes `out property <int> pointer-cursor` (0 default, 1 grab,
-2 grabbing), set by the bubble under the pointer or being dragged. After each pointer event,
-`app.rs` reads it and calls `window.set_cursor` with `CursorIcon::Grab` or
-`CursorIcon::Grabbing`, unless a resize edge cursor applies (`frame::cursor`), which wins.
+2 grabbing), set by the bubble under the pointer, pressed (grabbing at once, before the drag
+starts: maintainer, 2026-11-26) or being dragged. After each pointer event
+and each UI update (a timer can change it: the chrome hiding cancels a drag), `app.rs` reads it
+and calls `window.set_cursor` with `CursorIcon::Grab` or `CursorIcon::Grabbing`
+(`frame::cursor`). A resize edge's cursor wins over the grab hand, since a press there resizes;
+the closed hand wins over the edge, since a drag into a corner often crosses the resize band and
+its release is not a resize.
 
-**Rationale**: it uses the same path as the resize cursors, with no platform code.
+Windows has no grab cursor: winit maps `Grab` and `Grabbing` to `IDC_SIZEALL`, the four-way
+arrow (seen by the maintainer, 2026-11-26). Browsers ship their own hands there, and so does the
+app: the maintainer's drawings `app/ui/assets/cursors/grab.svg` and `grabbing.svg` (a 22 px
+square, chosen in the mockup https://claude.ai/artifact/9SVtogaGoESmXddRQA4NWm). build.rs
+rasterizes them with resvg into 32, 40, 48, 56, 64, 72, 80 and 96 px cursors (100 % to 300 %),
+the drawing taking 22 of every 32 pixels, centred, as Windows' own cursors leave a margin; the
+click point is the open palm's middle, (17, 19) at 32 px. `app/src/cursor.rs` makes the pair
+with winit's `CustomCursor` for the size nearest to 32 × the window's scale, again when the
+scale changes. `platform::has_grab_cursors()` (true on Linux) skips them where the cursor theme
+has its own hands.
+
+**Rationale**: it uses the same path as the resize cursors; the only platform knowledge is one
+flag in `crates/platform`, and the images need no runtime rasterizer.
 
 ## R9. Pinned bubbles update while the controls are hidden
 

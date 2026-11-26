@@ -1,6 +1,6 @@
 # Handoff: Preview Extras
 
-**Updated**: 2026-11-25 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261123-213544-preview-extras`
+**Updated**: 2026-11-26 | **Spec**: [spec.md](spec.md) | **Branch**: `feat/20261123-213544-preview-extras`
 
 ## State
 
@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021), the Pin (T022) and the drag (T023) are built. The ezcap and
+(T020), the layout per corner (T021), the Pin (T022), the drag (T023) and the grab cursors (T024) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -278,6 +278,22 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   - The maintainer checked on Windows (ezcap, release): moves across and within corners, press
     without movement, Alt+Tab cancel, kept after a restart. Settings backup from before the test:
     target/release/capturax.toml.before-t023.
+- 2026-11-26: T024: the grab cursors. info-bubbles.slint `Bubble.cursor` (1 over it, 2 from the
+  press on, before it moves: maintainer) and `InfoBubbles.cursor` (the highest); main.slint
+  `out property pointer-cursor`. frame.rs `cursor(direction, ui)`: an edge's resize shape wins
+  over the open hand, the closed hand wins over the edge (a drag into a corner crosses the band).
+  app.rs `update_cursor` after each pointer event and each `update_ui` (a timer can cancel a
+  drag), setting the window's cursor only on a change.
+  - Windows has no grab cursor (winit shows the four-way arrow), so the app uses the maintainer's
+    own drawings, app/ui/assets/cursors/grab.svg and grabbing.svg (a 22 px square; mockup
+    https://claude.ai/artifact/9SVtogaGoESmXddRQA4NWm). build.rs rasterizes them into 32–96 px
+    cursors (22 of every 32 pixels, centred); app/src/cursor.rs `GrabCursors` makes the size
+    nearest to 32 × scale with winit's `CustomCursor` (again on `ScaleFactorChanged`), click
+    point at the palm, (17, 19) at 32 px. `platform::has_grab_cursors()` is true on Linux, where
+    the cursor theme's hands are used. Spec FR-015 and research R8 updated.
+  - The maintainer checked on Windows (ezcap, release): hover, press, drag across the edge,
+    release, edges, chrome hidden. Not yet looked at on CachyOS (theme hands; T028's run).
+  - The formatting `cargo fmt` wanted in T023's `on_bubble_moved` is folded into its commit.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -291,6 +307,6 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T024 (grab cursors), T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
+- US3 (bubbles): T025 (notices per corner, from `info.boxes` / `info.pinned-boxes`), T027
   (Reset row). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
