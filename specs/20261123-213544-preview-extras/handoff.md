@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024) and the notices per corner (T025) are built. The ezcap and
+(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025) and the pinned texts updating (T026) are built. The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -311,6 +311,14 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
     notice positions, controls shown and hidden, 640 × 360. A notice comes from Ctrl+Shift+F8.
   - Found: closing the settings panel while a control's tooltip shows leaves it on screen (old,
     not this spec); recorded in docs/roadmap.md #17 UI review with the tested fix.
+- 2026-11-26: T026: the freeze was in info-bubbles.slint, not app.rs (app.rs already sends the
+  texts each second; tasks.md corrected). `fps-live` / `latency-live` = `active || pinned(2 / 3)`
+  pick the live value or the held one, per bubble; `hold-fps` / `hold-latency` keep the held text
+  current while live, so a bubble unpinned (or reset) with the controls hidden shows its last
+  value. The maintainer checked on Windows (ezcap, release, `--stats`): pinned bubbles update
+  each second with the controls hidden (`ui=2`), nothing redraws with none pinned (`ui=0`).
+  - The maintainer turned `keep_in_tray` off in target/release/capturax.toml on purpose: closing
+    the window then quits, so a rebuild does not fail on an app left in the tray.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -324,5 +332,5 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- US3 (bubbles): T026 (pinned texts keep updating), T027 (Reset row), then T028 (maintainer). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
+- US3 (bubbles): T027 (Reset row), then T028 (maintainer). An arrangement can be tried by editing `[overlay.bubbles]` in the settings file.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).
