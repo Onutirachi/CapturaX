@@ -102,6 +102,9 @@ pub enum Event {
     VideoClosed {
         session: u64,
     },
+    /// While no video session is open, the video device whose choices the Audio select shows and a
+    /// pick stores (the preview hidden, preview extras FR-010a); None otherwise. Opens nothing.
+    VideoChosen(Option<VideoDevice>),
     /// The user set the preview's volume (0–100) or mute (FR-011); the settings already hold it.
     Volume {
         level: u8,
@@ -133,6 +136,7 @@ impl Event {
             Self::Session(event) => format!("audio session: {event:?}"),
             Self::VideoOpened { session, device } => format!("video session {session} opened on {}", device.id),
             Self::VideoClosed { session } => format!("video session {session} closed"),
+            Self::VideoChosen(device) => format!("video device {:?} chosen", device.as_ref().map(|d| &d.id)),
             Self::Volume { level, muted } => format!("volume {level} muted {muted}"),
             Self::Input(choice) => format!("input {choice} picked"),
             Self::Output(choice) => format!("output {choice} picked"),
@@ -305,6 +309,8 @@ pub struct AudioController {
     names: HashMap<String, String>,
     /// The open video session and its device.
     video: Option<(u64, VideoDevice)>,
+    /// The video device chosen while no session is open ([`Event::VideoChosen`]).
+    chosen: Option<VideoDevice>,
     open: Option<Open>,
     /// The chosen output plays on the system default because it is missing or failed
     /// (data-model.md "Output fallback"): its id, until the output opens on it again.
@@ -346,6 +352,7 @@ impl AudioController {
             default_output: None,
             names: HashMap::new(),
             video: None,
+            chosen: None,
             open: None,
             fallback: None,
             reopens_on_default,
@@ -363,9 +370,15 @@ impl AudioController {
         self.open.as_ref().map(|o| o.number)
     }
 
-    /// The open video device, whose input choice the Audio select shows and a pick stores.
+    /// The open video device, else the chosen one ([`Event::VideoChosen`]): its input choice the
+    /// Audio select shows and a pick stores.
     pub fn video(&self) -> Option<&VideoDevice> {
-        self.video.as_ref().map(|(_, video)| video)
+        self.video.as_ref().map(|(_, video)| video).or(self.chosen.as_ref())
+    }
+
+    /// The video device chosen while no session is open.
+    pub fn chosen(&self) -> Option<&VideoDevice> {
+        self.chosen.as_ref()
     }
 
     /// The system default output's id, as the monitor last said.
@@ -502,10 +515,10 @@ impl AudioController {
         (output, missing)
     }
 
-    /// The Audio select's value: the open video device's input choice (FR-008); None while no
-    /// video device is open.
+    /// The Audio select's value: the open (or chosen) video device's input choice (FR-008); None
+    /// without one.
     pub fn value(&self, settings: &Settings) -> Option<Label> {
-        let (_, video) = self.video.as_ref()?;
+        let video = self.video()?;
         Some(match input_choice(settings, video) {
             AudioChoice::Auto => Label::Auto(self.auto_name(video)),
             AudioChoice::None => Label::NoAudio,
@@ -523,8 +536,8 @@ impl AudioController {
     }
 
     /// The Audio dropdown's menu: the state's notice and action when there is one, the `Input`
-    /// group (Auto, every input, No audio) while a video
-    /// device is open, then the `Output` group; the choices in use marked. A chosen endpoint that
+    /// group (Auto, every input, No audio) while a video device is open or chosen, then the
+    /// `Output` group; the choices in use marked. A chosen endpoint that
     /// is missing stays in its group, marked and `missing`, until it returns or another is picked
     /// (Auto names its paired input that left the same way).
     pub fn menu(&self, settings: &Settings) -> Vec<Item> {
@@ -548,7 +561,7 @@ impl AudioController {
                 });
             }
         }
-        if let Some((_, video)) = &self.video {
+        if let Some(video) = self.video() {
             let choice = input_choice(settings, video);
             items.push(header(Label::Inputs));
             let auto = choice == AudioChoice::Auto;
@@ -684,6 +697,7 @@ impl AudioController {
                     self.resolve(settings, &mut out);
                 }
             }
+            Event::VideoChosen(device) => self.chosen = device,
             Event::VideoClosed { session } => {
                 if self.video.as_ref().is_some_and(|(open, _)| *open == session) {
                     self.video = None;
@@ -1149,6 +1163,31 @@ mod tests {
         // Its acknowledgment changes nothing.
         assert!(run.send(Event::Session(SessionEvent::Closed { number: 1 })).is_empty());
         assert_eq!(run.audio.state(), AudioState::Off);
+    }
+
+    #[test]
+    fn a_chosen_video_device_shows_its_choices_and_opens_nothing() {
+        let mut run = Run::new();
+        run.send(listed());
+        assert!(run.send(Event::VideoChosen(Some(card()))).is_empty());
+        assert_eq!(run.audio.video(), Some(&card()));
+        let auto = Label::Auto(Some("Digital Audio Interface (ezcap)".into()));
+        assert_eq!(run.audio.value(&run.settings), Some(auto.clone()));
+        assert_eq!(run.audio.menu(&run.settings)[1].text, auto);
+
+        // A pick is stored for it and opens nothing.
+        assert!(run.pick_input(AudioChoice::Input(MIC_INPUT.into())).is_empty());
+        assert_eq!(
+            run.audio.value(&run.settings),
+            Some(Label::Plain("Microphone (Realtek(R) Audio)".into()))
+        );
+        assert_eq!(run.audio.state(), AudioState::Off);
+        assert_eq!(run.audio.session(), None);
+
+        // Cleared, the Audio select has no input group again.
+        run.send(Event::VideoChosen(None));
+        assert_eq!(run.audio.value(&run.settings), None);
+        assert_eq!(run.audio.menu(&run.settings)[0].text, Label::Outputs);
     }
 
     #[test]

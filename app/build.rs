@@ -19,6 +19,38 @@ fn main() {
     let out = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     rasterize_icon(Path::new("../brand/X.svg"), &out);
     rasterize_watermark(Path::new("../brand/X.svg"), &out);
+    for kind in ["grab", "grabbing"] {
+        rasterize_cursor(&Path::new("ui/assets/cursors").join(format!("{kind}.svg")), kind, &out);
+    }
+}
+
+/// The grab cursors' sides in pixels, one per common display scale (100 % to 300 %); the app
+/// picks the nearest (spec FR-015, research R8). Keep in step with `cursor::SIZES`.
+const CURSOR_SIZES: [u32; 8] = [32, 40, 48, 56, 64, 72, 80, 96];
+
+/// Writes `cursor-<kind>-<size>.rgba` (straight RGBA, rows packed) for each size: the drawing's
+/// square takes 22 of every 32 pixels, centred, as the maintainer drew it for a 32 px cursor.
+fn rasterize_cursor(svg: &Path, kind: &str, out: &Path) {
+    use resvg::{tiny_skia, usvg};
+    let data = std::fs::read(svg).expect("cursor svg");
+    let tree = usvg::Tree::from_data(&data, &usvg::Options::default()).expect("cursor svg must parse");
+    for size in CURSOR_SIZES {
+        let mut pixmap = tiny_skia::Pixmap::new(size, size).expect("cursor size");
+        let side = size as f32 * 22.0 / 32.0;
+        let scale = side / tree.size().width();
+        let offset = (size as f32 - side) / 2.0;
+        let transform = tiny_skia::Transform::from_scale(scale, scale).post_translate(offset, offset);
+        resvg::render(&tree, transform, &mut pixmap.as_mut());
+        let rgba: Vec<u8> = pixmap
+            .pixels()
+            .iter()
+            .flat_map(|p| {
+                let c = p.demultiply();
+                [c.red(), c.green(), c.blue(), c.alpha()]
+            })
+            .collect();
+        std::fs::write(out.join(format!("cursor-{kind}-{size}.rgba")), rgba).expect("write cursor");
+    }
 }
 
 /// The watermark's side in pixels (device preview research R18).

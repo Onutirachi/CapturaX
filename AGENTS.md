@@ -15,6 +15,9 @@ native mode, with device notices and the Linux NVIDIA performance request. The p
 volume and mute, WASAPI on Windows (with exclusive mode) and PipeWire on Linux. Screenshots
 (spec `20261121-134830-screenshot`) are built: PNG to a folder and the clipboard, outline flash
 and capture sound, and the global hotkey framework (Ctrl+Shift+F8, Hotkeys and Folders categories).
+The preview extras (spec `20261123-213544-preview-extras`) are built: ambient light with its
+intensity, hiding the preview (video and audio, device released, kept across restarts), and info
+bubbles that can be dragged to any corner and pinned.
 Build and run instructions are in the [README](README.md). The previous version lives in the
 [CapturaX-old](https://github.com/Onutirachi/CapturaX-old) repository and is reference only.
 

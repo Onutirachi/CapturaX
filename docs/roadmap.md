@@ -13,7 +13,7 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 3 | [Device preview](#3-device-preview) ([spec](../specs/20261106-170507-device-preview/spec.md)) | F1–F4, F6, F7, F11, F43, F52, F56–F58 | 2 | done |
 | 4 | [Preview audio](#4-preview-audio) ([spec](../specs/20261113-103922-preview-audio/spec.md)) | F12–F14, F47 | 3 | done |
 | 5 | [Screenshot](#5-screenshot) ([spec](../specs/20261121-134830-screenshot/spec.md)) | F19, F50 (framework, screenshot) | 3 | done |
-| 6 | [Preview extras](#6-preview-extras) | F9, F10, F42 | 3 | |
+| 6 | [Preview extras](#6-preview-extras) ([spec](../specs/20261123-213544-preview-extras/spec.md)) | F9, F10, F42 | 3 | in progress |
 | 7 | [Screen and window capture](#7-screen-and-window-capture) | F5 | 3 | |
 | 8 | [Output audio](#8-output-audio) | F15–F17 | 4 | |
 | 9 | [Recording](#9-recording) | F20–F27, F48 (Record in the tray), F50 (record), F51 (recording) | 7, 8 | |
@@ -24,11 +24,15 @@ Status: **next**, **in progress**, **done**, or blank (not started).
 | 14 | [Compact windows](#14-compact-windows) | F25 (compact windows), F48 (Settings in the tray) | 10 | |
 | 15 | [Accelerate GPU](#15-accelerate-gpu) | F55 | 10 | |
 | 16 | [Getting started guide](#16-getting-started-guide) | F54 | 15 | |
-| 17 | [UI review](#17-ui-review) | F59 and the small fixes listed there | 5 | |
+| 17 | [UI review](#17-ui-review) | F59 and the small fixes listed there | 9, 10 | |
 
 Linux is part of every spec, not a final step. Specs 5, 6 and 7 can be done in any order;
-spec 13 can start any time after spec 2; spec 17 any time after spec 5, when its list is worth
-a spec.
+spec 13 can start any time after spec 2; spec 17 comes after the Record and Stream panels
+(specs 9 and 10), since they will add fixes that belong in it (maintainer, 2026-11-23).
+
+The 1080p120 runs a spec could not make, for want of a PS5 game with a 120 Hz mode, wait for one
+combined test after the last spec, so they do not hold the roadmap back (maintainer,
+2026-11-26). Waiting: spec #6's T009 and T029 at 1080p120 on both systems.
 
 ## Specs
 
@@ -136,6 +140,16 @@ for their events the same way (maintainer idea, 2026-11-22).
 
 ### 6. Preview extras
 
+Built: [handoff](../specs/20261123-213544-preview-extras/handoff.md),
+[latency](../specs/20261123-213544-preview-extras/measurements/latency.md) and
+[acceptance](../specs/20261123-213544-preview-extras/measurements/acceptance.md). The ambient light
+is a blurred copy of an older frame drawn under the video, so it adds no latency (Windows 1080p60
+windowed: 28.9 ms median glass to glass with it on, 29.7 ms in spec #3 without it); hiding the
+preview releases the device and the preview's audio and is kept across restarts (product.md's
+"Hide preview and its audio" decided: FR-012); the bubbles are dragged to any corner and pinned,
+one arrangement for the app. Left before done: the latency run with pinned bubbles on CachyOS at
+1080p60 (T029). The 1080p120 runs go to the combined test after the last spec (see above).
+
 ```text
 /speckit-specify Preview extras (see docs/roadmap.md #6): covers F9, F10 and F42 from
 docs/product.md: ambient light, hiding the preview, and the capture info overlay (bubbles that
@@ -149,6 +163,10 @@ stack spike).
 /speckit-specify Screen and window capture (see docs/roadmap.md #7): covers F5 from
 docs/product.md, on Windows (own list) and Linux (Wayland portal picker, X11 if supported).
 ```
+
+Where the app lists the sources, the picker looks a bit like Discord's screen share picker: a
+**Screens** tab and an **Apps** tab, each item with a preview image (F5; maintainer,
+2026-11-23).
 
 ### 8. Output audio
 
@@ -168,6 +186,9 @@ spec 10), and the
 recording status of F51 on the tray icon and the taskbar button. The tray's Record entry and
 Ctrl+Shift+F10 open the Record panel in the main window (the compact window comes in spec 14).
 ```
+
+Decide here how screenshots work with outputs running (product.md, To reconsider: one key for
+everything running, up to 3 files, or one key each).
 
 The recordings folder (default Videos/CapturaX) is a second row in the settings' **Folders**
 category, beside the screenshots folder from spec 5, reusing its row (maintainer, 2026-11-23).
@@ -219,7 +240,7 @@ option "Show in the applications menu" (maintainer, 2026-11-23).
 the Settings entry of F48 from docs/product.md. When the main window is not visible, the tray's
 Live, Record and Settings entries and the Ctrl+Shift+F9 / Ctrl+Shift+F10 hotkeys open that panel as a compact
 window of its own on the desktop (the same panel, same size and look, without the preview and
-without opening the preview device); `--live` and `--record` start the app that way (a running
+without opening the preview device); `--live`, `--record` and `--settings` start the app that way (a running
 instance opens them). Live and Record can be open at the same time. Reuses the panels built in
 specs 9 and 10.
 ```
@@ -246,7 +267,9 @@ Last, so its screenshots show the finished app.
 /speckit-specify Getting started guide (see docs/roadmap.md #16): covers F54 from docs/product.md.
 A short illustrated guide with screenshots of the app: moving the info bubbles, the color range
 setting, the mode chosen against the resolution of the signal the device receives, and HDCP (a
-black image from a console with HDCP on, and how to turn it off). Reopened from the settings.
+black image from a console with HDCP on, and how to turn it off), and a Windows latency tip: keep
+MPO on, as turning it off adds about 13 ms to the windowed preview (preview extras
+measurements/latency.md). Reopened from the settings.
 Decide when it is first shown. Also tooltips on the more complex settings (Accelerate GPU, color
 range, presentation), a few words of detail each. Texts in both languages; screenshots per
 language and theme if needed.
@@ -274,11 +297,12 @@ item here when it is found (with the date), instead of fixing it inside an unrel
 - Double click on the video toggles fullscreen (maintainer, 2026-11-23).
 - An open overlay (menu, popover, settings panel) closes when the window is resized
   (maintainer, 2026-11-23).
-- Volume button dimmed when the preview has no sound to play ("No audio", no input, a state
-  shown): the popover, the wheel and the keys do nothing, tooltip "No audio"; the app's one
-  level (preview audio FR-012) is kept for when sound returns. Today it still moves on "No
-  audio" though nothing plays; same idea as the screenshot button dimmed without video.
-  Changes preview audio's FR-011 (maintainer, 2026-11-23).
+- Settings panel: closing it while one of its controls' tooltips shows (for example
+  **Notification position**'s) leaves the tooltip on screen, since the control is gone and never
+  hides it. Calling `Tooltips.dismiss()` in main.slint's `changed settings-open` when it closes
+  fixed it in a test (maintainer, 2026-11-26).
+- Fullscreen: the pointer hides together with the controls and comes back when the mouse moves,
+  as in YouTube's fullscreen (maintainer, 2026-11-26).
 
 ```text
 /speckit-specify UI review (see docs/roadmap.md #17): covers F59 from docs/product.md and the

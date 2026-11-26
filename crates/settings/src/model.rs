@@ -15,6 +15,9 @@ pub const DEVICES_LIMIT: usize = 32;
 pub const AUDIO_DEVICES_LIMIT: usize = 32;
 /// The preview's volume when none is stored or it is not a number (preview audio FR-012).
 pub const DEFAULT_VOLUME: u8 = 80;
+/// The ambient light's intensity in percent when none is stored or it is not an integer
+/// (preview extras FR-001a).
+pub const DEFAULT_AMBIENT_INTENSITY: u8 = 100;
 /// `[screenshot] folder` for the system's Pictures folder plus `CapturaX` (screenshot FR-020).
 pub const DEFAULT_FOLDER: &str = "default";
 /// The screenshot key when none is stored (screenshot FR-012).
@@ -174,6 +177,12 @@ pub struct Preview {
     pub watermark: bool,
     /// The shadow around the video (F58).
     pub shadow: Shadow,
+    /// The ambient light around the video (preview extras FR-001); applies to every device.
+    pub ambient: bool,
+    /// The ambient light's intensity in percent, 0 to 100 (preview extras FR-001a).
+    pub ambient_intensity: u8,
+    /// The preview is hidden and no device is opened (preview extras FR-011).
+    pub hidden: bool,
 }
 
 impl Default for Preview {
@@ -185,6 +194,9 @@ impl Default for Preview {
             background: Background::default(),
             watermark: true,
             shadow: Shadow::default(),
+            ambient: false,
+            ambient_intensity: DEFAULT_AMBIENT_INTENSITY,
+            hidden: false,
         }
     }
 }
@@ -203,7 +215,7 @@ pub enum Background {
 pub enum Shadow {
     #[default]
     Always,
-    /// Only over the ambient light (spec #6); none until then.
+    /// Only while the ambient light is on, fading with it (preview extras FR-005).
     Ambient,
     Off,
 }
@@ -217,11 +229,71 @@ pub enum Presentation {
 }
 
 /// The `[overlay]` table: what the info bubbles show.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Overlay {
     pub latency: LatencyDisplay,
     pub fps: FpsDisplay,
     pub mode: ModeDisplay,
+    /// Where each bubble sits and which are pinned (preview extras FR-013, FR-014).
+    pub bubbles: Arrangement,
+}
+
+/// An info bubble (preview extras data-model.md "Settings"). Specs #9 and #10 add `Recording`
+/// and `Live`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BubbleKind {
+    Source,
+    Mode,
+    Fps,
+    Latency,
+}
+
+impl BubbleKind {
+    /// Every kind, in the order of contracts/settings-file.md rule 3 (also the default order).
+    pub const ALL: [BubbleKind; 4] = [Self::Source, Self::Mode, Self::Fps, Self::Latency];
+
+    /// The name in the settings file.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Source => "source",
+            Self::Mode => "mode",
+            Self::Fps => "fps",
+            Self::Latency => "latency",
+        }
+    }
+
+    /// The kind with this name; none for an unknown name.
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.as_str() == text)
+    }
+}
+
+/// The corners' keys in `[overlay.bubbles]`, by corner index.
+pub const CORNER_KEYS: [&str; 4] = ["top-left", "top-right", "bottom-left", "bottom-right"];
+/// The bottom right corner's index, where kinds in no list go (rule 4).
+pub const BOTTOM_RIGHT: usize = 3;
+
+/// The `[overlay.bubbles]` table (preview extras data-model.md "Settings"). Invariant: every kind
+/// is in exactly one corner list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Arrangement {
+    /// Each corner's bubbles in reading order: 0 top left, 1 top right, 2 bottom left, 3 bottom
+    /// right.
+    pub corners: [Vec<BubbleKind>; 4],
+    /// The kinds shown also while the controls are hidden, in kind order, no duplicates.
+    pub pinned: Vec<BubbleKind>,
+}
+
+impl Default for Arrangement {
+    /// All four at the bottom right, in order, none pinned (today's layout).
+    fn default() -> Self {
+        let mut corners: [Vec<BubbleKind>; 4] = Default::default();
+        corners[BOTTOM_RIGHT] = BubbleKind::ALL.to_vec();
+        Self {
+            corners,
+            pinned: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -442,11 +514,17 @@ impl Settings {
                 background: Background::parse(get(preview, "background").and_then(Value::as_str)),
                 watermark: flag(preview, "watermark", defaults.preview.watermark),
                 shadow: Shadow::parse(get(preview, "shadow").and_then(Value::as_str)),
+                // Rule 1 (preview extras): missing or not a boolean reads as off.
+                ambient: flag(preview, "ambient", false),
+                ambient_intensity: read_ambient_intensity(get(preview, "ambient_intensity")),
+                // Rule 1 (preview extras): missing or not a boolean reads as shown.
+                hidden: flag(preview, "hidden", false),
             },
             overlay: Overlay {
                 latency: LatencyDisplay::parse(get(overlay, "latency").and_then(Value::as_str)),
                 fps: FpsDisplay::parse(get(overlay, "fps").and_then(Value::as_str)),
                 mode: ModeDisplay::parse(get(overlay, "mode").and_then(Value::as_str)),
+                bubbles: read_arrangement(get(overlay, "bubbles").and_then(Value::as_table)),
             },
             devices: read_devices(table.get("devices").and_then(Value::as_table)),
             audio: Audio {
@@ -516,11 +594,25 @@ impl Settings {
         preview.insert("background".into(), Value::String(p.background.as_str().into()));
         preview.insert("watermark".into(), Value::Boolean(p.watermark));
         preview.insert("shadow".into(), Value::String(p.shadow.as_str().into()));
+        preview.insert("ambient".into(), Value::Boolean(p.ambient));
+        preview.insert(
+            "ambient_intensity".into(),
+            Value::Integer(p.ambient_intensity.min(100).into()),
+        );
+        preview.insert("hidden".into(), Value::Boolean(p.hidden));
 
         let overlay = category(table, "overlay");
         overlay.insert("latency".into(), Value::String(self.overlay.latency.as_str().into()));
         overlay.insert("fps".into(), Value::String(self.overlay.fps.as_str().into()));
         overlay.insert("mode".into(), Value::String(self.overlay.mode.as_str().into()));
+        let names =
+            |kinds: &[BubbleKind]| Value::Array(kinds.iter().map(|k| Value::String(k.as_str().into())).collect());
+        let arrangement = &self.overlay.bubbles;
+        let bubbles = category(overlay, "bubbles");
+        for (key, kinds) in CORNER_KEYS.iter().zip(&arrangement.corners) {
+            bubbles.insert((*key).into(), names(kinds));
+        }
+        bubbles.insert("pinned".into(), names(&arrangement.pinned));
 
         // Rebuilt in order, most recently used first: entries past the limit are dropped (rule 3)
         // and the unknown keys of the kept ones survive.
@@ -632,6 +724,63 @@ fn read_volume(value: Option<&Value>) -> u8 {
         _ => return DEFAULT_VOLUME,
     };
     u8::try_from(volume).unwrap_or(DEFAULT_VOLUME)
+}
+
+/// `[preview] ambient_intensity`: clamped to 0–100; a missing or non-integer value takes
+/// [`DEFAULT_AMBIENT_INTENSITY`] (preview extras rule 2).
+fn read_ambient_intensity(value: Option<&Value>) -> u8 {
+    match value {
+        Some(Value::Integer(v)) => u8::try_from((*v).clamp(0, 100)).unwrap_or(DEFAULT_AMBIENT_INTENSITY),
+        _ => DEFAULT_AMBIENT_INTENSITY,
+    }
+}
+
+/// `[overlay.bubbles]` (preview extras contracts/settings-file.md rules 3 to 6): a missing table
+/// is the default; in the corner lists an unknown kind is dropped (logged), a kind listed twice
+/// keeps its first place and a kind in no list is appended to the bottom right; `pinned` keeps
+/// only known kinds, without duplicates. A key that is not an array reads as an empty list.
+fn read_arrangement(table: Option<&Table>) -> Arrangement {
+    let Some(table) = table else {
+        return Arrangement::default();
+    };
+    let kinds = |key: &str| -> Vec<BubbleKind> {
+        let Some(values) = table.get(key) else {
+            return Vec::new();
+        };
+        let Some(values) = values.as_array() else {
+            log::warn!("overlay.bubbles.{key} is not a list; read as empty");
+            return Vec::new();
+        };
+        values
+            .iter()
+            .filter_map(|value| {
+                let kind = value.as_str().and_then(BubbleKind::parse);
+                if kind.is_none() {
+                    log::warn!("overlay.bubbles.{key}: unknown bubble {value}; dropped");
+                }
+                kind
+            })
+            .collect()
+    };
+    let mut corners: [Vec<BubbleKind>; 4] = Default::default();
+    let mut placed = Vec::new();
+    for (corner, key) in corners.iter_mut().zip(CORNER_KEYS) {
+        for kind in kinds(key) {
+            if !placed.contains(&kind) {
+                placed.push(kind);
+                corner.push(kind);
+            }
+        }
+    }
+    for kind in BubbleKind::ALL {
+        if !placed.contains(&kind) {
+            corners[BOTTOM_RIGHT].push(kind);
+        }
+    }
+    let mut pinned = kinds("pinned");
+    pinned.sort();
+    pinned.dedup();
+    Arrangement { corners, pinned }
 }
 
 /// The `[audio_devices."<id>"]` entries in file order (most recently used first); entries that
@@ -919,6 +1068,7 @@ mod tests {
                 latency: LatencyDisplay::Total,
                 fps: FpsDisplay::Nominal,
                 mode: ModeDisplay::SizeAspect,
+                bubbles: Arrangement::default(),
             }
         );
         assert_eq!(s.devices.len(), 2);
@@ -1039,6 +1189,268 @@ mod tests {
         let again = Settings::read(&written, LANGUAGES);
         assert_eq!(again, s);
         assert_eq!(again.device(C920).unwrap().mode, "1920x1080@30");
+    }
+
+    #[test]
+    fn ambient_reads_false_unless_a_boolean() {
+        assert!(!Preview::default().ambient);
+        assert!(!read("").preview.ambient);
+        assert!(!read("[preview]").preview.ambient);
+        assert!(read("[preview]\nambient = true").preview.ambient);
+        assert!(!read("[preview]\nambient = false").preview.ambient);
+        for value in ["\"true\"", "1", "\"yes\"", "[true]"] {
+            assert!(
+                !read(&format!("[preview]\nambient = {value}")).preview.ambient,
+                "{value}"
+            );
+        }
+        // A wrong value leaves the other preview keys alone.
+        let s = read("[preview]\nambient = 1\nwatermark = false");
+        assert!(!s.preview.ambient);
+        assert!(!s.preview.watermark);
+    }
+
+    #[test]
+    fn ambient_round_trips_with_unknown_keys() {
+        let mut s = Settings::default();
+        s.preview.ambient = true;
+        let mut table = parse("[preview]\nlater = true\n[future]\nkey = 1");
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        assert_eq!(written["preview"]["ambient"].as_bool(), Some(true));
+        assert_eq!(written["preview"]["later"].as_bool(), Some(true));
+        assert_eq!(written["future"]["key"].as_integer(), Some(1));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+
+        s.preview.ambient = false;
+        s.write_into(&mut table);
+        assert_eq!(table["preview"]["ambient"].as_bool(), Some(false));
+        assert_eq!(Settings::read(&table, LANGUAGES), s);
+    }
+
+    use BubbleKind::{Fps, Latency, Mode, Source};
+
+    fn bubbles(text: &str) -> Arrangement {
+        read(&format!("[overlay.bubbles]\n{text}")).overlay.bubbles
+    }
+
+    fn corners(a: &Arrangement) -> [&[BubbleKind]; 4] {
+        [&a.corners[0], &a.corners[1], &a.corners[2], &a.corners[3]]
+    }
+
+    #[test]
+    fn missing_bubbles_table_reads_as_the_defaults() {
+        let a = read("[overlay]\nfps = \"nominal\"").overlay.bubbles;
+        assert_eq!(a, Arrangement::default());
+        assert_eq!(corners(&a), [&[][..], &[], &[], &[Source, Mode, Fps, Latency]]);
+        assert!(a.pinned.is_empty());
+        assert_eq!(read("").overlay.bubbles, Arrangement::default());
+        // A table of the wrong type is missing too.
+        assert_eq!(read("[overlay]\nbubbles = 3").overlay.bubbles, Arrangement::default());
+    }
+
+    #[test]
+    fn bubbles_valid_lists() {
+        let a = bubbles(
+            r#"
+            top-left = ["latency", "fps"]
+            top-right = []
+            bottom-left = ["source"]
+            bottom-right = ["mode"]
+            pinned = ["fps", "latency"]
+            "#,
+        );
+        assert_eq!(corners(&a), [&[Latency, Fps][..], &[], &[Source], &[Mode]]);
+        assert_eq!(a.pinned, [Fps, Latency]);
+    }
+
+    #[test]
+    fn unknown_bubble_kinds_are_dropped() {
+        let a = bubbles(
+            r#"
+            top-left = ["recording", "fps", 3, "live"]
+            bottom-right = ["source", "mode", "latency"]
+            "#,
+        );
+        assert_eq!(corners(&a), [&[Fps][..], &[], &[], &[Source, Mode, Latency]]);
+    }
+
+    #[test]
+    fn a_bubble_listed_twice_keeps_its_first_place() {
+        let a = bubbles(
+            r#"
+            top-left = ["fps", "mode", "fps"]
+            top-right = ["mode", "latency"]
+            bottom-right = ["source", "latency"]
+            "#,
+        );
+        assert_eq!(corners(&a), [&[Fps, Mode][..], &[Latency], &[], &[Source]]);
+    }
+
+    #[test]
+    fn a_bubble_in_no_list_goes_to_the_bottom_right_in_kind_order() {
+        let a = bubbles("top-left = [\"mode\"]\nbottom-right = [\"fps\"]");
+        assert_eq!(corners(&a), [&[Mode][..], &[], &[], &[Fps, Source, Latency]]);
+        // An empty table, or lists that are not arrays, give the defaults.
+        assert_eq!(bubbles(""), Arrangement::default());
+        assert_eq!(bubbles("top-left = \"fps\"\nbottom-right = 2"), Arrangement::default());
+    }
+
+    #[test]
+    fn pinned_keeps_known_kinds_once_in_any_order() {
+        let a = bubbles("pinned = [\"latency\", \"recording\", \"source\", \"latency\", 1]");
+        assert_eq!(a.pinned, [Source, Latency]);
+        assert_eq!(corners(&a), corners(&Arrangement::default()));
+        assert!(bubbles("pinned = \"fps\"").pinned.is_empty());
+    }
+
+    #[test]
+    fn bubbles_round_trip_with_unknown_keys() {
+        let mut s = Settings::default();
+        s.overlay.fps = FpsDisplay::Nominal;
+        s.overlay.bubbles = Arrangement {
+            corners: [vec![Latency], vec![], vec![Mode, Source], vec![Fps]],
+            pinned: vec![Mode, Fps],
+        };
+        let mut table = parse("[overlay]\nlater = 1\n[overlay.bubbles]\ncenter = [\"x\"]");
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        let b = &written["overlay"]["bubbles"];
+        let names = |key: &str| -> Vec<&str> { b[key].as_array().unwrap().iter().filter_map(Value::as_str).collect() };
+        assert_eq!(names("top-left"), ["latency"]);
+        assert!(names("top-right").is_empty());
+        assert_eq!(names("bottom-left"), ["mode", "source"]);
+        assert_eq!(names("bottom-right"), ["fps"]);
+        assert_eq!(names("pinned"), ["mode", "fps"]);
+        assert_eq!(names("center"), ["x"]);
+        assert_eq!(written["overlay"]["later"].as_integer(), Some(1));
+        assert_eq!(written["overlay"]["fps"].as_str(), Some("nominal"));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+
+        // The defaults write today's layout (Reset, FR-016).
+        let mut table = Table::new();
+        Settings::default().write_into(&mut table);
+        let b = &table["overlay"]["bubbles"];
+        let names = |key: &str| -> Vec<&str> { b[key].as_array().unwrap().iter().filter_map(Value::as_str).collect() };
+        assert_eq!(names("bottom-right"), ["source", "mode", "fps", "latency"]);
+        assert!(names("top-left").is_empty() && names("pinned").is_empty());
+    }
+
+    #[test]
+    fn hidden_reads_false_unless_a_boolean() {
+        assert!(!Preview::default().hidden);
+        assert!(!read("").preview.hidden);
+        assert!(!read("[preview]").preview.hidden);
+        assert!(
+            read(
+                "[preview]
+hidden = true"
+            )
+            .preview
+            .hidden
+        );
+        assert!(
+            !read(
+                "[preview]
+hidden = false"
+            )
+            .preview
+            .hidden
+        );
+        for value in ["\"true\"", "1", "\"yes\"", "[true]"] {
+            assert!(
+                !read(&format!(
+                    "[preview]
+hidden = {value}"
+                ))
+                .preview
+                .hidden,
+                "{value}"
+            );
+        }
+        // A wrong value leaves the other preview keys alone.
+        let s = read(
+            "[preview]
+hidden = 1
+ambient = true",
+        );
+        assert!(!s.preview.hidden);
+        assert!(s.preview.ambient);
+    }
+
+    #[test]
+    fn hidden_round_trips_with_unknown_keys() {
+        let mut s = Settings::default();
+        s.preview.hidden = true;
+        let mut table = parse(
+            "[preview]
+later = true
+[future]
+key = 1",
+        );
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        assert_eq!(written["preview"]["hidden"].as_bool(), Some(true));
+        assert_eq!(written["preview"]["later"].as_bool(), Some(true));
+        assert_eq!(written["future"]["key"].as_integer(), Some(1));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+
+        s.preview.hidden = false;
+        s.write_into(&mut table);
+        assert_eq!(table["preview"]["hidden"].as_bool(), Some(false));
+        assert_eq!(Settings::read(&table, LANGUAGES), s);
+    }
+
+    #[test]
+    fn ambient_intensity_reads_an_integer_clamped() {
+        let intensity = |text: &str| {
+            read(&format!(
+                "[preview]
+ambient_intensity = {text}"
+            ))
+            .preview
+            .ambient_intensity
+        };
+        assert_eq!(Preview::default().ambient_intensity, DEFAULT_AMBIENT_INTENSITY);
+        assert_eq!(read("").preview.ambient_intensity, 100);
+        assert_eq!(read("[preview]").preview.ambient_intensity, 100);
+        assert_eq!(intensity("0"), 0);
+        assert_eq!(intensity("35"), 35);
+        assert_eq!(intensity("100"), 100);
+        assert_eq!(intensity("-5"), 0);
+        assert_eq!(intensity("250"), 100);
+        assert_eq!(intensity("99999999999"), 100);
+        for value in ["42.6", "nan", "true", "\"50\"", "[50]"] {
+            assert_eq!(intensity(value), 100, "{value}");
+        }
+        // A wrong value leaves the other preview keys alone.
+        let s = read(
+            "[preview]
+ambient_intensity = \"x\"
+ambient = true",
+        );
+        assert_eq!(s.preview.ambient_intensity, 100);
+        assert!(s.preview.ambient);
+    }
+
+    #[test]
+    fn ambient_intensity_round_trips() {
+        let mut s = Settings::default();
+        s.preview.ambient_intensity = 40;
+        let mut table = parse(
+            "[preview]
+later = true",
+        );
+        s.write_into(&mut table);
+        let written: Table = toml::to_string(&table).unwrap().parse().unwrap();
+        assert_eq!(written["preview"]["ambient_intensity"].as_integer(), Some(40));
+        assert_eq!(written["preview"]["later"].as_bool(), Some(true));
+        assert_eq!(Settings::read(&written, LANGUAGES), s);
+
+        s.preview.ambient_intensity = 0;
+        s.write_into(&mut table);
+        assert_eq!(table["preview"]["ambient_intensity"].as_integer(), Some(0));
+        assert_eq!(Settings::read(&table, LANGUAGES), s);
     }
 
     #[test]

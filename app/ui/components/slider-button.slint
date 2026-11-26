@@ -1,12 +1,12 @@
-// The volume button of the left dock and its popover (preview audio FR-011, research R12): the
-// preview's own level and mute, never the system's. The button's icon shows the level (set by Rust
-// from `audio::volume::icon`); the popover shows a 0–100 slider with its value and takes no focus:
-// the button alone does mute and level, so Tab stops once.
-// Mouse: a click toggles mute; resting 300 ms on the button opens the popover, which stays while
-// the pointer is on the button or the popover and closes 400 ms after it leaves both; a right
-// press opens it; the wheel over the button changes the level without opening it. Touch: a tap
-// opens it, a tap outside closes it, holding the button 500 ms toggles mute. Keyboard: the focus
-// on the button opens it, Enter or Space toggles mute, the arrows move the level ±5, Home and End
+// A dock button with a 0–100 slider popover (preview audio FR-011, research R12; preview extras
+// FR-001a, research R2b): the volume button and the ambient light button. A click turns the
+// button's thing off and on (mute, light); the popover shows a slider with its value and takes no
+// focus: the button alone does both, so Tab stops once. Setting a value turns it on.
+// Mouse: a click toggles; resting 300 ms on the button opens the popover, which stays while the
+// pointer is on the button or the popover and closes 400 ms after it leaves both; a right press
+// opens it; the wheel over the button reports its move without opening it (Rust steps the value).
+// Touch: a tap opens it, a tap outside closes it, holding the button 500 ms toggles. Keyboard: the
+// focus on the button opens it, Enter or Space toggles, the arrows move the value ±5, Home and End
 // to 0 and 100, and it closes when the focus leaves the button.
 // The popover is a child of the button, so it follows it in the chrome's slide; it stands beside
 // the dock, inside the chrome.
@@ -17,11 +17,11 @@ import { Side } from "tooltip.slint";
 import { Input } from "focus-ring.slint";
 
 // A horizontal 0–100 slider: press or drag on it. `moved` reports each value the user sets, also
-// the same one (a press while muted unmutes). It takes no focus: the volume button's keys move it.
-component VolumeSlider inherits Rectangle {
+// the same one (a press while off turns on). It takes no focus: the button's keys move it.
+component Slider inherits Rectangle {
     in property <int> value;
-    // Drawn without the accent while the sound is muted.
-    in property <bool> muted;
+    // Drawn without the accent while off (muted, light off).
+    in property <bool> off;
     in property <string> label;
     out property <bool> dragging: area.pressed;
     callback moved(int);
@@ -64,7 +64,7 @@ component VolumeSlider inherits Rectangle {
         width: root.travel * root.value / 100;
         height: 4px;
         border-radius: 2px;
-        background: root.muted ? Theme.c.text-muted : Theme.c.accent;
+        background: root.off ? Theme.c.text-muted : Theme.c.accent;
     }
 
     Rectangle {
@@ -73,7 +73,7 @@ component VolumeSlider inherits Rectangle {
         width: root.knob;
         height: root.knob;
         border-radius: root.knob / 2;
-        background: root.muted ? Theme.c.text-muted : area.has-hover || area.pressed ? Theme.c.accent-hover : Theme.c.accent;
+        background: root.off ? Theme.c.text-muted : area.has-hover || area.pressed ? Theme.c.accent-hover : Theme.c.accent;
         animate background { duration: Theme.quick; }
     }
 
@@ -91,8 +91,18 @@ component VolumeSlider inherits Rectangle {
     }
 }
 
-export component VolumeButton inherits Rectangle {
+export component SliderButton inherits Rectangle {
     in property <length> size: 44px;
+    in property <image> icon;
+    // The button's tooltip (none while the popover is open: it shows the value) and its
+    // accessible label.
+    in property <string> tooltip;
+    in property <string> label;
+    // The slider's accessible label and the text beside it.
+    in property <string> slider-label;
+    in property <string> value-text;
+    // The on chip without the popover (the ambient light's on); the chip shows while open too.
+    in property <bool> chip;
     // False keeps the button out of the focus order (under the settings panel).
     in property <bool> focusable: true;
     // The chrome shows and takes input; when it hides the popover closes.
@@ -100,14 +110,14 @@ export component VolumeButton inherits Rectangle {
     // The window's size, for the area a tap outside the popover closes it in.
     in property <length> window-width;
     in property <length> window-height;
-    in-out property <int> volume: 80;
-    in-out property <bool> muted;
-    // `audio::volume::icon` of the level: "off", "low", "medium" or "high".
-    in property <string> level-icon: "high";
+    // The value and the off state (muted, light off) are the parent's: `value-changed` asks for
+    // new ones, and the parent sets them.
+    in property <int> value;
+    in property <bool> off;
     out property <bool> open;
     out property <bool> has-focus: button.has-focus;
-    // The user set the level or the mute.
-    callback volume-changed(int, bool);
+    // The user set the value or turned it off or on.
+    callback value-changed(int, bool);
     // The wheel's vertical move over the button, in logical pixels (60 per notch, up is positive).
     callback wheel(length);
 
@@ -125,17 +135,15 @@ export component VolumeButton inherits Rectangle {
         root.pinned = false;
     }
 
-    function set(volume: int, muted: bool) {
-        if (volume != root.volume || muted != root.muted) {
-            root.volume = volume;
-            root.muted = muted;
-            root.volume-changed(volume, muted);
+    function set(value: int, off: bool) {
+        if (value != root.value || off != root.off) {
+            root.value-changed(value, off);
         }
     }
 
-    // A level the user sets plays: moving it unmutes.
-    function level(volume: int) {
-        root.set(clamp(volume, 0, 100), false);
+    // A value the user sets shows: moving it unmutes, or turns the light on.
+    function level(value: int) {
+        root.set(clamp(value, 0, 100), false);
     }
 
     changed active => {
@@ -151,15 +159,12 @@ export component VolumeButton inherits Rectangle {
 
     button := IconButton {
         size: root.size;
-        icon: root.level-icon == "off" ? @image-url("../assets/icons/volume_off.svg")
-            : root.level-icon == "low" ? @image-url("../assets/icons/volume_1.svg")
-            : root.level-icon == "medium" ? @image-url("../assets/icons/volume_2.svg")
-            : @image-url("../assets/icons/volume.svg");
-        // The popover shows the level itself.
-        tooltip: root.open ? "" : root.muted ? @tr("Muted") : @tr("Volume {}%", root.volume);
-        label: root.muted ? @tr("Muted") : @tr("Volume {}%", root.volume);
+        icon: root.icon;
+        // The popover shows the value itself.
+        tooltip: root.open ? "" : root.tooltip;
+        label: root.label;
         tooltip-side: Side.right;
-        active: root.open;
+        active: root.open || root.chip;
         focusable: root.focusable;
         takes-wheel: true;
         takes-hold: Input.touch;
@@ -168,19 +173,19 @@ export component VolumeButton inherits Rectangle {
                 root.open = true;
                 root.pinned = true;
             } else {
-                root.set(root.volume, !root.muted);
+                root.set(root.value, !root.off);
             }
         }
-        held => { root.set(root.volume, !root.muted); }
+        held => { root.set(root.value, !root.off); }
         right-pressed => { root.open = true; }
         wheel(delta) => { root.wheel(delta); }
         key(event) => {
             if (event.text == Key.RightArrow || event.text == Key.UpArrow) {
-                root.level(root.volume + 5);
+                root.level(root.value + 5);
                 return accept;
             }
             if (event.text == Key.LeftArrow || event.text == Key.DownArrow) {
-                root.level(root.volume - 5);
+                root.level(root.value - 5);
                 return accept;
             }
             if (event.text == Key.Home) {
@@ -246,17 +251,17 @@ export component VolumeButton inherits Rectangle {
                     alignment: center;
                     horizontal-stretch: 1;
 
-                    slider := VolumeSlider {
-                        value: root.volume;
-                        muted: root.muted;
-                        label: @tr("Preview volume");
+                    slider := Slider {
+                        value: root.value;
+                        off: root.off;
+                        label: root.slider-label;
                         moved(value) => { root.level(value); }
                     }
                 }
 
                 Text {
                     width: 48px;
-                    text: root.muted ? @tr("Muted") : @tr("{}%", root.volume);
+                    text: root.value-text;
                     color: Theme.c.text-muted;
                     font-size: Theme.text-m;
                     horizontal-alignment: right;

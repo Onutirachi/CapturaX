@@ -112,6 +112,8 @@ export global Prefs {
     callback watermark-changed(bool);
     callback shadow-changed(int);
     callback presentation-changed(int);
+    // The Info bubbles row's Reset (preview extras FR-016): the bubbles' defaults again.
+    callback bubbles-reset();
     callback start-fullscreen-changed(bool);
     callback keep-in-tray-changed(bool);
     callback start-with-system-changed(bool);
@@ -344,6 +346,39 @@ component SelectRow inherits Row {
             items: root.items;
             current <=> root.current;
             selected(index) => { root.selected(index); }
+        }
+    }
+}
+
+// One action: its name and a text button. Only a click on the button acts (a Reset must not
+// come from a stray click on the row).
+component ButtonRow inherits Row {
+    in property <string> text;
+    in property <string> label;
+    callback clicked();
+
+    height: max(Rows.height, label.preferred-height + 2 * Theme.gap-m);
+    hovered: area.has-hover;
+
+    area := TouchArea {
+        label := Text {
+            x: Rows.pad;
+            width: parent.width - button.width - 2 * Rows.pad - Theme.gap-m;
+            height: parent.height;
+            text: root.text;
+            color: Theme.c.text;
+            font-size: Rows.text;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+
+        // Placed by hand: a layout here would hand its fixed width to the row as its maximum.
+        button := ActionButton {
+            x: parent.width - self.width - Rows.pad;
+            y: (parent.height - self.height) / 2;
+            width: max(96px, self.preferred-width);
+            label: root.label;
+            clicked => { root.clicked(); }
         }
     }
 }
@@ -1033,11 +1068,18 @@ export component SettingsPanel inherits Raised {
 
             if root.category == Category.preview: SegmentedRow {
                 text: @tr("Presentation");
-                last: true;
                 options: [@tr("Lowest latency"), @tr("Follow the monitor")];
                 tooltip: @tr("Only matters with variable refresh (G-SYNC, FreeSync)");
                 current <=> Prefs.presentation;
                 selected(index) => { Prefs.presentation-changed(index); }
+            }
+
+            // No text about the default (FR-016).
+            if root.category == Category.preview: ButtonRow {
+                text: @tr("Info bubbles");
+                label: @tr("Reset");
+                last: true;
+                clicked => { Prefs.bubbles-reset(); }
             }
 
             if root.category == Category.audio: VerticalLayout {

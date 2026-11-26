@@ -3,6 +3,7 @@
 //! source hands it frames directly and the main thread hands it the UI, so the video never waits
 //! for the window's event loop, which Windows holds while the window is moved or resized.
 
+mod glow;
 mod gpu;
 
 use std::collections::VecDeque;
@@ -33,8 +34,31 @@ pub struct Scene {
     /// The video's shadow: the display scale it is drawn at and its strength, 0 for none
     /// (research R18).
     pub shadow: [f32; 2],
+    /// The shadow is With ambient light: the video thread multiplies its strength by the ambient
+    /// light's toggle fade, so the two come and go together (preview extras FR-005, research R4).
+    pub shadow_ambient: bool,
+    /// The ambient light is on (preview extras FR-001); the video thread fades the glow towards it
+    /// (research R2).
+    pub ambient: bool,
+    /// The ambient light's intensity, 0 to 1 (FR-001a): it scales the glow's opacity at once.
+    pub ambient_intensity: f32,
     /// The surface size in physical pixels.
     pub size: (u32, u32),
+}
+
+impl Scene {
+    /// The scene as drawn at the ambient light's toggle level `ambient`: a With ambient light
+    /// shadow at that share of its strength (FR-005).
+    fn faded(self, ambient: f32) -> Self {
+        if !self.shadow_ambient {
+            return self;
+        }
+        let [scale, strength] = self.shadow;
+        Self {
+            shadow: [scale, strength * ambient],
+            ..self
+        }
+    }
 }
 
 /// The session the video thread takes frames from (see [`Inbox::set_session`]).
@@ -271,8 +295,13 @@ impl Inbox {
     /// From the main thread: the UI image when it was redrawn, and the scene.
     pub fn send_ui(&self, ui: Option<UiImage>, scene: Scene) {
         let mut state = self.lock();
-        if ui.is_some() {
-            state.ui = ui;
+        if let Some(mut ui) = ui {
+            // An image not yet uploaded is replaced: its region must still go up (research R9).
+            if let Some(old) = &state.ui {
+                let both = crate::ui::merge(old.dirty, ui.dirty).map(i64::from);
+                ui.dirty = crate::ui::clamp(both, ui.width, ui.height);
+            }
+            state.ui = Some(ui);
         }
         if state.hold.is_some_and(|hold| hold.size != scene.size) {
             state.hold = None;
@@ -400,28 +429,80 @@ const FLOWING: Duration = Duration::from_millis(50);
 
 /// How long the video fades out when its source closes and in on a new source's first frame
 /// (FR-013, research R17).
-const FADE: Duration = Duration::from_millis(150);
+pub const FADE: Duration = Duration::from_millis(150);
 
-/// The video's opacity going from `from` to `to` over [`FADE`] from `start`.
+/// An opacity going from `from` to `to` over `length` from `start`: the video's over [`FADE`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Fade {
     from: f32,
     to: f32,
     start: Instant,
+    length: Duration,
 }
 
 impl Fade {
     fn new(from: f32, to: f32, start: Instant) -> Self {
-        Self { from, to, start }
+        Self::over(from, to, start, FADE)
+    }
+
+    fn over(from: f32, to: f32, start: Instant, length: Duration) -> Self {
+        Self {
+            from,
+            to,
+            start,
+            length,
+        }
     }
 
     fn opacity(&self, now: Instant) -> f32 {
-        let t = now.saturating_duration_since(self.start).as_secs_f32() / FADE.as_secs_f32();
+        if self.done(now) {
+            return self.to;
+        }
+        let t = now.saturating_duration_since(self.start).as_secs_f32() / self.length.as_secs_f32();
         self.from + (self.to - self.from) * t.clamp(0.0, 1.0)
     }
 
     fn done(&self, now: Instant) -> bool {
-        now >= self.start + FADE
+        now >= self.start + self.length
+    }
+}
+
+/// The ambient light's toggle fade (research R2): 0 to 1 and back over [`glow::FADE`], towards
+/// [`Scene::ambient`]. A turn from halfway takes half the time.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct Toggle {
+    on: bool,
+    fade: Option<Fade>,
+}
+
+impl Toggle {
+    fn level(&self, now: Instant) -> f32 {
+        self.fade
+            .map_or(if self.on { 1.0 } else { 0.0 }, |fade| fade.opacity(now))
+    }
+
+    /// Turns towards `on` from where the fade is at `now`.
+    fn set(&mut self, on: bool, now: Instant) {
+        if on == self.on {
+            return;
+        }
+        let from = self.level(now);
+        let to = if on { 1.0 } else { 0.0 };
+        self.on = on;
+        self.fade = Some(Fade::over(from, to, now, glow::FADE.mul_f32((to - from).abs())));
+    }
+
+    /// The level at `now`; a fade that reached its end goes.
+    fn step(&mut self, now: Instant) -> f32 {
+        let level = self.level(now);
+        if self.fade.is_some_and(|fade| fade.done(now)) {
+            self.fade = None;
+        }
+        level
+    }
+
+    fn fading(&self) -> bool {
+        self.fade.is_some()
     }
 }
 
@@ -595,6 +676,8 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
     // The video's fade, the session of the frame on the GPU (a frame of another one fades in) and
     // the last present (fade steps with no video frame come one refresh apart).
     let mut fade: Option<Fade> = None;
+    // The ambient light's toggle fade.
+    let mut toggle = Toggle::default();
     let mut video_session: Option<u64> = None;
     let mut last_present: Option<Instant> = None;
     // A language switch's UI image was uploaded then: its present ends the switch's last stage.
@@ -664,7 +747,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
                 }
                 // A fade or flash step is due like a UI change: on the next video frame when one
                 // is near. A flash runs until a present after its end has cleared it.
-                let animating = fade.is_some() || state.flash_at.is_some();
+                let animating = fade.is_some() || state.flash_at.is_some() || toggle.fading();
                 let step = fade_step(state.refresh);
                 let next_step = last_present.map(|at| at + step).filter(|_| animating);
                 let fade_due = animating && next_step.is_none_or(|at| now >= at);
@@ -762,9 +845,9 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         if let Some(ui) = ui {
             let start = Instant::now();
             gpu.set_ui(&ui);
-            stats.ui_image(ui.draw_ms);
+            let ms = start.elapsed().as_secs_f64() * 1e3;
+            stats.ui_image(ui.draw_ms, ms);
             if ui.language {
-                let ms = start.elapsed().as_secs_f64() * 1e3;
                 crate::present_log::stage(Stage::Upload, ms, lines);
                 language_upload = Some(Instant::now());
             }
@@ -793,6 +876,9 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
             times
         });
         let opacity = fade.map_or(1.0, |f| f.opacity(now));
+        toggle.set(scene.ambient, now);
+        let ambient = toggle.step(now);
+        let scene = scene.faded(ambient);
         if let Some(done) = fade.filter(|f| f.done(now)) {
             fade = None;
             if done.to == 0.0 {
@@ -804,7 +890,7 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
         // Read after the frame's hand-off above, so a flash starts on this very present.
         let flash_at = inbox.lock().flash_at;
         let flash = flash_at.map_or(0.0, |at| flash_opacity(now.saturating_duration_since(at)));
-        if gpu.render(acquired, &scene, opacity, flash) {
+        if gpu.render(acquired, &scene, opacity, flash, ambient) {
             if repeat {
                 stats.repeated();
             }
@@ -820,6 +906,11 @@ fn run(mut gpu: gpu::Gpu, inbox: &Inbox, process_start: Option<Instant>, lines: 
             }
             if let Some((captured, ready)) = times {
                 stats.presented(captured, ready, Instant::now());
+            }
+            // After the present, from the frame it showed (research R1): the next present draws
+            // the result. With the ambient light off and faded out nothing runs.
+            if times.is_some() && (scene.ambient || ambient > 0.0) && gpu.update_glow(&scene, Instant::now()) {
+                stats.glow_updated();
             }
             // After the first frame is on screen, so loading the GPU library does not delay it.
             if times.is_some() && wants_performance && performance.is_none() {
@@ -910,6 +1001,31 @@ mod tests {
     }
 
     #[test]
+    fn the_ambient_toggle_fades_in_250_ms_and_turns_from_where_it_is() {
+        let start = Instant::now();
+        let ms = |v: u64| start + Duration::from_millis(v);
+        let mut toggle = Toggle::default();
+        assert_eq!(toggle.step(start), 0.0);
+        // The same setting again starts nothing.
+        toggle.set(false, start);
+        assert!(!toggle.fading());
+        toggle.set(true, start);
+        assert!(toggle.fading());
+        assert!((toggle.step(ms(125)) - 0.5).abs() < 1e-3);
+        // Turned off halfway: back to 0 in half the time.
+        toggle.set(false, ms(125));
+        assert!((toggle.step(ms(125)) - 0.5).abs() < 1e-3);
+        assert!((toggle.step(ms(187)) - 0.252).abs() < 1e-2);
+        assert_eq!(toggle.step(ms(250)), 0.0);
+        assert!(!toggle.fading(), "the ended fade goes");
+        // On again: 1 after the whole fade, and stays there.
+        toggle.set(true, ms(300));
+        assert_eq!(toggle.step(ms(550)), 1.0);
+        assert!(!toggle.fading());
+        assert_eq!(toggle.step(ms(5000)), 1.0);
+    }
+
+    #[test]
     fn the_flash_rises_in_40_ms_and_falls_in_400() {
         let at = |ms| flash_opacity(Duration::from_millis(ms));
         assert_eq!(at(0), 0.0);
@@ -923,12 +1039,34 @@ mod tests {
     }
 
     #[test]
+    fn an_ambient_shadow_follows_the_toggle_and_others_do_not() {
+        let scene = |shadow_ambient| Scene {
+            video: [0.0; 5],
+            backdrop: [0.0; 3],
+            watermark: [0.0; 4],
+            shadow: [1.5, 0.5],
+            shadow_ambient,
+            ambient: true,
+            ambient_intensity: 1.0,
+            size: (1280, 720),
+        };
+        assert_eq!(scene(true).faded(0.0).shadow, [1.5, 0.0]);
+        assert_eq!(scene(true).faded(0.5).shadow, [1.5, 0.25]);
+        assert_eq!(scene(true).faded(1.0), scene(true));
+        // Always (and Off, strength 0) does not fade with the ambient light.
+        assert_eq!(scene(false).faded(0.0), scene(false));
+    }
+
+    #[test]
     fn a_hold_ends_with_a_scene_of_another_size() {
         let scene = |size| Scene {
             video: [0.0; 5],
             backdrop: [0.0; 3],
             watermark: [0.0; 4],
             shadow: [1.0, 0.0],
+            shadow_ambient: false,
+            ambient: false,
+            ambient_intensity: 1.0,
             size,
         };
         let inbox = Inbox::default();
@@ -945,6 +1083,45 @@ mod tests {
         assert!(inbox.lock().hold.is_some());
         inbox.send_ui(None, scene((1280, 720)));
         assert!(inbox.lock().hold.is_none());
+    }
+
+    #[test]
+    fn a_ui_image_not_yet_uploaded_hands_its_region_to_the_next() {
+        let image = |(width, height), dirty| UiImage {
+            pixels: Arc::from(vec![0u8; (width * height * 4) as usize]),
+            width,
+            height,
+            dirty,
+            draw_ms: 0.0,
+            language: false,
+        };
+        let scene = |size| Scene {
+            video: [0.0; 5],
+            backdrop: [0.0; 3],
+            watermark: [0.0; 4],
+            shadow: [1.0, 0.0],
+            shadow_ambient: false,
+            ambient: false,
+            ambient_intensity: 1.0,
+            size,
+        };
+        let dirty = |inbox: &Inbox| inbox.lock().ui.as_ref().map(|ui| ui.dirty);
+        let inbox = Inbox::default();
+        inbox.send_ui(Some(image((100, 50), [10, 10, 20, 5])), scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([10, 10, 20, 5]));
+        // Replaced before the upload: both regions go up.
+        inbox.send_ui(Some(image((100, 50), [60, 40, 30, 10])), scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([10, 10, 80, 40]));
+        // A scene alone keeps the waiting image.
+        inbox.send_ui(None, scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([10, 10, 80, 40]));
+        // Taken (uploaded): the next image keeps its own region.
+        inbox.lock().ui.take();
+        inbox.send_ui(Some(image((100, 50), [0, 0, 1, 1])), scene((100, 50)));
+        assert_eq!(dirty(&inbox), Some([0, 0, 1, 1]));
+        // A smaller image: the merged region stays inside it.
+        inbox.send_ui(Some(image((40, 30), [0, 0, 40, 30])), scene((40, 30)));
+        assert_eq!(dirty(&inbox), Some([0, 0, 40, 30]));
     }
 
     fn feed(session: u64, fps: f64) -> Feed {
@@ -1005,6 +1182,9 @@ mod tests {
                 backdrop: [0.0; 3],
                 watermark: [0.0; 4],
                 shadow: [1.0, 0.0],
+                shadow_ambient: false,
+                ambient: false,
+                ambient_intensity: 1.0,
                 size: (1280, 720),
             },
         );

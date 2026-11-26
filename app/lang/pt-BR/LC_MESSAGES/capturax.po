@@ -41,6 +41,12 @@ msgstr "Tela cheia (F11)"
 msgid "Exit fullscreen (F11)"
 msgstr "Sair da tela cheia (F11)"
 
+msgid "Ambient light"
+msgstr "Luz ambiente"
+
+msgid "Ambient light intensity"
+msgstr "Intensidade da luz ambiente"
+
 msgid "Settings"
 msgstr "Configurações"
 
@@ -124,6 +130,15 @@ msgstr "Nenhuma fonte"
 
 msgid "Choose device"
 msgstr "Escolher dispositivo"
+
+msgid "Preview hidden"
+msgstr "Preview oculto"
+
+msgid "Hide preview"
+msgstr "Ocultar preview"
+
+msgid "Show preview"
+msgstr "Mostrar preview"
 
 msgid "Color range"
 msgstr "Faixa de cor"
@@ -257,6 +272,9 @@ msgstr "Seguir o monitor"
 msgid "Only matters with variable refresh (G-SYNC, FreeSync)"
 msgstr "Só faz diferença com taxa de atualização variável (G-SYNC, FreeSync)"
 
+msgid "Info bubbles"
+msgstr "Bolhas de informação"
+
 msgid "Latency"
 msgstr "Latência"
 
@@ -283,6 +301,12 @@ msgstr "Nominal"
 
 msgid "Display"
 msgstr "Exibição"
+
+msgid "Pin"
+msgstr "Fixar"
+
+msgid "Unpin"
+msgstr "Desafixar"
 
 msgid "Resolution"
 msgstr "Resolução"

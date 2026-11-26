@@ -11,9 +11,11 @@ use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{Key, NamedKey};
 use winit::monitor::MonitorHandle;
-use winit::window::{Fullscreen, ResizeDirection, Window, WindowId};
+use winit::window::{CursorIcon, Fullscreen, ResizeDirection, Window, WindowId};
 
+use crate::bubbles;
 use crate::cli::StartupOptions;
+use crate::cursor::GrabCursors;
 use crate::frame::{self, Escape};
 use crate::i18n;
 use crate::icon;
@@ -77,6 +79,8 @@ pub enum UserEvent {
     TryAgain,
     /// The right dock's screenshot button (screenshot FR-011).
     Screenshot,
+    /// The preview button (preview extras FR-006): hides the preview, or shows it while hidden.
+    PreviewToggled,
     /// An event notice's button (device FR-027, screenshot FR-008), in the app's balloon or on a
     /// system notification (`system`), which also brings the window back: the action's tag
     /// ([`NoticeAction`]).
@@ -114,6 +118,8 @@ pub enum UserEvent {
     FolderUi(FolderUi),
     /// The wheel over the volume button, in logical pixels (preview audio FR-011).
     VolumeWheel(f32),
+    /// The wheel over the ambient light button, in logical pixels (preview extras FR-001a).
+    AmbientWheel(f32),
     /// A row of the Audio menu, by index (preview audio FR-008, FR-009).
     AudioPicked(i32),
     /// An endpoint's Exclusive box in the settings panel (preview audio FR-014).
@@ -142,8 +148,15 @@ const WATERMARK_OPACITY: f32 = 0.06;
 struct Backdrop {
     black: bool,
     watermark: bool,
-    /// The shadow is drawn (Always; With ambient light draws none until spec #6).
+    /// The shadow is drawn: Always, or With ambient light (the video thread fades it with the
+    /// ambient light, preview extras FR-005).
     shadow: bool,
+    /// The shadow is With ambient light.
+    shadow_ambient: bool,
+    /// The ambient light is on (preview extras FR-001).
+    ambient: bool,
+    /// The ambient light's intensity in percent (FR-001a).
+    ambient_intensity: u8,
 }
 
 impl From<&settings::Preview> for Backdrop {
@@ -151,7 +164,10 @@ impl From<&settings::Preview> for Backdrop {
         Self {
             black: p.background == settings::Background::Black,
             watermark: p.watermark,
-            shadow: p.shadow == settings::Shadow::Always,
+            shadow: p.shadow != settings::Shadow::Off,
+            shadow_ambient: p.shadow == settings::Shadow::Ambient,
+            ambient: p.ambient,
+            ambient_intensity: p.ambient_intensity,
         }
     }
 }
@@ -198,10 +214,26 @@ pub enum SettingChange {
     LatencyDisplay(settings::LatencyDisplay),
     FpsDisplay(settings::FpsDisplay),
     ModeDisplay(settings::ModeDisplay),
+    /// A bubble pinned or unpinned (preview extras FR-015), from its Pin toggle or menu item.
+    BubblePin(settings::BubbleKind),
+    /// A bubble dragged to a corner, at an index of that corner's list (preview extras FR-015).
+    BubbleMoved {
+        kind: settings::BubbleKind,
+        corner: usize,
+        index: usize,
+    },
+    /// The Info bubbles row's Reset (preview extras FR-016).
+    BubblesReset,
     /// The preview's volume (0–100) and mute, from the volume button (preview audio FR-011).
     Volume {
         level: u8,
         muted: bool,
+    },
+    /// The ambient light on or off and its intensity (0–100), from its dock button (preview
+    /// extras FR-001, FR-001a).
+    Ambient {
+        intensity: u8,
+        on: bool,
     },
 }
 
@@ -250,6 +282,10 @@ pub struct App {
     /// The next tick, and the wall clock at the last one (a wake from sleep); `None` before the
     /// first, so a slow start is not taken for a sleep.
     tick_at: Instant,
+    /// When a new source's bubbles may show: after the video's fade-in (preview extras FR-017).
+    info_at: Option<Instant>,
+    /// The source's first second with frames came: its bubbles show, all four together.
+    info_ready: bool,
     tick_wall: Option<SystemTime>,
     /// The screenshots under way (data-model.md "Screenshot request").
     screenshots: crate::screenshot::Screenshots,
@@ -288,6 +324,10 @@ pub struct App {
     monitor: Option<MonitorHandle>,
     /// The edge or corner under the pointer, where a press resizes the window.
     resize: Option<ResizeDirection>,
+    /// The pointer's shape last set on the window; None after the window or the hands changed.
+    cursor: Option<CursorIcon>,
+    /// The app's own grab hands for the window's scale, where the system has none.
+    grab_cursors: Option<GrabCursors>,
     /// The window moved or resized since the placement was last saved.
     placement_changed: bool,
     /// The video thread holds its presents until the next size reaches it
@@ -327,6 +367,8 @@ pub struct App {
     sound: Option<Sound>,
     /// The wheel's moves over the volume button not yet a whole notch.
     volume_wheel: crate::audio::Wheel,
+    /// The same over the ambient light button (preview extras FR-001a).
+    ambient_wheel: crate::audio::Wheel,
     proxy: EventLoopProxy<UserEvent>,
     pub exit_code: i32,
 }
@@ -375,6 +417,8 @@ impl App {
         let on = send.clone();
         ui.app.on_screenshot(move || on(UserEvent::Screenshot));
         let on = send.clone();
+        ui.app.on_preview_toggled(move || on(UserEvent::PreviewToggled));
+        let on = send.clone();
         ui.app.on_event_notice_action(move |tag| {
             on(UserEvent::NoticeAction {
                 tag: tag.into(),
@@ -385,6 +429,23 @@ impl App {
         ui.app.set_latency_display(latency::latency_index(overlay.latency));
         ui.app.set_fps_display(latency::fps_index(overlay.fps));
         ui.app.set_mode_display(latency::mode_index(overlay.mode));
+        show_arrangement(&ui.app, &overlay.bubbles);
+        let on = send.clone();
+        ui.app.on_bubble_pin_toggled(move |index| {
+            if let Some(kind) = bubbles::kind_at(index) {
+                on(UserEvent::Setting(SettingChange::BubblePin(kind)));
+            }
+        });
+        let on = send.clone();
+        ui.app.on_bubble_moved(move |kind, corner, index| {
+            let (Some(kind), Ok(corner), Ok(index)) =
+                (bubbles::kind_at(kind), usize::try_from(corner), usize::try_from(index))
+            else {
+                log::warn!("bubble move to corner {corner} at {index} ignored");
+                return;
+            };
+            on(UserEvent::Setting(SettingChange::BubbleMoved { kind, corner, index }));
+        });
         let on = send.clone();
         ui.app.on_latency_display_changed(move |index| {
             on(UserEvent::Setting(SettingChange::LatencyDisplay(
@@ -416,6 +477,19 @@ impl App {
                 muted,
             }));
         });
+        // The ambient light shows at start; the scene carries it (preview extras FR-001).
+        ui.app.set_ambient(store.get().preview.ambient);
+        ui.app
+            .set_ambient_intensity(i32::from(store.get().preview.ambient_intensity));
+        let on = send.clone();
+        ui.app.on_ambient_changed(move |intensity, v| {
+            on(UserEvent::Setting(SettingChange::Ambient {
+                intensity: intensity.clamp(0, 100) as u8,
+                on: v,
+            }));
+        });
+        let on = send.clone();
+        ui.app.on_ambient_wheel(move |delta| on(UserEvent::AmbientWheel(delta)));
         let on = send.clone();
         ui.app.on_volume_wheel(move |delta| on(UserEvent::VolumeWheel(delta)));
         let on = send.clone();
@@ -424,6 +498,7 @@ impl App {
         // The Presentation setting reaches the video thread before it starts (FR-022).
         let inbox = Arc::new(Inbox::default());
         inbox.set_presentation(store.get().preview.presentation);
+        let preview_hidden = store.get().preview.hidden;
         Self {
             options,
             process_start,
@@ -440,7 +515,8 @@ impl App {
             window_gone: false,
             reopen_fullscreen: false,
             test_video: None,
-            preview: Preview::with_access(camera_access),
+            // Hidden by the user before: no device opens until shown (preview extras FR-011).
+            preview: Preview::with_access(camera_access, preview_hidden),
             menus: None,
             audio_menus: None,
             monitor_devices: None,
@@ -448,6 +524,8 @@ impl App {
             relisting: None,
             relist_queued: None,
             tick_at: Instant::now(),
+            info_at: None,
+            info_ready: false,
             screenshots: Default::default(),
             screenshot_at,
             screenshot_worker: None,
@@ -467,6 +545,8 @@ impl App {
             monitor_refresh: None,
             monitor: None,
             resize: None,
+            cursor: None,
+            grab_cursors: None,
             placement_changed: false,
             awaiting_size: false,
             leave_fullscreen_at: None,
@@ -481,6 +561,7 @@ impl App {
             system_theme: None,
             sound,
             volume_wheel: crate::audio::Wheel::default(),
+            ambient_wheel: crate::audio::Wheel::default(),
             proxy: sender,
             exit_code: 0,
         }
@@ -541,6 +622,7 @@ impl App {
         let after = self.preview.state();
         if after != before {
             log::info!("preview state {before:?} -> {after:?} ({reason})");
+            self.info_at = (after == PreviewState::Playing).then(|| Instant::now() + crate::render::FADE);
         }
         if self.preview.waiting() && !was_waiting {
             // The first re-read comes a full period after the state's own (no reopen loop faster
@@ -620,10 +702,19 @@ impl App {
     /// Shows the device and mode menus when they changed (a device came or left, another one
     /// opened, a stored choice changed); an open menu follows at once (spec edge case).
     fn show_menus(&mut self) {
-        // The Audio menu follows the open video device.
+        // The Audio menu follows the open video device, or while hidden the one showing would
+        // open (preview extras FR-010a).
+        let chosen = self.preview.hidden_device().cloned();
+        if let Some(sound) = &mut self.sound {
+            sound.video_chosen(chosen.as_ref(), &self.store.get());
+        }
         self.show_audio();
         let menus = self.preview.menus(&self.store.get());
         self.ui.app.set_modes_reachable(self.preview.modes_reachable());
+        // The range belongs to the open device, or while hidden to the one showing would open.
+        self.ui
+            .app
+            .set_device_open(self.preview.device().is_some() || chosen.is_some());
         self.ui
             .app
             .set_device_missing(self.preview.missing_name().unwrap_or_default().into());
@@ -647,6 +738,24 @@ impl App {
         app.set_devices(model(&menus.0));
         app.set_modes(model(&menus.1));
         self.menus = Some(menus);
+        if self.preview.preview_hidden() {
+            // The device showing would open changed, and its stored range with it.
+            self.show_range();
+        }
+        self.request_redraw();
+    }
+
+    /// Shows the color range of the toolbar's device.
+    fn show_range(&mut self) {
+        let (choice, in_use) = self.preview.range(&self.store.get());
+        let app = &self.ui.app;
+        app.set_color_range(match choice {
+            capture::RangeChoice::Auto => 0,
+            capture::RangeChoice::Full => 1,
+            capture::RangeChoice::Limited => 2,
+        });
+        app.set_range_full(in_use == Some(capture::Range::Full));
+        app.set_range_known(in_use.is_some());
         self.request_redraw();
     }
 
@@ -861,6 +970,7 @@ impl App {
                 self.store
                     .update(|s| s.touch_device(&id, &name).mode = choice.to_string());
             }
+            Command::SaveHidden(hidden) => self.store.update(|s| s.preview.hidden = hidden),
             Command::SetRange(range) => {
                 if let Some((session, _)) = &self.session {
                     session.set_range(range);
@@ -870,17 +980,7 @@ impl App {
                 self.store
                     .update(|s| s.touch_device(&id, &name).color_range = preview::color_range(range));
             }
-            Command::ShowRange => {
-                let (choice, in_use) = self.preview.range();
-                let app = &self.ui.app;
-                app.set_color_range(match choice {
-                    capture::RangeChoice::Auto => 0,
-                    capture::RangeChoice::Full => 1,
-                    capture::RangeChoice::Limited => 2,
-                });
-                app.set_range_full(in_use == Some(capture::Range::Full));
-                self.request_redraw();
-            }
+            Command::ShowRange => self.show_range(),
             Command::ShowState => self.show_preview_state(),
             Command::Notice {
                 kind,
@@ -1247,21 +1347,28 @@ impl App {
             | PreviewState::Disconnected(id)
             | PreviewState::NoSignal(id)
             | PreviewState::Failed(id) => self.preview.name(id),
-            PreviewState::NoDevices | PreviewState::Playing | PreviewState::NoSource => String::new(),
+            PreviewState::NoDevices | PreviewState::Playing | PreviewState::NoSource | PreviewState::Hidden => {
+                String::new()
+            }
         };
         let (id, title, detail) =
             crate::ui::state_message(&state, &name, platform::IS_WINDOWS, &Texts::get(&self.ui.app));
-        // Before the monitor's first list the video area waits as when opening (no message).
-        let id = if !self.preview.listed() && self.monitor_devices.is_some() {
+        // Before the monitor's first list the video area waits as when opening (no message),
+        // unless the user hid the preview: that state shows at once (preview extras FR-011).
+        let id = if !self.preview.listed() && self.monitor_devices.is_some() && !self.preview.preview_hidden() {
             "opening"
         } else {
             id
         };
         let app = &self.ui.app;
-        app.set_device_open(self.preview.device().is_some());
+        let button = preview::preview_button(&state, self.preview.preview_hidden());
+        app.set_preview_hidden(button.icon == preview::PreviewIcon::Hidden);
+        app.set_preview_enabled(button.enabled);
         app.set_preview_state(id.into());
         app.set_state_title(title.into());
         app.set_state_detail(detail.into());
+        // The range is named only while video shows (preview extras FR-010b).
+        self.show_range();
         self.show_info();
         // The audio state hides behind a video state (FR-018).
         self.show_audio();
@@ -1273,8 +1380,11 @@ impl App {
     fn show_info(&mut self) {
         let app = &self.ui.app;
         let texts = Texts::get(app);
-        let playing = self.preview.state() == PreviewState::Playing;
-        let source = self.source.as_ref().filter(|_| playing);
+        // After the video's fade-in, and with the first second's frame rate and latency, so the
+        // four bubbles slide in together (preview extras FR-017).
+        let playing = self.preview.state() == PreviewState::Playing && self.info_at.is_none();
+        self.info_ready |= playing && self.second.latency_ms.is_some();
+        let source = self.source.as_ref().filter(|_| playing && self.info_ready);
         let (name, size, tag, tag_kind, aspect) = source.map_or_else(Default::default, |s| {
             let tags = s.mode.tags();
             let (tag, kind) = match tags.name {
@@ -1339,6 +1449,7 @@ impl App {
         self.source = None;
         // The next device's bubbles wait for its own first second.
         self.second = crate::stats::Summary::EMPTY;
+        self.info_ready = false;
         if let Some((session, _)) = self.session.take() {
             let number = session.id();
             session.close();
@@ -1375,7 +1486,7 @@ impl App {
         self.preview_event(preview::Event::Session { session, event });
         // The session sends the range in use right after `Playing` and on each change.
         if let (Some(range), true) = (range, self.options.stats) {
-            let auto = self.preview.range().0 == capture::RangeChoice::Auto;
+            let auto = self.preview.range(&self.store.get()).0 == capture::RangeChoice::Auto;
             if let Some(line) = self.source.as_ref().and_then(|s| s.line(range, auto)) {
                 crate::render::print_stats(&line);
             }
@@ -1552,7 +1663,8 @@ impl App {
     }
 
     /// The shadow's strength: half on the light theme's ground, where a black shadow looks dirty;
-    /// none when off (With ambient light draws none until the ambient light exists, spec #6).
+    /// none when off. With ambient light it is the full strength: the video thread multiplies it
+    /// by the ambient light's toggle fade (`Scene.shadow_ambient`, preview extras FR-005).
     fn shadow_strength(&self) -> f32 {
         if !self.backdrop.shadow {
             0.0
@@ -1569,6 +1681,18 @@ impl App {
         self.backdrop = Backdrop::from(&self.store.get().preview);
         self.ui.app.set_video_black(self.backdrop.black);
         self.request_redraw();
+    }
+
+    /// Saves and shows the ambient light's state and intensity (FR-001, FR-001a); the next scene
+    /// carries them.
+    fn set_ambient(&mut self, intensity: u8, on: bool) {
+        self.store.update(|s| {
+            s.preview.ambient = on;
+            s.preview.ambient_intensity = intensity;
+        });
+        self.ui.app.set_ambient(on);
+        self.ui.app.set_ambient_intensity(i32::from(intensity));
+        self.apply_backdrop();
     }
 
     fn request_redraw(&self) {
@@ -1667,6 +1791,9 @@ impl App {
             },
             watermark: self.watermark(),
             shadow: [self.ui.scale(), self.shadow_strength()],
+            shadow_ambient: self.backdrop.shadow_ambient,
+            ambient: self.backdrop.ambient,
+            ambient_intensity: f32::from(self.backdrop.ambient_intensity) / 100.0,
             size: (size.width, size.height),
         };
         if image.is_some() || self.scene != Some(scene) {
@@ -1680,6 +1807,9 @@ impl App {
             self.last_ui = Instant::now();
         }
         self.sync_snap_button();
+        if let Some(w) = self.window.clone() {
+            self.update_cursor(&w);
+        }
     }
 
     /// Hands the maximize button's rectangle, as just laid out, to the snap layouts flyout
@@ -1773,10 +1903,32 @@ impl App {
     }
 
     fn set_resize(&mut self, w: &Window, direction: Option<ResizeDirection>) {
-        if direction != self.resize {
-            self.resize = direction;
-            w.set_cursor(frame::cursor(direction));
+        self.resize = direction;
+        self.update_cursor(w);
+    }
+
+    /// Sets the pointer's shape from the resize edge and the UI's `pointer-cursor` (the bubbles'
+    /// grab hands, research R8), which Slint does not pass to the window. After each pointer event
+    /// and each UI update, so a change from a timer (the chrome hiding) is seen too.
+    fn update_cursor(&mut self, w: &Window) {
+        let cursor = frame::cursor(self.resize, self.ui.app.get_pointer_cursor());
+        if Some(cursor) != self.cursor {
+            self.cursor = Some(cursor);
+            match self.grab_cursors.as_ref().and_then(|c| c.pick(cursor)) {
+                Some(own) => w.set_cursor(own),
+                None => w.set_cursor(cursor),
+            }
         }
+    }
+
+    /// Makes the app's grab hands for the window's scale when it changed (none where the system
+    /// draws its own), so the next `update_cursor` sets the shape again.
+    fn make_grab_cursors(&mut self, event_loop: &ActiveEventLoop, scale: f64) {
+        if self.grab_cursors.as_ref().is_some_and(|c| c.scale() == scale) {
+            return;
+        }
+        self.grab_cursors = GrabCursors::new(event_loop, scale);
+        self.cursor = None;
     }
 
     /// The window's own keys, before Slint sees them: F11 and Esc (FR-007). Returns true when the
@@ -1871,6 +2023,8 @@ impl App {
         self.ui.set_scale(window.scale_factor() as f32);
         self.ui.set_size(platform::drawn_size(&window));
         platform::follow_dpi_rect(&window);
+        self.cursor = None;
+        self.make_grab_cursors(event_loop, window.scale_factor());
         let proxy = self.proxy.clone();
         self.snap = Some(snap::attach(&window, move |event| {
             let _ = proxy.send_event(UserEvent::Snap(event));
@@ -2042,6 +2196,8 @@ fn bind_prefs(ui: &Ui, store: &settings::Store, send: impl Fn(UserEvent) + Clone
     });
     let on = send.clone();
     prefs.on_watermark_changed(move |v| on(UserEvent::Setting(SettingChange::Watermark(v))));
+    let on = send.clone();
+    prefs.on_bubbles_reset(move || on(UserEvent::Setting(SettingChange::BubblesReset)));
     let on = send.clone();
     prefs.on_shadow_changed(move |index| {
         let shadow = match index {
@@ -2215,10 +2371,13 @@ impl ApplicationHandler<UserEvent> for App {
                 sound.start();
             }
         }
-        // The test video plays at once; else the video area waits as when opening until the
-        // monitor's first list (main.slint's initial state).
+        // The test video plays at once; a preview hidden by the user shows its state at once
+        // (preview extras FR-011); else the video area waits as when opening until the monitor's
+        // first list (main.slint's initial state).
         if self.test_video.is_some() {
             self.ui.app.set_preview_state("playing".into());
+        } else if self.preview.preview_hidden() {
+            self.show_preview_state();
         }
         self.window = Some(window.clone());
         self.start_hotkeys();
@@ -2252,6 +2411,10 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+        // Slint starts an animation at its clock's time when a property changes, and the clock
+        // moves only when timers are updated: after the app was idle it is old, so a change made
+        // here would start an animation already partly or fully over. Move it to now first.
+        self.ui.update_timers();
         match event {
             UserEvent::Window(action) => self.act(event_loop, action),
             UserEvent::TryAgain => self.preview_event(preview::Event::TryAgain),
@@ -2259,6 +2422,11 @@ impl ApplicationHandler<UserEvent> for App {
                 log::info!("screenshot: dock button");
                 self.request_screenshot();
             }
+            UserEvent::PreviewToggled => self.preview_event(if self.preview.preview_hidden() {
+                preview::Event::ShowPreview
+            } else {
+                preview::Event::HidePreview
+            }),
             UserEvent::NoticeAction { tag, system } => match NoticeAction::from_tag(&tag) {
                 NoticeAction::Open(device) => {
                     // Chosen before the window shows: while hidden, the preview opens it when shown.
@@ -2308,6 +2476,8 @@ impl ApplicationHandler<UserEvent> for App {
                     self.store.update(|s| s.preview.shadow = shadow);
                     self.apply_backdrop();
                 }
+                // The next scene carries it; the video thread fades the glow (FR-001, FR-002).
+                SettingChange::Ambient { intensity, on } => self.set_ambient(intensity, on),
                 // Applies at once, without reopening the device (FR-022).
                 SettingChange::Presentation(presentation) => {
                     self.store.update(|s| s.preview.presentation = presentation);
@@ -2323,6 +2493,20 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 // The bubble shows its tags itself; only the setting is stored.
                 SettingChange::ModeDisplay(display) => self.store.update(|s| s.overlay.mode = display),
+                // Saved at once; the layout takes the new arrays (FR-016).
+                SettingChange::BubblePin(kind) => {
+                    self.store.update(|s| bubbles::toggle_pin(&mut s.overlay.bubbles, kind));
+                    show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
+                }
+                SettingChange::BubbleMoved { kind, corner, index } => {
+                    self.store
+                        .update(|s| bubbles::move_to(&mut s.overlay.bubbles, kind, corner, index));
+                    show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
+                }
+                SettingChange::BubblesReset => {
+                    self.store.update(|s| bubbles::reset(&mut s.overlay));
+                    show_arrangement(&self.ui.app, &self.store.get().overlay.bubbles);
+                }
                 SettingChange::Volume { level, muted } => self.set_volume(level, muted),
                 SettingChange::KeepInTray(on) => {
                     self.store.update(|s| s.general.keep_in_tray = on);
@@ -2386,6 +2570,14 @@ impl ApplicationHandler<UserEvent> for App {
                     self.ui.app.set_volume(i32::from(moved));
                     self.ui.app.set_muted(false);
                     self.set_volume(moved, false);
+                }
+            }
+            // ±5 % a notch, turning the light on, as with the slider (FR-001a).
+            UserEvent::AmbientWheel(delta) => {
+                let notches = self.ambient_wheel.notches(delta);
+                if notches != 0 {
+                    let intensity = self.store.get().preview.ambient_intensity;
+                    self.set_ambient(::audio::volume::wheel(intensity, notches), true);
                 }
             }
             UserEvent::ColorRange(index) => {
@@ -2458,6 +2650,10 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // Slint starts an animation at its clock's time when a property changes, and the clock
+        // moves only when timers are updated: after the app was idle it is old, so a change made
+        // here would start an animation already partly or fully over. Move it to now first.
+        self.ui.update_timers();
         match event {
             WindowEvent::CloseRequested => self.close(event_loop),
             WindowEvent::Focused(focused) => {
@@ -2493,6 +2689,7 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::ThemeChanged(theme) => self.system_theme_changed(Some(theme.into())),
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.ui.set_scale(scale_factor as f32);
+                self.make_grab_cursors(event_loop, scale_factor);
                 self.request_redraw();
             }
             WindowEvent::Moved(_) => {
@@ -2542,13 +2739,13 @@ impl ApplicationHandler<UserEvent> for App {
                 self.request_redraw();
             }
             WindowEvent::CursorMoved { position, .. } => {
+                if self.ui.window_event(&event) {
+                    self.request_redraw();
+                }
                 if let Some(w) = self.window.clone() {
                     let resizable = !w.is_maximized() && w.fullscreen().is_none();
                     let direction = frame::resize_direction(self.ui.size(), w.scale_factor(), position, resizable);
                     self.set_resize(&w, direction);
-                }
-                if self.ui.window_event(&event) {
-                    self.request_redraw();
                 }
             }
             WindowEvent::MouseInput {
@@ -2563,8 +2760,15 @@ impl ApplicationHandler<UserEvent> for App {
                 }
             }
             other => {
+                let pointer = matches!(
+                    other,
+                    WindowEvent::MouseInput { .. } | WindowEvent::CursorLeft { .. } | WindowEvent::MouseWheel { .. }
+                );
                 if self.ui.window_event(&other) {
                     self.request_redraw();
+                }
+                if pointer && let Some(w) = self.window.clone() {
+                    self.update_cursor(&w);
                 }
             }
         }
@@ -2606,7 +2810,17 @@ impl ApplicationHandler<UserEvent> for App {
             wake = Some(wake.map_or(at, |w| w.min(at)));
         }
         let now = Instant::now();
+        if let Some(at) = self.info_at {
+            if now >= at {
+                self.info_at = None;
+                self.ui.update_timers();
+                self.show_info();
+            } else {
+                wake = Some(wake.map_or(at, |w| w.min(at)));
+            }
+        }
         if now >= self.tick_at {
+            self.ui.update_timers();
             self.tick(now);
         }
         if let (Some(at), Some(every)) = (self.screenshot_at, self.options.screenshot_every)
@@ -2674,4 +2888,13 @@ fn camera_access() -> capture::Access {
         platform::Access::Denied => capture::Access::Denied,
         platform::Access::Unknown => capture::Access::Unknown,
     }
+}
+
+/// Hands the bubbles' arrangement to the layout (preview extras research R6), at start and after
+/// each change.
+fn show_arrangement(app: &crate::ui::AppWindow, arrangement: &settings::Arrangement) {
+    let arrays = bubbles::slint_arrays(arrangement);
+    app.set_bubble_corner(slint::ModelRc::new(slint::VecModel::from_slice(&arrays.corner)));
+    app.set_bubble_rank(slint::ModelRc::new(slint::VecModel::from_slice(&arrays.rank)));
+    app.set_bubble_pinned(slint::ModelRc::new(slint::VecModel::from_slice(&arrays.pinned)));
 }

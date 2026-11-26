@@ -98,6 +98,13 @@ pub fn can_raise_window() -> bool {
     os::can_raise_window()
 }
 
+/// Whether the system has its own grab hands (preview extras FR-015, research R8): true on Linux,
+/// where the cursor theme draws `grab` and `grabbing`; false on Windows, which has none (winit
+/// shows the four-way arrow), so the app draws its own there.
+pub fn has_grab_cursors() -> bool {
+    os::has_grab_cursors()
+}
+
 /// What a system message is about; it sets the icon.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageKind {

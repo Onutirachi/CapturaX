@@ -2,7 +2,9 @@
 
 mod app;
 mod audio;
+mod bubbles;
 mod cli;
+mod cursor;
 mod frame;
 mod hotkeys;
 mod i18n;

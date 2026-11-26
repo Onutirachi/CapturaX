@@ -31,9 +31,11 @@ export component Toolbar inherits Raised {
     in-out property <int> mode;
     callback mode-picked(int);
     // Color range chosen: 0 Auto, 1 Full, 2 Limited; with Auto, `range-full` says which range is
-    // in use, shown in the button as "Auto (Full)" or "Auto (Limited)" (data-model.md).
+    // in use, shown in the button as "Auto (Full)" or "Auto (Limited)" (data-model.md), only with
+    // `range-known` (video shows); else "Auto" alone (preview extras FR-010b).
     in-out property <int> color-range;
     in property <bool> range-full;
+    in property <bool> range-known;
     callback color-range-changed(int);
     // The Audio menu (app/src/ui.rs builds it from app/src/audio.rs): the Input group while a
     // device is open, then the Output group, the choices in use checked; `audio-current` is the
@@ -112,7 +114,7 @@ export component Toolbar inherits Raised {
             focusable: root.focusable;
             items: [{ text: @tr("Auto") }, { text: @tr("Full") }, { text: @tr("Limited") }];
             current <=> root.color-range;
-            shown: root.color-range != 0 ? "" : root.range-full ? @tr("Auto (Full)") : @tr("Auto (Limited)");
+            shown: root.color-range != 0 || !root.range-known ? "" : root.range-full ? @tr("Auto (Full)") : @tr("Auto (Limited)");
             selected(index) => { root.color-range-changed(index); }
         }
 

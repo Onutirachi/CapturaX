@@ -41,6 +41,10 @@ pub fn user_config_folder() -> Option<PathBuf> {
     dirs::config_dir().map(|folder| folder.join(APP_ID))
 }
 
+pub fn has_grab_cursors() -> bool {
+    true
+}
+
 /// winit picks Wayland whenever a Wayland display is set, and X11 otherwise.
 pub fn can_raise_window() -> bool {
     let set = |var| std::env::var_os(var).is_some_and(|v| !v.is_empty());

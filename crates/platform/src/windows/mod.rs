@@ -89,6 +89,10 @@ pub fn can_raise_window() -> bool {
     true
 }
 
+pub fn has_grab_cursors() -> bool {
+    false
+}
+
 /// Windows raises a window with `focus_window`; no activation token is ever offered here.
 pub fn activate(_window: &Window, _token: &str) -> Result<bool, String> {
     Ok(false)
