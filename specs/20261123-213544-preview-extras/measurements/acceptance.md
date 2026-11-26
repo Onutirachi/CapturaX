@@ -125,3 +125,18 @@ settings file after.
 |---|---|---|
 | 17 | Both languages | Pass: Hide / Show preview, Preview hidden, Pin, Unpin, Info bubbles, Reset in English and pt-BR. The bulb shows no tooltip to the pointer: its popover opens at 300 ms, before the 500 ms tooltip, and replaces it, as the volume's since spec #5. "Ambient light" and "Ambient light intensity" are accessible labels only; the maintainer keeps it so (quickstart checks 1 and 17 now say it) |
 | 6 | Both themes, Background Theme and Black, watermark on | Pass in the four combinations: the glow under the watermark, the shadow and the video |
+
+## T031: languages and themes, CachyOS (RTX 3050, KDE Plasma Wayland), 2026-11-26
+
+The C920 on the CachyOS PC, release build of `4722e91`, window 1720 × 720, ambient light on. The
+agent ran the app over SSH (ydotool, spectacle screenshots) and the maintainer looked at the
+screenshots. The screenshots show the webcam and were deleted from the test PC; the settings file
+was restored after.
+
+| # | Check | Result |
+|---|---|---|
+| 17 | Both languages | Pass: Hide preview / Ocultar preview, Show preview / Mostrar preview, Preview hidden / Preview oculto, Pin / Fixar, Unpin / Desafixar, Info bubbles / Bolhas de informação, Reset / Restaurar |
+| 6 | Both themes, Background Theme and Black, watermark on | Pass in the four combinations: the glow under the watermark, the shadow and the video. The webcam's bright scene makes a light glow that nearly fills the bars, so Theme and Black look almost alike there |
+
+The theme's open grab hand (T024) shows over a bubble; the closed hand while dragging is still to
+look at during T029's CachyOS run.

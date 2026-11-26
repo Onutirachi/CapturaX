@@ -9,7 +9,7 @@ intensity popover. Left in US1: T009's 1080p120 runs. US2's button, "Preview hid
 while hidden are built and validated on Windows (T010–T013); no bubble while hidden (T014), the glow
 check (T015) and the acceptance on both systems (T016, T017) are done: US2 is complete. US3 has
 begun: the arrangement setting (T018), the partial UI upload (T019), the arrangement logic
-(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025), the pinned texts updating (T026) and the Reset row (T027) are built, and checked on Windows (T028). The ezcap and
+(T020), the layout per corner (T021), the Pin (T022), the drag (T023), the grab cursors (T024), the notices per corner (T025), the pinned texts updating (T026) and the Reset row (T027) are built, and checked on Windows (T028). Checks 17 and 6 pass on both systems (T031). The ezcap and
 the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Done in the last sessions
@@ -343,6 +343,11 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
   500 ms, and replaces it; "Ambient light intensity" is the slider's accessible label only. The
   maintainer keeps it so; quickstart checks 1 and 17 now say it. Settings restored from
   target/release/capturax.toml.before-t031.
+- 2026-11-26: T031 on CachyOS (measurements/acceptance.md): checks 17 and 6 pass, from
+  screenshots the agent took over SSH (C920, release `4722e91`) and the maintainer looked at. The
+  CachyOS clone is on a detached HEAD at 4722e91; its settings file was restored from
+  `~/capx/capturax.toml.before-t031` and the webcam screenshots deleted. The theme's open grab
+  hand shows over a bubble; the closed hand is still to look at.
 - Commits: the pacing folded into "add the ambient light glow math", the tuning into "tune the
   ambient light glow on the PS5" (both unmerged).
 
@@ -356,10 +361,10 @@ the PS5 are on the Windows PC; the C920 is on the CachyOS PC.
 
 ## Next step
 
-- T031 on CachyOS: screenshots of checks 17 (both languages) and 6 (both themes, Background Theme
-  and Black, watermark on) by the agent for the maintainer to look at.
+- T030: the docs (README, AGENTS.md "Status", docs/product.md, docs/roadmap.md).
 - US3 (bubbles): T029 on CachyOS at 1080p60 (latency run 3, ambient on, fps and latency pinned,
   controls hidden; Windows is done), when the ezcap moves there; 1080p120 with T009. An arrangement can be tried by editing `[overlay.bubbles]` in
   the settings file (with the app closed: it rewrites the file).
-- The grab cursors (T024) on CachyOS (theme hands) are still to look at, during T029's run there.
+- The grab cursors (T024) on CachyOS: the open hand is seen; the closed hand while dragging is
+  still to look at, during T029's run there.
 - T009: 1080p120 when a PS5 game with a 120 Hz mode runs (glass to glass is done).

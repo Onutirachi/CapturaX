@@ -137,7 +137,7 @@ latency budget.
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [ ] T030 [P] Docs: README (ambient light, hide preview, arranging the bubbles), AGENTS.md "Status", docs/product.md Spec column for F9, F10 and F42 and the "Hide preview and its audio" question moved out of "To reconsider" as decided (FR-012), docs/roadmap.md #6 done with its links
-- [ ] T031 (maintainer) quickstart check 17 (both languages) and check 6 (both themes, Background Theme and Black, watermark on) on Windows; CachyOS screenshots of the same by the agent for the maintainer to look at
+- [x] T031 (maintainer) quickstart check 17 (both languages) and check 6 (both themes, Background Theme and Black, watermark on) on Windows; CachyOS screenshots of the same by the agent for the maintainer to look at
 - [ ] T032 Handoff and acceptance summary in measurements/acceptance.md; the maintainer validates; the branch is ready for the pull request
 
 ---
